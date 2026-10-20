@@ -452,7 +452,8 @@ describe('mood vehicle quote API — admin/auth/audit invariants', () => {
 
   it('AI parser는 중앙 모델 resolver와 usage recorder를 함께 사용한다', () => {
     const source = readFileSync(resolve(process.cwd(), 'api/mood-quote-parse.js'), 'utf8');
-    expect(source).toMatch(/resolveGeminiModel\('classifier'\)/);
+    // LLM 공급자 전환 (2026-10-13): 중앙 resolver = 공용 어댑터 role 'classifier' (createLlmModel 이 공급자별 모델을 고른다)
+    expect(source).toMatch(/createLlmModel\([\s\S]*role: 'classifier'/);
     expect(source).toMatch(/recordUsageFromResponse\('mood-quote-parse'/);
     expect(source).not.toMatch(/computeMoodTotalKRW/);
   });

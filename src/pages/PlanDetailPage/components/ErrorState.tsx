@@ -35,7 +35,7 @@ interface ErrorStateProps {
 export function ErrorState({ language, t, onLanguageChange, ui }: ErrorStateProps) {
   const copy = resolveErrorStateCopy(language, ui);
   return (
-    <div className="ec-root min-h-screen" data-testid="plan-error-state">
+    <div className="ec-root plan-result-night min-h-screen" data-testid="plan-error-state">
       <Header language={language} t={t} onLanguageChange={onLanguageChange} />
       <PlanDocumentState
         kind="error"

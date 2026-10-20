@@ -25,11 +25,28 @@ const KRW = (n: number) => `₩${Math.round(n).toLocaleString('ko-KR')}`;
 // 차터 USD = 청구 공식 SSOT(lib/charterUsd) → 표시가==청구가. 반올림도 그쪽 한 곳에만 있다.
 const USD = (krw: number) => `≈ $${charterUsdFromKrw(krw).toLocaleString('en-US')}`;
 
+// 2026-10-18 P2: 포함/제외 뱃지 표시 라벨 (표시 전용). 키셋 = useQuoteCalculator includes/excludes.
+//   en 은 원래 키 그대로, 모르는 키도 원래 키 그대로 표시. quote 배열·key 는 건드리지 않는다.
+const INCLUDE_EXCLUDE_LABELS: Record<string, Record<'ko' | 'ja' | 'zh', string>> = {
+  fuel: { ko: '유류비', ja: '燃料費', zh: '燃油费' },
+  tolls: { ko: '통행료', ja: '高速料金', zh: '过路费' },
+  parking: { ko: '주차비', ja: '駐車料金', zh: '停车费' },
+  meals: { ko: '식사', ja: '食事', zh: '餐饮' },
+  attractions: { ko: '관광지 입장료', ja: '観光地入場料', zh: '景点门票' },
+  drinks: { ko: '음료', ja: '飲み物', zh: '饮料' },
+  shopping: { ko: '쇼핑', ja: 'ショッピング', zh: '购物' },
+};
+function includeExcludeLabel(key: string, language: string): string {
+  if (language !== 'ko' && language !== 'ja' && language !== 'zh') return key;
+  if (!Object.prototype.hasOwnProperty.call(INCLUDE_EXCLUDE_LABELS, key)) return key;
+  return INCLUDE_EXCLUDE_LABELS[key][language];
+}
+
 export function Step6Quote({ quote, state, routeKm, language = 'en' }: Props) {
   const i18n = getWizardI18n(language);
   if (!quote) {
     return (
-      <div className="text-white/55 text-sm">
+      <div className="charter-funnel-quote-document text-white/55 text-sm">
         {language === 'ko' ? '이전 단계 정보가 부족합니다.'
           : language === 'ja' ? '前のステップが未完了です。'
           : language === 'zh' ? '上一步信息不完整。'
@@ -41,10 +58,10 @@ export function Step6Quote({ quote, state, routeKm, language = 'en' }: Props) {
   // 자유입력 + 매트릭스 미매칭 — 별도견적 안내로 분기
   if (quote.needsCustomQuote) {
     return (
-      <div className="rounded-xl p-4 sm:rounded-2xl sm:p-7 border border-amber-500/40 bg-amber-500/10 text-center">
+      <div className="charter-funnel-quote-document rounded-xl p-4 sm:rounded-2xl sm:p-7 border border-amber-500/40 bg-amber-500/10 text-center">
         <p className="text-lg text-amber-100 font-bold mb-3">{i18n.customQuoteTitle}</p>
-        <p className="text-sm text-white/70 mb-4 leading-relaxed">{i18n.customQuoteBody}</p>
-        <p className="text-xs text-white/55">{i18n.customQuoteSub}</p>
+        <p className="charter-funnel-body text-sm text-white/70 mb-4 leading-relaxed">{i18n.customQuoteBody}</p>
+        <p className="charter-funnel-note text-xs text-white/55">{i18n.customQuoteSub}</p>
       </div>
     );
   }
@@ -89,9 +106,9 @@ export function Step6Quote({ quote, state, routeKm, language = 'en' }: Props) {
   }
 
   return (
-    <div className="space-y-5">
+    <div className="charter-funnel-quote-document space-y-5">
       {hasAirportInfo && (
-        <div className="rounded-xl border border-[#B668FC]/25 bg-[#B668FC]/5 px-4 py-3 text-xs text-white/70 flex flex-wrap gap-x-4 gap-y-1.5">
+        <div className="charter-funnel-note rounded-xl border border-[#B668FC]/25 bg-[#B668FC]/5 px-4 py-3 text-xs text-white/70 flex flex-wrap gap-x-4 gap-y-1.5">
           {ap?.terminal && <span>✈ {i18n.terminal} <b className="text-white">{ap.terminal}</b></span>}
           {ap?.flightNumber && <span>{i18n.flightNo} <b className="text-white">{ap.flightNumber}</b></span>}
           {lugTotal > 0 && (
@@ -104,13 +121,13 @@ export function Step6Quote({ quote, state, routeKm, language = 'en' }: Props) {
       )}
 
       {/* 영수증 카드 — 항상 노출. */}
-      <div className="overflow-hidden rounded-[26px] border border-[#B668FC]/30 bg-gradient-to-br from-[#B668FC]/12 via-white/[0.035] to-transparent shadow-[0_22px_70px_rgba(0,0,0,0.24)]">
+      <div className="charter-funnel-receipt overflow-hidden rounded-[26px] border border-[#B668FC]/30 bg-gradient-to-br from-[#B668FC]/12 via-white/[0.035] to-transparent shadow-[0_22px_70px_rgba(0,0,0,0.24)]">
         <div className="border-b border-white/10 px-5 py-4 sm:px-6">
-          <p className="text-xs uppercase tracking-wider text-white/55 mb-1 font-semibold">{i18n.payBlock}</p>
-          <p className="text-lg font-black text-white">{i18n.receiptTitle}</p>
+          <p className="charter-funnel-caption text-xs uppercase tracking-wider text-white/55 mb-1 font-semibold">{i18n.payBlock}</p>
+          <p className="charter-funnel-receipt-heading text-lg font-black text-white">{i18n.receiptTitle}</p>
         </div>
 
-        <div className="space-y-3 px-5 py-4 text-sm sm:px-6">
+        <div className="charter-funnel-receipt-rows space-y-3 px-5 py-4 text-sm sm:px-6">
           {useFormulaRows ? (
             <>
               <Row label={i18n.receiptBaseFee}              value={KRW(r!.baseFeeKRW!)} />
@@ -137,19 +154,19 @@ export function Step6Quote({ quote, state, routeKm, language = 'en' }: Props) {
         </div>
 
         {/* 합계 행 */}
-        <div className="flex items-end justify-between gap-4 border-t border-white/10 bg-black/10 px-5 py-5 sm:px-6">
-          <span className="text-base font-bold text-white/70">{i18n.receiptTotal}</span>
+        <div className="charter-funnel-receipt-total flex items-end justify-between gap-4 border-t border-white/10 bg-black/10 px-5 py-5 sm:px-6">
+          <span className="charter-funnel-total-label text-base font-bold text-white/70">{i18n.receiptTotal}</span>
           <div className="text-right">
             <div className="text-3xl font-black leading-tight text-white">{KRW(quote.subtotalKRW)}</div>
-            <div className="text-xs text-white/55 mt-1">{USD(quote.subtotalKRW)}</div>
+            <div className="charter-funnel-note text-xs text-white/55 mt-1">{USD(quote.subtotalKRW)}</div>
           </div>
         </div>
 
         {quote.vatExcluded ? (
-          <p className="px-5 pb-4 text-right text-xs text-amber-300/80 sm:px-6">⚠ {i18n.vatExcluded(quote.vatPercent)}</p>
+          <p className="charter-funnel-note px-5 pb-4 text-right text-xs text-amber-300/80 sm:px-6">⚠ {i18n.vatExcluded(quote.vatPercent)}</p>
         ) : (
           /* batch 9 fix (B9-9, 2026-05-09): 부가세 포함 명시 — vatExcluded 가 false 일 때 작은 안내. */
-          <p className="px-5 pb-4 text-right text-[11px] text-white/50 sm:px-6">{i18n.vatIncludedNote}</p>
+          <p className="charter-funnel-note charter-funnel-note-neutral px-5 pb-4 text-right text-[11px] text-white/50 sm:px-6">{i18n.vatIncludedNote}</p>
         )}
       </div>
 
@@ -166,7 +183,7 @@ export function Step6Quote({ quote, state, routeKm, language = 'en' }: Props) {
       {/* 별도 고지 박스 (always render for relevant modes) */}
       {(quote.showMeals || quote.showAttractions) && (
         <div className="rounded-xl p-3.5 sm:rounded-2xl sm:p-6 border border-white/10 bg-white/[0.03]">
-          <p className="text-xs uppercase tracking-wider text-white/55 mb-4 font-semibold">{i18n.separateBlock}</p>
+          <p className="charter-funnel-caption text-xs uppercase tracking-wider text-white/55 mb-4 font-semibold">{i18n.separateBlock}</p>
           <div className="space-y-2.5 text-sm text-white/65">
             {quote.showMeals && <Row label={i18n.estMeals} value={KRW(quote.estimatedMealsKRW)} muted />}
             {quote.showAttractions && <Row label={i18n.estAttractions} value={KRW(quote.estimatedAttractionsKRW)} muted />}
@@ -175,12 +192,12 @@ export function Step6Quote({ quote, state, routeKm, language = 'en' }: Props) {
       )}
 
       {/* 포함/제외 뱃지 */}
-      <div className="flex flex-wrap gap-2 text-xs">
+      <div className="charter-funnel-quote-chips flex flex-wrap gap-2 text-xs">
         {quote.includes.map(i => (
-          <span key={i} className="px-3 py-1.5 rounded-full bg-emerald-500/10 text-emerald-300 border border-emerald-500/20">✓ {i}</span>
+          <span key={i} className="px-3 py-1.5 rounded-full bg-emerald-500/10 text-emerald-300 border border-emerald-500/20">✓ {includeExcludeLabel(i, language)}</span>
         ))}
         {quote.excludes.map(e => (
-          <span key={e} className="px-3 py-1.5 rounded-full bg-white/[0.03] text-white/55 border border-white/10">× {e}</span>
+          <span key={e} className="px-3 py-1.5 rounded-full bg-white/[0.03] text-white/55 border border-white/10">× {includeExcludeLabel(e, language)}</span>
         ))}
       </div>
 
@@ -192,7 +209,7 @@ export function Step6Quote({ quote, state, routeKm, language = 'en' }: Props) {
           { ko: '유연한 경유',    en: 'Flexible Stops',      ja: '柔軟な立ち寄り',   zh: '灵活停靠' },
           { ko: '다국어 지원',    en: 'Multilingual',        ja: '多言語対応',       zh: '多语言支持' },
         ] as const).map((b, i) => (
-          <div key={i} className="flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2 text-xs font-medium text-white/70">
+          <div key={i} className="charter-funnel-note flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2 text-xs font-medium text-white/70">
             <span className="text-emerald-400 shrink-0">✓</span>{b[language] || b.en}
           </div>
         ))}
@@ -210,7 +227,7 @@ export function Step6Quote({ quote, state, routeKm, language = 'en' }: Props) {
 
       {/* FEATURE_CHARTER_WAYPOINTS: 경유지 반영 경로 안내 — routeKm 이 있으면 실제 도로 경로 기반 견적임을 표기. */}
       {routeKm != null && routeKm > 0 && (state?.waypoints?.length ?? 0) > 0 && (
-        <p className="text-xs text-emerald-300/85">
+        <p className="charter-funnel-note text-xs text-emerald-300/85">
           {language === 'ko' ? `경유 ${state!.waypoints!.length}곳 반영 · 실제 도로 경로 ${routeKm}km 기준`
             : language === 'ja' ? `経由${state!.waypoints!.length}ヶ所 · 実際の道路経路${routeKm}km基準`
             : language === 'zh' ? `含${state!.waypoints!.length}个经停 · 按实际道路${routeKm}km计`
@@ -224,9 +241,9 @@ export function Step6Quote({ quote, state, routeKm, language = 'en' }: Props) {
 function Row({ label, value, muted, warn, good }: { label: string; value: string; muted?: boolean; warn?: boolean; good?: boolean }) {
   const cls = warn ? 'text-amber-300' : good ? 'text-emerald-300' : muted ? 'text-white/50' : 'text-white/80';
   return (
-    <div className={`grid grid-cols-[minmax(0,1fr)_auto] items-start gap-4 ${cls}`}>
-      <span className="min-w-0 leading-relaxed">{label}</span>
-      <span className="whitespace-nowrap font-semibold">{value}</span>
+    <div className={`charter-funnel-receipt-row grid grid-cols-[minmax(0,1fr)_auto] items-start gap-4 ${cls}`}>
+      <span className="charter-funnel-receipt-row-label min-w-0 leading-relaxed">{label}</span>
+      <span className="charter-funnel-receipt-row-value whitespace-nowrap font-semibold">{value}</span>
     </div>
   );
 }
@@ -240,13 +257,13 @@ function CutoffNotice({ state, i18n }: { state?: WizardState; i18n: ReturnType<t
   const cutoffHours = getCutoffHours(productType);
   if (!state?.startDate) {
     return (
-      <p className="text-[11px] text-white/45 px-1">📅 {i18n.bookingCutoffNote(cutoffHours)}</p>
+      <p className="text-[11px] text-white/45 px-1 charter-funnel-cutoff-neutral">📅 {i18n.bookingCutoffNote(cutoffHours)}</p>
     );
   }
   const pickupTime = state.pickupTime ?? state.startTime ?? '09:00';
   const hoursLeft = hoursUntilDeparture(state.startDate, pickupTime);
   if (!Number.isFinite(hoursLeft)) {
-    return <p className="text-[11px] text-white/45 px-1">📅 {i18n.bookingCutoffNote(cutoffHours)}</p>;
+    return <p className="text-[11px] text-white/45 px-1 charter-funnel-cutoff-neutral">📅 {i18n.bookingCutoffNote(cutoffHours)}</p>;
   }
   const closed = hoursLeft <= cutoffHours;
   // 마감까지 6시간 이내로 남았으면 임박 경고 (마감 자체는 아직 안 지남).
@@ -269,5 +286,5 @@ function CutoffNotice({ state, i18n }: { state?: WizardState; i18n: ReturnType<t
       </div>
     );
   }
-  return <p className="text-[11px] text-white/45 px-1">📅 {i18n.bookingCutoffNote(cutoffHours)}</p>;
+  return <p className="text-[11px] text-white/45 px-1 charter-funnel-cutoff-neutral">📅 {i18n.bookingCutoffNote(cutoffHours)}</p>;
 }

@@ -13,13 +13,27 @@ export const GEMINI_PRICING = {
   // 코드 classifier = 'gemini-3.5-flash-lite' — 공식 표 미표기 → 3.1-lite 단가로 대체(보수적).
   'gemini-3.5-flash-lite': { input: 0.25, output: 1.50,  cached: 0.0625 },
   'gemini-2.0-flash':      { input: 0.30, output: 2.50,  cached: 0.075 }, // legacy, 2.5-flash 동급 추정
+  // Claude (LLM 공급자 전환 2026-10-13) — platform.claude.com/docs/en/about-claude/pricing 2026-10-13 확인.
+  // haiku 는 ≤100K 프롬프트 단가(초과 시 5배 — 트래커는 보수적으로 기본 단가 사용 안 함: 초과 프롬프트 없음).
+  'claude-haiku-5-5':      { input: 0.10, output: 0.50,  cached: 0.01 },
+  'claude-sonnet-5-5':     { input: 2.00, output: 10.00, cached: 0.10 },
+  'claude-opus-5-5':       { input: 4.00, output: 20.00, cached: 0.20 },
 };
 
 // 미등록 모델 보수적 기본값(과소집계 방지).
 const DEFAULT_PRICE = { input: 1.0, output: 4.0, cached: 0.1 };
 
 export function geminiUnitPrice(model) {
+  if (String(model || '').startsWith('mock:')) return { input: 0, output: 0, cached: 0 };
   return GEMINI_PRICING[model] || DEFAULT_PRICE;
+}
+
+/** api_usage.service 라벨 — 모델 접두로 결정 (claude-* / mock:* / 그 외 gemini). */
+export function serviceForModel(model) {
+  const m = String(model || '');
+  if (m.startsWith('claude-')) return 'claude';
+  if (m.startsWith('mock:')) return 'mock';
+  return 'gemini';
 }
 
 /**

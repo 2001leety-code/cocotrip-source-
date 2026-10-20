@@ -462,7 +462,9 @@ describe('the follow-up stays inside the house rules', () => {
   it('keeps the Korea Editorial Concierge surface, not a generic AI dashboard', () => {
     for (const rel of TOUCHED) {
       const code = codeOf(read(rel));
-      expect(`${rel} gradient: ${/linear-gradient|radial-gradient/.test(code)}`).toBe(`${rel} gradient: false`);
+      // mask-image gradients are alpha masks, not paint; every painted gradient stays banned.
+      const painted = code.replace(/(?:-webkit-)?mask-image\s*:[^;]*;/g, '');
+      expect(`${rel} gradient: ${/linear-gradient|radial-gradient/.test(painted)}`).toBe(`${rel} gradient: false`);
       expect(`${rel} glow: ${/0 0 \d+px rgba/.test(code)}`).toBe(`${rel} glow: false`);
       expect(`${rel} blur: ${/backdrop-blur|backdropFilter/.test(code)}`).toBe(`${rel} blur: false`);
       expect(`${rel} white ink: ${/text-white/.test(code)}`).toBe(`${rel} white ink: false`);

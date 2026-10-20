@@ -1,10 +1,14 @@
-import { useState, useEffect, useRef, lazy, Suspense } from 'react';
+import { useState, useEffect, useRef, lazy, Suspense, useSyncExternalStore, useId } from 'react';
+import { isCustomerNightPath, isHomeChromePath } from '@/lib/customerNight';
 import { Menu, X, MessageCircle, Globe, ChevronDown, ChevronRight, User, FileText, Headphones, Map, Package, LogOut, LogIn, Check, Search, ShieldCheck, Gift, Heart, Clock } from 'lucide-react';
 import {
   DropdownMenu,
   DropdownMenuTrigger,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuCheckboxItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
 } from '@/components/ui/dropdown-menu';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import type { Language, Translations } from '@/i18n';
@@ -18,6 +22,12 @@ import { CartPanel } from '@/components/CartButton';
 import { PwaInstallButton } from '@/components/PwaInstallButton';
 import { useCommandPalette } from '@/hooks/useCommandPalette';
 import { RESPONSIVE_BRAND_MARK } from '@/lib/responsiveBrandMark';
+import {
+  TOURS_BACKGROUND_COPY,
+  isToursPath,
+  useDeviceMotionState,
+  useToursBackgroundPreference,
+} from '@/lib/toursBackgroundMotion';
 
 /**
  * Common shell header — Korea Editorial Concierge (2026-08-10).
@@ -65,14 +75,96 @@ const ICON_BTN_CLS =
 const MENU_TABBABLE =
   'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
 
+/** Home-only compact header band: the inline nav no longer fits beside the rail. */
+const COMPACT_HEADER_QUERY = '(min-width: 768px) and (max-width: 1279px)';
+
+function subscribeCompactViewport(onChange: () => void) {
+  const mql = window.matchMedia(COMPACT_HEADER_QUERY);
+  mql.addEventListener('change', onChange);
+  return () => mql.removeEventListener('change', onChange);
+}
+
+function useIsCompactViewport() {
+  return useSyncExternalStore(
+    subscribeCompactViewport,
+    () => window.matchMedia(COMPACT_HEADER_QUERY).matches,
+    () => false,
+  );
+}
+
+/* Tours-only children: mounted solely on exact /tours, so every storage / media / event
+   subscription they own stays out of all other routes' Header output. */
+function ToursBackgroundMenuItems({ language }: { language: Language }) {
+  const copy = TOURS_BACKGROUND_COPY[language] || TOURS_BACKGROUND_COPY.en;
+  const { enabled, setEnabled } = useToursBackgroundPreference(true);
+  const device = useDeviceMotionState(true);
+  const stopped = device.reduceMotion || device.saveData;
+  const captionId = useId();
+  return (
+    <>
+      <DropdownMenuSeparator className="my-1 bg-ec-line" />
+      <DropdownMenuLabel className="px-3 py-1.5 text-[12px] font-semibold text-ec-ink-3">{copy.label}</DropdownMenuLabel>
+      <DropdownMenuCheckboxItem
+        checked={enabled}
+        onCheckedChange={(next) => setEnabled(next === true)}
+        onSelect={(event) => event.preventDefault()}
+        aria-describedby={stopped ? captionId : undefined}
+        className="flex items-center gap-2.5 min-h-[44px] py-2.5 pr-3 rounded-ec-sm text-[13px] font-medium cursor-pointer text-ec-ink-2 focus:bg-ec-page focus:text-ec-ink"
+      >
+        {copy.item}
+      </DropdownMenuCheckboxItem>
+      {stopped && <p id={captionId} className="px-3 pb-2 text-[12px] text-ec-ink-3">{copy.stopped}</p>}
+    </>
+  );
+}
+
+function ToursBackgroundMobileRow({ language }: { language: Language }) {
+  const copy = TOURS_BACKGROUND_COPY[language] || TOURS_BACKGROUND_COPY.en;
+  const { enabled, setEnabled } = useToursBackgroundPreference(true);
+  const device = useDeviceMotionState(true);
+  const stopped = device.reduceMotion || device.saveData;
+  const captionId = useId();
+  return (
+    <div className="mt-4">
+      <label className="flex min-h-[44px] cursor-pointer items-center gap-3 text-ec-ink-2">
+        <input
+          type="checkbox"
+          checked={enabled}
+          onChange={(event) => setEnabled(event.target.checked)}
+          aria-describedby={stopped ? captionId : undefined}
+          className="h-5 w-5 shrink-0 accent-[var(--ec-brand)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--ec-brand)]"
+        />
+        <span className="text-[15px] font-medium">{copy.label} · {copy.item}</span>
+      </label>
+      {stopped && <p id={captionId} className="pl-8 text-[12px] text-ec-ink-3">{copy.stopped}</p>}
+    </div>
+  );
+}
+
 export function Header({ language, t, onLanguageChange }: HeaderProps) {
   const [isScrolled, setIsScrolled] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const isMobile = useIsMobile();
+  const isCompactViewport = useIsCompactViewport();
   const { user } = useAuth();
   const isAdmin = !!(user?.email && ADMIN_EMAIL && user.email.toLowerCase() === ADMIN_EMAIL);
   const location = useLocation();
   const navigate = useNavigate();
+  // Home and the exact /planner entry wear Home's chrome (home-dope.css).
+  // Every other route keeps the shared night shell.
+  const isHomeChrome = isHomeChromePath(location.pathname);
+  const homeChrome = isHomeChrome ? ' home-dope-chrome' : '';
+  // Radix menus portal to <body>, outside App's `.ec-night` scope — carry it on the content.
+  const nightPortal = isCustomerNightPath(location.pathname) ? ' ec-night' : '';
+  // Presentation only: home between 768–1279 collapses the nav into the full-screen
+  // menu. `isMobile` still drives every control, handler and permission below.
+  const compactHeader = isCompactViewport && isHomeChrome;
+  const menuAvailable = isMobile || compactHeader;
+  // Inline nav + rail share one row from 1024px; at 1024–1279 the sign-in and inquiry
+  // labels collapse to icons (name kept via aria-label). Home's compact band hides
+  // the inline nav instead, so its labels stay as they were.
+  const signInLabelCls = compactHeader ? undefined : 'hidden xl:inline';
+  const inquiryLabelCls = compactHeader ? undefined : 'lg:hidden xl:inline';
   const isPlannerLike = isMobile && (
     location.pathname === '/planner'
     || location.pathname.startsWith('/planner/')
@@ -191,6 +283,12 @@ export function Header({ language, t, onLanguageChange }: HeaderProps) {
     return () => window.removeEventListener('keydown', onKey);
   }, [isMobileMenuOpen]);
 
+  // Leaving the menu layout (resize to ≥1280, or navigating off home) must not
+  // leave the body scroll-locked behind a menu nobody can render. Reset during
+  // render (React's "adjusting state from props" pattern) so the stale open flag
+  // is cleared too: resizing back would otherwise reopen the menu unasked.
+  if (!menuAvailable && isMobileMenuOpen) setIsMobileMenuOpen(false);
+
   const navItems = [
     { label: t.nav.charter || 'Charter',     to: '/charter' },
     { label: t.nav.tours   || 'Tours',          to: '/tours'   },
@@ -204,6 +302,8 @@ export function Header({ language, t, onLanguageChange }: HeaderProps) {
 
   const isActive = (path: string) => location.pathname === path;
   const languageShort = languages.find((l) => l.code === language)?.short || 'EN';
+  const isTours = isToursPath(location.pathname);
+  const toursCopy = TOURS_BACKGROUND_COPY[language] || TOURS_BACKGROUND_COPY.en;
   // 공유 플랜(고객 제안서, /my-plans/{id}?shared=1)에서는 앱 chrome(BETA·검색·Wishlist·Cart) 숨김 —
   //   외국인 고객에겐 의미 없는 내부 요소. 다른 페이지는 영향 0(이 경로+shared=1 일 때만 true).
   const isPublicView = location.pathname.startsWith('/my-plans/') &&
@@ -212,7 +312,7 @@ export function Header({ language, t, onLanguageChange }: HeaderProps) {
   return (
     <>
     <header
-      className={`ec-root ec-no-print sticky top-0 border-b border-ec-line ${isMobileMenuOpen ? 'z-[9999]' : 'z-[100]'}`}
+      className={`ec-root ec-no-print sticky top-0 border-b border-ec-line ${isMobileMenuOpen ? 'z-[9999]' : 'z-[100]'}${homeChrome}`}
       style={{
         // Scrolled = opaque so body copy never bleeds through the rail.
         background: isScrolled ? 'var(--ec-surface-shell-solid)' : 'var(--ec-shell-bg)',
@@ -248,14 +348,14 @@ export function Header({ language, t, onLanguageChange }: HeaderProps) {
           {isMobile && isInternalPath && <PwaInstallButton t={t} />}
 
           {/* ═══ Center: Desktop Navigation ═══ */}
-          {!isMobile && (
+          {!isMobile && !compactHeader && (
             <nav className="hidden lg:flex items-center gap-1 mx-auto">
               {navItems.map((item) => (
                 <Link
                   key={item.to}
                   to={item.to}
                   aria-current={isActive(item.to) ? 'page' : undefined}
-                  className={`relative inline-flex min-h-[44px] items-center px-4 rounded-ec-sm text-[15px] transition-colors duration-ec-base ease-ec-standard ${
+                  className={`relative inline-flex min-h-[44px] items-center px-3 xl:px-4 rounded-ec-sm text-[15px] transition-colors duration-ec-base ease-ec-standard ${
                     isActive(item.to)
                       ? 'text-ec-ink font-semibold'
                       : 'text-ec-ink-2 font-medium hover:text-ec-ink'
@@ -264,7 +364,7 @@ export function Header({ language, t, onLanguageChange }: HeaderProps) {
                   {item.label}
                   {/* Active indicator — a rule, not a pill. */}
                   {isActive(item.to) && (
-                    <span aria-hidden className="absolute left-4 right-4 -bottom-px h-[2px] bg-ec-brand" />
+                    <span aria-hidden className="absolute left-3 right-3 xl:left-4 xl:right-4 -bottom-px h-[2px] bg-ec-brand" />
                   )}
                 </Link>
               ))}
@@ -272,7 +372,7 @@ export function Header({ language, t, onLanguageChange }: HeaderProps) {
           )}
 
           {/* ═══ Right: Utilities ═══ */}
-          <div className="flex items-center gap-0.5 sm:gap-1 ml-auto lg:ml-0 shrink-0">
+          <div className={`flex items-center gap-0.5 sm:gap-1 ml-auto lg:ml-0 shrink-0${compactHeader ? ' home-dope-rail-compact' : ''}`}>
 
             {/* Global Search (Cmd/Ctrl+K) — 공유 제안서에선 숨김 */}
             {!isPublicView && !isPlannerLike && (!isMobile || isInternalPath) && (
@@ -314,7 +414,7 @@ export function Header({ language, t, onLanguageChange }: HeaderProps) {
                     <User className="w-[18px] h-[18px]" />
                   </button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" sideOffset={8} className={`w-44 ${POPOVER_CLS}`}>
+                <DropdownMenuContent align="end" sideOffset={8} className={`w-44 ${POPOVER_CLS}${homeChrome}${nightPortal}`}>
                   {/* 2026-07-05: 데스크탑 드롭다운 보강 — 마이페이지 외 예약내역·내여행·쿠폰 딥링크 */}
                   {[
                     { to: '/mypage', icon: User, label: t.nav.myPage || 'My Page' },
@@ -350,14 +450,15 @@ export function Header({ language, t, onLanguageChange }: HeaderProps) {
               <DropdownMenuTrigger asChild>
                 <button
                   className="inline-flex items-center gap-1 min-h-[44px] px-2 rounded-ec-sm text-[13px] font-medium text-ec-ink-2 transition-colors duration-ec-base ease-ec-standard hover:text-ec-ink hover:bg-ec-page outline-none focus-visible:ring-2 focus-visible:ring-ec-brand"
-                  aria-label={`${languageShort} · ${t.nav.language || 'Language'}`}
+                  aria-label={isTours ? `${languageShort} · ${toursCopy.title}` : `${languageShort} · ${t.nav.language || 'Language'}`}
+                  title={isTours ? toursCopy.title : undefined}
                 >
                   <Globe className="w-4 h-4" />
                   <span>{languageShort}</span>
                   <ChevronDown className="w-3 h-3" aria-hidden />
                 </button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" sideOffset={8} className={`w-36 ${POPOVER_CLS}`}>
+              <DropdownMenuContent align="end" sideOffset={8} className={`${isTours ? 'w-64 max-w-[calc(100vw-2rem)]' : 'w-36'} ${POPOVER_CLS}${homeChrome}${nightPortal}`}>
                 {languages.map((lang) => (
                   <DropdownMenuItem
                     key={lang.code}
@@ -368,6 +469,7 @@ export function Header({ language, t, onLanguageChange }: HeaderProps) {
                     {language === lang.code && <Check className="w-3.5 h-3.5" />}
                   </DropdownMenuItem>
                 ))}
+                {isTours && <ToursBackgroundMenuItems language={language} />}
               </DropdownMenuContent>
             </DropdownMenu>
 
@@ -380,15 +482,16 @@ export function Header({ language, t, onLanguageChange }: HeaderProps) {
                 <button
                   onClick={handleSignIn}
                   disabled={signingIn}
-                  className="ec-btn ec-btn-primary ec-btn-sm min-h-[44px]"
+                  className="ec-btn ec-btn-primary ec-btn-sm min-h-[44px] min-w-[44px]"
                   title={t.nav.signIn || 'Sign In'}
+                  aria-label={t.nav.signIn || 'Sign In'}
                 >
                   {signingIn ? (
                     <span aria-hidden className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" />
                   ) : (
                     <LogIn className="w-4 h-4" aria-hidden />
                   )}
-                  <span>{t.nav.signIn || 'Sign In'}</span>
+                  <span className={signInLabelCls}>{t.nav.signIn || 'Sign In'}</span>
                 </button>
                 {/* Phone sign-in fallback (no Google account) — mirrors AuthRequired options. */}
                 <button
@@ -410,15 +513,17 @@ export function Header({ language, t, onLanguageChange }: HeaderProps) {
                 href="https://wa.me/821087140611"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="ec-btn ec-btn-secondary ec-btn-sm min-h-[44px] hidden md:inline-flex"
+                className="ec-btn ec-btn-secondary ec-btn-sm min-h-[44px] min-w-[44px] hidden md:inline-flex"
+                aria-label={t.nav.inquiry || '1:1 Inquiry'}
+                title={t.nav.inquiry || '1:1 Inquiry'}
               >
                 <MessageCircle className="w-4 h-4" aria-hidden />
-                <span>{t.nav.inquiry || '1:1 Inquiry'}</span>
+                <span className={inquiryLabelCls}>{t.nav.inquiry || '1:1 Inquiry'}</span>
               </a>
             )}
 
             {/* Mobile hamburger */}
-            {isMobile && (
+            {menuAvailable && (
               <button
                 ref={menuTriggerRef}
                 onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
@@ -426,9 +531,12 @@ export function Header({ language, t, onLanguageChange }: HeaderProps) {
                 aria-expanded={isMobileMenuOpen}
                 aria-label={isMobileMenuOpen ? (t.a11y?.close || 'Close menu') : (t.nav.navigation || 'Navigation')}
               >
-                {isMobileMenuOpen
-                  ? <X className="w-[20px] h-[20px]" />
-                  : <Menu className="w-[20px] h-[20px]" />
+                {/* Home: two CSS bars that morph into an X (home-dope.css). */}
+                {homeChrome
+                  ? <span aria-hidden className="home-dope-burger" data-open={isMobileMenuOpen}><span /><span /></span>
+                  : isMobileMenuOpen
+                    ? <X className="w-[20px] h-[20px]" />
+                    : <Menu className="w-[20px] h-[20px]" />
                 }
               </button>
             )}
@@ -438,21 +546,22 @@ export function Header({ language, t, onLanguageChange }: HeaderProps) {
     </header>
 
       {/* ═══ Mobile Full-screen Menu ═══ */}
-      {isMobile && isMobileMenuOpen && (
+      {menuAvailable && isMobileMenuOpen && (
         <div
           ref={menuPanelRef}
           role="dialog"
           aria-modal="true"
           aria-label={t.nav.navigation || 'Navigation'}
           tabIndex={-1}
-          className="ec-root fixed inset-0 z-[9998] pt-14 overflow-y-auto bg-ec-page outline-none"
+          className={`ec-root fixed inset-0 z-[9998] pt-14 overflow-y-auto bg-ec-page outline-none${homeChrome}${homeChrome ? ' home-dope-menu' : ''}${compactHeader ? ' home-dope-menu-compact' : ''}`}
           onClick={(e) => {
             if (e.target === e.currentTarget) setIsMobileMenuOpen(false);
           }}
         >
-          <div className="px-5 py-5 pb-28">
+          <div className={`px-5 py-5 pb-28${homeChrome ? ' home-dope-menu__body' : ''}`}>
 
-            {/* ── User Profile Card ── */}
+            {/* ── User Profile Card ── (home: the wrappers below are grid hooks only, home-dope.css) */}
+            <div className={homeChrome ? 'home-dope-menu__account' : undefined}>
             {user ? (
               <div className="ec-card mb-6">
                 <div className="flex items-center gap-3">
@@ -487,8 +596,10 @@ export function Header({ language, t, onLanguageChange }: HeaderProps) {
                 <ChevronRight className="w-4 h-4 text-ec-ink-3 ml-auto" aria-hidden />
               </Link>
             )}
+            </div>
 
             {/* ── Main Navigation ── */}
+            <div className={homeChrome ? 'home-dope-menu__main' : undefined}>
             <p className="ec-eyebrow mb-3">{t.nav.navigation || 'Navigation'}</p>
             <hr className="ec-rule mb-1" />
             <nav>
@@ -513,9 +624,11 @@ export function Header({ language, t, onLanguageChange }: HeaderProps) {
                 </Link>
               ))}
             </nav>
+            </div>
 
             {/* ── 내 여행 관리 + 혜택·저장 (2026-07-05: 실제 마이페이지 기능 바로가기.
                 각 링크는 /mypage?tab= 딥링크 — 미로그인 시 AuthRequired 로 로그인 유도) ── */}
+            <div className={homeChrome ? 'home-dope-menu__groups' : undefined}>
             {[
               {
                 heading: t.nav.groupTrips || '내 여행 관리',
@@ -556,10 +669,11 @@ export function Header({ language, t, onLanguageChange }: HeaderProps) {
                 ))}
               </div>
             ))}
+            </div>
 
             {/* ── 계정 (admin 진입 — 운영자만) ── */}
             {isAdmin && (
-              <div className="mt-8">
+              <div className={`mt-8${homeChrome ? ' home-dope-menu__admin' : ''}`}>
                 <p className="ec-eyebrow mb-3">{t.nav.groupAccount || '계정'}</p>
                 <hr className="ec-rule mb-1" />
                 <Link
@@ -576,7 +690,8 @@ export function Header({ language, t, onLanguageChange }: HeaderProps) {
               </div>
             )}
 
-            {/* ── Settings ── */}
+            {/* ── Settings / Support / Logout / Footer: one lower strip on home ── */}
+            <div className={homeChrome ? 'home-dope-menu__strip' : undefined}>
             <div className="mt-8">
               <p className="ec-eyebrow mb-3">{t.nav.settings || 'Settings'}</p>
               <hr className="ec-rule mb-4" />
@@ -600,6 +715,7 @@ export function Header({ language, t, onLanguageChange }: HeaderProps) {
                   </button>
                 ))}
               </div>
+              {isTours && <ToursBackgroundMobileRow language={language} />}
             </div>
 
             {/* ── Support ── */}
@@ -655,6 +771,7 @@ export function Header({ language, t, onLanguageChange }: HeaderProps) {
                 <Link to="/privacy" onClick={() => setIsMobileMenuOpen(false)} className="text-[12px] text-ec-ink-3 underline underline-offset-4">{t.nav.privacy || 'Privacy'}</Link>
                 <Link to="/travel-terms" onClick={() => setIsMobileMenuOpen(false)} className="text-[12px] text-ec-ink-3 underline underline-offset-4">{t.nav.travelTerms || 'Travel Terms'}</Link>
               </div>
+            </div>
             </div>
           </div>
         </div>

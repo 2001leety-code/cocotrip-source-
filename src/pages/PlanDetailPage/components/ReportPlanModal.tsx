@@ -74,7 +74,7 @@ export function ReportPlanModal({ open, onClose, planId, userEmail = '', languag
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.85)', backdropFilter: 'blur(8px)' }}>
-      <div className="w-full max-w-md bg-gradient-to-b from-[#0f1628] to-[#0a0f1a] rounded-3xl border border-white/10 shadow-2xl p-6">
+      <div className="plan-night-report w-full max-w-md rounded-2xl border border-white/10 shadow-2xl p-6">
         {success ? (
           <>
             <div className="w-14 h-14 mx-auto mb-3 rounded-full bg-emerald-500 flex items-center justify-center">
@@ -85,8 +85,7 @@ export function ReportPlanModal({ open, onClose, planId, userEmail = '', languag
             <button
               type="button"
               onClick={handleClose}
-              className="w-full py-3 rounded-xl text-white font-bold text-sm"
-              style={{ background: 'linear-gradient(135deg, #7C5CFC, #EA537E)' }}
+              className="plan-night-report-primary w-full py-3 rounded-xl font-bold text-sm"
             >
               {labels.closeBtn}
             </button>
@@ -98,7 +97,7 @@ export function ReportPlanModal({ open, onClose, planId, userEmail = '', languag
                 <AlertTriangle className="w-5 h-5 text-amber-400" />
                 <h2 className="text-lg font-bold text-white">{labels.title}</h2>
               </div>
-              <button type="button" onClick={handleClose} className="text-white/40 hover:text-white/80">
+              <button type="button" onClick={handleClose} data-testid="report-plan-close" aria-label={labels.closeBtn} className="-m-3 inline-flex min-h-[44px] min-w-[44px] items-center justify-center text-white/60 hover:text-white/80">
                 <X className="w-5 h-5" />
               </button>
             </div>
@@ -112,7 +111,7 @@ export function ReportPlanModal({ open, onClose, planId, userEmail = '', languag
                   <label
                     key={r}
                     className={`flex items-center gap-2 px-3 py-2 rounded-lg cursor-pointer transition-all ${
-                      reason === r ? 'bg-[#7C5CFC]/15 border border-[#7C5CFC]/40' : 'bg-white/[0.03] border border-white/5 hover:bg-white/[0.06]'
+                      reason === r ? 'plan-night-report-choice-active border' :'bg-white/[0.03] border border-white/5 hover:bg-white/[0.06]'
                     }`}
                   >
                     <input
@@ -159,8 +158,7 @@ export function ReportPlanModal({ open, onClose, planId, userEmail = '', languag
                 type="button"
                 onClick={handleSubmit}
                 disabled={!reason || submitting}
-                className="flex-[2] py-3 rounded-xl text-white font-bold text-sm flex items-center justify-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed"
-                style={{ background: 'linear-gradient(135deg, #7C5CFC, #EA537E)' }}
+                className="plan-night-report-primary flex-[2] py-3 rounded-xl font-bold text-sm flex items-center justify-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed"
               >
                 {submitting ? (<><Loader2 className="w-4 h-4 animate-spin" /> {labels.submitting}</>) : labels.submitBtn}
               </button>

@@ -12,7 +12,7 @@
  * 주변 추천 identity 는 서버 카탈로그가 소유한다. 관광지와 추천 등급 일반 식당 중에서만
  * Gemini 가 candidateId 를 고르며, 모델이 만든 이름·좌표·식이 주장은 응답에 쓰지 않는다.
  */
-import { GoogleGenerativeAI } from '@google/generative-ai';
+import { createLlmModel, resolveLlmApiKey } from './_shared/llm/index.js';
 import { captureError } from './_shared/sentry.js';
 import { checkIpRateLimit, getClientIp } from './_shared/ip-rate-limit.js';
 import { initAdminDb } from './_shared/firebase-admin.js';
@@ -24,7 +24,6 @@ import {
   getCourseCandidates,
   rehydrateCandidates,
 } from './_shared/courseCandidateCatalog.js';
-import { resolveGeminiModel } from './_ai_core/geminiModelResolver.js';
 
 export const maxDuration = 15;
 export const config = { runtime: 'nodejs' };
@@ -191,7 +190,8 @@ export default async function handler(req, res) {
     return res.end(JSON.stringify({ ok: false, code: 'AI_FEATURE_LOCKED', error: 'AI optimize & nearby picks are unlocked with the $9.90 planner.' }));
   }
 
-  const apiKey = process.env.GEMINI_API_KEY || '';
+  let apiKey = '';
+  try { apiKey = resolveLlmApiKey('course'); } catch { /* 미설정 → 아래 try 에서 실패 → nn 폴백 */ }
 
   // free(비anchor) id 만 최근접 이웃으로 재배치하고, anchor 는 원래 인덱스로 되돌린다 —
   // 폴백 경로도 예약/방문시간대 stop 을 절대 밀어내지 않는다.
@@ -250,10 +250,10 @@ export default async function handler(req, res) {
     }));
   }
 
-  const resolvedModel = resolveGeminiModel('course');
+  let resolvedModel = 'unconfigured';
   try {
-    const genAI = new GoogleGenerativeAI(apiKey);
-    const model = genAI.getGenerativeModel({ model: resolvedModel });
+    const model = createLlmModel({}, { role: 'course', stage: 'course-ai', apiKey, timeoutMs: 12000 }); // maxDuration 15
+    resolvedModel = model.modelId;
     const userPayload = {
       language: lang,
       stops: stops.map((s) => ({

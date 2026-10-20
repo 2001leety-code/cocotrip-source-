@@ -147,12 +147,14 @@ describe('ai-planner-quick — real food-style support (Seafood/Meat/Street, #4)
   });
 
   it('a style with zero exact-city matches fails closed with PREFERENCE_DATA_UNAVAILABLE before Gemini', async () => {
-    // Daegu has 0 exact-city "Meat"-style-matching general food rows.
+    // Daegu has 0 exact-city "Seafood"-style-matching general food rows.
+    // 2026-10-10: was "Meat" — the city-consistency rule now keeps district-only addresses, so Daegu gained
+    // one exact-city Meat row; Seafood is the combination that is still empty in the real index.
     const handler = (await import('../../api/ai-planner-quick.js')).default;
     const res = makeRes();
     await handler({
       method: 'POST', headers: { host: 'unit.test', 'content-type': 'application/json' },
-      body: { regions: ['Daegu'], durationDays: 3, pax: 2, reservation_status: 'nothing', language: 'en', dietPrefs: ['Meat'] },
+      body: { regions: ['Daegu'], durationDays: 3, pax: 2, reservation_status: 'nothing', language: 'en', dietPrefs: ['Seafood'] },
     } as any, res);
 
     expect(res.statusCode).toBe(422);

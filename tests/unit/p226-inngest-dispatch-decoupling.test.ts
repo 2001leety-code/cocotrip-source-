@@ -19,10 +19,23 @@
  *
  * 본 test 는 inngestDispatch.js 의 소스 텍스트 + 함수 동작 검증.
  */
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { readFileSync } from 'fs';
 import { fileURLToPath } from 'url';
 import path from 'path';
+import { inngest } from '../../api/_inngest/client.js';
+
+// Alert 경로 격리 (Telegram/Firestore 미접촉). dispatcher 자체는 실제 모듈 그대로 실행.
+const { throttledAlertMock } = vi.hoisted(() => ({
+  throttledAlertMock: vi.fn(() => Promise.resolve()),
+}));
+vi.mock('../../api/_shared/telegram-throttle.js', () => ({
+  throttledTelegramAlert: throttledAlertMock,
+  __resetInMemoryThrottleForTests: vi.fn(),
+  getThrottleStatus: vi.fn(() => Promise.resolve(null)),
+}));
+
+const SYNTHETIC_SEND_ERROR = 'P226 synthetic inngest send failure';
 
 const __filename = fileURLToPath(import.meta.url);
 const ROOT = path.resolve(__filename, '../../../');
@@ -54,7 +67,12 @@ describe('P226 Inngest dispatch streaming decoupling 회귀 차단', () => {
   // ── 런타임 동작 검증 ──────────────────────────────────────────────────
 
   let savedEnv: Record<string, string | undefined>;
+  let sendSpy: ReturnType<typeof vi.spyOn>;
   beforeEach(() => {
+    throttledAlertMock.mockReset();
+    throttledAlertMock.mockImplementation(() => Promise.resolve());
+    // 실제 Inngest API 호출 차단 — send 는 결정적 reject (dispatcher/payload/gate/fallback 은 실제 실행).
+    sendSpy = vi.spyOn(inngest, 'send').mockRejectedValue(new Error(SYNTHETIC_SEND_ERROR));
     savedEnv = {
       INNGEST_EVENT_KEY: process.env.INNGEST_EVENT_KEY,
       INNGEST_SIGNING_KEY: process.env.INNGEST_SIGNING_KEY,
@@ -70,6 +88,8 @@ describe('P226 Inngest dispatch streaming decoupling 회귀 차단', () => {
     process.env.PLANNER_INNGEST_WORKER_SYNCED = 'true';
   });
   afterEach(() => {
+    sendSpy.mockRestore();
+    throttledAlertMock.mockReset();
     for (const [k, v] of Object.entries(savedEnv)) {
       if (v === undefined) delete process.env[k];
       else process.env[k] = v;
@@ -84,8 +104,8 @@ describe('P226 Inngest dispatch streaming decoupling 회귀 차단', () => {
     const { maybeDispatchToInngest } = await import('../../api/_ai_core/inngestDispatch.js');
 
     // streamingResponseSent=false (P222 후 default) 인데도 dispatch 시도해야 함
-    // 실제 send() 는 mock 안 했으므로 throw → false 반환 (fallback) — 그러나
-    // 가드를 통과했음 확인 = OK (이전엔 streamingResponseSent=false 시 즉시 false 반환 했음)
+    // send() 는 spy 로 결정적 reject → alert 1회 + false 반환 (inline fallback)
+    // (이전엔 streamingResponseSent=false 시 send 시도 없이 즉시 false 반환 했음)
     const result = await maybeDispatchToInngest({
       streamingResponseSent: false,
       streamingPlanId: 'test-plan-id-123',
@@ -93,9 +113,27 @@ describe('P226 Inngest dispatch streaming decoupling 회귀 차단', () => {
       apiKey: 'test',
     });
 
-    // 결과는 false (실제 send() throw) 이지만, 중요한 건 가드 통과 후 fallback 동작
-    expect(typeof result).toBe('boolean');
-  }, 30000); // P231 note: 실제 Inngest API 호출 → 네트워크 응답 대기 (401). 30s timeout.
+    expect(sendSpy).toHaveBeenCalledTimes(1);
+    expect(sendSpy).toHaveBeenCalledWith({
+      name: 'plan/ai.complete',
+      data: expect.objectContaining({
+        planId: 'test-plan-id-123',
+        itinerary: {},
+        ctx: expect.objectContaining({
+          streamingPlanId: 'test-plan-id-123',
+          apiKey: 'test',
+        }),
+      }),
+    });
+    expect(result).toBe(false);
+    expect(throttledAlertMock).toHaveBeenCalledTimes(1);
+    expect(throttledAlertMock).toHaveBeenCalledWith(expect.objectContaining({
+      key: 'inngest-send-fail',
+      channel: 'admin',
+      severity: 'high',
+      message: expect.stringContaining(SYNTHETIC_SEND_ERROR),
+    }));
+  });
 
   it('P226-B2: streamingPlanId=null 시 dispatch skip (non-streaming 보호)', async () => {
     process.env.INNGEST_EVENT_KEY = 'test-event-key';
@@ -113,6 +151,8 @@ describe('P226 Inngest dispatch streaming decoupling 회귀 차단', () => {
 
     // streamingPlanId 없으면 dispatch 안 함 → false (inline fallback)
     expect(result).toBe(false);
+    expect(sendSpy).not.toHaveBeenCalled();
+    expect(throttledAlertMock).not.toHaveBeenCalled();
   });
 
   it('P226-B3: ENV 누락 시 dispatch skip 유지 (P220 silent fail 차단)', async () => {
@@ -131,5 +171,7 @@ describe('P226 Inngest dispatch streaming decoupling 회귀 차단', () => {
 
     // ENV 누락 시 항상 false (P220 의 shouldDispatchToInngest 가드)
     expect(result).toBe(false);
+    expect(sendSpy).not.toHaveBeenCalled();
+    expect(throttledAlertMock).not.toHaveBeenCalled();
   });
 });

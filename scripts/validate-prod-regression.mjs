@@ -148,6 +148,8 @@ if (REPLAY_FILE) {
     headers: {
       'Content-Type': 'application/json',
       Authorization: `Bearer ${auth.idToken}`,
+      // LLM 공급자 전환 (2026-10-13): 자동 실행 = 유료 LLM 호출 0 (REAL_LLM=1 수동 실행만 실호출).
+      'x-llm-mock': process.env.REAL_LLM === '1' ? '0' : '1',
     },
     body: JSON.stringify({
       paypalOrderId: 'ADMIN-BYPASS-REGRESSION-' + Date.now(),

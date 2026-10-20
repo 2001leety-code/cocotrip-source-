@@ -2193,10 +2193,18 @@ textarea.community-field {
 }
 
 .community-app .community-photo-add {
+  position: relative;
   min-width: 84px;
   min-height: 84px;
   color: var(--ec-brand);
   border-color: var(--ec-line-contrast);
+}
+
+/* The file input is visually hidden (sr-only), not `hidden`, so it stays keyboard-reachable;
+   its focus ring is drawn on the visible tile with the same outline as other community controls. */
+.community-app .community-photo-add:focus-within {
+  outline: 2px solid var(--ec-brand);
+  outline-offset: 2px;
 }
 
 .community-app .community-compose-safety,
@@ -2383,6 +2391,232 @@ textarea.community-field {
     transition-duration: 0.01ms;
     animation-duration: 0.01ms;
     animation-iteration-count: 1;
+  }
+}
+
+/* Community customer night refresh */
+.ec-night .community-app {
+  --community-ink: var(--ec-text-primary);
+  --community-muted: var(--ec-text-muted);
+  --community-line: var(--ec-line);
+  --community-purple: var(--ec-brand);
+  --community-pink: var(--ec-brand);
+  --community-green: var(--ec-success);
+  color: var(--ec-text-primary);
+  background: var(--ec-surface-page);
+}
+
+.ec-night .community-app :where(button, a, input, textarea, select):focus-visible {
+  outline: 2px solid var(--ec-brand);
+  outline-offset: 2px;
+}
+
+.ec-night .community-app .community-intro h1,
+.ec-night .community-app .community-compose-heading h1 {
+  font-family: var(--ec-night-serif);
+  font-size: 26px;
+  font-weight: 400;
+  line-height: 1.15;
+  letter-spacing: 0;
+}
+
+.ec-night .community-app .community-post-content h2,
+.ec-night .community-app .community-comments > h2,
+.ec-night .community-app .community-sheet-heading h2 {
+  font-family: var(--ec-night-serif);
+  font-weight: 400;
+  line-height: 1.3;
+  letter-spacing: 0;
+}
+
+.ec-night .community-app .community-post-content h2,
+.ec-night .community-app .community-comments > h2 {
+  font-size: 20px;
+}
+
+.ec-night .community-app .community-sheet-heading h2 {
+  font-size: 22px;
+}
+
+.ec-night .community-app .community-eyebrow,
+.ec-night .community-app .community-author span,
+.ec-night .community-app .community-translate-button small,
+.ec-night .community-app .community-trend small,
+.ec-night .community-app .community-person small,
+.ec-night .community-app .community-comment header span,
+.ec-night .community-app .community-comment-actions button,
+.ec-night .community-app .community-alert-row small,
+.ec-night .community-app .community-upload-button small,
+.ec-night .community-app .community-field-counter {
+  color: var(--ec-text-muted);
+  font-size: 12px;
+}
+
+.ec-night .community-app .community-post-meta span {
+  font-size: 12px;
+}
+
+.ec-night .community-app .community-post-meta span:nth-child(2) {
+  color: var(--ec-success);
+  background: var(--ec-surface-sunken);
+}
+
+.ec-night .community-app .community-sheet-heading p,
+.ec-night .community-app .community-product-bridge-copy p,
+.ec-night .community-app .community-safety-card p,
+.ec-night .community-app .community-compose-safety p,
+.ec-night .community-app .community-draft-notice span {
+  color: var(--ec-text-secondary);
+  font-size: 13px;
+}
+
+.ec-night .community-app .community-post-actions button,
+.ec-night .community-app .community-post-actions a,
+.ec-night .community-app .community-translate-button,
+.ec-night .community-app .community-report-options button,
+.ec-night .community-app .community-segmented-control button {
+  font-size: 13px;
+}
+
+.ec-night .community-app .community-report-options button {
+  font-size: 14px;
+}
+
+.ec-night .community-app .community-product-links a,
+.ec-night .community-app .community-person strong {
+  font-size: 13px;
+}
+
+.ec-night .community-app .community-search input::placeholder,
+.ec-night .community-app .community-field::placeholder {
+  color: var(--ec-text-muted);
+}
+
+.ec-night .community-app .community-field:focus,
+.ec-night .community-app .community-select-wrap select:focus {
+  border-color: var(--ec-brand);
+  box-shadow: none;
+}
+
+.ec-night .community-app .community-select-wrap svg,
+.ec-night .community-app .community-alert-row > svg {
+  color: var(--ec-text-muted);
+}
+
+.ec-night .community-app .community-post-actions {
+  border-top-color: var(--ec-line);
+}
+
+.ec-night .community-app .community-post-actions .is-liked,
+.ec-night .community-app .community-post-actions .is-liked:hover {
+  color: var(--ec-critical);
+  background: var(--ec-surface-sunken);
+}
+
+.ec-night .community-app .community-trend,
+.ec-night .community-app .community-comment,
+.ec-night .community-app .community-alert-row {
+  border-bottom-color: var(--ec-line);
+}
+
+.ec-night .community-app .community-product-links {
+  border-top-color: var(--ec-line);
+}
+
+.ec-night .community-app .community-product-links a + a {
+  border-top-color: var(--ec-line);
+}
+
+.ec-night .community-app .community-product-links a:hover {
+  background: var(--ec-brand-wash);
+}
+
+.ec-night .community-app .community-person button {
+  height: auto;
+  min-width: 44px;
+  min-height: 44px;
+  border-color: var(--ec-line-strong);
+  color: var(--ec-brand);
+  font-size: 12px;
+}
+
+.ec-night .community-app .community-comment p {
+  color: var(--ec-text-secondary);
+}
+
+.ec-night .community-app .community-comment header strong,
+.ec-night .community-app .community-alert-row strong {
+  color: var(--ec-text-primary);
+  font-size: 14px;
+}
+
+.ec-night .community-app .community-reply-box {
+  background: var(--ec-surface-sunken);
+  border-color: var(--ec-line-strong);
+}
+
+.ec-night .community-app .community-upload-button {
+  border-color: var(--ec-line-strong);
+  color: var(--ec-brand);
+  background: var(--ec-surface-sunken);
+}
+
+.ec-night .community-app .community-upload-button span {
+  font-size: 14px;
+}
+
+.ec-night .community-app .community-photo-thumb {
+  border-color: var(--ec-line);
+}
+
+.ec-night .community-app .community-photo-thumb button {
+  color: var(--ec-text-on-inverse);
+}
+
+.ec-night .community-app .community-photo-add {
+  font-size: 12px;
+}
+
+.ec-night .community-app .community-photo-add:hover {
+  border-color: var(--ec-brand);
+  background: var(--ec-brand-wash);
+}
+
+.ec-night .community-app .community-alert-icon {
+  color: var(--ec-brand);
+  background: var(--ec-brand-wash);
+}
+
+.ec-night .community-app .community-alert-icon.is-pink {
+  color: var(--ec-critical);
+  background: var(--ec-surface-sunken);
+}
+
+.ec-night .community-app .community-alert-icon.is-green {
+  color: var(--ec-success);
+  background: var(--ec-surface-sunken);
+}
+
+.ec-night .community-app .community-sheet-backdrop {
+  background: var(--ec-shell-bg);
+}
+
+.ec-night .community-app .community-sheet-handle {
+  background: var(--ec-line-contrast);
+}
+
+.ec-night .community-app .community-bottom-nav a {
+  color: var(--ec-text-muted);
+}
+
+.ec-night .community-app .community-bottom-nav a.is-active {
+  color: var(--ec-brand);
+}
+
+@media (min-width: 768px) {
+  .ec-night .community-app .community-intro h1,
+  .ec-night .community-app .community-compose-heading h1 {
+    font-size: 32px;
   }
 }
 

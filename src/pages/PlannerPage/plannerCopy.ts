@@ -35,7 +35,11 @@ export interface PlannerCopy {
   masthead: {
     eyebrow: string;
     headline: string;
+    /** One line under the headline. The long form lives in `detail`. */
     lede: string;
+    /** The full description of what comes back, shown in the brief notes
+     *  disclosure below the wizard (2026-10-07: moved there, not rewritten). */
+    detail: string;
     inputsHeading: string;
     /** The five things the traveller actually answers. Order is the wizard's. */
     inputs: { label: string; note: string }[];
@@ -119,8 +123,9 @@ export const PLANNER_COPY: Record<PlannerLang, PlannerCopy> = {
   en: {
     masthead: {
       eyebrow: 'Trip planner — Korea',
-      headline: 'Answer five things. Get a Korea itinerary you can actually run.',
-      lede: 'What you have already booked, dates, cities, how fast you like to move, and Halal/Vegan/Vegetarian needs. What comes back is a timed day-by-day plan built on our own Korea data — real places, the transit leg between them, and a map pin on every stop.',
+      headline: 'Korea. At your pace.',
+      lede: 'Five short answers — booking status, dates, cities, pace and diet — become a timed day-by-day plan.',
+      detail: 'What you have already booked, dates, cities, how fast you like to move, and Halal/Vegan/Vegetarian needs. What comes back is a timed day-by-day plan built on our own Korea data — real places, the transit leg between them, and a map pin on every stop.',
       inputsHeading: 'What you answer',
       inputs: [
         { label: 'Booking status', note: "What you've already booked — flight, hotel, both, or nothing yet — so day one starts from your real arrival, not a guess." },
@@ -193,8 +198,9 @@ export const PLANNER_COPY: Record<PlannerLang, PlannerCopy> = {
   ko: {
     masthead: {
       eyebrow: '여행 플래너 — 한국',
-      headline: '다섯 가지만 답하면, 그대로 다닐 수 있는 한국 일정이 나옵니다.',
-      lede: '이미 예약한 것, 날짜, 도시, 이동 속도, 할랄/비건/채식 여부. 이 다섯 가지를 넣으면 자체 한국 데이터로 시간대별 일정을 씁니다. 실재하는 장소, 장소 사이의 이동 구간, 모든 정거장의 지도 좌표까지 포함합니다.',
+      headline: '당신의 속도로, 한국을.',
+      lede: '예약 현황, 날짜, 도시, 이동 속도, 식단. 다섯 가지 답이 시간대별 일정이 됩니다.',
+      detail: '이미 예약한 것, 날짜, 도시, 이동 속도, 할랄/비건/채식 여부. 이 다섯 가지를 넣으면 자체 한국 데이터로 시간대별 일정을 씁니다. 실재하는 장소, 장소 사이의 이동 구간, 모든 정거장의 지도 좌표까지 포함합니다.',
       inputsHeading: '답하시는 다섯 가지',
       inputs: [
         { label: '예약 현황', note: '항공권·호텔 중 이미 예약한 게 있는지. 짐작이 아니라 실제 도착 상황에서부터 1일차를 계산합니다.' },
@@ -267,8 +273,9 @@ export const PLANNER_COPY: Record<PlannerLang, PlannerCopy> = {
   ja: {
     masthead: {
       eyebrow: '旅行プランナー — 韓国',
-      headline: '5つ答えるだけ。そのまま動ける韓国の旅程になります。',
-      lede: 'すでに予約したもの、日付、都市、移動のペース、ハラール・ヴィーガン・ベジタリアンの希望。この5つを入れると、独自の韓国データで時間ごとの旅程を書きます。実在する場所、場所と場所をつなぐ移動区間、全スポットの地図座標つきです。',
+      headline: '韓国を、あなたのペースで。',
+      lede: '予約状況、日付、都市、ペース、食事。5つの答えが時間ごとの旅程になります。',
+      detail: 'すでに予約したもの、日付、都市、移動のペース、ハラール・ヴィーガン・ベジタリアンの希望。この5つを入れると、独自の韓国データで時間ごとの旅程を書きます。実在する場所、場所と場所をつなぐ移動区間、全スポットの地図座標つきです。',
       inputsHeading: 'お答えいただく5つ',
       inputs: [
         { label: '予約状況', note: '航空券・ホテルのうちすでに予約済みのもの。推測ではなく実際の到着状況から1日目を組み立てます。' },
@@ -341,8 +348,9 @@ export const PLANNER_COPY: Record<PlannerLang, PlannerCopy> = {
   zh: {
     masthead: {
       eyebrow: '行程规划 — 韩国',
-      headline: '只需回答五项，就能拿到可以直接执行的韩国行程。',
-      lede: '已经预订的内容、日期、城市、行程节奏、清真/纯素/素食需求。填好这五项，我们用自有的韩国数据写出分时段行程：真实存在的地点、地点之间的交通区间，以及每个站点的地图坐标。',
+      headline: '韩国，按你的节奏。',
+      lede: '预订情况、日期、城市、节奏、饮食。五个回答，变成分时段的逐日行程。',
+      detail: '已经预订的内容、日期、城市、行程节奏、清真/纯素/素食需求。填好这五项，我们用自有的韩国数据写出分时段行程：真实存在的地点、地点之间的交通区间，以及每个站点的地图坐标。',
       inputsHeading: '你要回答的五项',
       inputs: [
         { label: '预订情况', note: '机票、酒店中已经订好的部分——第一天从你真实的抵达情况开始算，而不是靠猜。' },

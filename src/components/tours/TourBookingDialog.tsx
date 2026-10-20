@@ -8,7 +8,7 @@
 // 나머지 4개(픽업주소·WhatsApp·LINE·메모) 는 선택 입력.
 // 미설정(OFF/기본) = 기존 5개 필수 동작 byte-identical.
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useUserProfile } from '@/hooks/useUserProfile';
 import { useProfileContactSync } from '@/hooks/useProfileContactSync';
@@ -201,6 +201,8 @@ interface Props {
 
 export function TourBookingDialog({ tour, language, trigger }: Props) {
   const labels = I18N[language] || I18N.en;
+  // Step1 그룹(인원·날짜·기사 언어)의 보이는 라벨을 컨트롤 이름으로 연결하는 id.
+  const step1LabelId = useId();
   const auth = useAuth();
   const userEmail = auth?.user?.email || '';
   const availableLangs: DriverLanguage[] = (tour.driverLanguages && tour.driverLanguages.length > 0)
@@ -519,6 +521,7 @@ export function TourBookingDialog({ tour, language, trigger }: Props) {
       <DialogTrigger asChild>{trigger}</DialogTrigger>
       <DialogContent
         className="cocotrip-mobile-booking-dialog max-w-md mx-auto max-h-[85vh] overflow-y-auto"
+        data-tour-step={step}
         style={{ background: 'linear-gradient(180deg, #0f0820 0%, #0a0512 100%)', border: '1px solid rgba(182,104,252,0.20)', color: 'white' }}
       >
         <DialogHeader>
@@ -534,12 +537,12 @@ export function TourBookingDialog({ tour, language, trigger }: Props) {
         </DialogHeader>
 
         {step === 1 && (
-        <div className="space-y-4 mt-2">
+        <div className="space-y-4 mt-2 customer-booking-body">
           {/* Pax stepper */}
-          <div>
-            <label className="flex items-center gap-1.5 text-[11px] text-white/55 uppercase tracking-wider mb-1.5">
+          <div role="group" aria-labelledby={`${step1LabelId}-pax`}>
+            <p id={`${step1LabelId}-pax`} className="flex items-center gap-1.5 text-[11px] text-white/55 uppercase tracking-wider mb-1.5">
               <Users className="w-3.5 h-3.5" />{labels.pax}
-            </label>
+            </p>
             <div className="flex items-center gap-3">
               <button
                 type="button"
@@ -550,7 +553,7 @@ export function TourBookingDialog({ tour, language, trigger }: Props) {
               >
                 <Minus className="w-4 h-4 text-white/70" />
               </button>
-              <span className="text-[18px] font-black tabular-nums w-10 text-center">{pax}</span>
+              <span aria-live="polite" className="text-[18px] font-black tabular-nums w-10 text-center">{pax}</span>
               <button
                 type="button"
                 onClick={() => setPax(p => Math.min(tour.maxPax, p + 1))}
@@ -566,14 +569,15 @@ export function TourBookingDialog({ tour, language, trigger }: Props) {
 
           {/* Date picker — Popover + Calendar with disabled-date highlighting */}
           <div>
-            <label className="flex items-center gap-1.5 text-[11px] text-white/55 uppercase tracking-wider mb-1.5">
+            <p id={`${step1LabelId}-date`} className="flex items-center gap-1.5 text-[11px] text-white/55 uppercase tracking-wider mb-1.5">
               <Calendar className="w-3.5 h-3.5" />{labels.date}
-            </label>
+            </p>
             <Popover>
               <PopoverTrigger asChild>
                 <button
                   type="button"
-                  className="w-full px-3 py-2 rounded-xl text-[13px] text-left focus:outline-none flex items-center justify-between"
+                  aria-labelledby={`${step1LabelId}-date ${step1LabelId}-date-value`}
+                  className="w-full px-3 py-2 rounded-xl text-[13px] text-left focus:outline-none flex items-center justify-between customer-booking-choice"
                   style={{
                     background: 'rgba(255,255,255,0.04)',
                     border: date && !availability.available
@@ -582,7 +586,7 @@ export function TourBookingDialog({ tour, language, trigger }: Props) {
                     color: date ? 'white' : 'rgba(255,255,255,0.40)',
                   }}
                 >
-                  <span>{date || labels.pickDate}</span>
+                  <span id={`${step1LabelId}-date-value`}>{date || labels.pickDate}</span>
                   <Calendar className="w-4 h-4 text-white/55" />
                 </button>
               </PopoverTrigger>
@@ -639,10 +643,10 @@ export function TourBookingDialog({ tour, language, trigger }: Props) {
 
           {/* Driver language */}
           <div>
-            <label className="flex items-center gap-1.5 text-[11px] text-white/55 uppercase tracking-wider mb-1.5">
+            <p id={`${step1LabelId}-lang`} className="flex items-center gap-1.5 text-[11px] text-white/55 uppercase tracking-wider mb-1.5">
               <Languages className="w-3.5 h-3.5" />{labels.lang}
-            </label>
-            <div className="flex gap-1.5">
+            </p>
+            <div role="group" aria-labelledby={`${step1LabelId}-lang`} className="flex gap-1.5">
               {(['en', 'ja', 'zh'] as DriverLanguage[]).map(l => {
                 const isAvailable = availableLangs.includes(l);
                 const isActive = driverLang === l;
@@ -652,7 +656,8 @@ export function TourBookingDialog({ tour, language, trigger }: Props) {
                     type="button"
                     onClick={() => isAvailable && setDriverLang(l)}
                     disabled={!isAvailable}
-                    className="flex-1 text-[12px] font-semibold py-2 rounded-xl transition-colors"
+                    aria-pressed={isActive}
+                    className="flex-1 text-[12px] font-semibold py-2 rounded-xl transition-colors customer-booking-choice"
                     style={
                       isActive
                         ? { background: 'rgba(140,200,255,0.18)', border: '1px solid rgba(140,200,255,0.45)', color: '#A0CBFF' }
@@ -671,7 +676,7 @@ export function TourBookingDialog({ tour, language, trigger }: Props) {
           {/* Add-ons — 2026-06-30 운영자 확정: 무료/현장결제. 표시 총액(=청구가)에 미포함.
               "현장 결제(선택)" 라벨로 사용자가 총액에 안 더해짐을 인지하게. 각 가격은 참고표시 유지. */}
           <div>
-            <div className="flex items-baseline justify-between gap-2 mb-1.5">
+            <div className="customer-tour-addons-heading flex items-baseline justify-between gap-2 mb-1.5">
               <p className="text-[11px] text-white/55 uppercase tracking-wider">{labels.addons}</p>
               <p className="text-[10px] text-white/40">{labels.addonOnsite}</p>
             </div>
@@ -688,7 +693,8 @@ export function TourBookingDialog({ tour, language, trigger }: Props) {
                     key={a.id}
                     type="button"
                     onClick={() => toggleAddon(a.id)}
-                    className="w-full flex items-center justify-between gap-2 px-3 py-2 rounded-xl text-left transition-colors"
+                    aria-pressed={checked}
+                    className="w-full flex items-center justify-between gap-2 px-3 py-2 rounded-xl text-left transition-colors customer-booking-choice customer-tour-addon-toggle"
                     style={
                       checked
                         ? { background: 'rgba(182,104,252,0.10)', border: '1px solid rgba(182,104,252,0.35)' }
@@ -697,12 +703,8 @@ export function TourBookingDialog({ tour, language, trigger }: Props) {
                   >
                     <div className="flex items-center gap-2 min-w-0">
                       <div
-                        className="w-4 h-4 rounded shrink-0 flex items-center justify-center"
-                        style={
-                          checked
-                            ? { background: '#B668FC', border: '1px solid #B668FC' }
-                            : { background: 'transparent', border: '1px solid rgba(255,255,255,0.20)' }
-                        }
+                        className="w-4 h-4 rounded shrink-0 flex items-center justify-center customer-tour-addon-mark"
+                        aria-hidden="true"
                       >
                         {checked && <Check className="w-3 h-3 text-white" />}
                       </div>
@@ -775,7 +777,7 @@ export function TourBookingDialog({ tour, language, trigger }: Props) {
                 "+₩X" 표기는 총액에 더해진다는 오해를 줘 P311(표시가>청구가) 인상 → 삭제.
                 각 애드온 참고가는 위 옵션 목록에서 유지(현장결제 라벨과 함께). */}
             <div className="h-px bg-white/[0.08] my-1.5" />
-            <div className="flex justify-between text-[14px] font-black">
+            <div className="flex justify-between text-[14px] font-black customer-booking-total">
               <span className="text-white">{labels.priceTotal}</span>
               <span style={{ color: '#C99FFF' }}>{totalStr}<small className="ml-1 text-white/45">({formatKRW(totalKRW)})</small></span>
             </div>
@@ -968,7 +970,7 @@ export function TourBookingDialog({ tour, language, trigger }: Props) {
               <button
                 type="button"
                 onClick={() => setStep(1)}
-                className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl text-[12px] font-semibold text-white/55 hover:text-white/80 hover:bg-white/[0.03] transition-colors"
+                className="cocotrip-tour-booking-back w-full flex items-center justify-center gap-2 py-2.5 rounded-xl text-[12px] font-semibold text-white/55 hover:text-white/80 hover:bg-white/[0.03] transition-colors"
               >
                 <ChevronLeft className="w-3.5 h-3.5" />
                 {labels.back}

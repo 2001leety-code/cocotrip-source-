@@ -150,7 +150,8 @@ function fillActualRequiredFields(view: ReturnType<typeof render>, includeTerms 
 }
 
 function chooseCalendarDate(view: ReturnType<typeof render>, verifyBlackout = true) {
-  fireEvent.click(view.getByRole('button', { name: 'Select date' }));
+  // 2026-10-19 a11y: the date button is labelled by "Tour date" + its value, so match the value as a substring.
+  fireEvent.click(view.getByRole('button', { name: /Select date/ }));
   const dayButtons = Array.from(document.querySelectorAll<HTMLButtonElement>('[data-slot="calendar"] button[data-day]'));
   if (verifyBlackout) {
     const blackoutDate = dayButtons.find((button) => {

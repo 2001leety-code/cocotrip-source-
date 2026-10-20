@@ -1,8 +1,10 @@
-import { Phone, Mail, MapPin, CreditCard } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import type { ReactNode } from 'react';
+import { Phone, Mail, MapPin, CreditCard, ChevronDown } from 'lucide-react';
+import { Link, useLocation } from 'react-router-dom';
 import { CookieSettings } from '@/components/CookieSettings';
 import type { Translations } from '@/i18n';
 import { RESPONSIVE_BRAND_MARK } from '@/lib/responsiveBrandMark';
+import { isHomeChromePath } from '@/lib/customerNight';
 
 /**
  * Common shell footer — Korea Editorial Concierge (2026-08-10).
@@ -25,14 +27,38 @@ const LEGAL_LINKS = [
   { to: '/travel-terms', key: 'travelTerms' },
 ] as const;
 
+/**
+ * Home only (2026-10-07 annotation): Row 1 starts closed behind one summary
+ * row. Every other page gets the same markup, unwrapped. Legal links and
+ * cookie settings sit outside this, so they are always visible.
+ */
+function HomeInfoFold({ home, summary, children }: { home: boolean; summary: string; children: ReactNode }) {
+  if (!home) return <>{children}</>;
+  return (
+    <details className="home-dope-footer-info">
+      <summary className="home-dope-footer-info__summary">
+        <img {...RESPONSIVE_BRAND_MARK} sizes="24px" alt="" aria-hidden width={24} height={24} className="h-6 w-6 rounded-ec-sm" />
+        <span className="text-[16px] font-bold tracking-[-0.02em] text-ec-ink">COCOTRIP</span>
+        <span className="min-w-0 flex-1 text-[13px] text-ec-ink-2">{summary}</span>
+        <ChevronDown className="home-dope-footer-info__chevron h-4 w-4 shrink-0" aria-hidden />
+      </summary>
+      <div className="pt-6">{children}</div>
+    </details>
+  );
+}
+
 export function Footer({ t }: FooterProps) {
   const f = t.footer;
+  // Home and the exact /planner entry share Home's footer (fold + dark chrome).
+  const isHome = isHomeChromePath(useLocation().pathname);
+  const homeChrome = isHome ? ' home-dope-chrome' : '';
 
   return (
-    <footer className="ec-root ec-no-print bg-ec-sunken border-t border-ec-line pb-20 md:pb-0">
+    <footer className={`ec-root ec-no-print bg-ec-sunken border-t border-ec-line pb-20 md:pb-0${homeChrome}`}>
       <div className="ec-container-wide py-12 md:py-16">
 
         {/* ── Row 1: identity + contact + links ── */}
+        <HomeInfoFold home={isHome} summary={`${f.about} · ${f.cs}`}>
         <div className="grid gap-10 md:grid-cols-12">
 
           {/* Identity + registration. The numbers are the trust signal. */}
@@ -109,6 +135,7 @@ export function Footer({ t }: FooterProps) {
             </nav>
           </div>
         </div>
+        </HomeInfoFold>
 
         {/* ── Row 2: legal + copyright ── */}
         <hr className="ec-rule mt-12 mb-6" />

@@ -43,7 +43,7 @@ export function GuideArticleBody({ copy, status, doc, words, onRetry, related = 
   const safeHtml = doc ? sanitizeGuideHtml(doc.html) : '';
 
   return (
-    <main className="ec-root">
+    <main className="ec-root guide-document-editorial">
       <div className="ec-container py-8 md:py-12">
         {/* One measured column, centred once the container is wider than it.
             Left-aligned it leaves ~470px of blank paper down one side at 1440,

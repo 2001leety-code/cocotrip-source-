@@ -186,8 +186,8 @@ export function CartCheckout({ onClose, onBack }: { onClose: () => void; onBack?
   if (status === 'review') {
     return (
       <div className="cocotrip-mobile-cart-checkout p-6 text-center">
-        <div className="text-4xl mb-3" aria-hidden="true">🕒</div>
-        <p className="text-white font-semibold mb-1">{c.checkoutReview || 'Payment received'}</p>
+        <div className="text-4xl mb-3 customer-checkout-review-icon" aria-hidden="true">🕒</div>
+        <p className="text-white font-semibold mb-1 customer-checkout-state-title">{c.checkoutReview || 'Payment received'}</p>
         <p className="text-white/55 text-sm mb-3">
           {c.checkoutReviewSub || 'Your booking is pending verification. We will contact you by email once confirmed.'}
         </p>
@@ -204,8 +204,8 @@ export function CartCheckout({ onClose, onBack }: { onClose: () => void; onBack?
   if (status === 'success') {
     return (
       <div className="cocotrip-mobile-cart-checkout p-6 text-center">
-        <div className="text-4xl mb-3">✅</div>
-        <p className="text-white font-semibold mb-1">{c.checkoutDone || 'Booking confirmed!'}</p>
+        <div className="text-4xl mb-3 customer-checkout-success-icon">✅</div>
+        <p className="text-white font-semibold mb-1 customer-checkout-state-title">{c.checkoutDone || 'Booking confirmed!'}</p>
         <p className="text-white/55 text-sm mb-5">{c.checkoutDoneSub || 'Confirmation emails are on the way.'}</p>
         <button onClick={onClose} className="px-5 py-2.5 rounded-xl text-sm font-semibold bg-[#7C5CFC] text-white">
           {c.close || 'Done'}
@@ -218,17 +218,17 @@ export function CartCheckout({ onClose, onBack }: { onClose: () => void; onBack?
   const displaySumKRW = items.reduce((s, it) => s + (Number(it.priceKRW) || 0), 0);
 
   return (
-    <div className="cocotrip-mobile-cart-checkout p-5">
+    <div className="cocotrip-mobile-cart-checkout p-5 customer-checkout-default">
       {/* 검수 헤더 */}
       <div className="mb-3">
-        <p className="text-white font-semibold text-sm">{REVIEW_TEXT.title[lng]}</p>
+        <p className="text-white font-semibold text-sm customer-checkout-title">{REVIEW_TEXT.title[lng]}</p>
         <p className="text-white/50 text-xs mt-0.5">{REVIEW_TEXT.sub[lng]}</p>
       </div>
 
       {/* 항목별 전체 내역 (검수) */}
       <div className="space-y-2.5 mb-4">
         {items.map((item) => (
-          <div key={item.id} className="bg-white/[0.04] rounded-xl p-3 border border-white/5">
+          <div key={item.id} className="bg-white/[0.04] rounded-xl p-3 border border-white/5 customer-checkout-item">
             <div className="flex items-baseline justify-between gap-2">
               <p className="text-white text-sm font-medium break-words">{item.displayName}</p>
               {item.priceUSD ? <span className="text-[#C4956A] text-sm font-semibold shrink-0">${item.priceUSD}</span> : null}
@@ -237,7 +237,7 @@ export function CartCheckout({ onClose, onBack }: { onClose: () => void; onBack?
               {formatBookingDetails(item.booking, language).map((row, i) => (
                 row.full ? (
                   // 긴 메모/요청사항 — 우측 좁은 칸 X, 전체폭 stacked + " | " 줄바꿈으로 가독성.
-                  <div key={i} className="text-xs pt-1 border-t border-white/5">
+                  <div key={i} className="text-xs pt-1 border-t border-white/5 customer-checkout-row">
                     <span className="text-white/60 block mb-1">{row.label}</span>
                     <ol className="text-white/90 leading-relaxed space-y-0.5">
                       {row.value.split(' | ').map((part, j) => (
@@ -249,7 +249,7 @@ export function CartCheckout({ onClose, onBack }: { onClose: () => void; onBack?
                     </ol>
                   </div>
                 ) : (
-                  <div key={i} className="flex justify-between gap-3 text-xs">
+                  <div key={i} className="flex justify-between gap-3 text-xs customer-checkout-row">
                     <span className="text-white/60 shrink-0">{row.label}</span>
                     <span className="text-white/90 text-right break-words font-medium">{row.value}</span>
                   </div>
@@ -283,7 +283,7 @@ export function CartCheckout({ onClose, onBack }: { onClose: () => void; onBack?
             {REVIEW_TEXT.confirm[lng]}
           </button>
           {onBack && (
-            <button onClick={onBack} className="w-full mt-2 text-xs text-white/50 hover:text-white/80 py-1.5">
+            <button onClick={onBack} className="w-full mt-2 text-xs text-white/50 hover:text-white/80 py-1.5 customer-checkout-back">
               {REVIEW_TEXT.back[lng]}
             </button>
           )}

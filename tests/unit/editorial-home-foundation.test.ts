@@ -107,9 +107,14 @@ describe('식당 DB 수치 — 화면 숫자 ↔ 실제 JSON', () => {
     expect(FOOD_DB.restaurants).toBe(index.length);
   });
 
-  it('FOOD_DB.cities == distinct city 수', () => {
-    const cities = new Set(index.map((r) => r.city).filter(Boolean));
-    expect(FOOD_DB.cities).toBe(cities.size);
+  // 2026-10-11: "수록 도시" = 식당 10곳 이상 실린 도시. 주소 기준 city 교정으로 1~2행뿐인 소도시 키가
+  // 9개 생겼는데(용인·고양·구미 …) 그걸 "수록 도시"로 세면 과장이다. 임계값도 함께 잠근다.
+  it('FOOD_DB.cities == 식당 10곳 이상 도시 수 (distinct 키가 아니라 커버리지)', () => {
+    const perCity = new Map<string, number>();
+    for (const r of index) if (r.city) perCity.set(r.city, (perCity.get(r.city) || 0) + 1);
+    const covered = [...perCity.values()].filter((n) => n >= FOOD_DB.cityMinRestaurants).length;
+    expect(FOOD_DB.cities).toBe(covered);
+    expect(perCity.size).toBeGreaterThanOrEqual(FOOD_DB.cities); // distinct 키 ≥ 수록 도시
   });
 
   it('4언어 원장 숫자가 FOOD_DB 와 일치한다 (천단위 구분 무시)', () => {

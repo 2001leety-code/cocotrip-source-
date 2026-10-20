@@ -16,7 +16,7 @@ import { deriveVerificationStatus, DIETARY_TAGS } from '../api/_shared/dietary-t
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(__dirname, '..');
-const FOOD_DATA_DIR = join(ROOT, '..', '..', 'food_data');
+const FOOD_DATA_DIR = process.env.FOOD_DATA_DIR || join(ROOT, '..', '..', 'food_data'); // env override: Python repo food_data
 const OUTPUT_PATH = join(ROOT, 'api', '_food_index.json');
 
 const MIN_RATING = 4.5;
@@ -28,7 +28,7 @@ const NEW_CITIES = ['jeju', 'gyeongju', 'jeonju'];
 
 // Fields to keep (minimize size)
 const KEEP_FIELDS = [
-  'name', 'nameEn', 'address', 'lat', 'lng',
+  'name', 'nameEn', 'address', 'roadAddress', 'lat', 'lng', // roadAddress: 2026-10-10 Naver reconcile
   'rating', 'reviewCount', 'cuisine', 'cuisineKo',
   'priceLevel', 'priceLabel', 'priceLabelKo', 'priceRange',
   'tag', 'placeId', 'googleMapsUrl',

@@ -9,6 +9,7 @@
  * 교체 후보 조건 (전부 만족):
  *   - 같은 도시 (resolveCityCode 기준)
  *   - dietary 태그 일치 + isDietaryTrusted (unverified 제외)
+ *   - isRowCityConsistent (주소가 city 필드와 모순되는 행 제외)
  *   - 위반 stop 좌표가 있으면 반경 MAX_KM 내 (동선 보존), 없으면 도시 전체에서 최고 평점
  *   - 플랜에 이미 등장한 식당 제외 (중복 방지)
  *   ⚠️ 영업시간: DB 에 영업시간 데이터가 없어 검사 불가 — 정직하게 한계 명시.
@@ -21,6 +22,8 @@
  */
 import { isDietaryTrusted, acceptTagsForDiet, dietaryEvidenceFor, describeDietaryEvidence } from '../_shared/dietary-trust.js';
 import { resolveCityCode } from '../_food_helper.js';
+import { isRowCityConsistent } from '../_shared/food-row-provenance.js';
+import { resolveUiCityKey } from '../_shared/cityResolver.js';
 
 const MAX_KM = 8; // 위반 stop 좌표 기준 교체 후보 최대 거리 (동선 보존)
 
@@ -33,12 +36,34 @@ function distanceKm(lat1, lng1, lat2, lng2) {
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
+/** 명시 식별자 정규화 — 정확 일치만(trim + 소문자). 브랜드 퍼지·접미사 제거 없음 (지점 구분 보존). */
+function identityKeys(values) {
+  const keys = [];
+  for (const v of values) {
+    if (!v) continue;
+    for (const part of String(v).split('|')) {
+      const k = part.trim().toLowerCase();
+      if (k) keys.push(k);
+    }
+  }
+  return keys;
+}
+
+/** stop 의 명시 식별자 — 현재 필드 + legacy name_ko/name_en, pipe 별칭 전부. */
+function stopIdentityKeys(s) {
+  return s ? identityKeys([s.name, s.display_name, s.name_ko, s.name_en]) : [];
+}
+
+/** DB 행의 명시 식별자 — name 의 pipe 별칭 전부 + nameEn. */
+function rowIdentityKeys(r) {
+  return r ? identityKeys([r.name, r.nameEn]) : [];
+}
+
 function collectPlanNames(itinerary) {
   const names = new Set();
   for (const day of itinerary?.days || []) {
     for (const s of day?.stops || []) {
-      if (s?.name) names.add(String(s.name).split('|')[0].trim());
-      if (s?.display_name) names.add(String(s.display_name).trim());
+      for (const k of stopIdentityKeys(s)) names.add(k);
     }
   }
   return names;
@@ -67,10 +92,11 @@ export function replaceViolatingFoodStops(itinerary, issues, foodIndex, dietaryA
   for (const v of violations) {
     // 위반 stop 찾기 (label 매칭 — validateResponse 와 동일 라벨 규칙)
     let target = null;
+    let dayCity = null; // UI city key of the day that owns the stop; null when unknown (no seoul fallback)
     for (const day of itinerary?.days || []) {
       for (const s of day?.stops || []) {
         const label = (s?.name || s?.display_name || '').split('|')[0].trim();
-        if (label && label === v.stop) { target = s; break; }
+        if (label && label === v.stop) { target = s; dayCity = resolveUiCityKey(day?.city) || resolveUiCityKey(area); break; }
       }
       if (target) break;
     }
@@ -81,8 +107,11 @@ export function replaceViolatingFoodStops(itinerary, issues, foodIndex, dietaryA
     const candidates = foodIndex.filter((r) => {
       if (!accept.includes(String(r.tag || '').toLowerCase())) return false;
       if (!isDietaryTrusted(r)) return false; // unverified 절대 금지
-      const nm = String(r.name || '').split('|')[0].trim();
-      if (usedNames.has(nm) || (r.nameEn && usedNames.has(r.nameEn))) return false;
+      if (!isRowCityConsistent(r)) return false; // 주소가 city 필드와 모순 — 좌표/도시 근거 불신
+      // 2026-10-10: the 8km radius alone trusted the MODEL's coordinates — a Busan day with Seoul coords pulled
+      // Seoul restaurants (final gate then blocked → paid retry). A candidate must belong to the day's city.
+      if (dayCity && String(r.city || '').toLowerCase() !== dayCity) return false;
+      if (rowIdentityKeys(r).some((k) => usedNames.has(k))) return false;
       if (hasCoord && Number.isFinite(r.lat) && Number.isFinite(r.lng)) {
         return distanceKm(target.lat, target.lng, r.lat, r.lng) <= MAX_KM;
       }
@@ -122,8 +151,7 @@ export function replaceViolatingFoodStops(itinerary, issues, foodIndex, dietaryA
       : `Listed in our ${String(pick.tag)} database. Please confirm with the restaurant and check opening hours before visiting.`;
     target._replaced_for_dietary = v.diet; // 감사 추적
 
-    usedNames.add(pickName);
-    if (pick.nameEn) usedNames.add(pick.nameEn);
+    for (const k of rowIdentityKeys(pick)) usedNames.add(k);
     result.replaced++;
     result.detail.push(`replaced ${v.diet}:${v.stop} -> ${pickName}`);
   }

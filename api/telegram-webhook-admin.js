@@ -2463,12 +2463,9 @@ async function handleQuickBookInput(botToken, p, rawText) {
  * Gemini로 자연어/양식 → JSON 파싱
  */
 async function geminiParseBookingInput(rawText) {
-  const { GoogleGenerativeAI } = await import('@google/generative-ai');
-  const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) throw new Error('GEMINI_API_KEY 미설정');
-
-  const genAI = new GoogleGenerativeAI(apiKey);
-  const model = genAI.getGenerativeModel({
+  const { createLlmModel, resolveLlmApiKey } = await import('./_shared/llm/index.js'); // LLM 공급자 전환
+  const apiKey = resolveLlmApiKey('classifier');
+  const model = createLlmModel({
     model: 'gemini-2.5-flash',
     generationConfig: {
       temperature: 0.1,
@@ -2476,7 +2473,7 @@ async function geminiParseBookingInput(rawText) {
       thinkingConfig: { thinkingBudget: 0 },
       responseMimeType: 'application/json',
     },
-  });
+  }, { role: 'classifier', stage: 'telegram-quick-book', apiKey, timeoutMs: 20000 });
 
   const today = todayKstDate();
   const prompt = `You are a Korean tour booking assistant. Extract booking information from this operator input.

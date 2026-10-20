@@ -26,8 +26,10 @@ import { trackEvent } from '@/lib/analytics';
 import { track as posthogTrack } from '@/lib/posthog';
 import { ReviewList } from '@/components/ReviewList';
 import { EcLoading } from '@/components/ui/states';
+import '@/styles/plan-result-night.css';
 
 import { useAutoTranslate } from './useAutoTranslate';
+import { projectPublicPlan } from '@/lib/publicPlanProjection.js';
 import { generatePDF } from './pdfGenerator';
 import { DayTimeline } from './components/DayTimeline';
 import { EditModeToggle } from './components/EditModeToggle';
@@ -89,7 +91,10 @@ export default function PlanDetailPage() {
 
   // Build slide array from plan data
   const slides = useMemo(() => (plan ? buildSlides(plan) : []), [plan]);
-  const { current, goToSlide } = useSwipeNavigation(slides.length);
+  const { current, goToSlide } = useSwipeNavigation(slides.length, {
+    navigationKey: planId || '',
+    ready: !loading && !!plan && plan._streaming_in_progress !== true,
+  });
 
   // P1 보완 (2026-07-11): planner_complete/free_plan_redeemed — plan.status 확정 시점 1회.
   usePlanCompletionTracking(planId, plan?.status, !!plan);
@@ -105,6 +110,13 @@ export default function PlanDetailPage() {
   // Firestore reads. Switched to `user?.uid` (stable string) so the
   // effect only re-runs when the actual identity changes.
   const uid = user?.uid ?? null;
+  // Language only localizes the public stay label; useAutoTranslate re-projects on
+  // language changes. Reading it from a ref keeps a language switch from
+  // resubscribing/refetching the plan and restarting translation.
+  const languageRef = useRef(language);
+  useEffect(() => {
+    languageRef.current = language;
+  }, [language]);
   const dataIdentity = `${planId || ''}\u0000${token || ''}\u0000${uid || ''}\u0000${localScenario || ''}`;
   const requestIdentity = `${dataIdentity}\u0000${authLoading}`;
   const [previousRequest, setPreviousRequest] = useState(() => ({ requestIdentity, dataIdentity }));
@@ -112,6 +124,10 @@ export default function PlanDetailPage() {
   // 기존 effect처럼 판단을 미룬다. 비동기 응답은 아래 listener 콜백만 상태를 쓴다.
   if (requestIdentity !== previousRequest.requestIdentity) {
     setPreviousRequest({ requestIdentity, dataIdentity });
+    if (dataIdentity !== previousRequest.dataIdentity) {
+      setPlan(null);
+      setIsOwner(false);
+    }
     if (!planId || dataIdentity !== previousRequest.dataIdentity || !authLoading) {
       setError(planId ? null : 'notfound');
       setLoading(!!planId);
@@ -150,32 +166,18 @@ export default function PlanDetailPage() {
     // API 경로 plan 은 이미 서버 마스킹됨 → 아래 마스킹은 멱등(방어심층). isOwner 도 set.
     const handleSnap = (data: PlanDocument, viewerUid: string | null | undefined) => {
       const ownerCheck = !!(viewerUid && data.uid === viewerUid);
-      const hasToken = data.accessToken && data.accessToken === token;
-      const isGuestPlan = !data.uid;
+      const hasToken = !!(data.accessToken && data.accessToken === token);
       const isPublicShared = data.isPublic === true;
-      if (!ownerCheck && !hasToken && !isGuestPlan && !isPublicShared) { setError('unauthorized'); setLoading(false); return; }
-      // PII masking — 소유자도 유효 토큰 보유자도 아닌 접근(공유 링크 또는 게스트 플랜 planId 노출).
-      // 버그헌트 2026-06-14: 게스트 플랜(uid 없음)을 토큰 없이 보면 PII(이메일·주소·알레르기·토큰)가
-      // 그대로 노출되던 것 → 마스킹. itinerary 뷰는 유지(안 깨짐). 이제 wire-레벨 차단은 비소유자
-      // 가 /api/get-plan(서버 마스킹) 경유라 달성 — 이 JS 마스킹은 멱등 방어심층으로 유지.
-      const noPiiAccess = !ownerCheck && !hasToken;
-      if (noPiiAccess && (isPublicShared || isGuestPlan)) {
-        delete data.uid; delete data.guestEmail;
-        delete data.accessToken;
-        if (data.input) {
-          delete data.input.guestName;
-          delete data.input.specialRequest;
-          delete data.input.hotel_address;
-          delete data.input.arrival_airport;
-          delete data.input.departure_airport;
-          delete data.input.dietary;
-          delete data.input.allergies;
-          delete data.input.dietaryRestrictions;
-        }
-        delete data.pricing;
+      if (!ownerCheck && !hasToken && !isPublicShared) {
+        setError('unauthorized'); setLoading(false); return;
       }
+      // The API, fallback snapshot, and translation path share one nested allowlist.
+      // Owner and valid-token access keep the original document unchanged.
+      const visiblePlan = ownerCheck || hasToken
+        ? data
+        : projectPublicPlan(data, { language: languageRef.current }) as unknown as PlanDocument;
       setIsOwner(ownerCheck);
-      setPlan(data);
+      setPlan(visiblePlan);
       setLoading(false);
     };
 
@@ -286,7 +288,13 @@ export default function PlanDetailPage() {
   });
 
   // Auto-translate (locked hook - see useAutoTranslate.ts for invariants)
-  const { isTranslating, translationError } = useAutoTranslate(plan, setPlan, language);
+  const hasFullPlanAccess = isOwner || !!(token && plan?.accessToken === token);
+  const { isTranslating, translationError } = useAutoTranslate(loading ? null : plan, setPlan, language, {
+    planId: planId || '',
+    publicView: !hasFullPlanAccess,
+    allowCache: isOwner,
+    accessKey: `${planId || ''}:${isOwner ? `owner:${uid || ''}` : hasFullPlanAccess ? 'token' : 'public'}`,
+  });
 
   // PDF download (locked module - see pdfGenerator.ts for invariants)
   const [isPdfGenerating, setIsPdfGenerating] = useState(false);
@@ -370,7 +378,7 @@ export default function PlanDetailPage() {
   const ui = getPlanDetailUI(t);
   if (loading) {
     return (
-      <div className="ec-root min-h-screen" data-testid="plan-document">
+      <div className="ec-root plan-result-night min-h-screen" data-testid="plan-document">
         <Header language={language} t={t} onLanguageChange={changeLanguage} />
         <PlanDocumentState kind="loading" ui={ui} />
         <Footer t={t} />
@@ -380,7 +388,7 @@ export default function PlanDetailPage() {
 
   if (error === 'notfound') {
     return (
-      <div className="ec-root min-h-screen" data-testid="plan-document">
+      <div className="ec-root plan-result-night min-h-screen" data-testid="plan-document">
         <Header language={language} t={t} onLanguageChange={changeLanguage} />
         <PlanDocumentState
           kind="not-found"
@@ -394,7 +402,7 @@ export default function PlanDetailPage() {
 
   if (error === 'unauthorized') {
     return (
-      <div className="ec-root min-h-screen" data-testid="plan-document">
+      <div className="ec-root plan-result-night min-h-screen" data-testid="plan-document">
         <Header language={language} t={t} onLanguageChange={changeLanguage} />
         <PlanDocumentState
           kind="permission"
@@ -412,7 +420,7 @@ export default function PlanDetailPage() {
   // 새로고침 시 SW 가 새 JS 를 받아 Firebase 재인증 → 정상 표시.
   if (error === 'autherror') {
     return (
-      <div className="ec-root min-h-screen" data-testid="plan-document">
+      <div className="ec-root plan-result-night min-h-screen" data-testid="plan-document">
         <Header language={language} t={t} onLanguageChange={changeLanguage} />
         <PlanDocumentState kind="session" ui={ui} onRetry={() => window.location.reload()} />
         <Footer t={t} />
@@ -438,7 +446,7 @@ export default function PlanDetailPage() {
 
   if (days.length === 0 && !isStreamingInProgress) {
     return (
-      <div className="ec-root min-h-screen" data-testid="plan-document">
+      <div className="ec-root plan-result-night min-h-screen" data-testid="plan-document">
         <Header language={language} t={t} onLanguageChange={changeLanguage} />
         <PlanDocumentState
           kind="empty"
@@ -501,6 +509,7 @@ export default function PlanDetailPage() {
               <DayTimeline
                 day={dayData}
                 dayIndex={dayIdx}
+                routeScopeKey={`${planId || ''}:day:${dayIdx}`}
                 editMode={editMode}
                 isRecalculating={editor.isRecalculating}
                 onDeleteStop={(di, si) => editor.deleteStop(di, si, token)}
@@ -537,7 +546,7 @@ export default function PlanDetailPage() {
   });
 
   return (
-    <div className="ec-root min-h-screen" data-testid="plan-document">
+    <div className="ec-root plan-result-night min-h-screen" data-testid="plan-document">
       <Header language={language} t={t} onLanguageChange={changeLanguage} />
       <PlanDocumentMasthead
         plan={plan}

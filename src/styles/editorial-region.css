@@ -432,3 +432,67 @@
     gap: 36px;
   }
 }
+
+/* Night editorial refinement — photo-led region discovery */
+.ec-night .region-editorial .region-editorial-hero-copy .ec-display,
+.ec-night .region-editorial .region-editorial-not-found .ec-display {
+  font-family: var(--ec-night-serif);
+  font-size: clamp(28px, 4vw, 32px);
+  font-weight: 400;
+  line-height: 1.15;
+}
+
+.ec-night .region-editorial .region-editorial-deck {
+  font-family: var(--ec-night-serif);
+  font-weight: 400;
+  color: var(--ec-text-secondary);
+}
+
+.ec-night .region-editorial .region-editorial-hero-copy .ec-body,
+.ec-night .region-editorial .region-editorial-attraction .ec-body-sm {
+  font-size: 16px;
+  line-height: 1.7;
+  color: var(--ec-text-secondary);
+}
+
+.ec-night .region-editorial .region-editorial-hero-media {
+  border-color: var(--ec-line-strong);
+  border-radius: var(--ec-radius-md);
+}
+
+.ec-night .region-editorial .region-editorial-gallery figure {
+  border-color: var(--ec-line-strong);
+}
+
+.ec-night .region-editorial .region-editorial-attractions {
+  background: var(--ec-surface-sunken);
+}
+
+.ec-night .region-editorial .region-editorial-attraction .ec-h3,
+.ec-night .region-editorial .region-editorial-section-heading .ec-h2 {
+  font-family: var(--ec-night-serif);
+  font-weight: 400;
+}
+
+.ec-night .region-editorial .region-editorial-other-link {
+  min-height: 44px;
+  border-bottom-color: var(--ec-line-strong);
+}
+
+.ec-night .region-editorial .region-editorial-main :where(a, button):focus-visible {
+  outline: 3px solid var(--ec-brand);
+  outline-offset: 3px;
+}
+
+.ec-night .region-editorial .region-editorial-not-found-actions .ec-btn,
+.ec-night .region-editorial .region-editorial-cta-actions .ec-btn {
+  min-height: 44px;
+}
+
+/* Root-approved size-bound correction; original Claude output is preserved in generated.json. */
+@media (min-width: 768px) {
+  .ec-night .region-editorial .region-editorial-hero-copy .ec-display,
+  .ec-night .region-editorial .region-editorial-not-found .ec-display {
+    font-size: clamp(32px, 3vw, 40px);
+  }
+}

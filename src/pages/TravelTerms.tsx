@@ -1,4 +1,7 @@
+import '@/styles/home-dope.css';
+import '@/styles/home-dope-static.css';
 import type { ReactNode } from 'react';
+import { ArrowRight } from 'lucide-react';
 import { Header } from '@/sections/Header';
 import { Footer } from '@/sections/Footer';
 import { useLanguage } from '@/hooks/useLanguage';
@@ -16,7 +19,7 @@ const CONTENT = {
       },
       {
         title: 'Article 2 (Obligations of the Company and Traveler)',
-        body: '1. Company: The Company faithfully performs various tasks such as establishing, implementing, and post-managing travel plans to provide safe and satisfactory travel services to travelers.\n\n• Name: COCOTRIP\n• Business Registration Number: 423-88-03168\n• Address: B01, 30 Hangang-daero 81-gil, Yongsan-gu, Seoul\n\n2. Traveler: Travelers must faithfully respond to the Company\'s guidance and cooperation requests for traveler safety and smooth travel.',
+        body: '1. Company: The Company faithfully performs various tasks such as establishing, implementing, and post-managing travel plans to provide safe and satisfactory travel services to travelers.\n\n• Name: COCOTRIP\n• Business Registration Number: 423-88-03168\n• Address: 201-81, B2, 127 Sinchon-ro, Seodaemun-gu, Seoul\n\n2. Traveler: Travelers must faithfully respond to the Company\'s guidance and cooperation requests for traveler safety and smooth travel.',
       },
       {
         title: 'Article 3 (Formation of Contract)',
@@ -49,7 +52,7 @@ const CONTENT = {
       },
       {
         title: '제2조 (회사 및 여행자의 의무)',
-        body: '1. 회사: 회사는 여행자에게 안전하고 만족스러운 여행 서비스를 제공하기 위해 여행 계획 수립, 실행, 사후 관리 등 각종 업무를 성실히 수행합니다.\n\n• 상호: COCOTRIP\n• 사업자등록번호: 423-88-03168\n• 주소: 서울특별시 용산구 한강대로81길 30, B01\n\n2. 여행자: 여행자는 안전하고 원활한 여행을 위한 회사의 안내와 협조 요청에 성실히 응하여야 합니다.',
+        body: '1. 회사: 회사는 여행자에게 안전하고 만족스러운 여행 서비스를 제공하기 위해 여행 계획 수립, 실행, 사후 관리 등 각종 업무를 성실히 수행합니다.\n\n• 상호: COCOTRIP\n• 사업자등록번호: 423-88-03168\n• 주소: 서울특별시 서대문구 신촌로 127 지하2층 201-81호\n\n2. 여행자: 여행자는 안전하고 원활한 여행을 위한 회사의 안내와 협조 요청에 성실히 응하여야 합니다.',
       },
       {
         title: '제3조 (계약의 성립)',
@@ -82,7 +85,7 @@ const CONTENT = {
       },
       {
         title: '第2条（当社および旅行者の義務）',
-        body: '1. 当社：当社は、旅行者に安全で満足のいく旅行サービスを提供するために、旅行計画の策定、実施、事後管理などの各種業務を誠実に遂行します。\n\n• 商号：COCOTRIP\n• 事業者登録番号：423-88-03168\n• 住所：ソウル特別市龍山区漢江大路81ギル30、B01\n\n2. 旅行者：旅行者は、安全で円滑な旅行のための当社の案内と協力要請に誠実に対応しなければなりません。',
+        body: '1. 当社：当社は、旅行者に安全で満足のいく旅行サービスを提供するために、旅行計画の策定、実施、事後管理などの各種業務を誠実に遂行します。\n\n• 商号：COCOTRIP\n• 事業者登録番号：423-88-03168\n• 住所：ソウル特別市西大門区新村路127 地下2階 201-81号\n\n2. 旅行者：旅行者は、安全で円滑な旅行のための当社の案内と協力要請に誠実に対応しなければなりません。',
       },
       {
         title: '第3条（契約の成立）',
@@ -115,7 +118,7 @@ const CONTENT = {
       },
       {
         title: '第二条（公司和旅行者的义务）',
-        body: '1. 公司：公司忠实地执行旅行计划的制定、实施和后续管理等各项工作，为旅行者提供安全和满意的旅行服务。\n\n• 名称：COCOTRIP\n• 营业执照号码：423-88-03168\n• 地址：首尔特别市龙山区汉江大路81街30号B01\n\n2. 旅行者：旅行者必须忠实地回应公司为保障旅行者安全和顺畅旅行而提出的指导和协助请求。',
+        body: '1. 公司：公司忠实地执行旅行计划的制定、实施和后续管理等各项工作，为旅行者提供安全和满意的旅行服务。\n\n• 名称：COCOTRIP\n• 营业执照号码：423-88-03168\n• 地址：首尔特别市西大门区新村路127 地下2层 201-81号\n\n2. 旅行者：旅行者必须忠实地回应公司为保障旅行者安全和顺畅旅行而提出的指导和协助请求。',
       },
       {
         title: '第三条（合同的成立）',
@@ -141,19 +144,48 @@ const CONTENT = {
   },
 };
 
-const PageSection = ({ title, children, isMobile }: { title: string; children: ReactNode; isMobile?: boolean }) => (
-  <section className="mb-8">
-    <h2 className={`text-xl font-semibold pb-2 mb-4 border-b-2 ${
-      isMobile ? 'text-white border-[#B668FC]/30' : 'text-white border-[#FF6B9D]/40'
-    }`}>{title}</h2>
-    <div className={`space-y-4 text-sm leading-relaxed ${isMobile ? 'text-white/50' : 'text-white/70'}`}>{children}</div>
+/** Wrapper labels only (2026-10-11, home vocabulary). The legal text above is untouched. */
+const LABELS = {
+  ko: { kicker: '법적 고지', article: '조항' },
+  en: { kicker: 'Legal', article: 'Article' },
+  ja: { kicker: '法的情報', article: '条項' },
+  zh: { kicker: '法律信息', article: '条款' },
+};
+
+const num = (i: number) => String(i + 1).padStart(2, '0');
+
+const PageSection = ({ index, title, chip, children }: { index: number; title: string; chip: string; children: ReactNode }) => (
+  <section id={`article-${index + 1}`} className="scroll-mt-24 border-t border-ec-line p-5 first:border-t-0 md:p-8">
+    <div className="flex items-start justify-between gap-4">
+      <h2 className="ec-h3"><span className="ec-figure mr-2">{num(index)}</span>{title}</h2>
+      <span className="ec-chip shrink-0">{chip}</span>
+    </div>
+    <div className="ec-body mt-4 max-w-[62ch] space-y-4 text-ec-ink-2">{children}</div>
   </section>
+);
+
+/** Table of contents in Home's service-row vocabulary; each row anchors to its article. */
+const LegalToc = ({ label, titles }: { label: string; titles: string[] }) => (
+  <nav aria-label={label} className="home-dope-services home-dope-rows mt-10">
+    <ul className="home-dope-rows__list">
+      {titles.map((title, i) => (
+        <li key={i}>
+          <a href={`#article-${i + 1}`} className="home-dope-row">
+            <span className="home-dope-row__title">{num(i)}</span>
+            <span className="home-dope-row__desc font-semibold">{title}</span>
+            <ArrowRight className="home-dope-row__arrow" aria-hidden />
+          </a>
+        </li>
+      ))}
+    </ul>
+  </nav>
 );
 
 export default function TravelTerms() {
   const { language, t, changeLanguage } = useLanguage();
   const isMobile = useIsMobile();
   const content = CONTENT[language as keyof typeof CONTENT] ||CONTENT.en;
+  const labels = LABELS[language as keyof typeof LABELS] || LABELS.en;
 
   usePageMeta({
     title: content.pageTitle,
@@ -161,21 +193,28 @@ export default function TravelTerms() {
   });
 
   return (
-    <div className={isMobile ? 'm-page' : 'min-h-screen bg-gradient-to-b from-[#0a0412] via-[#0d0618] to-[#080210]'}>
+    <div className={isMobile ? 'm-page' : 'min-h-screen bg-[#0a0b14]'}>
       <Header language={language} t={t} onLanguageChange={changeLanguage} />
-      <main className={`container mx-auto px-4 ${isMobile ? 'pt-6 pb-4' : 'py-16 sm:py-24'}`}>
-        <div className={isMobile ? '' : 'max-w-4xl mx-auto bg-white/[0.04] backdrop-blur-md border border-white/[0.08] p-8 sm:p-12 rounded-lg shadow-lg'}>
-          <h1 className={`text-2xl font-bold text-center mb-8 ${isMobile ? 'm-shimmer-text' : 'text-white text-4xl sm:text-5xl sm:mb-12 font-display font-normal tracking-tight'}`}>{content.pageTitle}</h1>
-          
-          {content.articles.map((article, idx) => (
-            <PageSection key={idx} title={article.title} isMobile={isMobile}>
-              {article.body.split('\n\n').map((paragraph, pIdx) => (
-                <p key={pIdx} className={paragraph.startsWith('•') ? `pl-4 text-xs ${isMobile ? 'text-white/55' : 'text-white/60'}` : undefined}>
-                  {paragraph}
-                </p>
-              ))}
-            </PageSection>
-          ))}
+      <main className="ec-root home-dope home-dope--static" lang={language}>
+        <section className="border-b border-ec-line bg-ec-sunken">
+          <div className="ec-container-wide py-12 md:py-16">
+            <p className="ec-eyebrow home-dope-eyebrow">{labels.kicker} · {content.pageTitle}</p>
+            <h1 className="ec-h2 mt-4">{content.pageTitle}</h1>
+            <LegalToc label={content.pageTitle} titles={content.articles.map((a) => a.title)} />
+          </div>
+        </section>
+        <div className="ec-container-wide py-12 md:py-16">
+          <article className="ec-card max-w-4xl p-0">
+            {content.articles.map((article, idx) => (
+              <PageSection key={idx} index={idx} title={article.title} chip={labels.article}>
+                {article.body.split('\n\n').map((paragraph, pIdx) => (
+                  <p key={pIdx} className={paragraph.startsWith('•') ? 'ec-body-sm pl-4' : undefined}>
+                    {paragraph}
+                  </p>
+                ))}
+              </PageSection>
+            ))}
+          </article>
         </div>
       </main>
       {!isMobile && <Footer t={t} />}

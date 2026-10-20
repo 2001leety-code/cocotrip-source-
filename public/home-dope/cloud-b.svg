@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 520 180" width="520" height="180">
+  <!-- Own work (Opus 5.5 for CocoTrip, 2026-10-07): thin stretched cloud bank, ellipses + blur. -->
+  <defs>
+    <filter id="soft" x="-20%" y="-50%" width="140%" height="200%">
+      <feGaussianBlur stdDeviation="6" />
+    </filter>
+  </defs>
+  <g fill="#f3e6f7" filter="url(#soft)">
+    <ellipse cx="140" cy="100" rx="120" ry="34" />
+    <ellipse cx="290" cy="84" rx="130" ry="44" />
+    <ellipse cx="400" cy="108" rx="100" ry="30" />
+  </g>
+</svg>

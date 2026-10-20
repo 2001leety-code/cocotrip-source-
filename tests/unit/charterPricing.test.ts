@@ -1254,8 +1254,10 @@ describe('B-AI2/B-AI3 — RouteAgent city-change PlanDay contract', () => {
 
 // ─────────────────────────────────────────────────────────
 // B-AI4: wrap-up departure airport (PDF-issue-4)
-// 전체 handler E2E는 현재 오프라인 harness가 없다. 아래는 handler가 사용하는 실제
-// requestShaper와 departure guide self-heal을 차례대로 실행하는 경계 테스트다.
+// 아래는 handler가 사용하는 실제 requestShaper와 departure guide self-heal을 차례대로
+// 실행하는 경계 테스트다. 전체 handler 경로(인증·결제 게이트·Gemini·Firestore 경계 격리,
+// 저장·재조회까지)는 tests/unit/planner-full-journey.integration.test.ts 의
+// 'Seoul→Busan without departure_airport persists the inferred PUS departure guide' 에서 검증한다.
 // ─────────────────────────────────────────────────────────
 
 describe('B-AI4 — inferred departure airport reaches departure guide', () => {
@@ -1271,8 +1273,6 @@ describe('B-AI4 — inferred departure airport reaches departure guide', () => {
     expect(request.departure_airport).toBe('PUS');
     expect(itinerary.departure_guide.airport).toBe('PUS');
   });
-
-  it.todo('offline handler harness: ai-planner-full request → final itinerary.departure_guide.airport=PUS; auth, payment gate, Gemini, Firestore 경계를 함께 격리한 뒤 활성');
 });
 
 // ─────────────────────────────────────────────────────────

@@ -20,7 +20,7 @@ describe('explicit WhatsApp consultation opt-in', () => {
     const copy = whatsappSupportCopy[language];
     const open = vi.spyOn(window, 'open');
     view();
-    expect(document.querySelector('main')!.className).toContain('bg-bg-base');
+    expect(document.querySelector('main')!.className).toContain('home-dope');
     const checkbox = screen.getByRole('checkbox') as HTMLInputElement;
     const link = screen.getByRole('link', { name: copy.open });
     expect(checkbox.checked).toBe(false);

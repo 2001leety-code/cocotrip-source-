@@ -32,6 +32,7 @@ import { charterUsdFromKrw, formatCharterKrwUsd } from '@/lib/charterUsd';
 import { EstimateConsentBox } from '@/components/charter/EstimateConsentBox';
 import { ESTIMATE_POLICY_VERSION } from '@/lib/estimateConsent';
 import { resolveDestinationKeyLabel } from '@/components/charter/destinationDisplayLabels';
+import '@/styles/editorial-charter-funnel.css';
 
 const PayPalBookingButton = lazy(() => import('@/components/PayPalBookingButton').then(({ PayPalBookingButton }) => ({ default: PayPalBookingButton })));
 const RefundPolicyModal = lazy(() => import('@/components/tours/RefundPolicyModal').then(({ RefundPolicyModal }) => ({ default: RefundPolicyModal })));
@@ -64,21 +65,23 @@ export default function CharterNewPage() {
   const initial = useMemo<Partial<WizardState>>(() => buildCharterPrefill(params), [params]);
 
   return (
-    <div className={isMobile ? 'm-page cocotrip-mobile-charter' : 'min-h-screen'} style={isMobile ? undefined : { background: '#080b14' }}>
+    // 2026-10-07 customer night: 모바일도 라이트 셸(cocotrip-mobile-charter) 대신 데스크톱과 같은 다크 위저드.
+    // `.ec-charter` 는 customer-night.css 의 차터 전용 팔레트 매핑 스코프 — 표현만, 로직 무변경.
+    <div className={`ec-charter ${isMobile ? 'm-page' : 'min-h-screen'}`} style={{ background: '#0a0b14' }}>
       <Header language={language} t={t} onLanguageChange={changeLanguage} />
 
-      <section className="px-4 pb-3 pt-3 text-white sm:px-0 sm:pb-8 sm:pt-24" style={{ background: isMobile ? '#080b14' : 'linear-gradient(160deg, #0c1220 0%, #0f2244 60%, #0a1628 100%)' }}>
-        <div className="mx-auto max-w-6xl rounded-[16px] px-4 py-4 sm:rounded-none sm:py-0" style={isMobile ? { background: 'linear-gradient(160deg, #0c1220 0%, #0f2244 60%, #0a1628 100%)' } : undefined}>
-          <Link to="/" className="mb-3 inline-flex items-center gap-1.5 text-xs text-white/55 transition-colors hover:text-white/60 sm:mb-5">
+      <section className="charter-funnel-introduction px-4 pb-3 pt-3 text-white sm:px-0 sm:pb-8 sm:pt-24" style={{ background: '#0a0b14' }}>
+        <div className="mx-auto max-w-6xl px-4 py-4 sm:py-0">
+          <Link to="/" className="charter-funnel-back mb-3 inline-flex items-center gap-1.5 text-xs text-white/55 transition-colors hover:text-white/60 sm:mb-5">
             <ArrowLeft className="w-3.5 h-3.5" />Home
           </Link>
-          <div className="mb-2 inline-flex items-center gap-1.5 rounded-full border border-[#B668FC]/35 bg-[#B668FC]/08 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider text-[#B668FC] sm:mb-4 sm:px-3 sm:text-[11px]">
+          <div className="charter-funnel-badge mb-2 inline-flex items-center gap-1.5 rounded-full border border-[#B668FC]/35 bg-[#B668FC]/08 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider text-[#B668FC] sm:mb-4 sm:px-3 sm:text-[11px]">
             <Sparkles className="w-3.5 h-3.5" /> {completedState ? i18n.heroBadgePayment : i18n.heroBadgeNew}
           </div>
-          <h1 className="mb-1 text-[22px] font-bold leading-tight sm:mb-2 sm:text-3xl">
+          <h1 className="ec-display charter-funnel-title mb-1 sm:mb-2">
             {completedState ? i18n.heroTitlePayment : i18n.heroTitleWizard}
           </h1>
-          <p className="text-xs text-white/50 sm:text-sm">
+          <p className="charter-funnel-lead text-xs text-white/50 sm:text-sm">
             {completedState ? i18n.heroSubtitlePayment : i18n.heroSubtitleWizard}
           </p>
           {/* 이용 방법은 자동으로 띄우지 않고 원하는 사람만 연다 (2026-08-01, CharterIntroModal 주석 참조).
@@ -106,6 +109,7 @@ export default function CharterNewPage() {
               consent={consent}
               userEmail={user?.email ?? ''}
               language={language as 'ko' | 'en' | 'ja' | 'zh'}
+              paypalRetryLabel={t.planner.paypalRetry}
               onBack={() => { setCompletedState(null); setConsent({ termsAgreed: false, marketingConsent: false }); }}
               onPatchState={(patch) => setCompletedState((prev) => (prev ? { ...prev, ...patch } : prev))}
             />
@@ -147,13 +151,15 @@ export default function CharterNewPage() {
 
 // ─────────────────────────────────────────────────────────
 function PaymentPanel({
-  state, consent, userEmail, language, onBack, onPatchState,
+  state, consent, userEmail, language, paypalRetryLabel, onBack, onPatchState,
 }: {
   state: WizardState;
   /** 2026-06-30 트립닷컴식 예약정보 (SMS 인증 제거 운영자) — 위저드 Step 5 의 약관 동의 결과 (PayPalBookingButton 으로 전달). */
   consent: { termsAgreed: boolean; marketingConsent: boolean };
   userEmail: string;
   language: 'ko' | 'en' | 'ja' | 'zh';
+  /** PayPal SDK 오류 패널의 재시도 버튼 레이블 (t.planner.paypalRetry). */
+  paypalRetryLabel: string;
   onBack: () => void;
   onPatchState: (patch: Partial<WizardState>) => void;
 }) {
@@ -281,13 +287,13 @@ function PaymentPanel({
   const waUrl = `https://wa.me/821087140611?text=${waText}`;
 
   return (
-    <div className="max-w-xl mx-auto py-4">
-      <button onClick={onBack} className="inline-flex items-center gap-1.5 text-xs text-white/50 hover:text-white mb-4">
+    <div className="charter-funnel-payment max-w-xl mx-auto py-4">
+      <button onClick={onBack} className="charter-funnel-edit-back inline-flex items-center gap-1.5 text-xs text-white/50 hover:text-white mb-4">
         <Pencil className="w-3 h-3" /> {i18n.edit}
       </button>
 
       {/* 요약 박스 */}
-      <div className="rounded-xl border border-[#B668FC]/30 bg-[#B668FC]/5 p-4 mb-4 text-sm space-y-1.5">
+      <div className="charter-funnel-payment-summary rounded-xl border border-[#B668FC]/30 bg-[#B668FC]/5 p-4 mb-4 text-sm space-y-1.5">
         <Row label={i18n.payField_service} value={serviceLabel} />
         <Row label={i18n.payField_origin} value={originLabel} />
         <Row label={i18n.payField_destination} value={destinationLabel} />
@@ -306,7 +312,7 @@ function PaymentPanel({
           </>
         )}
         <Row label={i18n.payFieldNotes} value={state.notes || '-'} onEdit={() => setEditing({ key: 'notes', label: i18n.payFieldNotes, type: 'textarea', value: state.notes ?? '' })} />
-        <p className="text-[11px] text-white/45 pt-1 leading-relaxed">{i18n.reviewEditHint}</p>
+        <p className="charter-funnel-note charter-funnel-note-neutral text-[11px] text-white/45 pt-1 leading-relaxed">{i18n.reviewEditHint}</p>
         </>
         ) : (
         <>
@@ -315,15 +321,15 @@ function PaymentPanel({
         {state.airport?.flightNumber && <Row label={i18n.payField_flight} value={state.airport.flightNumber} />}
         </>
         )}
-        <div className="border-t border-white/10 pt-2 mt-2 flex items-center justify-between">
-          <span className="text-white/60">{i18n.payPrepayAmount}</span>
+        <div className="charter-funnel-payment-total border-t border-white/10 pt-2 mt-2 flex items-center justify-between">
+          <span className="charter-funnel-total-label text-white/60">{i18n.payPrepayAmount}</span>
           {/* 🔴 2026-07-30 환율 이중장부 종결: 전 언어 동일 문자열 = 청구 공식 SSOT(charterUsd). */}
           <span className="text-lg font-bold text-white">
             {formatCharterKrwUsd(displayKRW) || '—'}
           </span>
         </div>
         {isEstimateOnly && (
-          <p className="text-xs text-amber-300 mt-2 text-right">
+          <p className="charter-funnel-note text-xs text-amber-300 mt-2 text-right">
             ⚠ {i18n.estimateOnlyNote}
           </p>
         )}
@@ -343,7 +349,7 @@ function PaymentPanel({
           //   그 숫자를 미리 알 수 없다 → 그 경로에서는 보내지 않는다(거짓 차단 방지).
           //   정액·매트릭스 경로(인천공항→서울 등)는 클라 = 서버 이므로 항상 대조한다.
           expectedUSD={routeCoords ? undefined : charterUsdFromKrw(resolved.priceKRW)}
-          p={{}}
+          p={{ paypalRetry: paypalRetryLabel }}
           lang={language}
           pickupLocation={state.origin ?? state.originCustom ?? ''}
           dropoffLocation={state.destinationKey ?? state.destinationCustom ?? ''}
@@ -376,7 +382,7 @@ function PaymentPanel({
             booking={cartItem.booking}
             displayName={cartItem.displayName}
             priceKRW={cartItem.priceKRW}
-            className="w-full inline-flex items-center justify-center gap-1.5 py-3 mt-2 rounded-xl text-[13px] font-semibold bg-white/[0.05] text-white/75 border border-white/12 hover:bg-white/[0.09] transition-colors"
+            className="charter-funnel-action-secondary w-full inline-flex items-center justify-center gap-1.5 py-3 mt-2 rounded-xl text-[13px] font-semibold bg-white/[0.05] text-white/75 border border-white/12 hover:bg-white/[0.09] transition-colors"
           />
         )}
         </>
@@ -390,7 +396,7 @@ function PaymentPanel({
         //   바우처에서만 알리고 있었다 — 결제 후 고지는 결제 전 동의를 대신하지 못한다.
         //   (2026-05-04 에 뺀 체크박스는 "약관" 이었고, 이건 금액이 바뀔 수 있다는 고지다.)
         <div className="space-y-3">
-          <p className="text-xs text-amber-300/80 px-1">⚠ {i18n.estimateOnlyNote}</p>
+          <p className="charter-funnel-note text-xs text-amber-300/80 px-1">⚠ {i18n.estimateOnlyNote}</p>
           <EstimateConsentBox language={language} agreed={estimateAgreed} onChange={setEstimateAgreed} />
           <PayPalBookingButton
             productType="charter_custom_estimate"
@@ -404,7 +410,7 @@ function PaymentPanel({
             // 미동의면 CTA 비활성 + 주문 생성 요청 자체를 만들지 않는다. 서버도 fail-closed.
             disabled={!estimateAgreed}
             estimateConsent={{ agreed: estimateAgreed, policyVersion: ESTIMATE_POLICY_VERSION }}
-            p={{}}
+            p={{ paypalRetry: paypalRetryLabel }}
             lang={language}
             pickupLocation={state.origin ?? state.originCustom ?? ''}
             dropoffLocation={state.destinationKey ?? state.destinationCustom ?? ''}
@@ -421,25 +427,25 @@ function PaymentPanel({
               ? Math.max(1, Math.round((new Date(state.endDate).getTime() - new Date(state.startDate).getTime()) / 86400000) + 1)
               : 1}
           />
-          <p className="text-center text-xs text-white/55">
+          <p className="charter-funnel-link-row text-center text-xs text-white/55">
             <a href={waUrl} target="_blank" rel="noopener noreferrer" className="text-white/50 underline">{i18n.payWhatsappAlt}</a>
           </p>
         </div>
       ) : (
         // payable 도 아니고 estimate 도 없는 케이스 (custom destination 매트릭스/zone 모두 미매칭)
-        <div className="rounded-xl border border-amber-500/30 bg-amber-500/5 p-4">
-          <p className="text-sm text-amber-200 mb-2">
+        <div className="charter-funnel-payment-custom rounded-xl border border-amber-500/30 bg-amber-500/5 p-4">
+          <p className="charter-funnel-body text-sm text-amber-200 mb-2">
             {resolved.reason ?? i18n.payCustomQuoteMsg}
           </p>
           <a href={waUrl} target="_blank" rel="noopener noreferrer"
-            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#25D366] text-white text-sm font-bold hover:opacity-90">
+            className="charter-funnel-action inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#25D366] text-white text-sm font-bold hover:opacity-90">
             <MessageCircle className="w-4 h-4" /> {i18n.payWhatsappBtn}
           </a>
         </div>
       )}
 
       {resolved.payable && (
-        <p className="mt-3 text-center text-xs text-white/55">
+        <p className="charter-funnel-link-row mt-3 text-center text-xs text-white/55">
           <a href={waUrl} target="_blank" rel="noopener noreferrer" className="text-white/50 underline">{i18n.payWhatsappAlt}</a>
         </p>
       )}
@@ -451,7 +457,7 @@ function PaymentPanel({
           <RefundPolicyModal
             language={language}
             trigger={
-              <button className="text-[10px] text-white/55 hover:text-white/70 underline-offset-2 hover:underline">
+              <button className="charter-funnel-link-action text-[10px] text-white/55 hover:text-white/70 underline-offset-2 hover:underline">
                 {language === 'ko' ? '취소·환불 정책' : language === 'ja' ? 'キャンセル・返金' : language === 'zh' ? '取消政策' : 'Cancellation policy'}
               </button>
             }
@@ -475,15 +481,15 @@ function PaymentPanel({
 
 function Row({ label, value, onEdit }: { label: string; value: string; onEdit?: () => void }) {
   return (
-    <div className="flex items-center justify-between text-sm gap-2">
-      <span className="text-white/55 text-xs uppercase tracking-wider shrink-0">{label}</span>
+    <div className="charter-funnel-row flex items-center justify-between text-sm gap-2">
+      <span className="charter-funnel-row-label text-white/55 text-xs uppercase tracking-wider shrink-0">{label}</span>
       {onEdit ? (
-        <button onClick={onEdit} className="inline-flex items-center gap-1.5 text-white/85 hover:text-white min-w-0 group" type="button">
-          <span className="truncate">{value}</span>
+        <button onClick={onEdit} className="charter-funnel-row-edit inline-flex items-center gap-1.5 text-white/85 hover:text-white min-w-0 group" type="button">
+          <span className="charter-funnel-row-value truncate">{value}</span>
           <Pencil className="w-3 h-3 text-white/40 group-hover:text-[#B668FC] shrink-0" />
         </button>
       ) : (
-        <span className="text-white/85 truncate">{value}</span>
+        <span className="charter-funnel-row-value text-white/85 truncate">{value}</span>
       )}
     </div>
   );

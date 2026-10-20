@@ -340,3 +340,65 @@
     forced-color-adjust: auto;
   }
 }
+
+
+/* ===== Customer visual unification: concise login introduction ===== */
+.auth-required-shell .auth-required-introduction {
+  padding-block: clamp(20px, 4vw, 40px);
+}
+
+.auth-required-shell .auth-required-introduction::before {
+  margin-bottom: clamp(16px, 3vw, 24px);
+}
+
+.auth-required-shell .auth-required-title {
+  max-width: 16ch;
+  font-family: var(--ec-night-serif);
+  font-size: clamp(26px, 7vw, 32px);
+  font-weight: 400;
+  line-height: 1.12;
+  letter-spacing: -0.01em;
+}
+
+@media (min-width: 960px) {
+  .auth-required-shell .auth-required-title {
+    font-size: clamp(32px, 3.2vw, 40px);
+  }
+}
+
+.auth-required-shell .auth-required-description {
+  max-width: 52ch;
+  margin-top: 16px;
+  font-size: 1rem;
+  line-height: 1.6;
+}
+
+.auth-required-shell .auth-required-benefits {
+  margin-top: clamp(20px, 3vw, 32px);
+}
+
+.auth-required-shell .auth-required-benefits li {
+  min-height: 48px;
+  padding-block: 10px;
+}
+
+.auth-required-shell .auth-required-card {
+  border-radius: var(--ec-card-radius);
+}
+
+.auth-required-shell .auth-required-card-heading h2 {
+  font-family: var(--ec-night-serif);
+  font-size: clamp(1.375rem, 3vw, 1.625rem);
+  font-weight: 400;
+  letter-spacing: -0.01em;
+}
+
+.auth-required-shell .auth-required-action {
+  min-height: 48px;
+  font-size: 1rem;
+  border-radius: var(--ec-button-radius);
+}
+
+.auth-required-shell .auth-required-privacy {
+  font-size: 0.875rem;
+}

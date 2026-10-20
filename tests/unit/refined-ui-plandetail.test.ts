@@ -13,7 +13,14 @@ describe('플랜 결과 Editorial Concierge 셸 (PlanDetailPage)', () => {
   it('구형 REFINED 플래그 없이 공통 종이 셸을 쓴다', () => {
     expect(PD).not.toMatch(/const REFINED\s*=/);
     expect(PD).not.toContain('VITE_FEATURE_REFINED_UI');
-    expect(PD).toContain('className="ec-root min-h-screen"');
+    // Every page root (loading/error/state/document) keeps the shared paper shell and
+    // now also carries the result night scope, whose stylesheet the page imports.
+    const roots = PD.match(/<div className="[^"]*" data-testid="plan-document">/g) || [];
+    expect(roots.length).toBeGreaterThan(0);
+    for (const root of roots) {
+      expect(root).toBe('<div className="ec-root plan-result-night min-h-screen" data-testid="plan-document">');
+    }
+    expect(PD).toContain("import '@/styles/plan-result-night.css';");
   });
 
   it('공용 전역 cascade는 다른 화면 보호를 위해 유지한다', () => {

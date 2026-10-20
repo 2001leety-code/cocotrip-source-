@@ -20,6 +20,7 @@
  */
 
 import { initAdminDb } from './_ai_core/firestoreAdmin.js';
+import { projectPublicPlan } from './_shared/public-plan-projection.js';
 
 export const maxDuration = 15;
 export const config = { runtime: 'nodejs' };
@@ -31,13 +32,6 @@ const JSON_HEADERS = {
   'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
   'Access-Control-Allow-Headers': 'Content-Type, Authorization',
 };
-
-// PII 필드 목록 — PlanDetailPage/index.tsx L120-128 마스킹 목록과 일치.
-// 최상위 필드
-const TOP_LEVEL_PII = ['uid', 'verifiedHistoryUid', 'guestEmail', 'accessToken', 'pricing'];
-// input 하위 필드 — guestName(실명)·dietary·allergies(건강정보) 포함 (버그헌트 2026-06-20:
-// planPersister 가 input 에 저장하는데 마스킹 명단서 누락 → 공유 플랜에 실명·알레르기 노출되던 것).
-const INPUT_PII = ['guestName', 'specialRequest', 'hotel_address', 'arrival_airport', 'departure_airport', 'dietary', 'allergies', 'dietaryRestrictions'];
 
 /**
  * 권한 판정 + 마스킹 순수 헬퍼.
@@ -53,18 +47,7 @@ export function resolvePlanAccess(plan, token) {
 
   // masked: 공개 플랜
   if (plan.isPublic === true) {
-    const masked = JSON.parse(JSON.stringify(plan));
-    // 최상위 PII 제거
-    for (const field of TOP_LEVEL_PII) {
-      delete masked[field];
-    }
-    // input 하위 PII 제거
-    if (masked.input) {
-      for (const field of INPUT_PII) {
-        delete masked.input[field];
-      }
-    }
-    return { access: 'masked', plan: masked };
+    return { access: 'masked', plan: projectPublicPlan(plan) };
   }
 
   // 그 외: 거부

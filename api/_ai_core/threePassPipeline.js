@@ -13,6 +13,8 @@
 
 import { extractTextFromResponse } from './geminiPipeline.js';
 import { recordGeminiUsage } from '../_shared/apiUsageRecorder.js';
+import { resolveLlmModel } from '../_shared/llm/index.js';
+import { FINAL_GATE_DUPLICATE_CODE } from './finalItineraryGate.js';
 
 // 사용량 실측 기록 — fire-and-forget, 절대 throw 안 함(recorder 내부 완전 guard).
 // 3-pass 는 legacy(logCacheMetrics 경유)와 달리 기록이 전혀 없었음(2026-07-09 비용 가시화).
@@ -22,7 +24,7 @@ function recordUsage(stage, response) {
     if (!um) return;
     recordGeminiUsage({
       stage,
-      model: process.env.GEMINI_MODEL || 'gemini-2.5-flash',
+      model: resolveLlmModel('main'), // LLM 공급자 전환: 3-pass 는 main 모델을 그대로 쓴다
       cm: {
         total: Number(um.promptTokenCount) || 0,
         cached: Number(um.cachedContentTokenCount) || 0,
@@ -70,16 +72,42 @@ Non-food stops (culture, shopping, nature, etc.) should use real place names as 
 // ── Pass 2: DB Resolution ────────────────────────────────────────────────────
 // Replaces FOOD_SLOT intent objects with actual verified restaurant data from
 // _food_index.json. Matches based on cuisine type, price range, and area.
+
+// 명시 식별자 정확 일치(trim + 소문자, pipe 별칭 전부) — dietaryStopReplacer 와 같은 규칙.
+// 브랜드 퍼지·접미사 제거 없음 (같은 브랜드 다른 지점은 다른 식당).
+function identityKeys(values) {
+  const keys = [];
+  for (const v of values) {
+    if (!v) continue;
+    for (const part of String(v).split('|')) {
+      const k = part.trim().toLowerCase();
+      if (k) keys.push(k);
+    }
+  }
+  return keys;
+}
+
+function isFoodSlot(stop) {
+  return Boolean(stop.food_intent) || stop.name === 'FOOD_SLOT';
+}
+
 export function pass2Resolve(itinerary, foodIndex, area) {
   if (!foodIndex || foodIndex.length === 0) return itinerary;
 
   const matchCity = (area || '').replace(/_.*$/, '').toLowerCase();
-  const usedNames = new Set(); // prevent duplicates within same plan
+  // prevent duplicates within same plan — 이미 확정된 food stop(현재 + legacy 필드)도 예약 (Busan #1438)
+  const usedNames = new Set();
+  for (const day of (itinerary.days || [])) {
+    for (const stop of (day.stops || [])) {
+      if (!stop || stop.category !== 'food' || isFoodSlot(stop)) continue;
+      for (const k of identityKeys([stop.name, stop.display_name, stop.name_ko, stop.name_en])) usedNames.add(k);
+    }
+  }
 
   for (const day of (itinerary.days || [])) {
     for (const stop of (day.stops || [])) {
       if (stop.category !== 'food') continue;
-      if (!stop.food_intent && stop.name !== 'FOOD_SLOT') continue;
+      if (!isFoodSlot(stop)) continue;
 
       const intent = (stop.food_intent || '').toLowerCase();
       const cuisine = (stop.cuisine || '').toLowerCase();
@@ -87,9 +115,10 @@ export function pass2Resolve(itinerary, foodIndex, area) {
       // Score each DB entry by relevance to the intent
       let bestMatch = null;
       let bestScore = -1;
+      let reservedSkipped = 0;
 
       for (const entry of foodIndex) {
-        if (usedNames.has(entry.name)) continue;
+        if (identityKeys([entry.name, entry.nameEn]).some((k) => usedNames.has(k))) { reservedSkipped++; continue; }
 
         let score = 0;
         const dbName = (entry.name || '').split('|')[0].trim();
@@ -128,7 +157,7 @@ export function pass2Resolve(itinerary, foodIndex, area) {
 
       if (bestMatch) {
         const resolvedName = (bestMatch.name || '').split('|')[0].trim();
-        usedNames.add(bestMatch.name);
+        for (const k of identityKeys([bestMatch.name, bestMatch.nameEn])) usedNames.add(k);
 
         // Apply DB data to the stop
         stop.name = resolvedName;
@@ -147,6 +176,16 @@ export function pass2Resolve(itinerary, foodIndex, area) {
         stop._intentScore = bestScore;
 
         console.log(`[pass2] Resolved: "${stop.food_intent}" → "${resolvedName}" (score: ${bestScore})`);
+      } else if (reservedSkipped > 0) {
+        // DB 후보가 전부 "이미 일정에 있음" 으로만 빠졌다 — free-text fallback 은 이후 DB 매처가
+        // 같은 식당으로 되돌려 중복을 만들 수 있으므로 fail-closed (중복 수를 지어내지 않는다).
+        console.error(`[pass2] All DB candidates already used for intent: "${stop.food_intent}"`);
+        const e = new Error('To keep quality, we did not save this plan. Please try again or contact support.');
+        e.code = FINAL_GATE_DUPLICATE_CODE;
+        e.statusCode = 422;
+        e.stage = 'pass2';
+        e.reason = 'UNUSED_FOOD_CANDIDATES_EXHAUSTED';
+        throw e;
       } else {
         // No match found — keep the intent for Pass 3 to handle
         stop.name = stop.food_intent || 'Local Restaurant';

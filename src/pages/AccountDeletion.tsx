@@ -21,7 +21,7 @@ export default function AccountDeletion() {
   });
 
   return (
-    <div className="ec-root min-h-screen">
+    <div className="ec-root min-h-screen customer-account-deletion">
       <Header language={language} t={t} onLanguageChange={changeLanguage} />
 
       <main>
@@ -35,7 +35,7 @@ export default function AccountDeletion() {
 
         <section className="border-b border-ec-line bg-ec-sunken">
           <div className="ec-container-wide py-10 md:py-14">
-            <div className="max-w-3xl rounded-ec-md border border-ec-line-2 bg-ec-raised p-5 md:p-7">
+            <div className="max-w-3xl rounded-ec-md border border-ec-line-2 bg-ec-raised p-5 md:p-7 customer-document-card">
               <div className="flex items-center gap-3">
                 <Mail className="h-5 w-5 text-ec-brand" aria-hidden />
                 <h2 className="ec-h3">{copy.howTitle}</h2>
@@ -47,7 +47,7 @@ export default function AccountDeletion() {
                 href={REQUEST_MAILTO}
                 className="ec-btn ec-btn-primary mt-6 min-h-[44px] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ec-brand"
               >
-                {copy.cta}
+                <span className="customer-account-deletion-cta-label">{copy.cta}</span>
                 <ArrowRight className="h-4 w-4" aria-hidden />
               </a>
               <p className="ec-body-sm mt-5 text-ec-ink-2">{copy.signInNote}</p>

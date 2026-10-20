@@ -566,7 +566,7 @@ export default function MapPage() {
                   tabIndex={pageState === 'partial' ? 0 : undefined}
                 >
                   {pageState === 'normal' ? (
-                    <DayRouteMap stops={dayStops} />
+                    <DayRouteMap stops={dayStops} routeScopeKey={`${visiblePlanId || ''}:day:${dayIdx}`} />
                   ) : (
                     <div className="map-editorial-partial" data-testid="map-partial-state" role="status">
                       <TriangleAlert aria-hidden size={25} />

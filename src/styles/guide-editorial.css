@@ -151,3 +151,69 @@
 @media (min-width: 768px) {
   .ec-prose { font-size: 18px; }
 }
+
+/* Night editorial refinement — guide index and article */
+.ec-night .guide-index-editorial h1 {
+  font-family: var(--ec-night-serif);
+  font-size: clamp(28px, 4vw, 32px);
+  font-weight: 400;
+  line-height: 1.15;
+  max-width: 20ch;
+}
+
+.ec-night .guide-index-editorial .ec-body,
+.ec-night .guide-index-editorial .ec-body-sm {
+  font-size: 16px;
+  line-height: 1.65;
+  color: var(--ec-text-secondary);
+}
+
+.ec-night .guide-index-editorial [data-guide-lead] h2 {
+  font-family: var(--ec-night-serif);
+  font-weight: 400;
+}
+
+.ec-night .guide-index-editorial [data-guide-row] a {
+  min-height: 44px;
+}
+
+.ec-night .guide-index-editorial a:focus-visible {
+  outline: 3px solid var(--ec-brand);
+  outline-offset: 3px;
+}
+
+.ec-night .guide-document-editorial article h1 {
+  font-family: var(--ec-night-serif);
+  font-size: clamp(28px, 4vw, 32px);
+  font-weight: 400;
+  line-height: 1.15;
+}
+
+.ec-night .guide-document-editorial .ec-prose {
+  font-size: 16px;
+  line-height: 1.8;
+  color: var(--ec-text-secondary);
+  max-width: var(--ec-measure);
+}
+
+.ec-night .guide-document-editorial .ec-prose h2 {
+  font-family: var(--ec-night-serif);
+  font-weight: 400;
+}
+
+.ec-night .guide-document-editorial .ec-prose .post-summary {
+  font-size: 18px;
+}
+
+.ec-night .guide-document-editorial a:focus-visible {
+  outline: 3px solid var(--ec-brand);
+  outline-offset: 3px;
+}
+
+/* Root-approved size-bound correction; original Claude output is preserved in generated.json. */
+@media (min-width: 768px) {
+  .ec-night .guide-index-editorial h1,
+  .ec-night .guide-document-editorial article h1 {
+    font-size: clamp(32px, 3vw, 40px);
+  }
+}

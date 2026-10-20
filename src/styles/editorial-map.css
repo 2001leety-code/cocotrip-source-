@@ -400,3 +400,65 @@
     width: 100%;
   }
 }
+
+/* Night editorial refinement — calm header, access panel and sidebar */
+.ec-night .map-editorial-page .map-editorial-heading-copy .ec-display {
+  font-family: var(--ec-night-serif);
+  font-size: clamp(28px, 4vw, 32px);
+  font-weight: 400;
+  line-height: 1.15;
+}
+
+.ec-night .map-editorial-page .map-editorial-deck {
+  font-family: var(--ec-night-serif);
+  font-size: 16px;
+  font-weight: 400;
+  line-height: 1.5;
+  color: var(--ec-text-secondary);
+}
+
+.ec-night .map-editorial-page .map-editorial-introduction {
+  font-size: 16px;
+  line-height: 1.7;
+  color: var(--ec-text-secondary);
+}
+
+.ec-night .map-editorial-page .map-editorial-access,
+.ec-night .map-editorial-page .map-editorial-state-panel {
+  background-color: var(--ec-surface-raised);
+  border-color: var(--ec-line-strong);
+}
+
+.ec-night .map-editorial-page .map-editorial-access .ec-h2,
+.ec-night .map-editorial-page .map-editorial-document-header .ec-h2 {
+  font-family: var(--ec-night-serif);
+  font-weight: 400;
+}
+
+.ec-night .map-editorial-page .map-editorial-access .ec-body {
+  font-size: 16px;
+  line-height: 1.7;
+}
+
+.ec-night .map-editorial-page .map-editorial-controls {
+  background-color: var(--ec-surface-page);
+  border-right-color: var(--ec-line-strong);
+}
+
+.ec-night .map-editorial-page .map-editorial-plan-button,
+.ec-night .map-editorial-page .map-editorial-day-button {
+  min-height: 44px;
+  font-size: 0.9375rem;
+}
+
+.ec-night .map-editorial-page .map-editorial-actions .ec-btn,
+.ec-night .map-editorial-page .map-editorial-open-plan {
+  min-height: 44px;
+}
+
+/* Root-approved size-bound correction; original Claude output is preserved in generated.json. */
+@media (min-width: 768px) {
+  .ec-night .map-editorial-page .map-editorial-heading-copy .ec-display {
+    font-size: clamp(32px, 3vw, 40px);
+  }
+}

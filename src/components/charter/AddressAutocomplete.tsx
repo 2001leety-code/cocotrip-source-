@@ -521,7 +521,7 @@ export function AddressAutocomplete({
                 type="button"
                 onClick={handleConfirm}
                 className="min-h-[44px] flex-1 py-2 rounded-lg text-sm font-bold text-white flex items-center justify-center gap-1.5"
-                style={{ background: 'linear-gradient(135deg, #B668FC, #FF6B9D)' }}
+                style={{ background: 'var(--ec-button-primary-bg, #c9b8ff)', color: 'var(--ec-button-primary-fg, #0a0b14)' }}
               >
                 <Check className="w-3.5 h-3.5" /> {t.confirmYes}
               </button>

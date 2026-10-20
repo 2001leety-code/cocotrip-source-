@@ -83,6 +83,8 @@ function shouldShowAttractionLink(stop: PlanStop): boolean {
   return ATTRACTION_CATEGORIES.includes(category);
 }
 
+const MAP_LINK_CLASS = 'ec-btn ec-btn-secondary inline-flex min-h-[44px] flex-1 items-center justify-center gap-1.5 px-3 text-[13px] text-ec-brand';
+
 function buildNaverMapUrl(stop: PlanStop): string {
   if (stop.naverMapUrl) return stop.naverMapUrl;
   if (stop.lat && stop.lng) {
@@ -224,6 +226,10 @@ export function StopCard({ stop, lodgingRole, isOwner }: { stop: PlanStop; lodgi
   // Sprint 1 Step 1: 카테고리별 색 토큰 (UI 시각 차별화).
   const catColors = getCatColors(stop.category);
 
+  // 보이는 "Naver"/"Google" 단어를 접근성 이름에 포함 (WCAG 2.5.3 Label in Name).
+  const naverAriaLabel = `${ui.openNaverMap || 'Open in Naver Map'} (Naver)`;
+  const googleAriaLabel = `${ui.openGoogleMap || 'Open in Google Maps'} (Google)`;
+
   return (
     <div
       ref={cardRef}
@@ -231,7 +237,7 @@ export function StopCard({ stop, lodgingRole, isOwner }: { stop: PlanStop; lodgi
       tabIndex={0}
       aria-expanded={expanded}
       aria-label={`${cleanDisplayName || UNNAMED[lng] || 'Unnamed stop'}, ${stop.start_time}`}
-      className="ec-card relative cursor-pointer overflow-hidden p-0 transition-colors hover:border-ec-line-3"
+      className="plan-night-stop ec-card relative cursor-pointer overflow-hidden p-0 transition-colors hover:border-ec-line-3"
       onClick={toggle}
       onKeyDown={(e) => {
         if (e.key === 'Enter' || e.key === ' ') {
@@ -247,7 +253,7 @@ export function StopCard({ stop, lodgingRole, isOwner }: { stop: PlanStop; lodgi
       {/* Collapsed header */}
       <div className="flex items-start gap-3 sm:gap-3.5 p-3.5 sm:p-4 pl-4 sm:pl-5">
         {/* Time + category — clearer hierarchy, time is the anchor */}
-        <div className="text-center shrink-0">
+        <div className="plan-night-stop-time text-center shrink-0">
           <p className="text-[14px] font-extrabold leading-none text-ec-brand sm:text-[15px]">{stop.start_time}</p>
           <div className={`mt-1.5 w-7 h-7 rounded-full ${catColors.bg} border ${catColors.ring} flex items-center justify-center mx-auto transition-colors`}>
             <CatIcon className={`w-3.5 h-3.5 ${catColors.icon}`} />
@@ -257,7 +263,7 @@ export function StopCard({ stop, lodgingRole, isOwner }: { stop: PlanStop; lodgi
         {/* Title + meta */}
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-1.5 flex-wrap">
-            <p className="text-[15px] font-bold leading-snug text-ec-ink sm:text-base">{cleanDisplayName}</p>
+            <p className="plan-night-stop-name text-[15px] font-bold leading-snug text-ec-ink sm:text-base">{cleanDisplayName}</p>
             {/* P116: lodging role badge — 호텔 카드가 매일 2번 노출되는 bookend
                 패턴을 사용자가 "중복 버그" 로 오인하지 않게 명시 구분. */}
             {lodgingRole && (
@@ -295,7 +301,7 @@ export function StopCard({ stop, lodgingRole, isOwner }: { stop: PlanStop; lodgi
             <p className="mt-0.5 text-[13px] text-ec-ink-3">{cleanKoName}</p>
           )}
           {/* Meta chips — pill-style for scannability */}
-          <div className="flex items-center gap-1.5 mt-2 flex-wrap">
+          <div className="plan-night-stop-meta flex items-center gap-1.5 mt-2 flex-wrap">
             <span className="ec-chip px-1.5 py-0.5 text-[12px]">
               <Clock className="w-2.5 h-2.5" /> {stop.stay_min}{ui.minUnit || 'min'}
             </span>
@@ -333,7 +339,7 @@ export function StopCard({ stop, lodgingRole, isOwner }: { stop: PlanStop; lodgi
           calc(100dvh - 320px): header(56) + tabs(40) + slide progress(40) + collapsed card header(~140) + 여유(44).
           내부 div가 overflow-y-auto이므로 max-h를 넘으면 스크롤. */}
       <div className={`overflow-hidden transition-all duration-300 ease-out ${expanded ? 'max-h-[calc(100dvh-320px)] sm:max-h-[800px] opacity-100' : 'max-h-0 opacity-0'}`}>
-        <div className="space-y-3 border-t border-ec-line px-3.5 pb-3.5 pt-3 sm:px-5 sm:pb-4 sm:pt-3.5" onClick={(e) => e.stopPropagation()}>
+        <div className="plan-night-stop-body space-y-3 border-t border-ec-line px-3.5 pb-3.5 pt-3 sm:px-5 sm:pb-4 sm:pt-3.5" onClick={(e) => e.stopPropagation()}>
           {/* Korean subtitle moved to collapsed header to avoid duplication */}
           {stop.address && (
             <p className="flex items-start gap-1.5 text-[14px] leading-relaxed text-ec-ink-2">
@@ -348,7 +354,7 @@ export function StopCard({ stop, lodgingRole, isOwner }: { stop: PlanStop; lodgi
             </div>
           )}
           {(stop.tip || stop.tip_en) && (
-            <div className="border-l-2 border-ec-notice bg-ec-sunken px-3 py-2.5">
+            <div className="plan-night-tip border-l-2 border-ec-notice bg-ec-sunken px-3 py-2.5">
               <p className="mb-1 text-[13px] font-bold uppercase tracking-wider text-ec-notice">{ui.tip || 'Tip'}</p>
               <p className="text-[14px] leading-relaxed text-ec-ink">{stop.tip || stop.tip_en}</p>
             </div>
@@ -409,7 +415,7 @@ export function StopCard({ stop, lodgingRole, isOwner }: { stop: PlanStop; lodgi
 
           {/* ODsay public-transit route (real transit data) */}
           {publicTransit && publicTransit.method !== 'walk' && (
-            <div className="rounded-ec-sm border border-ec-line bg-ec-sunken p-3">
+            <div className="plan-night-transit rounded-ec-sm border border-ec-line bg-ec-sunken p-3">
               <div className="flex items-center gap-2 mb-2 flex-wrap">
                 <Train className="h-3.5 w-3.5 text-ec-brand" aria-hidden />
                 <p className="text-[13px] font-bold text-ec-brand">{ui.publicTransitRoute || 'Public transit route'}</p>
@@ -433,7 +439,8 @@ export function StopCard({ stop, lodgingRole, isOwner }: { stop: PlanStop; lodgi
             </div>
           )}
 
-          {/* Sprint 1 Step 5: Action row — favorite, share, directions */}
+          {/* Sprint 1 Step 5: Action row — favorite, share (소유자 전용, 지도 행과 분리) */}
+          {isOwner && (
           <div className="flex items-center gap-2 pt-1">
             {/* Favorite/Share = plan 소유자 전용 — 공유/비소유자 뷰어한텐 숨김. */}
             {isOwner && (
@@ -462,16 +469,8 @@ export function StopCard({ stop, lodgingRole, isOwner }: { stop: PlanStop; lodgi
                 {ui.shareLabel || 'Share'}
               </button>
             )}
-            <button
-              type="button"
-              onClick={handleDirections}
-              aria-label={ui.directionsLabel || 'Directions'}
-              className="ec-btn ec-btn-secondary min-h-[44px] flex-1 px-3 text-[13px] text-ec-success"
-            >
-              <Navigation className="w-3.5 h-3.5" />
-              {ui.directionsLabel || 'Directions'}
-            </button>
           </div>
+          )}
 
           {/* batch 9 (2026-05-09): Trip.com Activities 입장권/체험 검색 링크.
               culture/landmark/kpop/nature 카테고리 또는 입장료 있는 stop 에 노출.
@@ -510,13 +509,25 @@ export function StopCard({ stop, lodgingRole, isOwner }: { stop: PlanStop; lodgi
             );
           })()}
 
+          {/* 길찾기 · 네이버 · 구글 지도 — 한 줄 반응형 행. 보이는 라벨은 짧게, aria-label 은 전체 문구. */}
+          <div className="plan-stop-map-row" data-testid="plan-stop-map-row">
+          <button
+            type="button"
+            onClick={handleDirections}
+            aria-label={ui.directionsLabel || 'Directions'}
+            className="ec-btn ec-btn-secondary min-h-[44px] flex-1 px-3 text-[13px] text-ec-brand"
+          >
+            <Navigation className="w-3.5 h-3.5" aria-hidden />
+            {ui.directionsLabel || 'Directions'}
+          </button>
+
           {/* Naver Map link - coordinate-based URL preferred for accuracy */}
           {(() => {
             // 1. RouteAgent-provided URL (most accurate)
             if (stop.naverMapUrl) {
               return (
-                <a href={stop.naverMapUrl} target="_blank" rel="noopener noreferrer" className="ec-btn ec-btn-secondary inline-flex min-h-[44px] items-center gap-1.5 px-3 text-[13px] text-ec-success">
-                  <ExternalLink className="w-3 h-3" /> {ui.openNaverMap || 'Open in Naver Map'}
+                <a href={stop.naverMapUrl} target="_blank" rel="noopener noreferrer" aria-label={naverAriaLabel} className={MAP_LINK_CLASS}>
+                  <ExternalLink className="w-3 h-3" aria-hidden /> Naver
                 </a>
               );
             }
@@ -524,8 +535,8 @@ export function StopCard({ stop, lodgingRole, isOwner }: { stop: PlanStop; lodgi
             if (stop.lat && stop.lng) {
               const coordUrl = `https://map.naver.com/v5/search/${encodeURIComponent(stop.name || stop.name_ko || stop.display_name || stop.name_en || '')}?c=${stop.lng},${stop.lat},15,0,0,0,dh`;
               return (
-                <a href={coordUrl} target="_blank" rel="noopener noreferrer" className="ec-btn ec-btn-secondary inline-flex min-h-[44px] items-center gap-1.5 px-3 text-[13px] text-ec-success">
-                  <ExternalLink className="w-3 h-3" /> {ui.openNaverMap || 'Open in Naver Map'}
+                <a href={coordUrl} target="_blank" rel="noopener noreferrer" aria-label={naverAriaLabel} className={MAP_LINK_CLASS}>
+                  <ExternalLink className="w-3 h-3" aria-hidden /> Naver
                 </a>
               );
             }
@@ -537,8 +548,8 @@ export function StopCard({ stop, lodgingRole, isOwner }: { stop: PlanStop; lodgi
             const searchQuery = district ? `${district} ${nameKo}` : (nameKo || stop.display_name || stop.name_en || '');
             const mapUrl = `https://map.naver.com/v5/search/${encodeURIComponent(searchQuery)}`;
             return (
-              <a href={mapUrl} target="_blank" rel="noopener noreferrer" className="ec-btn ec-btn-secondary inline-flex min-h-[44px] items-center gap-1.5 px-3 text-[13px] text-ec-success">
-                <ExternalLink className="w-3 h-3" /> {ui.openNaverMap || 'Open in Naver Map'}
+              <a href={mapUrl} target="_blank" rel="noopener noreferrer" aria-label={naverAriaLabel} className={MAP_LINK_CLASS}>
+                <ExternalLink className="w-3 h-3" aria-hidden /> Naver
               </a>
             );
           })()}
@@ -551,11 +562,12 @@ export function StopCard({ stop, lodgingRole, isOwner }: { stop: PlanStop; lodgi
             if (!q) return null;
             const gUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(q)}`;
             return (
-              <a href={gUrl} target="_blank" rel="noopener noreferrer" className="ec-btn ec-btn-secondary inline-flex min-h-[44px] items-center gap-1.5 px-3 text-[13px] text-ec-brand">
-                <ExternalLink className="w-3 h-3" /> {ui.openGoogleMap || 'Open in Google Maps'}
+              <a href={gUrl} target="_blank" rel="noopener noreferrer" aria-label={googleAriaLabel} className={MAP_LINK_CLASS}>
+                <ExternalLink className="w-3 h-3" aria-hidden /> Google
               </a>
             );
           })()}
+          </div>
         </div>
       </div>
     </div>

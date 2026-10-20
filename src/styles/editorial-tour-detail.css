@@ -26,9 +26,9 @@
 .tour-detail-state-panel {
   width: min(100%, 720px);
   margin-inline: auto;
-  background: var(--ec-surface-raised);
+  background: var(--ec-card-bg, var(--ec-surface-raised));
   border: 1px solid var(--ec-line);
-  border-radius: var(--ec-radius-md);
+  border-radius: var(--ec-card-radius, var(--ec-radius-md));
   overflow: hidden;
 }
 
@@ -77,8 +77,14 @@
 .tour-detail-masthead {
   display: grid;
   gap: 16px;
-  padding-block: 28px 36px;
-  border-bottom: 1px solid var(--ec-line);
+  padding-block: 8px 24px;
+}
+
+.tour-detail-editorial .tour-detail-masthead .ec-display {
+  margin-top: 8px;
+  font-size: 32px;
+  font-weight: 500;
+  line-height: 1.15;
 }
 
 .tour-detail-masthead-copy {
@@ -118,9 +124,7 @@
 }
 
 .tour-detail-stage {
-  display: grid;
-  gap: 24px;
-  padding-block: 32px 48px;
+  padding-block: 20px 24px;
 }
 
 .tour-detail-gallery {
@@ -129,8 +133,7 @@
   height: clamp(300px, 48vw, 560px);
   overflow: hidden;
   background: var(--ec-surface-sunken);
-  border: 1px solid var(--ec-line);
-  border-radius: var(--ec-radius-md);
+  border-radius: var(--ec-card-radius, var(--ec-radius-md));
 }
 
 .tour-detail-gallery-slide {
@@ -167,8 +170,11 @@
   background: var(--ec-surface-raised);
   color: var(--ec-text-primary);
   border: 1px solid var(--ec-line-contrast);
-  border-radius: var(--ec-radius-sm);
-  transition: border-color var(--ec-duration-base) var(--ec-ease-standard);
+  border-radius: var(--ec-radius-pill);
+  /* Same press role as the shared .ec-btn: the 1px :active sink eases instead of snapping. */
+  transition-property: border-color, transform;
+  transition-duration: var(--ec-duration-fast);
+  transition-timing-function: var(--ec-ease-standard);
 }
 
 .tour-detail-gallery-control:hover {
@@ -223,56 +229,75 @@
   color: var(--ec-text-primary);
   border: 1px solid var(--ec-line);
   border-radius: var(--ec-radius-pill);
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 700;
+  font-variant-numeric: tabular-nums;
 }
 
 .tour-detail-gallery-badge { left: 12px; }
-.tour-detail-gallery-count { right: 12px; }
+.tour-detail-gallery-count { right: 12px; font-weight: 600; }
 
+/* Photo → product facts → conditions: one plain group, spacing instead of frames. */
 .tour-detail-facts {
-  align-self: start;
-  background: var(--ec-surface-raised);
-  border: 1px solid var(--ec-line);
-  border-radius: var(--ec-radius-md);
-  padding: 20px;
+  display: grid;
+  gap: 20px;
+  padding-bottom: 24px;
 }
 
 .tour-detail-facts-list {
-  margin-top: 16px;
-  border-top: 1px solid var(--ec-line);
+  display: grid;
+  gap: 12px;
+  margin-top: 12px;
 }
 
 .tour-detail-fact {
   display: grid;
-  grid-template-columns: 24px minmax(0, 1fr);
+  grid-template-columns: 20px minmax(0, 1fr);
   gap: 12px;
-  align-items: center;
-  min-height: 52px;
-  border-bottom: 1px solid var(--ec-line);
+  align-items: start;
   color: var(--ec-text-secondary);
-  font-size: 14px;
+  font-size: 15px;
+  line-height: 1.5;
+  font-variant-numeric: tabular-nums;
 }
 
 .tour-detail-fact svg {
-  color: var(--ec-brand);
+  margin-top: 2px;
+  color: var(--ec-text-muted);
 }
 
 .tour-detail-fact strong {
   color: var(--ec-text-primary);
-  font-weight: 650;
+  font-weight: 500;
+}
+
+.tour-detail-conditions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 20px;
+}
+
+.tour-detail-condition {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--ec-text-primary);
+  font-size: 14px;
+  line-height: 1.4;
+}
+
+.tour-detail-condition svg {
+  flex: 0 0 auto;
+  color: var(--ec-text-muted);
 }
 
 .tour-detail-partial {
   display: grid;
   grid-template-columns: 24px minmax(0, 1fr);
   gap: 12px;
-  margin-top: 20px;
-  padding: 16px;
-  background: var(--ec-surface-raised);
+  margin-top: 4px;
+  padding-block: 4px 16px;
   color: var(--ec-text-secondary);
-  border: 1px solid var(--ec-line-strong);
-  border-radius: var(--ec-radius-md);
 }
 
 .tour-detail-partial svg {
@@ -290,7 +315,7 @@
 }
 
 .tour-detail-section {
-  padding-block: 32px;
+  padding-block: 40px;
   border-top: 1px solid var(--ec-line);
   /* MRT 벤치마킹 P1 — sticky 헤더(56~64px) + sticky anchor 탭(~68px) 두 겹 아래로 앵커
      스크롤이 도착하므로 72px 보다 넉넉하게 잡는다(TourSectionTabs.tsx 참고). */
@@ -302,8 +327,11 @@
   padding-top: 0;
 }
 
-.tour-detail-section-heading {
+/* Home's ec-h2 role: serif 400 (V3 Serif ships one weight; 500 was synthesised). */
+.tour-detail-editorial .tour-detail-section-heading {
   margin-bottom: 16px;
+  font-size: 22px;
+  font-weight: 400;
 }
 
 .tour-detail-highlights {
@@ -330,13 +358,13 @@
   width: 100%;
   aspect-ratio: 16 / 9;
   border: 1px solid var(--ec-line);
-  border-radius: var(--ec-radius-md);
+  border-radius: var(--ec-card-radius, var(--ec-radius-md));
 }
 
 .tour-detail-empty-itinerary {
-  background: var(--ec-surface-raised);
+  background: var(--ec-card-bg, var(--ec-surface-raised));
   border: 1px solid var(--ec-line);
-  border-radius: var(--ec-radius-md);
+  border-radius: var(--ec-card-radius, var(--ec-radius-md));
   overflow: hidden;
 }
 
@@ -376,10 +404,10 @@
   height: 100%;
   flex-direction: column;
   overflow: hidden;
-  background: var(--ec-surface-raised);
+  background: var(--ec-card-bg, var(--ec-surface-raised));
   color: var(--ec-text-primary);
   border: 1px solid var(--ec-line);
-  border-radius: var(--ec-radius-md);
+  border-radius: var(--ec-card-radius, var(--ec-radius-md));
   text-decoration: none;
   transition: border-color var(--ec-duration-base) var(--ec-ease-standard);
 }
@@ -457,7 +485,7 @@
   margin-top: 4px;
   background: var(--ec-brand);
   color: var(--ec-text-on-brand);
-  border-radius: var(--ec-radius-sm);
+  border-radius: var(--ec-radius-pill);
   font-size: 13px;
   font-weight: 650;
 }
@@ -497,9 +525,11 @@
 .tour-detail-meeting-card,
 .tour-detail-stop-card,
 .tour-detail-include-card {
-  background: var(--ec-surface-raised);
+  /* Home card material (customer-night tokens): translucent fill, 10.8px radius;
+     the hairline stays quiet so stacked cards read as one calm list. */
+  background: var(--ec-card-bg, var(--ec-surface-raised));
   border: 1px solid var(--ec-line);
-  border-radius: var(--ec-radius-md);
+  border-radius: var(--ec-card-radius, var(--ec-radius-md));
 }
 
 .tour-detail-accordion-button {
@@ -527,18 +557,177 @@
   padding-inline: 12px;
   color: var(--ec-brand-hover);
   border: 1px solid var(--ec-line-strong);
-  border-radius: var(--ec-radius-sm);
+  border-radius: var(--ec-radius-pill);
   font-size: 13px;
   font-weight: 650;
   text-decoration: none;
 }
 
+/* Booking bar — night dossier footer. Same price/handlers/testids as before; only
+   the surface changes: page-colour band, hairline top edge, lavender pill CTA. */
+.tour-detail-booking-bar {
+  padding: 12px 16px;
+  background: var(--ec-surface-page);
+  border-top: 1px solid var(--ec-line);
+}
+
+.tour-detail-booking-inner {
+  display: grid;
+  gap: 8px;
+  width: min(100%, 1120px);
+  margin-inline: auto;
+}
+
 .tour-detail-booking-meta {
   width: fit-content;
-  padding: 7px 10px;
-  background: rgb(8 11 20);
-  border-radius: var(--ec-radius-sm);
+  max-width: 100%;
+  padding: 0;
 }
+
+.tour-detail-booking-trust {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 12px;
+}
+
+.tour-detail-booking-trust-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1.35;
+}
+
+.tour-detail-booking-trust-item svg {
+  width: 14px;
+  height: 14px;
+  flex: 0 0 auto;
+  color: var(--ec-text-muted);
+}
+
+.tour-detail-booking-fees {
+  color: var(--ec-text-primary);
+}
+
+.tour-detail-booking-paypal {
+  color: var(--ec-text-secondary);
+}
+
+.tour-detail-booking-cutoff {
+  margin-top: 2px;
+  color: var(--ec-text-secondary);
+  font-size: 14px;
+  line-height: 1.35;
+}
+
+.tour-detail-booking-row {
+  display: flex;
+  align-items: stretch;
+  gap: 12px;
+}
+
+.tour-detail-booking-price {
+  display: grid;
+  flex: 1 1 auto;
+  min-width: 0;
+  align-content: center;
+  padding: 0;
+}
+
+.tour-detail-booking-amount {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px 6px;
+  color: var(--ec-text-primary);
+  line-height: 1.2;
+  font-variant-numeric: tabular-nums;
+}
+
+.tour-detail-booking-amount strong {
+  font-size: 20px;
+  font-weight: 600;
+}
+
+.tour-detail-booking-from,
+.tour-detail-booking-unit {
+  color: var(--ec-text-secondary);
+  font-size: 14px;
+}
+
+.tour-detail-booking-refund {
+  display: inline-flex;
+  width: fit-content;
+  min-height: 44px;
+  align-items: center;
+  color: var(--ec-text-secondary);
+  font-size: 14px;
+  text-align: left;
+  text-decoration: underline;
+  text-decoration-color: var(--ec-line-contrast);
+  text-underline-offset: 3px;
+}
+
+.tour-detail-booking-refund:hover {
+  color: var(--ec-text-primary);
+}
+
+.tour-detail-booking-cta {
+  flex: 0 0 auto;
+  align-self: center;
+  gap: 8px;
+  padding-inline: 20px;
+  white-space: nowrap;
+}
+
+.tour-detail-booking-cta svg {
+  width: 16px;
+  height: 16px;
+}
+
+/* 예약 티켓 스텁: 불투명 raised 면 + 점선 절취선으로 가격·USD·환불·마감 조건을 읽게 한다.
+   사진 위 텍스트·흐림 없음, 높이 추가는 고정 바 안쪽 여백뿐. */
+.tour-detail-booking-bar {
+  background: var(--ec-surface-raised);
+  border-top: 1px solid var(--ec-line-strong);
+  box-shadow: inset 0 1px 0 var(--ec-line);
+}
+
+.tour-detail-booking-row {
+  padding-top: 8px;
+  border-top: 1px dashed var(--ec-line-strong);
+}
+
+.tour-detail-booking-cta:active,
+.tour-detail-gallery-control:active {
+  transform: translateY(1px);
+}
+
+.tour-detail-gallery-control:active {
+  transform: translateY(calc(-50% + 1px));
+}
+
+/* 과한 틀 제거: 사진·장면 컷의 테두리, 후기 요약·호텔 카드 윤곽은 여백으로 대체. */
+.tour-detail-editorial .tour-detail-scene-photo,
+.tour-detail-video,
+.tour-detail-rating-summary,
+.tour-detail-hotel-card {
+  border-color: transparent;
+}
+
+.tour-detail-rating-summary {
+  background: transparent;
+  padding-inline: 0;
+}
+
+.tour-detail-booking-bar :is(a, button):focus-visible,
+.tour-detail-editorial main :is(a, button, select, summary):focus-visible {
+  outline: 2px solid var(--ec-brand);
+  outline-offset: 2px;
+}
+
 
 .tour-detail-stop-map .leaflet-control-zoom.leaflet-bar > a {
   width: 44px;
@@ -571,18 +760,13 @@
     align-items: end;
   }
 
-  .tour-detail-stage {
-    grid-template-columns: minmax(0, 8fr) minmax(260px, 4fr);
-    align-items: start;
-  }
-
   .tour-detail-gallery {
     height: 520px;
   }
 
   .tour-detail-facts {
-    position: sticky;
-    top: calc(var(--ec-shell-height-md) + 24px);
+    grid-template-columns: minmax(0, 8fr) minmax(260px, 4fr);
+    align-items: end;
   }
 
   .tour-detail-content-grid {
@@ -614,6 +798,100 @@
 
   .tour-detail-gallery-control-prev { left: 8px; }
   .tour-detail-gallery-control-next { right: 8px; }
+
+  /* Night dossier rhythm on phones: 12 / 20 / 32 spacing, one modest serif title. */
+  .tour-detail-breadcrumb {
+    padding-top: 8px;
+  }
+
+  .tour-detail-masthead {
+    gap: 12px;
+    padding-block: 4px 20px;
+  }
+
+  .tour-detail-editorial .tour-detail-masthead .ec-display {
+    font-size: 26px;
+    line-height: 1.2;
+  }
+
+  .tour-detail-masthead-summary {
+    margin-top: 12px;
+    font-size: 15px;
+    line-height: 1.55;
+  }
+
+  .tour-detail-stage {
+    padding-block: 12px 16px;
+  }
+
+  .tour-detail-gallery {
+    height: 240px;
+  }
+
+  .tour-detail-facts {
+    gap: 16px;
+    padding-bottom: 20px;
+  }
+
+  .tour-detail-content-grid {
+    gap: 32px;
+    padding-bottom: 32px;
+  }
+
+  .tour-detail-section {
+    padding-block: 28px;
+  }
+
+  .tour-detail-editorial .tour-detail-section-heading {
+    margin-bottom: 12px;
+    font-size: 20px;
+  }
+
+  .tour-detail-highlight {
+    gap: 10px;
+    font-size: 15px;
+    line-height: 1.5;
+  }
+
+  .tour-detail-booking-bar {
+    padding: 8px 12px;
+  }
+
+  .tour-detail-booking-row {
+    gap: 8px;
+  }
+
+  .tour-detail-booking-cta {
+    padding-inline: 16px;
+  }
+}
+
+@media (max-width: 374px) {
+  .tour-detail-booking-cta {
+    padding-inline: 12px;
+  }
+
+  .tour-detail-booking-amount strong {
+    font-size: 18px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tour-detail-editorial *,
+  .tour-detail-editorial *::before,
+  .tour-detail-editorial *::after {
+    scroll-behavior: auto;
+    transition-duration: 0ms;
+    animation-duration: 0ms;
+  }
+
+  .tour-detail-booking-cta:active {
+    transform: none;
+  }
+
+  .tour-detail-gallery-control:active {
+    transform: translateY(-50%);
+  }
 }
 
 /* ─────────────────────────────────────────────────────────────────────────
@@ -642,7 +920,7 @@
   object-fit: cover;
   background: var(--ec-surface-sunken);
   border: 1px solid var(--ec-line);
-  border-radius: var(--ec-radius-md);
+  border-radius: var(--ec-card-radius, var(--ec-radius-md));
 }
 
 .tour-detail-scene-kicker {

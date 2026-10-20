@@ -36,7 +36,7 @@
  *
  * 실패는 fail-soft — 500 이 아니라 구조화된 { ok:false, error, code } 로 반환.
  */
-import { GoogleGenerativeAI } from '@google/generative-ai';
+import { createLlmModel, resolveLlmApiKey, runWithLlmContext, wantsLlmMock } from './_shared/llm/index.js';
 import { initAdminDb } from './_shared/firebase-admin.js';
 import { verifyUserToken } from './_shared/user-auth.js';
 import { captureError } from './_shared/sentry.js';
@@ -324,8 +324,7 @@ export function salvageStopsFromTruncatedJson(jsonStr) {
  *   부분 회수한 것 — 프론트가 운영자에게 "뒤쪽 일정 누락 가능" 경고를 띄워야 한다.
  */
 async function extractStops(text, apiKey) {
-  const genAI = new GoogleGenerativeAI(apiKey);
-  const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
+  const model = createLlmModel({ model: 'gemini-2.5-flash' }, { role: 'mood', stage: 'mood-parse', apiKey, timeoutMs: 12000 }); // maxDuration 15
 
   const result = await model.generateContent({
     contents: [{ role: 'user', parts: [{ text }] }],
@@ -343,7 +342,7 @@ async function extractStops(text, apiKey) {
     },
   });
   // 사용량 실측 기록(비용 가시화 2026-07-09) — fire-and-forget, 실패해도 본 흐름 영향 0.
-  import('./_shared/apiUsageRecorder.js').then((m) => m.recordUsageFromResponse('mood-parse', 'gemini-2.5-flash', result.response)).catch(() => {});
+  import('./_shared/apiUsageRecorder.js').then((m) => m.recordUsageFromResponse('mood-parse', model.modelId, result.response)).catch(() => {});
 
   const raw = result.response.text() || '';
 
@@ -594,7 +593,13 @@ export default async function handler(req, res) {
     }
 
     // ── ① Gemini 로 stops 추출 ──
-    const apiKey = process.env.GEMINI_API_KEY || '';
+    // LLM 공급자 전환: CI(mood-smoke) 의 x-llm-mock → 인증·allowlist 통과한 요청만 mock (유료 호출 0).
+    // mock 결정을 키 해석보다 먼저 한다 — 키 해석도 mock 컨텍스트 안에서 해야 기본(gemini)·키 없음
+    // 환경의 mock 요청이 AI_NOT_CONFIGURED 로 막히지 않는다. 킬스위치 가드는 어댑터에서 그대로 적용.
+    const useMock = wantsLlmMock(req);
+    const inLlmScope = (fn) => (useMock ? runWithLlmContext({ provider: 'mock' }, fn) : fn());
+    let apiKey = '';
+    try { apiKey = inLlmScope(() => resolveLlmApiKey('mood')); } catch { /* 미설정 */ }
     if (!apiKey) {
       res.writeHead(200, JSON_HEADERS);
       return res.end(JSON.stringify({ ok: false, error: 'AI 설정 누락 (GEMINI_API_KEY)', code: 'AI_NOT_CONFIGURED' }));
@@ -604,7 +609,7 @@ export default async function handler(req, res) {
     let rawFlights = [];
     let truncated = false;
     try {
-      const extracted = await extractStops(rawText, apiKey);
+      const extracted = await inLlmScope(() => extractStops(rawText, apiKey));
       rawStops = extracted.stops;
       rawFlights = extracted.flights;
       truncated = extracted.truncated;

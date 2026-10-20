@@ -16,8 +16,8 @@ import React, { Suspense, lazy } from 'react';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { MemoryRouter, Routes, Route, Link, useLocation } from 'react-router-dom';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
-import { describe, it, expect, vi } from 'vitest';
+import { render, screen, fireEvent, waitFor, cleanup } from '@testing-library/react';
+import { describe, it, expect, vi, afterEach } from 'vitest';
 
 vi.hoisted(() => {
   (globalThis as unknown as { requestAnimationFrame: unknown }).requestAnimationFrame = () => 0;
@@ -102,6 +102,53 @@ const renderSiblings = () =>
 const renderFeed = () =>
   render(<MemoryRouter initialEntries={['/community']}><AppRoutes /></MemoryRouter>);
 
+/**
+ * 커뮤니티 화면이 부르는 fetch 를 **정확한 GET URL 만** 테스트별로 응답한다.
+ *
+ * 2026-10-17: 첫 피드 테스트가 fetch mock 없이 렌더해서 실제 `/api/community-posts?sort=latest`
+ *   요청이 오프라인 가드에 막혔다. CommunityPage 의 load() 가 catch 로 삼켜서 테스트는 통과했고
+ *   가드 거부 기록만 남았다. 그래서 여기서는:
+ *   - 목록에 없는 URL·메서드는 원래 fetch 로 넘기지 않고 `unexpectedFetches` 에 따로 모은다.
+ *     던지기만 하면 제품 catch 가 삼키므로, afterEach 에서 이 목록이 비었는지 단언한다.
+ *   - 등록한 URL 이 실제로 불렸는지는 `expectAllRoutesFetched()` 로 확인한다.
+ */
+const unexpectedFetches: string[] = [];
+const fetchedUrls: string[] = [];
+let stubbedRoutes: Record<string, unknown> = {};
+
+function stubCommunityFetch(routes: Record<string, unknown>) {
+  stubbedRoutes = routes;
+  vi.stubGlobal('fetch', vi.fn(async (input: unknown, init?: RequestInit) => {
+    const url = typeof input === 'string' ? input : String(input);
+    const method = (init && init.method ? init.method : 'GET').toUpperCase();
+    if (method !== 'GET' || !Object.prototype.hasOwnProperty.call(routes, url)) {
+      unexpectedFetches.push(`${method} ${url}`);
+      throw new Error(`unexpected fetch in route-transition test: ${method} ${url}`);
+    }
+    fetchedUrls.push(url);
+    const body = routes[url];
+    return { ok: true, status: 200, json: async () => body };
+  }) as unknown as typeof fetch);
+}
+
+const expectAllRoutesFetched = () => {
+  for (const url of Object.keys(stubbedRoutes)) expect(fetchedUrls).toContain(url);
+};
+
+afterEach(() => {
+  // 언마운트 먼저, 그 다음 전역 복구 — 단언이 실패해도 복구는 반드시 한다.
+  // (vi.hoisted 로 죽인 rAF 는 stubGlobal 이 아니라서 여기서 되살아나지 않는다.)
+  try {
+    cleanup();
+  } finally {
+    vi.unstubAllGlobals();
+    const unexpected = unexpectedFetches.splice(0);
+    fetchedUrls.length = 0;
+    stubbedRoutes = {};
+    expect(unexpected).toEqual([]);
+  }
+});
+
 describe('라우트 전환은 애니메이션 프레임에 의존하지 않는다 (rAF 죽은 백그라운드 탭)', () => {
   it('일반 형제 라우트 — 링크 클릭한 그 커밋에서 화면이 교체된다', () => {
     const { container } = renderSiblings();
@@ -115,8 +162,11 @@ describe('라우트 전환은 애니메이션 프레임에 의존하지 않는�
   });
 
   it('/community → /community/new — 링크 클릭 시 작성 화면으로 교체된다', async () => {
+    stubCommunityFetch({ '/api/community-posts?sort=latest': { ok: true, data: { posts: [] } } });
+
     const { container } = renderFeed();
     await waitFor(() => expect(container.querySelector('.community-intro')).toBeTruthy(), { timeout: LAZY_CHUNK_TIMEOUT_MS });
+    await waitFor(() => expectAllRoutesFetched(), { timeout: LAZY_CHUNK_TIMEOUT_MS });
 
     const write = container.querySelector('a[href="/community/new"]') as HTMLAnchorElement;
     expect(write).toBeTruthy();
@@ -129,6 +179,7 @@ describe('라우트 전환은 애니메이션 프레임에 의존하지 않는�
 
     // 그 다음 작성 화면이 뜬다 (lazy chunk resolve 한 틱).
     await waitFor(() => expect(screen.getByText('Share with the community')).toBeTruthy(), { timeout: LAZY_CHUNK_TIMEOUT_MS });
+    expect(unexpectedFetches).toEqual([]);
   });
 
   it('/community → /community/post/:postId — 글 상세로 교체된다', async () => {
@@ -137,12 +188,10 @@ describe('라우트 전환은 애니메이션 프레임에 의존하지 않는�
       type: 'buddy', category: 'buddies', authorName: '코코', likeCount: 0, replyCount: 0,
       createdAt: 1, translations: {},
     };
-    vi.stubGlobal('fetch', vi.fn(async (url: string) => ({
-      ok: true,
-      json: async () => (String(url).includes('id=')
-        ? { ok: true, data: { post: POST, replies: [] } }
-        : { ok: true, data: { posts: [POST] } }),
-    })) as unknown as typeof fetch);
+    stubCommunityFetch({
+      '/api/community-posts?sort=latest': { ok: true, data: { posts: [POST] } },
+      '/api/community-posts?id=p1': { ok: true, data: { post: POST, replies: [] } },
+    });
 
     const { container } = renderFeed();
     const link = await waitFor(() => {
@@ -154,7 +203,8 @@ describe('라우트 전환은 애니메이션 프레임에 의존하지 않는�
     fireEvent.click(link);
     expect(container.querySelector('.community-intro')).toBeNull();   // 기다리지 않는다 (위 주석)
     await waitFor(() => expect(container.querySelector('.community-detail-title')).toBeTruthy(), { timeout: LAZY_CHUNK_TIMEOUT_MS });
-    vi.unstubAllGlobals();
+    expectAllRoutesFetched();
+    expect(unexpectedFetches).toEqual([]);
   });
 
   it('첫 렌더는 fade 없음 · 이동하면 붙고 · 안전 타이머가 다시 걷어낸다', async () => {

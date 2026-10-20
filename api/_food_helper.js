@@ -11,8 +11,8 @@
 import { readFileSync } from 'fs';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
-import { isDietaryTrusted, dietaryEvidenceFor, describeDietaryEvidence } from './_shared/dietary-trust.js';
-import { displayNamesFor } from './_shared/cityResolver.js';
+import { isDietaryTrusted, dietaryEvidenceFor, describeDietaryEvidence, acceptTagsForDiet } from './_shared/dietary-trust.js';
+import { addressNamesCity, isRowCityConsistent } from './_shared/food-row-provenance.js';
 
 // ── Row integrity predicate (2026-08-24, planner-trust-course #3) ──────────
 // The `city` field on some real _food_index.json rows is simply wrong (e.g.
@@ -42,12 +42,6 @@ function isRealFoodBusiness(row) {
   return !EXCLUDE_BUSINESS_RE.test(hay);
 }
 
-function addressMatchesCity(address, cityKey) {
-  const addr = String(address || '').toLowerCase();
-  const aliases = displayNamesFor(cityKey);
-  return aliases.some((alias) => addr.includes(String(alias).toLowerCase()));
-}
-
 /**
  * Strict row-integrity gate for exact-city quick-preview food candidates —
  * nonempty name/address, finite Korea lat/lng, a stable place identity, an
@@ -65,7 +59,7 @@ export function isValidExactCityFoodRow(row, cityKey) {
   if (!isFiniteKoreaLatLng(row)) return false;
   if (!hasStableIdentity(row)) return false;
   if (!isRealFoodBusiness(row)) return false;
-  if (!addressMatchesCity(row.address, cityKey)) return false;
+  if (!addressNamesCity(row.address, cityKey)) return false;
   return true;
 }
 
@@ -150,11 +144,13 @@ export function getTagsForDiet(dietPrefs) {
   // 이유: Halal+Meat 조합이 ['halal','general'] 이 되면 Step 2 tag filter 에서 일반식당
   // (돼지/소고기집)이 통과 → "Verified Halal" 오표기 (busan '돼지나무사랑걸렸네' 사례).
   // cuisine 선호는 getFoodContext Step 4 cuisine filter 가 halal/vegan 명단 *내부에서* 처리.
-  const hasSafetyTag = dietPrefs.includes('Halal') || dietPrefs.includes('Vegan');
+  const hasSafetyTag = dietPrefs.includes('Halal') || dietPrefs.includes('Vegan') || dietPrefs.includes('Vegetarian');
   for (const pref of dietPrefs) {
     switch (pref) {
       case 'Vegan':    tags.add('vegan'); break;
       case 'Halal':    tags.add('halal'); break;
+      // 2026-10-10: vegetarian 은 vegetarian/vegan 식당으로만 커버 — 규칙 SSOT = acceptTagsForDiet.
+      case 'Vegetarian': for (const t of acceptTagsForDiet('vegetarian')) tags.add(t); break;
       case 'Seafood':
       case 'Meat':
       case 'Spicy':
@@ -260,10 +256,14 @@ export function getFoodContext(destination, dietPrefs = [], priceRange = 'Any', 
   // ── Step 1: City filtering ────────────────────────────────────────────
   const cityCode = resolveCityCode(dest);
 
-  let candidates = index.filter(r => r.city === cityCode);
+  // 2026-10-10: 주소가 city 필드와 모순되는 행은 이 도시 후보가 아니다 (food-row-provenance).
+  let candidates = index.filter(r => r.city === cityCode && isRowCityConsistent(r));
 
   // If too few results, expand to all cities
-  if (candidates.length < maxItems * 2) {
+  // SAFETY: halal/vegan/vegetarian 요청은 전 도시로 완화하지 않는다 — 커버리지 게이트가
+  // exact-city trusted 행을 이미 보장했고, 타 도시 행은 이후 hard reject 만 만든다.
+  const safetyDietRequested = (dietPrefs || []).some((p) => ['halal', 'vegan', 'vegetarian'].includes(String(p).toLowerCase()));
+  if (candidates.length < maxItems * 2 && !safetyDietRequested) {
     candidates = [...index]; // use all
   }
 
@@ -273,8 +273,8 @@ export function getFoodContext(destination, dietPrefs = [], priceRange = 'Any', 
   // 주입하면 생선회집 vegan·치킨집 halal 이 인증 도장 달고 프롬프트에 들어간다.
   let tagFiltered = candidates.filter(r => tags.includes(r.tag || 'general') && isDietaryTrusted(r));
 
-  // B5 (P309, 2026-05-30): SAFETY tag (halal/vegan) 존재 여부 — general 폴백 게이트.
-  const hasSafetyTag = dietPrefs.includes('Halal') || dietPrefs.includes('Vegan');
+  // B5 (P309, 2026-05-30): SAFETY tag (halal/vegan/vegetarian) 존재 여부 — general 폴백 게이트.
+  const hasSafetyTag = dietPrefs.includes('Halal') || dietPrefs.includes('Vegan') || dietPrefs.includes('Vegetarian');
 
   // If Vegan/Halal selected but few results, keep whatever we have
   if (tagFiltered.length < maxItems && tags.length === 1 && tags[0] !== 'general') {

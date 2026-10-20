@@ -86,6 +86,10 @@ function secondManifest() {
 }
 
 const LOCK_ACQUIRED_MARKER = '__LOCK_ACQUIRED__';
+// 자식 프로세스는 고정 파일만 실행한다 (TMP 에 워커 소스 생성·-e 없음). payload 는 데이터뿐.
+const FIXTURE_DIR = path.join(__dirname, '..', 'fixtures', 'integration-20261017');
+const PROJECTION_WORKER = path.join(FIXTURE_DIR, 'projection-worker.mjs');
+const PROJECTION_EXIT = path.join(FIXTURE_DIR, 'projection-exit.mjs');
 
 /**
  * Spawns a child that runs applyBrainGuideProjection. Windows full-suite runs fork ~600 test
@@ -98,29 +102,8 @@ const LOCK_ACQUIRED_MARKER = '__LOCK_ACQUIRED__';
  * first, so a genuine bug still fails fast instead of hanging.
  */
 function runProjectionWorker(root: string, candidate: ReturnType<typeof manifest>, holdMs: number) {
-  const workerPath = path.join(root, 'projection-worker.mjs');
-  const moduleUrl = new URL('../../scripts/apply-brain-guide-projection.lib.mjs', import.meta.url).href;
-  writeFileSync(workerPath, [
-    `import { applyBrainGuideProjection } from ${JSON.stringify(moduleUrl)};`,
-    'const payload = JSON.parse(Buffer.from(process.argv[2], "base64url").toString("utf8"));',
-    'try {',
-    '  const result = applyBrainGuideProjection({',
-    '    root: payload.root,',
-    '    manifest: payload.manifest,',
-    '    lockWaitMs: 5000,',
-    '    afterLockAcquired: () => {',
-    `      process.stdout.write(${JSON.stringify(LOCK_ACQUIRED_MARKER)});`,
-    '      if (payload.holdMs > 0) Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, payload.holdMs);',
-    '    },',
-    '  });',
-    '  process.stdout.write(JSON.stringify(result));',
-    '} catch (error) {',
-    '  process.stderr.write(error instanceof Error ? error.stack || error.message : String(error));',
-    '  process.exitCode = 1;',
-    '}',
-  ].join('\n'));
   const payload = Buffer.from(JSON.stringify({ root, manifest: candidate, holdMs }), 'utf8').toString('base64url');
-  const child = spawn(process.execPath, [workerPath, payload], { stdio: ['ignore', 'pipe', 'pipe'] });
+  const child = spawn(process.execPath, [PROJECTION_WORKER, payload], { stdio: ['ignore', 'pipe', 'pipe'] });
   let stdout = '';
   let stderr = '';
   let spawnError: Error | null = null;
@@ -305,12 +288,23 @@ describe('approved Brain guide atomic projection', () => {
     expect(sitemap.match(new RegExp(secondManifest().slug, 'g'))).toHaveLength(1);
   }, 25_000);
 
+  it('고정 워커는 테스트 TMP 밖 root payload를 projection 전에 거부한다', async () => {
+    const outside = path.join(os.tmpdir(), 'not-a-cocotrip-projection-root');
+    const worker = runProjectionWorker(outside, manifest(), 0);
+    worker.lockAcquired.catch(() => {});
+    const result = await worker.done;
+    expect(result.code).toBe(64);
+    expect(result.stderr).toMatch(/PROJECTION_WORKER_BAD_PAYLOAD root is not a test temp directory/);
+    expect(result.stdout).not.toContain(LOCK_ACQUIRED_MARKER);
+  });
+
   it('오래됐고 소유 process가 끝난 lock만 회수하며 finally에서 새 lock을 지운다', async () => {
     const root = createFixtureRoot();
-    const exited = spawn(process.execPath, ['-e', '']);
+    const exited = spawn(process.execPath, [PROJECTION_EXIT]);
     const exitedPid = exited.pid;
     expect(exitedPid).toBeTypeOf('number');
-    await new Promise<void>((resolve) => exited.on('close', () => resolve()));
+    const exitCode = await new Promise<number | null>((resolve) => exited.on('close', (code) => resolve(code)));
+    expect(exitCode).toBe(0);
     writeFileSync(path.join(root, '.guide-projection.lock'), JSON.stringify({
       pid: exitedPid,
       acquiredAtMs: Date.now() - 60_000,

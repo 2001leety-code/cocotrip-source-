@@ -1,3 +1,4 @@
+import '@/styles/home-dope.css';
 import { Link } from 'react-router-dom';
 import { ArrowRight } from 'lucide-react';
 import { useLanguage } from '@/hooks/useLanguage';
@@ -5,8 +6,8 @@ import { REGION_IDS } from '@/data/regions';
 import { pickHomeCopy, type HomeLang } from './homeCopy';
 import { useNextTrip } from './useNextTrip';
 import { EditorialHero } from './EditorialHero';
-import { CapabilityLedger } from './CapabilityLedger';
-import { ServiceModules } from './ServiceModules';
+import { ServiceRows } from './ServiceRows';
+import { ProofStrip } from './ProofStrip';
 import { ItinerarySpecimen } from './ItinerarySpecimen';
 import { ClosingSections } from './ClosingSections';
 import { RegionLinks, type RegionLink } from './RegionLinks';
@@ -20,8 +21,11 @@ import { RegionLinks, type RegionLink } from './RegionLinks';
  * other pages and tests still reference them, and are retired with their pages
  * in the next PR.
  *
- * Section order is the reading order of the argument:
- *   claim → what it is built from → what you can buy → proof → who says so → act.
+ * Section order (home A, 2026-10-07): hero → three service rows → real tour
+ * strip with visible conditions (+ one <details> of supporting facts) → one
+ * sample day with region tabs → regions → compact trust/guide → act.
+ * CapabilityLedger.tsx and ServiceModules.tsx are no longer rendered here but
+ * stay on disk: unit tests still import/read them.
  */
 
 const SPECIMEN_ID = 'sample-day';
@@ -49,7 +53,7 @@ export function HomeEditorial() {
   const regions = regionLinks(t);
 
   return (
-    <main className="ec-root">
+    <main className={`ec-root home-dope${nextTrip ? ' home-dope--with-strip' : ''}`}>
       {/* Continuation strip — only for a signed-in traveller with a dated plan.
           A quiet rule above the pitch, not a card competing with the hero. */}
       {nextTrip && (
@@ -72,8 +76,8 @@ export function HomeEditorial() {
       )}
 
       <EditorialHero copy={copy} lang={lang} specimenId={SPECIMEN_ID} />
-      <CapabilityLedger copy={copy} />
-      <ServiceModules copy={copy} lang={lang} />
+      <ServiceRows copy={copy} />
+      <ProofStrip copy={copy} lang={lang} />
       <ItinerarySpecimen copy={copy} lang={lang} id={SPECIMEN_ID} />
       <RegionLinks copy={copy} regions={regions} />
       <ClosingSections copy={copy} />

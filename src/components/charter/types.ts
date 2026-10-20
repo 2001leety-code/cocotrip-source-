@@ -63,6 +63,10 @@ export interface WizardState {
   pickupTime?: string;           // HH:mm — 픽업 시각 (KST). 마감 검증 기준.
   // 고객 정보 (Step 5에서 수집)
   customerName?: string;
+  // 2026-10-18 P2: Step5 BookingInfoForm 영문 성·이름 원본 (Step6 → Step5 재마운트 시 입력칸 복원용).
+  //   undefined = 미저장(레거시 draft) / '' = 사용자가 명시적으로 지움. customerName 을 split 하지 않는다.
+  customerLastName?: string;
+  customerFirstName?: string;
   customerPhone?: string;
   customerMessenger?: string;  // WhatsApp / LINE / 카카오 ID (선택, non-blocking)
   // MEDIUM fix (2026-06-29): BookingInfoForm 이 email/meetingPlace 를 필수(*)로 수집하는데

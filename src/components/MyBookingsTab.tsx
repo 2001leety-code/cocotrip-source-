@@ -185,30 +185,30 @@ export function MyBookingsTab({ userEmail, tier = 'Bronze', language = 'en' }: P
 
   if (loading) {
     return (
-      <div className="flex justify-center py-12">
+      <div className="flex justify-center py-12 customer-bookings-root customer-bookings-loading">
         <div className="w-6 h-6 border-2 border-[#7C5CFC] border-t-transparent animate-spin rounded-full" />
       </div>
     );
   }
 
   if (error) {
-    return <div className="p-4 text-red-400 text-sm">⚠ {error}</div>;
+    return <div className="p-4 text-red-400 text-sm customer-bookings-root customer-bookings-error">⚠ {error}</div>;
   }
 
   if (bookings.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center py-16 text-white/55">
+      <div className="flex flex-col items-center justify-center py-16 text-white/55 customer-bookings-root customer-bookings-empty">
         <Package size={36} className="mb-3 opacity-30" />
         <p className="text-sm">{i18n.mbEmpty}</p>
-        <p className="text-xs mt-1 text-white/15">{i18n.mbEmptySub}</p>
+        <p className="text-xs mt-1 text-white/15 customer-bookings-empty-helper">{i18n.mbEmptySub}</p>
       </div>
     );
   }
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-3 customer-bookings-root">
       <div className="flex items-center justify-between mb-2">
-        <h3 className="text-white font-bold text-lg">{i18n.mbHeader}</h3>
+        <h3 className="text-white font-bold text-lg customer-bookings-title">{i18n.mbHeader}</h3>
         {/* 🔴 2026-07-30: 이 숫자는 **현재 계정 이메일로 조회된 예약** 개수다.
             위 통계의 "누적 예약"(원장값)과 다를 수 있어, 설명 없이 두면
             손님이 "예약이 사라졌다" 고 읽는다. 무엇을 세는지 붙여 준다. */}
@@ -224,7 +224,7 @@ export function MyBookingsTab({ userEmail, tier = 'Bronze', language = 'en' }: P
           tabIndex={0}
           onClick={() => setDetailTarget(b)}
           onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setDetailTarget(b); } }}
-          className="p-4 rounded-xl bg-white/[0.03] border border-white/5 hover:border-[#7C5CFC]/20 transition-all cursor-pointer focus:outline-none focus:border-[#7C5CFC]/50"
+          className="p-4 rounded-xl bg-white/[0.03] border border-white/5 hover:border-[#7C5CFC]/20 transition-all cursor-pointer focus:outline-none focus:border-[#7C5CFC]/50 customer-booking-card"
         >
           <div className="flex items-start justify-between gap-3 mb-2">
             <div className="flex-1 min-w-0">
@@ -232,8 +232,8 @@ export function MyBookingsTab({ userEmail, tier = 'Bronze', language = 'en' }: P
                 <StatusBadge status={b.status} i18n={i18n} />
                 <span className="text-[11px] text-white/55 font-mono">{b.bookingRef}</span>
               </div>
-              <p className="text-white text-sm font-medium">{prettyProductLabel(b.productType, language)}</p>
-              <p className="text-white/50 text-xs mt-0.5">
+              <p className="text-white text-sm font-medium customer-booking-card-title">{prettyProductLabel(b.productType, language)}</p>
+              <p className="text-white/50 text-xs mt-0.5 customer-booking-card-meta">
                 {b.tourDate} · {b.paxCount}{i18n.maxUnit} · {b.vehicleType}
               </p>
               {/* 2026-05-03: AI 플래너는 디지털 상품 — 환불 불가 명시 (사용자 혼동 방지) */}
@@ -275,8 +275,8 @@ export function MyBookingsTab({ userEmail, tier = 'Bronze', language = 'en' }: P
               )}
             </div>
             <div className="shrink-0 text-right">
-              <p className="text-white font-bold text-sm">${b.amountUSD}</p>
-              <p className="text-white/55 text-[10px]">₩{b.amountKRW.toLocaleString('ko-KR')}</p>
+              <p className="text-white font-bold text-sm customer-booking-card-title">${b.amountUSD}</p>
+              <p className="text-white/55 text-[10px] customer-booking-card-meta">₩{b.amountKRW.toLocaleString('ko-KR')}</p>
             </div>
           </div>
 
@@ -286,7 +286,7 @@ export function MyBookingsTab({ userEmail, tier = 'Bronze', language = 'en' }: P
                 <button
                   type="button"
                   onClick={(e) => { e.stopPropagation(); setModifyTarget(b); }}
-                  className="flex items-center gap-1 px-3 py-1.5 rounded-lg border border-white/10 text-white/60 text-[11px] hover:bg-white/5"
+                  className="flex items-center gap-1 px-3 py-1.5 rounded-lg border border-white/10 text-white/60 text-[11px] hover:bg-white/5 customer-booking-action"
                 >
                   <Edit size={12} /> {i18n.mbModifyBtn}
                 </button>
@@ -296,7 +296,7 @@ export function MyBookingsTab({ userEmail, tier = 'Bronze', language = 'en' }: P
                   type="button"
                   disabled={cancelingId === b.id}
                   onClick={(e) => { e.stopPropagation(); handleCancel(b); }}
-                  className="flex items-center gap-1 px-3 py-1.5 rounded-lg border border-red-500/25 text-red-300 text-[11px] hover:bg-red-500/10 disabled:opacity-40"
+                  className="flex items-center gap-1 px-3 py-1.5 rounded-lg border border-red-500/25 text-red-300 text-[11px] hover:bg-red-500/10 disabled:opacity-40 customer-booking-action"
                 >
                   {cancelingId === b.id ? i18n.mbProcessing : <><XCircle size={12} /> {i18n.mbCancelBtn}</>}
                 </button>
@@ -333,7 +333,7 @@ export function MyBookingsTab({ userEmail, tier = 'Bronze', language = 'en' }: P
               <button
                 type="button"
                 onClick={(e) => { e.stopPropagation(); setReviewTarget(b); }}
-                className="flex items-center gap-1 px-3 py-1.5 rounded-lg border border-yellow-500/25 text-yellow-200 text-[11px] hover:bg-yellow-500/10 transition-colors"
+                className="flex items-center gap-1 px-3 py-1.5 rounded-lg border border-yellow-500/25 text-yellow-200 text-[11px] hover:bg-yellow-500/10 transition-colors customer-booking-action"
               >
                 <Star size={12} className="fill-yellow-400 text-yellow-400" /> {i18n.mbReviewBtn || 'Write a review · +50 coins'}
               </button>
@@ -374,7 +374,7 @@ export function MyBookingsTab({ userEmail, tier = 'Bronze', language = 'en' }: P
       {/* 2026-07-17: 취소 확인 모달 — 기존 native prompt/confirm 대체. 확인 버튼 = 실환불 게이트. */}
       {cancelTarget && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4" onClick={() => setCancelTarget(null)}>
-          <div className="w-full max-w-sm rounded-2xl border border-red-500/25 bg-[#0f1117] p-5" onClick={(e) => e.stopPropagation()}>
+          <div className="w-full max-w-sm rounded-2xl border border-red-500/25 bg-[#0f1117] p-5 customer-booking-cancel-modal" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center gap-2 mb-3">
               <XCircle size={18} className="text-red-400" />
               <span className="text-white font-bold text-sm font-mono">{cancelTarget.bookingRef}</span>
@@ -475,7 +475,7 @@ function ModifyModal({ booking, tier, language, onClose, onSaved }: {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm" onClick={onClose}>
-      <div className="w-full max-w-md bg-[#0f1628] rounded-2xl border border-[#7C5CFC]/30 overflow-hidden" onClick={e => e.stopPropagation()}>
+      <div className="w-full max-w-md bg-[#0f1628] rounded-2xl border border-[#7C5CFC]/30 overflow-hidden customer-booking-modify-modal" onClick={e => e.stopPropagation()}>
         <div className="flex items-center justify-between px-5 py-4 border-b border-white/5">
           <h3 className="text-white font-bold">{i18n.modifyModalTitle} · {booking.bookingRef}</h3>
           <button onClick={onClose} className="text-white/55 hover:text-white"><X size={18} /></button>
@@ -618,11 +618,11 @@ function BookingDetailModal({
       aria-modal="true"
     >
       <div
-        className="w-full max-w-md bg-[#0f1628] rounded-2xl border border-[#7C5CFC]/30 overflow-hidden max-h-[90vh] flex flex-col"
+        className="w-full max-w-md bg-[#0f1628] rounded-2xl border border-[#7C5CFC]/30 overflow-hidden max-h-[90vh] flex flex-col customer-booking-detail-modal"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between px-5 py-4 border-b border-white/5">
-          <h3 className="text-white font-bold flex items-center gap-2">
+          <h3 className="text-white font-bold flex items-center gap-2 customer-booking-detail-title">
             <Package size={16} className="text-[#B668FC]" />
             {fallback.title}
           </h3>
@@ -768,7 +768,7 @@ function BookingDetailModal({
 function DetailRow({ label, value }: { label: string; value: React.ReactNode }) {
   return (
     <div className="flex items-start justify-between gap-3">
-      <span className="text-[11px] uppercase tracking-wider text-white/45 font-semibold shrink-0 pt-0.5">{label}</span>
+      <span className="text-[11px] uppercase tracking-wider text-white/45 font-semibold shrink-0 pt-0.5 customer-booking-detail-label">{label}</span>
       <span className="text-sm text-white/85 text-right break-words min-w-0">{value}</span>
     </div>
   );

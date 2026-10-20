@@ -333,3 +333,92 @@
     max-width: none;
   }
 }
+
+
+
+/* Customer night: SharedCourse purpose pass (selectors only, no token declarations) */
+.ec-night .shared-course-app .shared-course-title-row h1 {
+  font-family: var(--ec-night-serif);
+  font-size: clamp(28px, 4vw, 32px);
+  font-weight: 400;
+  line-height: 1.1;
+  letter-spacing: -0.01em;
+}
+
+.ec-night .shared-course-app .shared-course-summary {
+  font-size: 14px;
+}
+
+.ec-night .shared-course-app .shared-course-masthead > .ec-body {
+  font-size: 16px;
+}
+
+.ec-night .shared-course-app .shared-course-main :where(button, a):focus-visible {
+  outline-width: 3px;
+}
+
+.ec-night .shared-course-app .shared-course-day-tabs button {
+  font-size: 14px;
+}
+
+.ec-night .shared-course-app .shared-course-day-tabs button:hover:not(.is-active) {
+  border-color: var(--ec-brand);
+}
+
+.ec-night .shared-course-app .shared-course-stop-card {
+  border-color: var(--ec-line);
+  background: var(--ec-surface-raised);
+}
+
+.ec-night .shared-course-app .shared-course-stop-meta span {
+  font-size: 12px;
+}
+
+.ec-night .shared-course-app .shared-course-stop-body h2 {
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.ec-night .shared-course-app .shared-course-stop-body > p {
+  font-size: 15px;
+}
+
+.ec-night .shared-course-app .shared-course-map-links a {
+  font-size: 13px;
+}
+
+.ec-night .shared-course-app .shared-course-handoff {
+  border-color: var(--ec-line);
+}
+
+@media (min-width: 768px) {
+  .ec-night .shared-course-app .shared-course-main {
+    padding-top: 40px;
+    padding-bottom: 80px;
+  }
+
+  .ec-night .shared-course-app .shared-course-masthead {
+    padding-bottom: 24px;
+  }
+
+  .ec-night .shared-course-app .shared-course-document,
+  .ec-night .shared-course-app .shared-course-state {
+    margin-top: 24px;
+  }
+
+  .ec-night .shared-course-app .shared-course-stop-card {
+    padding: 16px;
+  }
+
+  .ec-night .shared-course-app .shared-course-handoff {
+    padding: 20px;
+  }
+}
+
+
+/* Coordinator-approved title contract: mobile <=32px, desktop 32-40px. */
+@media (min-width: 768px) {
+  .ec-night .shared-course-app .shared-course-title-row h1 {
+    font-size: clamp(32px, 3vw, 40px);
+  }
+}

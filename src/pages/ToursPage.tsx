@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type MouseEvent as ReactMouseEvent } from 'react';
-import { Link, useSearchParams } from 'react-router-dom';
+import { Link, useLocation, useNavigationType, useSearchParams } from 'react-router-dom';
 import {
   ArrowUpDown,
   ChevronRight,
@@ -29,6 +29,7 @@ import { matchesTourQuery } from '@/lib/tourSearch';
 import { TOUR_REGION_IMAGE_SIZES } from '@/lib/responsiveTourImage';
 import { ResponsiveTourImage } from '@/components/ResponsiveTourImage';
 import { Header } from '@/sections/Header';
+import { isToursPath, useToursCloudMotion } from '@/lib/toursBackgroundMotion';
 import '@/styles/editorial-tours-catalog.css';
 
 type SortKey = 'default' | 'price-asc' | 'price-desc';
@@ -49,7 +50,7 @@ const TL = {
     driverLabel: '기사 언어',
     sortLabel: '정렬',
     searchLabel: '여행지 또는 명소 검색',
-    resultsLabel: '현재 일정',
+    resultsLabel: '투어 목록',
     inquireTitle: '목록에 없는 일정이 필요하신가요?',
     inquireSub: '지역·테마·예산을 알려주시면 맞춤 견적을 안내합니다',
     inquireBtn: '맞춤 문의',
@@ -91,7 +92,7 @@ const TL = {
     driverLabel: 'Driver language',
     sortLabel: 'Sort',
     searchLabel: 'Search destinations or attractions',
-    resultsLabel: 'Available itineraries',
+    resultsLabel: 'Tour list',
     inquireTitle: 'Need an itinerary not listed here?',
     inquireSub: 'Tell us your region, theme and budget for a tailored quote',
     inquireBtn: 'Inquire',
@@ -133,7 +134,7 @@ const TL = {
     driverLabel: 'ドライバー言語',
     sortLabel: '並び替え',
     searchLabel: '目的地または観光スポットを検索',
-    resultsLabel: '掲載中の日程',
+    resultsLabel: 'ツアー一覧',
     inquireTitle: '一覧にない日程をご希望ですか？',
     inquireSub: '地域・テーマ・予算をお知らせいただければ、お見積もりをご案内します',
     inquireBtn: 'お問い合わせ',
@@ -175,7 +176,7 @@ const TL = {
     driverLabel: '司机语言',
     sortLabel: '排序',
     searchLabel: '搜索目的地或景点',
-    resultsLabel: '现有行程',
+    resultsLabel: '旅游线路列表',
     inquireTitle: '需要列表中没有的行程？',
     inquireSub: '告诉我们地区、主题和预算，我们将提供定制报价',
     inquireBtn: '立即咨询',
@@ -273,17 +274,25 @@ function currentSeason(month: number): keyof typeof SEASON_TIPS {
 export default function ToursPage() {
   const { language, t, changeLanguage } = useLanguage();
   const tl = TL[language] || TL.en;
-  const [searchParams] = useSearchParams();
-  const [searchQuery, setSearchQuery] = useState(() => searchParams.get('q') || '');
-  const [activeRegion, setActiveRegion] = useState<TourRegion | 'All'>('All');
+  const [searchParams, setSearchParams] = useSearchParams();
+  const searchQuery = searchParams.get('q') || '';
+  const regionParam = searchParams.get('region');
+  const matchedRegion = TOUR_REGIONS.find((region) => region.key === regionParam);
+  const activeRegion: TourRegion | 'All' = matchedRegion ? matchedRegion.key : 'All';
+  const sortParam = searchParams.get('sort');
+  const sortBy: SortKey = sortParam === 'price-asc' || sortParam === 'price-desc' ? sortParam : 'default';
   const [activeDuration, setActiveDuration] = useState<DurationKey>('All');
   const [activeTags, setActiveTags] = useState<Set<TourTag>>(new Set());
   const [activeLangs, setActiveLangs] = useState<Set<DriverLanguage>>(new Set());
   const [activePace, setActivePace] = useState<Set<TripPace>>(new Set());
-  const [sortBy, setSortBy] = useState<SortKey>('default');
   const [inquireOpen, setInquireOpen] = useState(false);
   const filterDialogRef = useRef<HTMLDialogElement>(null);
   const filterTriggerRef = useRef<HTMLButtonElement>(null);
+  const resultsSectionRef = useRef<HTMLElement>(null);
+  const resultsHeadingRef = useRef<HTMLHeadingElement>(null);
+  const routeLocation = useLocation();
+  const mastheadRef = useRef<HTMLElement>(null);
+  const cloudMotion = useToursCloudMotion(mastheadRef, isToursPath(routeLocation.pathname));
 
   const hotelCityMap: Partial<Record<TourRegion, string>> = {
     Seoul: 'seoul',
@@ -305,7 +314,43 @@ export default function ToursPage() {
         activeRegion === 'Busan' ? 'busan' :
           activeRegion === 'Jeju' ? 'jeju' : 'other';
 
-  const toggleLang = (driverLanguage: DriverLanguage) => {
+  // q/region/sort 는 URL 이 단일 출처다. 다른 parameter 는 유지하고, 기본값이면 parameter 를 지운다.
+  const updateOwnedParams = (changes: Record<string, string>, replace: boolean) => {
+    setSearchParams((previous) => {
+      const next = new URLSearchParams(previous);
+      Object.entries(changes).forEach(([name, value]) => {
+        if (value) next.set(name, value);
+        else next.delete(name);
+      });
+      return next;
+    }, { replace });
+  };
+  // 입력창은 로컬 값으로 즉시 반영한다 — URL 갱신이 늦으면 빠른 타이핑에서 글자가 사라진다.
+  // 우리가 쓴 값이 URL 로 돌아올 때는 덮어쓰지 않고, 뒤로가기 등 외부 변경만 입력창에 반영한다.
+  const [queryInput, setQueryInput] = useState(searchQuery);
+  const navigationType = useNavigationType();
+  const pendingQueries = useRef<string[]>([]);
+  useEffect(() => {
+    // 브라우저 Back/Forward(POP)는 우리가 쓴 값이 아니므로 큐의 오래된 값과 무관하게 항상 반영한다.
+    const index = navigationType === 'POP' ? -1 : pendingQueries.current.indexOf(searchQuery);
+    if (index >= 0) {
+      pendingQueries.current = pendingQueries.current.slice(index + 1);
+      return;
+    }
+    pendingQueries.current = [];
+    setQueryInput(searchQuery);
+    // navigationType 은 URL q 가 바뀐 시점의 값만 필요하다 — 의존성에 넣으면 같은 q 로 재실행되어 입력 중 값을 덮어쓴다.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchQuery]);
+  const setSearchQuery = (value: string) => {
+    pendingQueries.current.push(value);
+    setQueryInput(value);
+    updateOwnedParams({ q: value }, true);
+  };
+  const setActiveRegion = (key: TourRegion | 'All') => updateOwnedParams({ region: key === 'All' ? '' : key }, false);
+  const setSortBy = (value: SortKey) => updateOwnedParams({ sort: value === 'default' ? '' : value }, false);
+
+  const toggleLang =(driverLanguage: DriverLanguage) => {
     setActiveLangs((previous) => {
       const next = new Set(previous);
       if (next.has(driverLanguage)) next.delete(driverLanguage);
@@ -333,13 +378,11 @@ export default function ToursPage() {
   };
 
   const resetFilters = () => {
-    setSearchQuery('');
-    setActiveRegion('All');
+    updateOwnedParams({ q: '', region: '', sort: '' }, false);
     setActiveDuration('All');
     setActiveTags(new Set());
     setActiveLangs(new Set());
     setActivePace(new Set());
-    setSortBy('default');
   };
 
   const activeFilterCount =
@@ -363,6 +406,19 @@ export default function ToursPage() {
     dialog.addEventListener('close', returnFocus);
     return () => dialog.removeEventListener('close', returnFocus);
   }, []);
+
+  // 지역 rail 은 상품 grid 아래라 선택 직후 결과가 화면 밖에 남는다 — 결과 섹션으로 이동시킨다.
+  // 같은 지역을 다시 눌러도 이동하고, 필터·정렬은 건드리지 않으며 감속 설정이면 즉시 이동한다.
+  // 포인터 클릭은 포커스를 그대로 두고, 키보드 조작일 때만 결과 제목으로 옮겨 다음 Tab 이 결과 목록으로 이어지게 한다.
+  const selectRegion = (key: TourRegion | 'All', viaKeyboard: boolean) => {
+    setActiveRegion(key);
+    requestAnimationFrame(() => {
+      const reduceMotion = typeof window.matchMedia === 'function'
+        && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      resultsSectionRef.current?.scrollIntoView({ behavior: reduceMotion ? 'auto' : 'smooth', block: 'start' });
+      if (viaKeyboard) resultsHeadingRef.current?.focus({ preventScroll: true });
+    });
+  };
 
   const filteredTours = getToursByRegion(activeRegion).filter((tour) => {
     if (!matchesTourQuery(tour, searchQuery)) return false;
@@ -395,13 +451,13 @@ export default function ToursPage() {
           <Search aria-hidden />
           <input
             type="search"
-            value={searchQuery}
+            value={queryInput}
             onChange={(event) => setSearchQuery(event.target.value)}
             placeholder={tl.searchPlaceholder}
             enterKeyHint="search"
             className="min-h-[44px]"
           />
-          {searchQuery && (
+          {queryInput && (
             <button type="button" onClick={() => setSearchQuery('')} aria-label={tl.clearSearch}>
               <X aria-hidden />
             </button>
@@ -552,7 +608,10 @@ export default function ToursPage() {
       <Header language={language} t={t} onLanguageChange={changeLanguage} />
 
       <main>
-        <header className="ec-container tours-catalog-masthead">
+        <header ref={mastheadRef} className="ec-container tours-catalog-masthead">
+          <div className="tours-catalog-cloud" aria-hidden="true" data-motion={cloudMotion.running ? 'running' : 'paused'}>
+            <span className="tours-catalog-cloud-image" />
+          </div>
           <div className="tours-catalog-masthead-copy">
             <p className="ec-eyebrow">{tl.catalogueLabel}</p>
             <h1 className="ec-display">{tl.pageTitle}</h1>
@@ -602,40 +661,6 @@ export default function ToursPage() {
           <div className="tours-catalog-season-note">
             <span aria-hidden>{seasonTip.emoji}</span>
             <p>{seasonTip[language] || seasonTip.en}</p>
-          </div>
-        </section>
-
-        <section className="ec-container tours-catalog-destinations" aria-labelledby="tours-destinations-title">
-          <div className="tours-catalog-section-heading">
-            <div>
-              <p className="ec-eyebrow">{tl.indexLabel}</p>
-              <h2 id="tours-destinations-title" className="ec-h2">{tl.destinationsLabel}</h2>
-            </div>
-            <p className="ec-body-sm">{tl.destinationsBody}</p>
-          </div>
-          <div data-testid="tours-region-rail" className="tours-catalog-region-rail">
-            {TOUR_REGIONS.filter((region) => region.key !== 'All').map(({ key, label }) => {
-              const count = getToursByRegion(key).length;
-              if (count === 0) return null;
-              const isActive = activeRegion === key;
-              const regionLabel = label[language] || label.en;
-              const image = REGION_IMAGE[key];
-              return (
-                <button
-                  type="button"
-                  key={key}
-                  onClick={() => setActiveRegion(key)}
-                  aria-pressed={isActive}
-                  className="tours-catalog-region-card"
-                >
-                  {image ? <ResponsiveTourImage source={image} sizes={TOUR_REGION_IMAGE_SIZES} fallbackWidth={192} profile="region" alt="" loading="lazy" decoding="async" /> : <span className="tours-catalog-region-placeholder" aria-hidden />}
-                  <span className="tours-catalog-region-copy">
-                    <strong>{regionLabel}</strong>
-                    <small>{count} {tl.toursUnit}</small>
-                  </span>
-                </button>
-              );
-            })}
           </div>
         </section>
 
@@ -714,19 +739,24 @@ export default function ToursPage() {
           </div>
         </dialog>
 
-        <section className="ec-container tours-catalog-results" aria-labelledby="tours-results-title">
-          <p className="tours-catalog-season-mobile">
-            <span aria-hidden>{seasonTip.emoji}</span>{' '}
-            <span className="sr-only">{tl.seasonLabel}: </span>
-            {seasonTip[language] || seasonTip.en}
-          </p>
+        <section ref={resultsSectionRef} style={{ scrollMarginTop: 72 }} className="ec-container tours-catalog-results" aria-labelledby="tours-results-title">
+          {/* 라벨은 말줄임 상자 밖 형제로 둔다 — line-clamp 안에 sr-only 를 섞으면 본문이 잘렸다. */}
+          <div className="tours-catalog-season-mobile">
+            <span className="sr-only">{tl.seasonLabel}</span>
+            <span aria-hidden>{seasonTip.emoji}</span>
+            <p data-testid="tours-season-mobile-text" className="tours-catalog-season-mobile-text">
+              {seasonTip[language] || seasonTip.en}
+            </p>
+          </div>
 
           <div className="tours-catalog-results-heading">
             <div>
               <p className="ec-eyebrow">{tl.catalogueSectionLabel}</p>
-              <h2 id="tours-results-title" className="ec-h2">{tl.resultsLabel}</h2>
+              <h2 id="tours-results-title" ref={resultsHeadingRef} tabIndex={-1} className="ec-h2">{tl.resultsLabel}</h2>
             </div>
-            <p aria-live="polite"><strong>{visibleTours.length}</strong> {tl.toursUnit}</p>
+            <p data-testid="tours-results-count" className="tours-catalog-results-count" aria-live="polite">
+              <strong>{visibleTours.length}</strong> {tl.toursUnit}
+            </p>
           </div>
 
           {visibleTours.length === 0 ? (
@@ -746,6 +776,41 @@ export default function ToursPage() {
               {visibleTours.map((tour) => <TourCard key={tour.id} tour={tour} language={language} />)}
             </div>
           )}
+        </section>
+
+        {/* 지역 탐색은 실제 상품 뒤에 둔다 — DOM·포커스 순서가 화면 순서와 같다. */}
+        <section className="ec-container tours-catalog-destinations" aria-labelledby="tours-destinations-title">
+          <div className="tours-catalog-section-heading">
+            <div>
+              <p className="ec-eyebrow">{tl.indexLabel}</p>
+              <h2 id="tours-destinations-title" className="ec-h2">{tl.destinationsLabel}</h2>
+            </div>
+            <p className="ec-body-sm">{tl.destinationsBody}</p>
+          </div>
+          <div data-testid="tours-region-rail" className="tours-catalog-region-rail">
+            {TOUR_REGIONS.filter((region) => region.key !== 'All').map(({ key, label }) => {
+              const count = getToursByRegion(key).length;
+              if (count === 0) return null;
+              const isActive = activeRegion === key;
+              const regionLabel = label[language] || label.en;
+              const image = REGION_IMAGE[key];
+              return (
+                <button
+                  type="button"
+                  key={key}
+                  onClick={(event) => selectRegion(key, event.detail === 0)}
+                  aria-pressed={isActive}
+                  className="tours-catalog-region-card"
+                >
+                  {image ? <ResponsiveTourImage source={image} sizes={TOUR_REGION_IMAGE_SIZES} fallbackWidth={192} profile="region" alt="" loading="lazy" decoding="async" /> : <span className="tours-catalog-region-placeholder" aria-hidden />}
+                  <span className="tours-catalog-region-copy">
+                    <strong>{regionLabel}</strong>
+                    <small>{count} {tl.toursUnit}</small>
+                  </span>
+                </button>
+              );
+            })}
+          </div>
         </section>
 
         <section className="tours-catalog-concierge" aria-labelledby="tours-concierge-title">

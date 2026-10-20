@@ -234,7 +234,7 @@ describe('f) zero-food 가드 — 정상 day 는 실패, 진짜 transit-only 부
   });
 
   it('정상 vegan day 는 통과', () => {
-    const r = runFinalItineraryValidation({ days: [okDay(1)] }, { language: 'en', dietary: ['Vegan'], foodIndex: [] });
+    const r = runFinalItineraryValidation({ days: [okDay(1)] }, { language: 'en', dietary: ['Vegan'], foodIndex: [VEGAN_TRUSTED] });
     expect(r.ok).toBe(true);
   });
 });
@@ -265,7 +265,7 @@ describe('d) 재작성본이 마지막 검증 통과본을 밀어내지 못한�
     // 종단 게이트 단위 동작으로 확인 (전체 파이프라인은 Gemini SDK 의존 — 여기서는 게이트 계약).
     const gate = await import('../../api/_ai_core/finalItineraryGate.js');
     const rewritten = gate.runFinalItineraryValidation(invalidPlan, { language: 'en', dietary: ['Vegan'], foodIndex: [] });
-    const lastValid = gate.runFinalItineraryValidation(validPlan, { language: 'en', dietary: ['Vegan'], foodIndex: [] });
+    const lastValid = gate.runFinalItineraryValidation(validPlan, { language: 'en', dietary: ['Vegan'], foodIndex: [VEGAN_TRUSTED] });
     expect(rewritten.ok).toBe(false);   // 재작성본은 저장 불가
     expect(lastValid.ok).toBe(true);    // 마지막 통과본은 유효 → 이쪽이 살아남아야 한다
     vi.doUnmock('../../api/_ai_core/responseValidator.js');
@@ -300,7 +300,7 @@ describe('e) background Pass3 결과가 검증 실패면 Firestore 를 안 덮�
       isPass3BackgroundEnabled: () => true,
       isStreamingEnabled: () => false,
       buildModel: () => ({}),
-      loadFoodIndex: async () => [],
+      loadFoodIndex: async () => [VEGAN_TRUSTED],
     }));
     const bg = await import('../../api/_ai_core/backgroundPipelines.js');
     bg.triggerPass3BackgroundIfPending({

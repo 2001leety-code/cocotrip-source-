@@ -48,8 +48,7 @@ function json(req, res, status, body) {
 // 2026-05-21 P135: 2.0 Flash → resolveGeminiModel('translate') default 3.5 Flash.
 // ENV GEMINI_TRANSLATE_MODEL 또는 GEMINI_MODEL_OVERRIDE 로 override.
 // lazy resolve — function call 시점 ENV 평가 (test runtime ENV mutation 호환).
-import { resolveGeminiModel } from './_ai_core/geminiModelResolver.js';
-const getGeminiModel = () => resolveGeminiModel('translate');
+import { createLlmModel, resolveLlmApiKey } from './_shared/llm/index.js'; // LLM 공급자 전환: role=translate
 
 const SOURCE_LANG_LABELS = {
   ko: 'Korean (한국어)',
@@ -118,30 +117,16 @@ Respond ONLY with a JSON object using language codes as keys. No markdown fence,
 }
 
 async function callGemini(prompt) {
-  const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) throw new Error('GEMINI_API_KEY missing');
-
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${getGeminiModel()}:generateContent?key=${apiKey}`;
-  const body = {
-    contents: [{ role: 'user', parts: [{ text: prompt }] }],
+  const apiKey = resolveLlmApiKey('translate');
+  const model = createLlmModel({
     generationConfig: {
       temperature: 0.2,
       responseMimeType: 'application/json',
       maxOutputTokens: 2048,
     },
-  };
-
-  const resp = await fetch(url, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
-  });
-  if (!resp.ok) {
-    const text = await resp.text().catch(() => '');
-    throw new Error(`Gemini ${resp.status}: ${text.slice(0, 200)}`);
-  }
-  const data = await resp.json();
-  const text = data?.candidates?.[0]?.content?.parts?.[0]?.text;
+  }, { role: 'translate', stage: 'admin-translate', apiKey, timeoutMs: 8000 }); // maxDuration 10
+  const result = await model.generateContent(prompt);
+  const text = result?.response?.text?.();
   if (!text) throw new Error('Gemini empty response');
 
   // responseMimeType=application/json 이라 그대로 parse. 혹시 markdown fence 가 섞이면 strip.

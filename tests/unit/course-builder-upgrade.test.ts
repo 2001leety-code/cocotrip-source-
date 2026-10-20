@@ -70,9 +70,9 @@ describe('course-ai 배선 불변식', () => {
     const src = readFileSync(resolve(__dirname, '../../api/course-ai.js'), 'utf8');
     expect(src).toMatch(/checkIpRateLimit/);                 // 공용 rate-limit 헬퍼
     expect(src).toMatch(/course_ai_rate_limits/);            // 전용 버킷
-    // rate-limit 체크는 반드시 GoogleGenerativeAI(유료) 호출보다 앞에 와야 비용 차단됨
+    // rate-limit 체크는 반드시 LLM(유료) 호출보다 앞에 와야 비용 차단됨 (2026-10-13: 공용 어댑터 createLlmModel)
     const rateIdx = src.indexOf('checkIpRateLimit({');
-    const geminiIdx = src.indexOf('new GoogleGenerativeAI');
+    const geminiIdx = src.indexOf('createLlmModel(');
     expect(rateIdx).toBeGreaterThan(0);
     expect(rateIdx).toBeLessThan(geminiIdx);                 // 순서: rate-limit → Gemini
   });

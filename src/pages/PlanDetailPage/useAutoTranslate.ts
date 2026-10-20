@@ -1,145 +1,181 @@
-// Auto-translate plan itinerary when header language changes.
-// Option B: On-demand translation with Firestore cache.
-//
-// Flow:
-//   1. Language change detected
-//   2. If targetLang === originalLang → restore original (no API call)
-//   3. Check Firestore cache: plans/{planId}/translations/{lang}
-//   4. Cache HIT → apply cached translation instantly
-//   5. Cache MISS → call /api/translate-plan → save result to Firestore → apply
-//
-// This approach ensures:
-//   - First translation per language incurs one Gemini API call
-//   - All subsequent visits load from Firestore cache (instant, free)
-//   - PDF generation can also read from cache
-import { useEffect, useRef, useState } from 'react';
+// Public translations share the API projection and bypass private caches.
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
+import { projectPublicPlan } from '@/lib/publicPlanProjection.js';
 import type { PlanDocument, SetPlanFn } from './types';
 
-// Bump in lockstep with TRANSLATOR_VERSION in api/translate-plan.js. Caches with
-// a lower version are treated as stale and re-translated so users get the new
-// fields (e.g. translated subway/bus station names for ja/zh) without manual
-// invalidation. Old caches without the field count as version 1.
 const EXPECTED_TRANSLATOR_VERSION = 2;
+
+/** SHA-256 of the exact translation source, stored instead of a source copy.
+ * Resolves null when Web Crypto is unavailable or fails; callers then bypass the cache. */
+export async function translationSourceFingerprint(sourceLang: string, itinerary: unknown): Promise<string | null> {
+  try {
+    const subtle = globalThis.crypto && globalThis.crypto.subtle;
+    if (!subtle || typeof TextEncoder !== 'function') return null;
+    const digest = await subtle.digest('SHA-256', new TextEncoder().encode(JSON.stringify([sourceLang, itinerary])));
+    return `sha256:${Array.from(new Uint8Array(digest), byte => byte.toString(16).padStart(2, '0')).join('')}`;
+  } catch {
+    return null;
+  }
+}
+
+export interface AutoTranslateAccess {
+  planId: string;
+  publicView: boolean;
+  allowCache: boolean;
+  // Opaque viewer/data boundary, never a raw token. The page also clears stale plan data.
+  accessKey: string;
+}
 
 export function useAutoTranslate(
   plan: PlanDocument | null,
   setPlan: SetPlanFn,
   language: string,
+  access: AutoTranslateAccess | boolean = false,
 ): { isTranslating: boolean; translationError: string | null } {
-  const originalItineraryRef = useRef<PlanDocument['itinerary'] | null>(null);
-  const [translationState, setTranslationState] = useState({ completed: false, error: null as string | null });
-  // Surfaces in IntroSlide/OutroSlide as a yellow chip when non-null. Previously
-  // failures were silently logged → user saw English text without knowing why.
-  // NOTE: we watch `planLoaded` (boolean) instead of `plan` object identity so this effect
-  //   fires exactly once when the Firestore snapshot first lands, and thereafter only when
-  //   the user switches language. Watching plan directly would re-trigger on every Firestore
-  //   update and re-translate unnecessarily.
-  const planLoaded = !!plan?.itinerary;
-  const planId: string = (plan as Record<string, unknown>)?.id as string || '';
+  const planId = typeof access === 'boolean' ? String(plan?.id || plan?.planId || '') : access.planId;
+  const publicView = typeof access === 'boolean' ? !access : access.publicView;
+  const allowCache = !publicView && (typeof access === 'boolean' ? access : access.allowCache);
+  const accessKey = typeof access === 'boolean' ? '' : access.accessKey;
   const originalLang = plan?.input?.language || 'en';
-  const translationStateKey = `${language}:${planLoaded}`;
-  const [previousTranslationStateKey, setPreviousTranslationStateKey] = useState(translationStateKey);
-  if (previousTranslationStateKey !== translationStateKey) {
-    setPreviousTranslationStateKey(translationStateKey);
-    setTranslationState({ completed: false, error: null });
+  const planLoaded = !!plan?.itinerary;
+  const boundary = JSON.stringify([planId, accessKey, publicView, allowCache, originalLang]);
+  const itineraryKey = JSON.stringify(plan?.itinerary || null);
+  const [sourceState, setSourceState] = useState(() => ({
+    boundary, source: plan, sourceKey: itineraryKey, appliedKey: '',
+  }));
+  // Own translation writes are not new originals; edits and streamed snapshots are.
+  if (sourceState.boundary !== boundary
+    || (itineraryKey !== sourceState.sourceKey && itineraryKey !== sourceState.appliedKey)) {
+    setSourceState({ boundary, source: plan, sourceKey: itineraryKey, appliedKey: '' });
   }
-  const isTranslating = planLoaded && language !== originalLang && !translationState.completed;
-  const translationError = translationState.error;
+  const sourceKey = sourceState.sourceKey;
+  const requestKey = JSON.stringify([boundary, language, planLoaded, sourceKey]);
+  const requestRef = useRef({ generation: 0, controller: null as AbortController | null });
+  const [translationState, setTranslationState] = useState({ key: '', completed: false, error: null as string | null });
+  const activeState = translationState.key === requestKey ? translationState : null;
+
+  // Invalidate before passive effects. Old cache/API success, error and finally
+  // callbacks cannot write through a newly committed plan/access/language boundary.
+  useLayoutEffect(() => {
+    // The tracker object is never replaced; cleanup aborts whichever controller is live then.
+    const request = requestRef.current;
+    request.controller?.abort();
+    request.generation += 1;
+    request.controller = null;
+    return () => { request.controller?.abort(); };
+  }, [requestKey]);
 
   useEffect(() => {
-    if (!planLoaded || !plan?.itinerary) return;
-    // Store original itinerary on first load (never overwrite)
-    if (!originalItineraryRef.current) {
-      originalItineraryRef.current = JSON.parse(JSON.stringify(plan.itinerary));
-    }
-    const targetLang = language as string;
-    // The plan's original language - restore when user switches back
-    if (targetLang === originalLang) {
-      // Restore original without API call
-      if (originalItineraryRef.current) {
-        setPlan((prev) => prev ? { ...prev, itinerary: originalItineraryRef.current! } : prev);
-      }
-      return;
+    const source = sourceState.source;
+    if (!planLoaded || !source?.itinerary || sourceState.boundary !== boundary) return;
+    const original = {
+      source,
+      itinerary: publicView ? (projectPublicPlan(source) as PlanDocument).itinerary : source.itinerary,
+    };
+    const controller = new AbortController();
+    const generation = requestRef.current.generation;
+    requestRef.current.controller = controller;
+    const isCurrent = () => !controller.signal.aborted && requestRef.current.generation === generation;
+    const safeItinerary = (itinerary: PlanDocument['itinerary']) => {
+      if (!publicView) return itinerary;
+      return (projectPublicPlan({ input: original.source.input, itinerary }, {
+        language,
+        privateSource: original.source,
+      }) as PlanDocument).itinerary;
+    };
+    const apply = (itinerary: PlanDocument['itinerary']) => {
+      if (!isCurrent()) return;
+      const safe = safeItinerary(itinerary);
+      setSourceState(previous => isCurrent() ? { ...previous, appliedKey: JSON.stringify(safe) } : previous);
+      setPlan((previous) => isCurrent() && previous ? { ...previous, itinerary: safe } : previous);
+    };
+    const finish = (error: string | null) => {
+      if (isCurrent()) setTranslationState({ key: requestKey, completed: true, error });
+    };
+
+    if (language === originalLang) {
+      apply(original.itinerary);
+      finish(null);
+      return () => { controller.abort(); };
     }
 
-    // Translate to target language (with Firestore cache)
-    const controller = new AbortController();
-    (async () => {
+    void (async () => {
       let error: string | null = null;
       try {
-        // --- Step 1: Check Firestore cache ---
-        if (planId && planId.length > 0) {
+        // Owner cache entries are valid only for the exact source they were translated from.
+        // Timestamps cannot order writes from other tabs, so legacy unbound entries miss.
+        // Without a fingerprint the cache is neither read nor written; translation still runs.
+        let sourceFingerprint: string | null = null;
+        if (allowCache && planId) {
+          sourceFingerprint = await translationSourceFingerprint(originalLang, original.itinerary);
+          if (!isCurrent()) return;
+        }
+        if (sourceFingerprint) {
           try {
-            const cacheRef = doc(db, 'plans', planId as string, 'translations', targetLang);
-            const cacheSnap = await getDoc(cacheRef);
-            if (controller.signal.aborted) return;
-            if (cacheSnap.exists()) {
-              const cached = cacheSnap.data();
-              if (cached?.itinerary) {
-                // Stale cache detection: edited plan or older translator version.
-                const planUpdatedAt = (plan as Record<string, unknown>).updatedAt as string | undefined;
-                const cachedAt = cached.cachedAt as string | undefined;
-                const cachedVersion = (cached.translatorVersion as number | undefined) || 1;
-                if (planUpdatedAt && cachedAt && planUpdatedAt > cachedAt) {
-                  console.info('[translate] cache stale — plan edited after cache, re-translating');
-                } else if (cachedVersion < EXPECTED_TRANSLATOR_VERSION) {
-                  console.info(`[translate] cache stale — translator v${cachedVersion} < v${EXPECTED_TRANSLATOR_VERSION}, re-translating`);
-                } else {
-                  // Cache HIT — apply immediately
-                  setPlan((prev) => prev ? { ...prev, itinerary: cached.itinerary as PlanDocument['itinerary'] } : prev);
-                  return;
-                }
+            const cache = await getDoc(doc(db, 'plans', planId, 'translations', language));
+            if (!isCurrent()) return;
+            if (cache.exists()) {
+              const cached = cache.data();
+              const version = (cached.translatorVersion as number | undefined) || 1;
+              const stale = cached.sourceFingerprint !== sourceFingerprint || version < EXPECTED_TRANSLATOR_VERSION;
+              if (cached.itinerary && !stale) {
+                apply(cached.itinerary as PlanDocument['itinerary']);
+                return;
               }
             }
-          } catch (cacheErr) {
-            // Cache read failed (permissions, etc.) — fall through to API
-            console.warn('[translate] cache read failed, falling back to API:', cacheErr);
+          } catch (cacheError) {
+            if (!isCurrent()) return;
+            console.warn('[translate] cache read failed, falling back to API:', cacheError);
           }
         }
-
-        // --- Step 2: API call (cache MISS) ---
-        const resp = await fetch('/api/translate-plan', {
+        if (!isCurrent()) return;
+        const response = await fetch('/api/translate-plan', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ plan: originalItineraryRef.current || plan.itinerary, targetLang }),
+          body: JSON.stringify({ plan: original.itinerary, targetLang: language }),
           signal: controller.signal,
         });
-        const json = await resp.json();
-        if (controller.signal.aborted) return;
-        const payload = json.data;
-        if (payload.translated) {
-          setPlan((prev) => prev ? { ...prev, itinerary: payload.translated } : prev);
-
-          // --- Step 3: Write to Firestore cache ---
-          if (planId && planId.length > 0) {
-            try {
-              const cacheRef = doc(db, 'plans', planId as string, 'translations', targetLang);
-              await setDoc(cacheRef, {
-                itinerary: payload.translated,
-                cachedAt: new Date().toISOString(),
-                sourceLang: originalLang,
-                translatorVersion: (payload.translatorVersion as number | undefined) || EXPECTED_TRANSLATOR_VERSION,
-              });
-            } catch (writeErr) {
-              // Non-critical: cache write failure doesn't affect UX
-              console.warn('[translate] cache write failed:', writeErr);
-            }
+        if (!isCurrent()) return;
+        const json = await response.json();
+        if (!isCurrent()) return;
+        const payload = json?.data;
+        if (!response.ok || !payload?.translated || typeof payload.translated !== 'object' || Array.isArray(payload.translated)) {
+          throw new Error('Translation failed');
+        }
+        const translated = safeItinerary(payload.translated as PlanDocument['itinerary']);
+        apply(translated);
+        if (allowCache && planId && sourceFingerprint && isCurrent()) {
+          try {
+            await setDoc(doc(db, 'plans', planId, 'translations', language), {
+              itinerary: translated,
+              cachedAt: new Date().toISOString(),
+              sourceLang: originalLang,
+              sourceFingerprint,
+              translatorVersion: (payload.translatorVersion as number | undefined) || EXPECTED_TRANSLATOR_VERSION,
+            });
+          } catch (writeError) {
+            if (!isCurrent()) return;
+            console.warn('[translate] cache write failed:', writeError);
           }
         }
-      } catch (e: unknown) {
-        if (e instanceof Error && e.name !== 'AbortError') {
-          console.error('[translate] failed:', e);
-          error = e.message || 'Translation failed';
+      } catch (cause: unknown) {
+        if (!isCurrent()) return;
+        if (cause instanceof Error && cause.name !== 'AbortError') {
+          console.error('[translate] failed:', cause);
+          error = cause.message || 'Translation failed';
         }
       } finally {
-        if (!controller.signal.aborted) setTranslationState({ completed: true, error });
+        finish(error);
       }
     })();
     return () => { controller.abort(); };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [language, planLoaded]);
+  }, [boundary, requestKey, planLoaded, language, originalLang, allowCache, publicView, planId, setPlan,
+    sourceState.source, sourceState.boundary]);
 
-  return { isTranslating, translationError };
+  return {
+    isTranslating: planLoaded && language !== originalLang && !activeState?.completed,
+    translationError: activeState?.error || null,
+  };
 }

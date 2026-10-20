@@ -1,0 +1,837 @@
+/*
+ * Plan result "Night Dossier" — 2026-10-07 local expansion.
+ *
+ * Presentation only. Scoped to `.plan-result-night` (PlanDetailPage roots carrying
+ * data-testid="plan-document" / "plan-error-state") and `.plan-preview-night`
+ * (PlannerPage QuickPreviewCard). Colours come from the inherited `--ec-*` night
+ * tokens (customer-night.css on the route wrapper) — no new palette, no `:root`,
+ * no `!important`. The PDF export container is appended to <body> by
+ * pdfGenerator.ts, outside both scopes, and print styles are untouched.
+ *
+ * Reading order is time -> place -> transit in one vertical rhythm: rows are
+ * separated by a single quiet rule, not boxed. Lavender (--ec-brand) is kept for
+ * actions and selected states only; information text stays neutral.
+ */
+
+/* ── Masthead: page surface, one restrained title, facts as a plain list ──── */
+.plan-result-night .plan-night-masthead {
+  background: var(--ec-surface-page);
+}
+
+.plan-result-night .plan-night-masthead > .ec-container-wide {
+  padding-block: 20px 28px;
+}
+
+.plan-result-night .plan-night-masthead .plan-night-status {
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  font-size: 13px;
+  color: var(--ec-text-muted);
+}
+
+.plan-result-night .plan-night-masthead .plan-night-title {
+  margin-top: 12px;
+  font-size: 24px;
+  font-weight: 500;
+  line-height: 1.2;
+}
+
+.plan-result-night .plan-night-masthead .plan-night-intro {
+  margin-top: 12px;
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--ec-text-secondary);
+}
+
+/* Days / date / party: one row of label-over-value, no cell borders. */
+.plan-result-night .plan-night-masthead .plan-night-facts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 28px;
+  padding-block: 14px;
+  border-width: 1px 0 0;
+  border-color: var(--ec-line);
+}
+
+.plan-result-night .plan-night-facts > div {
+  padding: 0;
+  border: 0;
+}
+
+.plan-result-night .plan-night-facts dt {
+  font-size: 13px;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--ec-text-muted);
+}
+
+.plan-result-night .plan-night-facts dt svg {
+  display: none;
+}
+
+.plan-result-night .plan-night-facts dd {
+  margin-top: 2px;
+  font-size: 15px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: 'tnum' 1;
+  color: var(--ec-text-primary);
+}
+
+.plan-result-night .plan-night-masthead .plan-night-route-note {
+  margin-top: 16px;
+  padding-left: 0;
+  border-left: 0;
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--ec-text-muted);
+}
+
+.plan-result-night .plan-night-masthead .plan-night-route-note svg {
+  color: var(--ec-text-muted);
+}
+
+/* Masthead reads as one ticket: a soft cloud wash from existing tokens, with the
+   title/stats block and the date/status summary joined by a dashed tear line. */
+.plan-result-night .plan-night-masthead {
+  background: color-mix(in srgb, var(--ec-brand-wash) 45%, var(--ec-surface-page));
+  border-bottom: 1px dashed var(--ec-line-strong);
+}
+
+.plan-result-night .plan-night-masthead .plan-night-facts {
+  border-top-style: dashed;
+  border-color: var(--ec-line-strong);
+}
+
+/* Faint cloud edge: the existing poster shows only along the top 96px, behind the
+   content, on top of the solid wash base. Decorative; never intercepts input. */
+.plan-result-night .plan-night-masthead {
+  position: relative;
+  isolation: isolate;
+}
+
+.plan-result-night .plan-night-masthead::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 96px;
+  z-index: -1;
+  background: url('/home-dope/v3-cloud-poster.jpg') center top / cover no-repeat;
+  opacity: 0.14;
+  pointer-events: none;
+}
+
+/* Main column rhythm 20 / 32 instead of 32 / 48. Opaque night under the timetable. */
+.plan-result-night > [data-testid='plan-document-ready'] {
+  padding-block: 20px 32px;
+  background: var(--ec-surface-page);
+}
+
+/* One continuous timetable rule through stops and transit legs (time | place). */
+.plan-result-night .plan-night-day .plan-night-stop,
+.plan-result-night .plan-night-day .plan-night-leg {
+  position: relative;
+}
+
+.plan-result-night .plan-night-day .plan-night-stop::before,
+.plan-result-night .plan-night-day .plan-night-leg::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 68px;
+  width: 1px;
+  background: var(--ec-line);
+  pointer-events: none;
+}
+
+.plan-result-night .plan-night-day .plan-night-stop:active {
+  background: rgba(255, 255, 255, 0.04);
+}
+
+/* ── Section tabs: plain text tabs, sticky under the 56 / 64px header ─────── */
+.plan-result-night .plan-night-tabs {
+  background: var(--ec-surface-page);
+  border-color: var(--ec-line);
+}
+
+.plan-result-night .plan-night-tabs [role='tablist'] {
+  padding-block: 0;
+  gap: 4px;
+}
+
+.plan-result-night .plan-night-tabs [role='tab'] {
+  min-height: 44px;
+  padding-inline: 12px;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  border-radius: 0;
+  background: none;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--ec-text-secondary);
+  transition: color var(--ec-duration-fast) var(--ec-ease-standard), border-color var(--ec-duration-fast) var(--ec-ease-standard);
+}
+
+.plan-result-night .plan-night-tabs [role='tab']:hover {
+  color: var(--ec-text-primary);
+}
+
+.plan-result-night .plan-night-tabs [role='tab'][aria-selected='true'] {
+  background: none;
+  color: var(--ec-brand);
+  border-bottom-color: var(--ec-brand);
+}
+
+.plan-result-night .plan-night-tabs [data-scroll-affordance] {
+  background: var(--ec-surface-page);
+  border-color: var(--ec-line);
+}
+
+/* ── Day header: sans section title; facts as plain text, not capsules ─────── */
+.plan-result-night .plan-night-day .plan-night-day-head {
+  margin-bottom: 4px;
+  padding-bottom: 16px;
+  border-color: var(--ec-line);
+}
+
+.plan-result-night .plan-night-day .plan-night-day-head .ec-eyebrow {
+  color: var(--ec-text-muted);
+}
+
+.plan-result-night .plan-night-day .plan-night-day-title {
+  font-family: var(--ecp-font-sans);
+  font-size: 22px;
+  font-weight: 500;
+  line-height: 1.3;
+  letter-spacing: 0;
+  margin-bottom: 8px;
+}
+
+.plan-result-night .plan-night-day .plan-night-day-head .ec-chip {
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  font-size: 13px;
+  color: var(--ec-text-secondary);
+}
+
+.plan-result-night .plan-night-day .plan-night-day-head .ec-chip + .ec-chip::before {
+  content: '·';
+  margin-right: 6px;
+  color: var(--ec-text-muted);
+}
+
+.plan-result-night .plan-night-day .plan-night-day-head .ec-chip svg {
+  display: none;
+}
+
+.plan-result-night .plan-night-day .ec-figure {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Day totals (walk / transit / fare): one quiet line, numbers ≥14. */
+.plan-result-night .plan-night-day-totals > div {
+  justify-content: flex-start;
+  border-width: 0;
+  padding-block: 4px;
+}
+
+.plan-result-night .plan-night-day-totals svg {
+  color: var(--ec-text-muted);
+}
+
+.plan-result-night .plan-night-day-totals span {
+  font-size: 14px;
+}
+
+/* ── Stop rows: open rows, 62px time column, place 16, one hairline rule ─── */
+.plan-result-night .plan-night-day .plan-night-stop {
+  border-width: 0 0 1px;
+  border-color: var(--ec-line);
+  border-radius: 0;
+  background: none;
+  box-shadow: none;
+  transition: background-color var(--ec-duration-fast) var(--ec-ease-standard);
+}
+
+.plan-result-night .plan-night-day .plan-night-stop:hover {
+  background: rgba(255, 255, 255, 0.02);
+}
+
+/* Category colour bar was decoration; time already anchors the row. */
+.plan-result-night .plan-night-stop > span[aria-hidden]:first-child {
+  display: none;
+}
+
+.plan-result-night .plan-night-stop > div:nth-child(2) {
+  padding-inline: 0 4px;
+  padding-block: 16px;
+}
+
+.plan-result-night .plan-night-stop .plan-night-stop-time {
+  width: 62px;
+  text-align: left;
+}
+
+.plan-result-night .plan-night-stop .plan-night-stop-time > p {
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.4;
+  color: var(--ec-text-primary);
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: 'tnum' 1;
+}
+
+/* Category glyph stays as a quiet cue, without the tinted disc. */
+.plan-result-night .plan-night-stop .plan-night-stop-time > div {
+  width: auto;
+  height: auto;
+  margin: 6px 0 0;
+  border: 0;
+  background: none;
+  justify-content: flex-start;
+}
+
+.plan-result-night .plan-night-stop .plan-night-stop-time > div svg {
+  color: var(--ec-text-muted);
+}
+
+.plan-result-night .plan-night-stop .plan-night-stop-name {
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 1.35;
+  color: var(--ec-text-primary);
+}
+
+/* Lodging role / local tag / unverified: plain words beside the name. */
+.plan-result-night .plan-night-stop .plan-night-stop-name ~ span {
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--ec-text-secondary);
+}
+
+.plan-result-night .plan-night-stop .plan-night-stop-name ~ span.text-ec-notice {
+  font-size: 14px;
+  color: var(--ec-notice);
+}
+
+/* Stay / price / booking facts as plain separated text. */
+.plan-result-night .plan-night-stop .plan-night-stop-meta {
+  gap: 4px 10px;
+  margin-top: 6px;
+}
+
+.plan-result-night .plan-night-stop .plan-night-stop-meta .ec-chip {
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  font-size: 13px;
+  font-weight: 400;
+  font-variant-numeric: tabular-nums;
+  color: var(--ec-text-secondary);
+}
+
+/* Entry fee / meal cost / free are price conditions: 14, primary weight. */
+.plan-result-night .plan-night-stop .plan-night-stop-meta .ec-chip:is(.text-ec-notice, .text-ec-success) {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--ec-text-primary);
+}
+
+.plan-result-night .plan-night-stop .plan-night-stop-meta .ec-chip svg {
+  display: none;
+}
+
+/* ── Expanded detail: plain indented blocks, no boxes inside the row ──────── */
+.plan-result-night .plan-night-stop .plan-night-stop-body {
+  padding: 0 0 18px 74px;
+  border-top: 0;
+}
+
+.plan-result-night .plan-night-stop-body p {
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+/* Why / tip / safety / reservation: neutral, indented under a thin rule. */
+.plan-result-night .plan-night-stop-body > [class*='border-l-2'] {
+  padding: 2px 0 2px 12px;
+  border-left: 1px solid var(--ec-line-strong);
+  border-radius: 0;
+  background: none;
+  color: var(--ec-text-secondary);
+}
+
+.plan-result-night .plan-night-stop-body > [class*='border-l-2'] > p:first-child {
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--ec-text-secondary);
+}
+
+/* Reservation note under the heading stays readable too. */
+.plan-result-night .plan-night-stop-body > [class*='border-l-2'] > p:first-child + p {
+  font-size: 14px;
+}
+
+.plan-result-night .plan-night-stop .plan-night-tip > p:last-child {
+  color: var(--ec-text-primary);
+}
+
+.plan-result-night .plan-night-stop-body > [class*='border-l-2'] a {
+  font-size: 14px;
+}
+
+/* Recommended items: rows divided by a rule, price kept at 14. */
+.plan-result-night .plan-night-stop-body .rounded-ec-sm:not(.plan-night-transit) {
+  padding-inline: 0;
+  border-radius: 0;
+  background: none;
+  border-bottom: 1px solid var(--ec-line);
+}
+
+.plan-result-night .plan-night-stop-body .rounded-ec-sm:not(.plan-night-transit) span {
+  font-size: 14px;
+}
+
+.plan-result-night .plan-night-stop-body .rounded-ec-sm:not(.plan-night-transit) span:last-child {
+  color: var(--ec-text-primary);
+}
+
+/* Public transit route: same indentation grammar, steps readable at 14. */
+.plan-result-night .plan-night-stop .plan-night-transit {
+  padding: 2px 0 2px 12px;
+  border-width: 0 0 0 1px;
+  border-color: var(--ec-line-strong);
+  border-radius: 0;
+  background: none;
+}
+
+.plan-result-night .plan-night-transit p,
+.plan-result-night .plan-night-transit span {
+  font-size: 14px;
+}
+
+.plan-result-night .plan-night-transit > div:first-child > p {
+  color: var(--ec-text-primary);
+  font-weight: 600;
+}
+
+.plan-result-night .plan-night-transit svg {
+  color: var(--ec-text-muted);
+}
+
+/* Expand/collapse: subtle and short. */
+.plan-result-night .plan-night-stop > .transition-all {
+  transition-duration: var(--ec-duration-fast);
+}
+
+/* ── Transit leg between stops: a single indented line, not a card ────────── */
+.plan-result-night .plan-night-leg {
+  padding: 4px 0 4px 74px;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  box-shadow: none;
+}
+
+.plan-result-night .plan-night-leg > div > div:first-child {
+  width: 20px;
+  height: 20px;
+  background: none;
+}
+
+.plan-result-night .plan-night-leg > div > div:first-child svg {
+  width: 16px;
+  height: 16px;
+  color: var(--ec-text-muted);
+}
+
+.plan-result-night .plan-night-leg p,
+.plan-result-night .plan-night-leg > div > div:last-child > div {
+  font-size: 14px;
+}
+
+.plan-result-night .plan-night-leg > div > div:last-child > p:first-child {
+  font-size: 13px;
+  font-weight: 500;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--ec-text-muted);
+}
+
+/* ── Focus ────────────────────────────────────────────────────────────────── */
+.plan-result-night :is(a, button, [role='button'], [role='tab']):focus-visible,
+.plan-preview-night :is(a, button):focus-visible {
+  outline: 2px solid var(--ec-brand);
+  outline-offset: 2px;
+}
+
+/* ── Quick preview card (Planner) — same grammar, conditions kept legible ─── */
+.plan-preview-night .ec-h3 {
+  font-family: var(--ecp-font-sans);
+  font-size: 22px;
+  font-weight: 500;
+  letter-spacing: 0;
+}
+
+/* Narrative sits in the flow, not in a second box. */
+.plan-preview-night .ec-panel-quiet {
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: none;
+}
+
+.plan-preview-night .ec-panel-quiet .ec-body-sm {
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.plan-preview-night .ec-timeline-row {
+  grid-template-columns: 62px 1fr;
+  padding-block: 14px;
+}
+
+.plan-preview-night .ec-timeline-time {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--ec-text-primary);
+  font-variant-numeric: tabular-nums;
+}
+
+.plan-preview-night .ec-timeline-row .text-\[15px\] {
+  font-size: 16px;
+}
+
+.plan-preview-night .ec-maplink {
+  min-height: 44px;
+  font-size: 14px;
+}
+
+.plan-preview-night .plan-night-preview-tip {
+  margin-top: 4px;
+  padding-left: 12px;
+  border-left: 1px solid var(--ec-line-strong);
+  font-size: 14px;
+  line-height: 1.55;
+  color: var(--ec-text-secondary);
+}
+
+.plan-preview-night .plan-night-conditions {
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--ec-text-secondary);
+  padding-left: 12px;
+  border-left: 1px solid var(--ec-line-strong);
+}
+
+@media (min-width: 768px) {
+  .plan-result-night .plan-night-masthead > .ec-container-wide {
+    padding-block: 32px 40px;
+  }
+
+  .plan-result-night .plan-night-masthead .plan-night-title {
+    font-size: 32px;
+  }
+
+  .plan-result-night .plan-night-day .plan-night-day-title {
+    font-size: 24px;
+  }
+
+  .plan-preview-night .ec-h3 {
+    font-size: 24px;
+  }
+}
+
+/* Tabs live in an overflow-x scroller: keep the focus ring inside the clip box. */
+.plan-result-night .plan-night-tabs [role='tab']:focus-visible {
+  outline-offset: -2px;
+}
+
+/* ── Pre-trip / outro: same sans section title as the day header ─────────── */
+.plan-result-night [data-testid='plan-pre-trip-slide'] > div > div:first-child,
+.plan-result-night [data-testid='plan-outro-slide'] > h2 {
+  margin-bottom: 20px;
+}
+
+.plan-result-night [data-testid='plan-pre-trip-slide'] h2,
+.plan-result-night [data-testid='plan-outro-slide'] > h2 {
+  font-family: var(--ecp-font-sans);
+  font-size: 22px;
+  font-weight: 500;
+  line-height: 1.3;
+  letter-spacing: 0;
+}
+
+.plan-result-night [data-testid='plan-pre-trip-slide'] {
+  padding-inline: 0;
+}
+
+/* ── Report modal: hairline panel + flat brand action (no pink gradient) ──── */
+.plan-result-night .plan-night-report {
+  background: var(--ec-surface-raised);
+  border-color: var(--ec-line-strong);
+}
+
+.plan-result-night .plan-night-report .plan-night-report-primary {
+  background: var(--ec-brand);
+  color: var(--ec-text-on-brand);
+}
+
+.plan-result-night .plan-night-report .plan-night-report-primary:not(:disabled):hover {
+  background: var(--ec-brand-hover);
+}
+
+.plan-result-night .plan-night-report .plan-night-report-choice-active {
+  background: var(--ec-brand-wash);
+  border-color: var(--ec-brand);
+}
+
+.plan-result-night .plan-night-report input[type='radio'] {
+  accent-color: var(--ec-brand);
+}
+
+/* ── Recommended restaurants: outer card on Home's ticket material ─────────
+   Rating badge, cuisine, district, distance and the map link keep their paint. */
+.plan-result-night .plan-night-rec-card {
+  background: var(--ec-card-bg);
+  border-color: var(--ec-card-line);
+  border-radius: var(--ec-card-radius);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .plan-result-night .plan-night-rec-card:hover {
+    border-color: var(--ec-option-line-hover);
+  }
+}
+
+@media (min-width: 768px) {
+  .plan-result-night [data-testid='plan-pre-trip-slide'] h2,
+  .plan-result-night [data-testid='plan-outro-slide'] > h2 {
+    font-size: 24px;
+  }
+}
+
+/* index.css forces transition-duration 0.01ms !important, so drop the property. */
+@media (prefers-reduced-motion: reduce) {
+  .plan-result-night .plan-night-tabs [role='tab'],
+  .plan-result-night .plan-night-day .plan-night-day-head,
+  .plan-result-night .plan-night-day .plan-night-stop,
+  .plan-result-night .plan-night-stop > .transition-all,
+  .plan-result-night .plan-night-report label {
+    transition-property: none;
+  }
+}
+
+/* ── Quick result anchor: land below the sticky header ─────────────────────── */
+/* usePlannerHandlers scrolls #planner-quick-result to block start on success;
+   same 80px margin as the wizard/error anchors (scroll-mt-20) so the preview
+   heading clears the 56/64px sticky header. */
+#planner-quick-result {
+  scroll-margin-top: 5rem;
+}
+
+/* Stop map row — compact 3-column controls; scoped override of global .ec-btn padding/font. */
+.plan-stop-map-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(0, 1fr));
+  gap: 6px;
+  align-items: stretch;
+}
+.plan-stop-map-row > .ec-btn {
+  min-width: 0;
+  min-height: 44px;
+  padding: 6px 8px;
+  font-size: 13px;
+  line-height: 1.2;
+  gap: 4px;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  text-align: center;
+}
+@media (max-width: 420px) {
+  .plan-stop-map-row > .ec-btn > svg { display: none; }
+}
+
+/* ── Phone pilot (2026-10-10): Home material on the intro + day views ───────
+   Phones only; desktop keeps the rules above. Values are Home's / the shared
+   night tokens (customer-night.css): the v3 cloud poster, the translucent
+   ticket (--ec-card-bg / --ec-card-line / --ec-card-radius, Home's 18px blur),
+   and the lavender primary pill. Visual weight only — no order, label or
+   target-size change. */
+@media (max-width: 767px) {
+  /* Home's sky (home-dope.css v3 layer): the poster still is the base and stays as
+     the fallback (reduced motion / Save-Data / video error, when SkyLayer renders no
+     video). The filter sits on the sky layers only, never on text or the ticket. */
+  .plan-result-night .plan-night-masthead {
+    overflow: hidden;
+  }
+
+  .plan-result-night .plan-night-masthead::before {
+    inset: 0;
+    height: auto;
+    z-index: -2;
+    background: #0b1033 url('/home-dope/v3-cloud-poster.jpg') 50% 65% / cover no-repeat;
+    filter: saturate(0.95) brightness(1.08);
+    opacity: 1;
+  }
+
+  /* SkyLayer (src/sections/home/SkyLayer.tsx) markup; Home's rules are scoped to
+     .home-dope, so the same declarations are repeated under the masthead. */
+  .plan-result-night .plan-night-masthead > .home-dope-sky {
+    position: absolute;
+    inset: 0;
+    z-index: -2;
+    overflow: hidden;
+    pointer-events: none;
+    filter: saturate(0.95) brightness(1.08);
+  }
+
+  .plan-result-night .plan-night-masthead .home-dope-sky__video {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    object-position: 50% 65%;
+  }
+
+  /* Home's overlays above poster/video: top navy .75 -> 0 at 35%, left scrim
+     .55 -> 0 at 45%, and only the last 10% fading into the page. */
+  .plan-result-night .plan-night-masthead::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    pointer-events: none;
+    background:
+      linear-gradient(180deg, rgba(10, 11, 20, 0) 90%, var(--ec-surface-page) 100%),
+      linear-gradient(90deg, rgba(10, 11, 20, 0.55) 0%, rgba(10, 11, 20, 0) 45%),
+      linear-gradient(180deg, rgba(11, 16, 51, 0.75) 0%, rgba(11, 16, 51, 0) 35%);
+  }
+
+  /* Home's sky play/pause control; 44px, top-right, with its own row reserved
+     above the ticket so nothing covers it. Only rendered while a video exists. */
+  .plan-result-night .plan-night-masthead > .home-dope-sky-toggle {
+    position: absolute;
+    top: 10px;
+    right: 12px;
+    z-index: 2;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 44px;
+    height: 44px;
+    border-radius: 9999px;
+    border: 1px solid rgba(255, 255, 255, 0.5);
+    background: rgba(10, 11, 20, 0.55);
+    color: #ffffff;
+    cursor: pointer;
+  }
+
+  .plan-result-night .plan-night-masthead > .home-dope-sky-toggle:hover {
+    background: rgba(10, 11, 20, 0.75);
+  }
+
+  .plan-result-night .plan-night-masthead:has(> .home-dope-sky-toggle) > .ec-container-wide {
+    padding-top: 64px;
+  }
+
+  /* One translucent ticket around title + facts (the facts' dashed rule is its tear line). */
+  .plan-result-night .plan-night-masthead > .ec-container-wide > .grid {
+    gap: 20px;
+    padding: 18px 16px 4px;
+    border: 1px solid var(--ec-card-line);
+    border-radius: var(--ec-card-radius);
+    background: var(--ec-card-bg);
+    -webkit-backdrop-filter: blur(18px) saturate(1.2);
+    backdrop-filter: blur(18px) saturate(1.2);
+  }
+
+  /* Same sans role as the day titles: digits no longer switch to the Latin-only serif. */
+  .plan-result-night .plan-night-masthead .plan-night-title {
+    font-family: var(--ecp-font-sans);
+    letter-spacing: 0;
+  }
+
+  /* Route map frame on the card line / radius tokens; the tile area is untouched. */
+  .plan-result-night [data-testid='day-route-map'] > .rounded-ec-md {
+    border-color: var(--ec-card-line);
+    border-radius: var(--ec-card-radius);
+  }
+
+  /* Stop map row: the existing Directions button (handler unchanged) is the filled pill;
+     the Naver / Google external anchor links stay outlined. */
+  .plan-result-night .plan-stop-map-row > button.ec-btn {
+    border-color: var(--ec-button-primary-bg);
+    background: var(--ec-button-primary-bg);
+    color: var(--ec-button-primary-fg);
+    font-weight: 600;
+  }
+
+  .plan-result-night .plan-stop-map-row > button.ec-btn:hover {
+    border-color: var(--ec-button-primary-bg-hover);
+    background: var(--ec-button-primary-bg-hover);
+  }
+
+  /* Gentle press on result buttons (tabs excluded): 1px down; the filled primary
+     alone carries a <= 2px inset depth that flattens while pressed. */
+  .plan-result-night .ec-btn:not([role='tab']) {
+    transition-property: transform, box-shadow, background-color, border-color, color;
+    transition-duration: var(--ec-duration-fast);
+    transition-timing-function: var(--ec-ease-standard);
+  }
+
+  .plan-result-night .ec-btn:not([role='tab']):not(:disabled):active {
+    transform: translateY(1px);
+  }
+
+  .plan-result-night .plan-stop-map-row > button.ec-btn {
+    box-shadow: inset 0 -2px 0 rgba(10, 11, 20, 0.18);
+  }
+
+  .plan-result-night .plan-stop-map-row > button.ec-btn:not(:disabled):active {
+    box-shadow: inset 0 1px 0 rgba(10, 11, 20, 0.18);
+  }
+}
+
+@media (max-width: 767px) and (prefers-reduced-motion: reduce) {
+  .plan-result-night .ec-btn:not([role='tab']) {
+    transition-property: none;
+  }
+
+  .plan-result-night .ec-btn:not([role='tab']):not(:disabled):active {
+    transform: none;
+  }
+}
+
+/* Intro WhatsApp CTA: when the label wraps it stays centred and balanced
+   (no single-character last line); the icon never shrinks. */
+.plan-result-night .plan-intro-whatsapp > svg {
+  flex-shrink: 0;
+}
+
+.plan-result-night .plan-intro-whatsapp-label {
+  min-width: 0;
+  text-align: center;
+  text-wrap: balance;
+}
+
+/* 의미 단위 묶음 — 묶음 사이에서만 줄바꿈. inline-block 이라 묶음이 폭보다 길면 안에서 정상 줄바꿈(넘침 없음). */
+.plan-result-night .plan-intro-whatsapp-chunk {
+  display: inline-block;
+}

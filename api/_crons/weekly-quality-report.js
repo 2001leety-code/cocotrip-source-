@@ -142,14 +142,15 @@ export function formatTelegramReport({
 
 // ── Gemini 호출 (lazy import + failsafe) ─────────────────────────────
 async function callGemini(prompt) {
-  if (!process.env.GEMINI_API_KEY) {
-    console.warn('[weekly-quality] GEMINI_API_KEY 미설정 — AI 요약 스킵');
+  // LLM 공급자 전환 (2026-10-13): 자동 실행(cron)은 기본적으로 유료 LLM 을 부르지 않는다.
+  // 운영자가 LLM_CRON_ALLOW=1 을 등록했을 때만 요약 생성 — 아니면 기존 '' 폴백(통계만 발송).
+  if (String(process.env.LLM_CRON_ALLOW || '').trim() !== '1') {
+    console.warn('[weekly-quality] LLM_CRON_ALLOW≠1 — AI 요약 스킵 (자동 실행 유료 호출 금지)');
     return '';
   }
   try {
-    const { GoogleGenerativeAI } = await import('@google/generative-ai');
-    const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-    const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
+    const { createLlmModel, resolveLlmApiKey } = await import('../_shared/llm/index.js');
+    const model = createLlmModel({ model: 'gemini-2.5-flash' }, { role: 'cron', stage: 'weekly-quality', apiKey: resolveLlmApiKey('cron'), timeoutMs: 40000 });
     const result = await model.generateContent(prompt);
     return (result.response.text() || '').trim();
   } catch (e) {

@@ -40,7 +40,15 @@ export default defineConfig({
   // DEV-only: /api 를 prod 로 프록시 — 로그인 뒤 화면(MOOD 포털 등)을 dev 에서 실데이터로
   // 검증하기 위한 하네스 (verify-web). same-origin 이라 CORS 무관. prod 빌드에 영향 없음.
   server: {
-    proxy: { '/api': { target: 'https://cocotripkr.com', changeOrigin: true } },
+    proxy: {
+      '/api': {
+        target: 'https://cocotripkr.com',
+        changeOrigin: true,
+        // src/ 가 api/_shared/*.js 를 직접 import 하면 dev 모듈 URL 이 /api/_shared/... 가 되어
+        // 프록시에 잡혀 prod 로 새어 나간다(2026-10-10 실측, 404). 소스 모듈은 Vite 가 직접 서빙.
+        bypass: (req) => (/^\/api\/_shared\/[^?]+\.js(\?|$)/.test(req.url || '') ? req.url : undefined),
+      },
+    },
   },
   plugins: [
     {

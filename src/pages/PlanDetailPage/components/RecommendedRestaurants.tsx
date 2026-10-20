@@ -204,7 +204,7 @@ export function RecommendedRestaurants({
                     return (
                       <article
                         key={r.placeId || `${tag}-${region || 'n'}-${r.name}-${i}`}
-                        className="bg-white/[0.04] border border-white/[0.08] rounded-xl p-3.5 hover:bg-white/[0.07] hover:border-[#7C5CFC]/40 transition-colors"
+                        className="plan-night-rec-card border p-3.5 transition-colors"
                       >
                         <div className="flex items-start justify-between gap-2 mb-1.5">
                           <div className="min-w-0 flex-1">

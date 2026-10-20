@@ -181,16 +181,15 @@ export function classifyModification(rawText) {
 // ─────────────────────────────────────────────────────────────────────
 
 async function llmClassify(rawText, apiKey, hintDayIndex) {
-  const { GoogleGenerativeAI } = await import('@google/generative-ai');
-  const genAI = new GoogleGenerativeAI(apiKey);
-  const model = genAI.getGenerativeModel({
+  const { createLlmModel } = await import('./_shared/llm/index.js'); // LLM 공급자 전환
+  const model = createLlmModel({
     model: 'gemini-2.5-flash-lite',
     generationConfig: {
       temperature: 0.1,
       maxOutputTokens: 800,
       responseMimeType: 'application/json',
     },
-  });
+  }, { role: 'classifier', stage: 'planner-modify', apiKey, timeoutMs: 12000 });
   const system = `You are CocoTrip's modification intent classifier. Classify into 5 intents. JSON only.
 
 Schema: { "intent": "block_swap|stop_swap|stop_add|stop_remove|no_change", "target": {"day_index":1,"stop_order":3,"block_id":"...","stop_name":"...","stop_address":"..."}, "confidence": 0.85, "fallback_reason": "..." }
@@ -214,7 +213,7 @@ Confidence 0-1. day_index 1-based. stop_order 1-based.`;
     new Promise((_, reject) => setTimeout(() => reject(new Error('LLM classify timeout')), 12000)),
   ]);
   // 사용량 실측 기록(비용 가시화 2026-07-09) — fire-and-forget, 실패해도 본 흐름 영향 0.
-  import('./_shared/apiUsageRecorder.js').then((m) => m.recordUsageFromResponse('planner-modify', 'gemini-2.5-flash-lite', result?.response)).catch(() => {});
+  import('./_shared/apiUsageRecorder.js').then((m) => m.recordUsageFromResponse('planner-modify', model.modelId, result?.response)).catch(() => {});
   const raw = result?.response?.text?.()?.trim() || '';
   if (!raw) return null;
   let parsed;
@@ -618,7 +617,8 @@ export default async function handler(req, res) {
     let llmRes = null;
     if (ruleClassified.confidence < 0.5) {
       try {
-        const apiKey = (process.env.GEMINI_API_KEY || '').trim();
+        let apiKey = '';
+        try { apiKey = (await import('./_shared/llm/index.js')).resolveLlmApiKey('classifier'); } catch { /* 미설정 → 규칙 결과 유지 */ }
         if (apiKey) {
           llmRes = await llmClassify(requestText, apiKey, hintDayIndex);
           if (llmRes && llmRes.confidence > ruleClassified.confidence) {

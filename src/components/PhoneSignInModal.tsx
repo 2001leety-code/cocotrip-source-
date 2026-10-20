@@ -190,7 +190,7 @@ export function PhoneSignInModal({ language, onClose, onSuccess }: Props) {
         style={{ background: '#0f1220', border: '1px solid rgba(124,92,252,0.25)' }}
         onClick={(e) => e.stopPropagation()}
       >
-        <h2 className="text-lg font-bold text-white mb-4">{text.title}</h2>
+        <h2 className="text-lg font-bold text-white mb-4 customer-phone-title">{text.title}</h2>
 
         {step === 1 && (
           <div className="space-y-3">
@@ -231,7 +231,7 @@ export function PhoneSignInModal({ language, onClose, onSuccess }: Props) {
                 disabled={loading}
               />
             </div>
-            <p className="text-[11px] text-white/45">{text.step1Hint}</p>
+            <p className="text-[11px] text-white/45 customer-phone-help">{text.step1Hint}</p>
             <button
               type="button"
               onClick={handleSendCode}
@@ -261,7 +261,7 @@ export function PhoneSignInModal({ language, onClose, onSuccess }: Props) {
               className="w-full px-3 py-2.5 rounded-lg bg-white/10 text-white border border-white/15 focus:border-purple-400 outline-none tracking-widest text-center text-lg"
               disabled={loading}
             />
-            <p className="text-[11px] text-white/45">{text.step2Hint}</p>
+            <p className="text-[11px] text-white/45 customer-phone-help">{text.step2Hint}</p>
             <button
               type="button"
               onClick={handleVerifyCode}
@@ -275,7 +275,7 @@ export function PhoneSignInModal({ language, onClose, onSuccess }: Props) {
               type="button"
               onClick={handleBack}
               disabled={loading}
-              className="w-full py-2 text-xs text-white/60 hover:text-white/90 disabled:opacity-50"
+              className="w-full py-2 text-xs text-white/60 hover:text-white/90 disabled:opacity-50 customer-phone-back"
             >
               {text.step2Back}
             </button>
@@ -288,7 +288,7 @@ export function PhoneSignInModal({ language, onClose, onSuccess }: Props) {
           type="button"
           onClick={onClose}
           disabled={loading}
-          className="w-full mt-3 py-2 text-xs text-white/55 hover:text-white/80 disabled:opacity-50"
+          className="w-full mt-3 py-2 text-xs text-white/55 hover:text-white/80 disabled:opacity-50 customer-phone-close"
         >
           {text.cancel}
         </button>

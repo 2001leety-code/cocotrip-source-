@@ -51,6 +51,11 @@ describe('normalizeNationalNumber — 선행 0 + 이중 prefix strip', () => {
   it('미국 — 선행 0 없음, 그대로', () => {
     expect(normalizeNationalNumber('2025550123', '1')).toBe('2025550123');
   });
+  it('1자리 dial(+1) — 국번이 1로 시작해도 자릿수 손실 없음', () => {
+    expect(normalizeNationalNumber('10 1234 5678', '1')).toBe('1012345678');
+    expect(normalizeNationalNumber('1 555 123 4567', '1')).toBe('5551234567');
+    expect(normalizeNationalNumber('+1 555 123 4567', '1')).toBe('5551234567');
+  });
   it('빈값 → 빈문자', () => {
     expect(normalizeNationalNumber('', '82')).toBe('');
   });

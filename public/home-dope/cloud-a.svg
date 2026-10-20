@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 220" width="640" height="220">
+  <!-- Own work (Opus 5.5 for CocoTrip, 2026-10-07): soft cloud silhouette, ellipses + blur. -->
+  <defs>
+    <filter id="soft" x="-20%" y="-40%" width="140%" height="180%">
+      <feGaussianBlur stdDeviation="7" />
+    </filter>
+  </defs>
+  <g fill="#f3e6f7" filter="url(#soft)">
+    <ellipse cx="170" cy="140" rx="130" ry="46" />
+    <ellipse cx="300" cy="110" rx="150" ry="62" />
+    <ellipse cx="450" cy="138" rx="140" ry="44" />
+    <ellipse cx="250" cy="160" rx="200" ry="30" />
+  </g>
+</svg>

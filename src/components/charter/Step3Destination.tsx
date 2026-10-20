@@ -131,9 +131,9 @@ export function Step3Destination({ state, patch, language = 'en' }: Props) {
   }, [state.service, state.origin, language, i18n.minutesUnit]);
 
   return (
-    <div className="space-y-2.5 sm:space-y-5">
+    <div className="charter-funnel-step-body space-y-2.5 sm:space-y-5">
       {options.length === 0 && (
-        <p className="text-sm text-white/55 py-4">{i18n.selectOriginFirst}</p>
+        <p className="charter-funnel-note charter-funnel-note-neutral text-sm text-white/55 py-4">{i18n.selectOriginFirst}</p>
       )}
       <div data-testid="charter-destination-grid" className="grid grid-cols-1 gap-2 sm:grid-cols-2 sm:gap-3">
         {options.map(opt => {
@@ -152,14 +152,14 @@ export function Step3Destination({ state, patch, language = 'en' }: Props) {
                 destLat: undefined, destLng: undefined,
                 destAddress: undefined, destName: undefined, destCategory: undefined,
               })}
-              className={`min-h-[72px] rounded-xl border px-2.5 py-2.5 text-left transition-all sm:min-h-[92px] sm:rounded-2xl sm:p-4 ${
+              className={`charter-funnel-option min-h-[72px] rounded-xl border px-2.5 py-2.5 text-left transition-all sm:min-h-[92px] sm:rounded-2xl sm:p-4 ${
                 selected
                   ? 'border-[#B668FC] bg-[#251B33] shadow-sm'
                   : 'border-white/10 bg-white/[0.035] hover:border-[#B668FC]/40 hover:bg-white/[0.055]'
               }`}
             >
               <p className="line-clamp-2 min-h-[2lh] break-words text-xs font-bold leading-snug text-white/90 sm:text-[15px]">{opt.title}</p>
-              {opt.sub && <p className="mt-0.5 text-[9px] leading-relaxed text-white/55 sm:mt-2 sm:text-xs">{opt.sub}</p>}
+              {opt.sub && <p className="charter-funnel-option-sub mt-0.5 text-[9px] leading-relaxed text-white/55 sm:mt-2 sm:text-xs">{opt.sub}</p>}
             </button>
           );
         })}
@@ -199,12 +199,12 @@ export function Step3Destination({ state, patch, language = 'en' }: Props) {
         />
         {/* 자동완성 매칭 시 — 권역 가격 적용 안내 */}
         {confirmedDest && state.destinationCustomMatched && (
-          <p className="text-xs text-emerald-300">
+          <p className="charter-funnel-note text-xs text-emerald-300">
             ✓ {i18n.destCustomMatched(state.destinationCustomMatched)}
           </p>
         )}
         {confirmedDest && !state.destinationCustomMatched && (
-          <p className="text-xs text-amber-300">
+          <p className="charter-funnel-note text-xs text-amber-300">
             ⚠ {i18n.destCustomUnmatched}
           </p>
         )}
@@ -245,12 +245,12 @@ function WaypointsSection({ state, patch, language = 'en' }: Props) {
     <div className="space-y-2.5 rounded-2xl border border-white/[0.08] bg-white/[0.025] p-3 sm:space-y-3 sm:p-4">
       <div>
         <p className="text-sm font-bold text-white/85">{t.title}</p>
-        <p className="mt-0.5 text-[11px] leading-relaxed text-white/50">{t.hint}</p>
+        <p className="charter-funnel-field-help charter-funnel-note-neutral mt-0.5 text-[11px] leading-relaxed text-white/50">{t.hint}</p>
       </div>
 
       {waypoints.map((wp, idx) => (
         <div key={idx} className="flex items-start gap-2">
-          <span className="mt-2 shrink-0 text-[11px] font-semibold text-[#B668FC]">{t.stop} {idx + 1}</span>
+          <span className="charter-funnel-field-label mt-2 shrink-0 text-[11px] font-semibold text-[#B668FC]">{t.stop} {idx + 1}</span>
           <div className="min-w-0 flex-1">
             <AddressAutocomplete
               id={`charter-waypoint-${idx}`}
@@ -287,7 +287,7 @@ function WaypointsSection({ state, patch, language = 'en' }: Props) {
       )}
 
       {waypoints.length > 0 && !hasEndpoints && (
-        <p className="text-[11px] text-amber-300/85">⚠ {t.needCoords}</p>
+        <p className="charter-funnel-note text-[11px] text-amber-300/85">⚠ {t.needCoords}</p>
       )}
     </div>
   );

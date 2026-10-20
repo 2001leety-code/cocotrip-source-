@@ -31,7 +31,7 @@
  *   - 'auto'    : shouldUseBlockMode 결과에 따라 결정 (기본값)
  */
 
-import { GoogleGenerativeAI } from '@google/generative-ai';
+import { createLlmModel, resolveLlmModel } from '../_shared/llm/index.js';
 import {
   AIRPORT_NAMES, AIRPORT_NAMES_KO, AIRPORT_ADDRESSES, AIRPORT_COORDS,
   AIRPORT_ARRIVE_BEFORE_MIN,
@@ -51,9 +51,7 @@ import { dietaryEvidenceFor, dietaryTagsOfRow, describeDietaryEvidence } from '.
 // block_mode 는 legacy(logCacheMetrics)와 달리 기록이 전혀 없던 sleeper 공백.
 function recordBlockUsage(cm) {
   try {
-    import('./geminiModelResolver.js')
-      .then((m) => recordGeminiUsage({ stage: 'block', model: m.resolveGeminiModel('block'), cm }))
-      .catch(() => {});
+    recordGeminiUsage({ stage: 'block', model: resolveLlmModel('block'), cm });
   } catch { /* ignore */ }
 }
 
@@ -465,16 +463,15 @@ export async function selectBlocksWithGemini(blocks, userInput, geminiClient) {
   // 2026-05-21 P135: 2.5 Flash → resolveGeminiModel('block') default 3.5 Flash.
   // ENV GEMINI_BLOCK_MODEL 또는 GEMINI_MODEL_OVERRIDE 로 override.
   // JSON-only response — block ID 선택만 책임 (Gemini 부하 1/10).
-  const { resolveGeminiModel } = await import('./geminiModelResolver.js');
-  const genAI = new GoogleGenerativeAI(geminiClient.apiKey);
-  const model = genAI.getGenerativeModel({
-    model: geminiClient.model || resolveGeminiModel('block'),
+  // LLM 공급자 전환 (2026-10-13): 공용 어댑터. geminiClient.model 은 gemini 공급자에서만 의미.
+  const model = createLlmModel({
+    ...(geminiClient.model ? { model: geminiClient.model } : {}),
     generationConfig: {
       temperature: 0.3,
       maxOutputTokens: 4000,
       responseMimeType: 'application/json',
     },
-  });
+  }, { role: 'block', stage: 'block', apiKey: geminiClient.apiKey });
 
   const result = await model.generateContent({
     contents: [{ role: 'user', parts: [{ text: userMessage }] }],
@@ -1752,16 +1749,15 @@ export async function selectBlocksMultiCity(cityBlocksList, userInput, geminiCli
     day_schedule: daySchedule,
   });
 
-  const { resolveGeminiModel } = await import('./geminiModelResolver.js');
-  const genAI = new GoogleGenerativeAI(geminiClient.apiKey);
-  const model = genAI.getGenerativeModel({
-    model: geminiClient.model || resolveGeminiModel('block'),
+  // LLM 공급자 전환 (2026-10-13): 공용 어댑터. geminiClient.model 은 gemini 공급자에서만 의미.
+  const model = createLlmModel({
+    ...(geminiClient.model ? { model: geminiClient.model } : {}),
     generationConfig: {
       temperature: 0.3,
       maxOutputTokens: 4000,
       responseMimeType: 'application/json',
     },
-  });
+  }, { role: 'block', stage: 'block', apiKey: geminiClient.apiKey });
 
   const result = await model.generateContent({
     contents: [{ role: 'user', parts: [{ text: userMessage }] }],

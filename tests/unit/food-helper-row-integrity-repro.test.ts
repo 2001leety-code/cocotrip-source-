@@ -18,8 +18,10 @@ const foodIndex = JSON.parse(readFileSync(join(__dirname, '../../api/_food_index
 
 describe('food-helper row integrity — real known-wrong rows (#3)', () => {
   it('a Busan-tagged row whose real address is in Gyeonggi (Everhalal near Everland) is excluded', () => {
-    const row = foodIndex.find((r) => /Everhalal/i.test(r.nameEn || r.name || '') && r.city === 'busan');
-    expect(row, 'fixture row must exist in the real index').toBeTruthy();
+    // 2026-10-10 city-key remap: the index row is now city=yongin (truthful); re-label it busan to keep reproducing the old wrong-key input.
+    const real = foodIndex.find((r) => /Everhalal/i.test(r.nameEn || r.name || ''));
+    expect(real, 'fixture row must exist in the real index').toBeTruthy();
+    const row = { ...real!, city: 'busan' };
     expect(row!.address).not.toMatch(/부산|busan/i);
     expect(isValidExactCityFoodRow(row!, 'busan')).toBe(false);
   });

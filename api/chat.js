@@ -4,7 +4,7 @@
  * body: { message, messages, language } — sessionId/userId는 권한으로 신뢰하지 않음
  * ENV: GEMINI_API_KEY, TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID
  */
-import { GoogleGenerativeAI } from '@google/generative-ai';
+import { createLlmModel, resolveLlmApiKey } from './_shared/llm/index.js';
 import { notify } from './_shared/notify.js';
 import { recordInquiryMessage, saveChatMessage } from './_shared/chat-relay.js';
 import { detectAndTranslate } from './_shared/translator.js';
@@ -392,16 +392,15 @@ export default wrapHandler(async function handler(req, res) {
     console.warn('[chat] rate-limit check error (allowing):', e.message);
   }
 
-  const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) {
+  let apiKey = '';
+  try { apiKey = resolveLlmApiKey('chat'); } catch (cfgErr) { // LLM 공급자 전환: gemini 면 GEMINI_API_KEY 필수
     res.writeHead(500, JSON_CORS);
-    return res.end(JSON.stringify(_err('GEMINI_API_KEY not configured', 'CONFIG_ERROR')));
+    return res.end(JSON.stringify(_err(cfgErr.message, 'CONFIG_ERROR')));
   }
 
   let aiResponse = '';
   try {
-    const genAI = new GoogleGenerativeAI(apiKey);
-    const model = genAI.getGenerativeModel({
+    const model = createLlmModel({
       model: 'gemini-2.5-flash',
       systemInstruction: SYSTEM_PROMPT,
       generationConfig: {
@@ -409,7 +408,7 @@ export default wrapHandler(async function handler(req, res) {
         maxOutputTokens: 350,
         thinkingConfig: { thinkingBudget: 0 },
       },
-    });
+    }, { role: 'chat', stage: 'chat', apiKey });
 
     const history = messages
       .filter((m) => m.text?.trim())
@@ -426,7 +425,7 @@ export default wrapHandler(async function handler(req, res) {
       result = await chat.sendMessage(message);
     }
     // 사용량 실측 기록(비용 가시화 2026-07-09) — fire-and-forget, 실패해도 채팅 흐름 영향 0.
-    import('./_shared/apiUsageRecorder.js').then((m) => m.recordUsageFromResponse('chat', 'gemini-2.5-flash', result.response)).catch(() => {});
+    import('./_shared/apiUsageRecorder.js').then((m) => m.recordUsageFromResponse('chat', model.modelId, result.response)).catch(() => {});
     aiResponse = result.response.text()?.trim() ||
       "I'm sorry, I couldn't process your request. Please contact us via WhatsApp: +82-10-8714-0611";
   } catch (err) {

@@ -1,6 +1,6 @@
 // TourSectionTabs — 투어 상세 페이지 sticky anchor 탭 (MRT 벤치마킹 P1).
-// PlanDetailPage/components/SectionTabs.tsx 와 같은 sticky 스타일(top-14 md:top-16,
-// role=tablist/tab)을 따르되, 슬라이드 인덱스가 아니라 섹션 id 로 scrollIntoView 한다.
+// PlanDetailPage/components/SectionTabs.tsx 와 같은 sticky 스타일(top-14 md:top-16)을 따르되,
+// nav + button(aria-current) 으로 렌더하고 슬라이드 인덱스가 아니라 섹션 id 로 scrollIntoView 한다.
 import { useState } from 'react';
 
 export interface TourSectionTab {
@@ -30,15 +30,14 @@ export function TourSectionTabs({ tabs, ariaLabel }: Props) {
       aria-label={ariaLabel}
       data-testid="tour-detail-section-tabs"
     >
-      <div role="tablist" className="flex gap-2 overflow-x-auto whitespace-nowrap py-3 pr-8 scrollbar-hide md:pr-0">
+      {/* 섹션으로 스크롤하는 페이지 내 이동 버튼이다(tabpanel 전환·화살표 키 없음) → tab role 대신 nav + aria-current. */}
+      <div className="flex gap-2 overflow-x-auto whitespace-nowrap py-3 pr-8 scrollbar-hide md:pr-0">
         {tabs.map((tab) => {
           const isActive = tab.id === active;
           return (
             <button
               key={tab.id}
               type="button"
-              role="tab"
-              aria-selected={isActive}
               aria-current={isActive ? 'true' : undefined}
               onClick={() => jump(tab.id)}
               className={`ec-chip min-h-[44px] shrink-0 cursor-pointer px-4 text-[14px] ${isActive ? 'ec-chip-brand' : ''}`}

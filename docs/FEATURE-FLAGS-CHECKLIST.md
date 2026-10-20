@@ -11,6 +11,23 @@
 > 목적: **"코드는 다 만들었는데 손님에겐 안 보이는 기능"** 을 한 장에 모아 켜기/지우기를 결정한다.
 > 근거: 2026-07-25 미사용 자산 감사(4차원 48건) + **Vercel API 실조회** + prod 실물 프로브.
 
+## 2026-10-13 추가 — LLM 공급자 전환 (Gemini → Claude, `api/_shared/llm/`)
+
+| 키 | 종류 | 기본값(미설정) | 뜻 |
+|---|---|---|---|
+| `LLM_PROVIDER` | env | `gemini` | `claude` / `gemini` / `mock`. 역할별 덮어쓰기 `LLM_PROVIDER_MAIN`·`_BLOCK`·`_CHAT`·`_TRANSLATE`·`_CLASSIFIER`·`_QUICK`·`_COURSE`·`_MOOD`·`_CX`·`_AGENT`·`_CRON` |
+| `ANTHROPIC_API_KEY` | env 🔐Sensitive | 없음 | `LLM_PROVIDER=claude` 일 때 필수. 없으면 해당 호출 500 CONFIG_ERROR |
+| `CLAUDE_MODEL_PLANNER` | env | `claude-sonnet-5-5` | 일정 생성(main/block) 모델 |
+| `CLAUDE_MODEL_DEFAULT` | env | `claude-haiku-5-5` | 그 외 전부 |
+| `LLM_DAILY_CALL_LIMIT` | env | `300` | KST 일일 실호출 상한. Firestore `llm_guard/{day}.count`. 초과 = 503 `LLM_DAILY_LIMIT` |
+| `LLM_KILL_SWITCH` | env | 꺼짐 | `1` = 모든 LLM 호출 즉시 503 `LLM_DISABLED` (재배포 필요) |
+| `llm_kill_switch` | 런타임 플래그(어드민 조종석) | false | 위와 동일, **재배포 없이 즉시**. 어드민 → 런타임 플래그 패널 |
+| `LLM_MAX_TOKENS_CAP` | env | `32000` | Claude `max_tokens` 상한 |
+| `LLM_CRON_ALLOW` | env | 꺼짐 | `1` 일 때만 cron(weekly-quality) 이 AI 요약 호출. 기본 = 자동 실행 유료 호출 0 |
+| `x-llm-mock: 1` | 요청 헤더(CI 전용) | — | admin-bypass 주문 / MOOD allowlist 통과 요청만 mock. `REAL_LLM=1` 수동 실행 시 헤더 `0` |
+
+운영 전환 순서: ① Vercel 에 `ANTHROPIC_API_KEY`(Sensitive) 등록 → ② `LLM_PROVIDER=claude` 등록 → ③ 재배포 → ④ 모닝브리핑 "AI(LLM) 예상" 비용·`api_usage.service=claude` 확인. 롤백 = `LLM_PROVIDER=gemini`(또는 삭제) + 재배포.
+
 ## 2026-09-08 추가 — 회사 메일·WhatsApp 수신
 
 `COMPANY_GMAIL_INBOX_ENABLED`, `WHATSAPP_INBOX_ENABLED`는 기본 OFF다. 회사 계정·인증·시작일·보관기간을 운영자가 **Vercel 대시보드**에서 직접 설정해야 한다. Preview/Development 수신은 코드에서 차단한다. 새 5분 Gmail 작업은 OFF에서 DB/외부 API 작업이 없고, WhatsApp은 서명 확인 뒤 지정 회사 번호의 명시적 업무 상담만 저장한다. 고객 답장·외부 AI·개인메일·실제 삭제·푸시는 켜지지 않는다. 설정키 전체와 보관/연결 확인 순서는 [수신 연결 실행안](COMPANY-INBOX-CONNECTION-2026-09-08.md)을 따른다. 실제 계정 수신 완료와 코드 준비를 구분한다.

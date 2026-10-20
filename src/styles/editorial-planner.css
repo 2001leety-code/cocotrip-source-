@@ -309,3 +309,1563 @@
    first frame in a background tab, where the browser stops running rAF) and a
    viewport that clips horizontally. Two definitions of one behaviour is how
    that regression comes back. */
+
+/* ═══ Compact workspace (2026-10-07) ═════════════════════════════════════
+   The planner's input surface: a rail (eyebrow, two-beat headline, one line,
+   mode choice) and a stage (price note, then the current question). Desktop
+   splits 5/12 · 7/12 while the guided brief is on screen; phones stack in the
+   same DOM order, so the price note always precedes the form. Every rule is
+   scoped to `.ec-planner` and uses new class names — the shared `.ec-option`,
+   `.ec-panel` and `.ec-question` rules above are not touched. Colours come
+   from the page tokens (`.ec-night` repaints them near-black / white /
+   lavender, matching Home). Nothing here hides, clamps or caps the height of
+   a form control, a validation note, the price note or a dialog. */
+
+.ec-planner .planner-main > * + * { margin-top: 20px; }
+
+.ec-planner .planner-workspace {
+  position: relative;
+  isolation: isolate;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 12px;
+  padding-top: 8px;
+}
+/* Home's still sky, faint behind the top of the workspace — first step
+   (booking status) only; steps 2-5 and the manual course stay plain. Absolutely
+   placed and faded out, so it adds no height and never covers a control.
+   The radial-gradient is an alpha mask for the fade, never a painted colour;
+   editorial-planner-journey.test.ts allows it in this one selector only. */
+.ec-planner .planner-workspace:has(.wizard-res-ticket)::before {
+  content: '';
+  position: absolute;
+  inset: 0 0 auto;
+  height: min(100%, 440px);
+  z-index: -1;
+  pointer-events: none;
+  background: url('/home-dope/v3-cloud-poster.jpg') 50% 65% / cover no-repeat;
+  opacity: 0.22;
+  -webkit-mask-image: radial-gradient(ellipse 70% 100% at 50% 0%, black 0%, transparent 100%);
+  mask-image: radial-gradient(ellipse 70% 100% at 50% 0%, black 0%, transparent 100%);
+}
+/* The inner grids name their one column explicitly. Left implicit, the track
+   is `auto`, which never shrinks below its widest child's min-content — at
+   1172px the stage was 613px wide but its track (and the price note and
+   question card in it) 761px, pushing the page sideways. */
+.ec-planner .planner-rail,
+.ec-planner .planner-stage {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 10px;
+  min-width: 0;
+  align-content: start;
+}
+.ec-planner .planner-rail > *,
+.ec-planner .planner-stage > * { min-width: 0; }
+
+/* Masthead — restrained on a phone (30px), never a hero. */
+.ec-planner .planner-title {
+  margin: 4px 0 0;
+  color: var(--ec-text-primary);
+  font-size: 28px;
+  line-height: 1.12;
+  letter-spacing: -0.02em;
+  text-wrap: balance;
+}
+.ec-planner .planner-title-serif {
+  font-family: var(--ec-night-serif, Georgia, 'Times New Roman', serif);
+  font-weight: 400;
+}
+.ec-planner .planner-title-sans {
+  font-weight: 600;
+  color: var(--ec-text-primary);
+}
+.ec-planner .planner-lede {
+  margin: 6px 0 0;
+  max-width: 34em;
+  color: var(--ec-text-secondary);
+  font-size: 14.5px;
+  line-height: 1.5;
+}
+
+/* Mode choice — a two-up row of one-line buttons. */
+.ec-planner .planner-mode-row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 6px;
+}
+.ec-planner .planner-mode-btn {
+  min-height: var(--ec-touch-min);
+  padding: 10px 12px;
+  border-width: 1px;
+  border-style: solid;
+  border-color: var(--ec-line-strong);
+  border-radius: 999px;
+  background-color: transparent;
+  color: var(--ec-text-secondary);
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.25;
+  text-align: center;
+  cursor: pointer;
+  transition:
+    border-color var(--ec-duration-fast) var(--ec-ease-standard),
+    background-color var(--ec-duration-fast) var(--ec-ease-standard),
+    color var(--ec-duration-fast) var(--ec-ease-standard);
+}
+.ec-planner .planner-mode-btn:hover { border-color: var(--ec-line-contrast); color: var(--ec-text-primary); }
+.ec-planner .planner-mode-btn.is-selected {
+  border-color: var(--ec-brand);
+  background-color: var(--ec-brand-wash);
+  color: var(--ec-text-primary);
+}
+.ec-planner .planner-mode-btn:focus-visible { outline: none; box-shadow: var(--ec-focus-ring); }
+
+/* Mode description — below the form with the other supporting notes, so it
+   no longer pushes the first question down. Still the buttons' description. */
+.ec-planner .planner-mode-more { border-bottom: 1px solid var(--ec-line); }
+.ec-planner .planner-mode-more > summary {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--ec-touch-min);
+  color: var(--ec-text-muted);
+  font-size: 13.5px;
+  cursor: pointer;
+}
+.ec-planner .planner-mode-more > summary::after {
+  content: '＋';
+  margin-left: 8px;
+  color: var(--ec-brand);
+}
+.ec-planner .planner-mode-more[open] > summary::after { content: '－'; }
+.ec-planner .planner-mode-more > p { margin: 0 0 4px; max-width: 34em; }
+
+/* Question card — the wizard sits on a hairline card, tighter on a phone. */
+.ec-planner .planner-question {
+  padding: 16px;
+  border-radius: var(--ec-radius-md, 12px);
+}
+/* The progress block repeats the step name the step's own <h2> already
+   states. It stays in the accessibility tree (clip, not display:none) so the
+   progress region still names the step; only the visual duplicate goes. */
+.ec-planner .planner-question .w-full > .mb-5 > .ec-question {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+.ec-planner .planner-question .wizard-step-viewport h2 {
+  font-size: 19px;
+  font-weight: 600;
+  line-height: 1.25;
+  letter-spacing: -0.01em;
+}
+.ec-planner .planner-question .ec-option p.line-clamp-2 { font-size: 13.5px; }
+.ec-planner .planner-question .ec-option p.line-clamp-1 { font-size: 11.5px; }
+/* Booking status (first step): four full-width rows on hairlines — no tile,
+   no icon box, nothing clamped. The ticket card, pill CTA and title serif
+   are Home's own rules (home-dope.css). */
+.ec-planner .wizard-res-rows {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  border-top: 1px solid var(--ec-line);
+}
+.ec-planner .wizard-res-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  min-height: 56px;
+  padding: 10px 4px;
+  text-align: start;
+  color: var(--ec-text-primary);
+  background: transparent;
+  border: 0;
+  border-bottom: 1px solid var(--ec-line);
+  cursor: pointer;
+  transition: background-color var(--ec-duration-base) var(--ec-ease-standard);
+}
+.ec-planner .wizard-res-row:hover,
+.ec-planner .wizard-res-row.is-selected { background: var(--ec-brand-wash); }
+.ec-planner .wizard-res-row:focus-visible {
+  outline: 2px solid var(--ec-brand);
+  outline-offset: -2px;
+}
+.ec-planner .wizard-res-row__text {
+  display: grid;
+  gap: 2px;
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.ec-planner .wizard-res-row__title {
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.3;
+}
+.ec-planner .wizard-res-row__sub {
+  color: var(--ec-text-muted);
+  font-size: 13px;
+  line-height: 1.35;
+}
+/* Selected: lavender disc with a check — shape, not colour alone. */
+.ec-planner .wizard-res-row__mark {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 22px;
+  height: 22px;
+  border: 1.5px solid var(--ec-line-strong);
+  border-radius: 50%;
+  color: var(--ec-button-primary-fg);
+}
+.ec-planner .wizard-res-row.is-selected .wizard-res-row__mark {
+  background: var(--ec-brand);
+  border-color: var(--ec-brand);
+}
+/* Ticket notches: two page-coloured discs straddling the card's side borders,
+   36px down (Home's pass notch height), clear of every control. Placed on the
+   outer card itself — the inner stub is centred, so its edges never reach the
+   border. Decoration only: no mask, no clipping, no added height. */
+.ec-planner .planner-question:has(.wizard-res-ticket) { position: relative; }
+.ec-planner .planner-question:has(.wizard-res-ticket)::before,
+.ec-planner .planner-question:has(.wizard-res-ticket)::after {
+  content: '';
+  position: absolute;
+  top: 29.5px;
+  width: 13px;
+  height: 13px;
+  box-sizing: border-box;
+  border: 1px solid var(--ec-line-contrast);
+  border-radius: 50%;
+  background: var(--ec-surface-page);
+  pointer-events: none;
+}
+.ec-planner .planner-question:has(.wizard-res-ticket)::before { left: -7.5px; }
+.ec-planner .planner-question:has(.wizard-res-ticket)::after { right: -7.5px; }
+/* Ticket stub: a dashed tear line above Continue. Decoration only. */
+.ec-planner .wizard-res-stub {
+  padding-top: 16px;
+  border-top: 1px dashed var(--ec-line-contrast);
+}
+
+/* First input only — choice first. While the booking-status step is on screen
+   the workspace drops what repeats or explains around the one question: the
+   lede, the mode and price eyebrows, the step's sub-line and each row's
+   sub-label. The four row titles, the three price rows and the FX note stay
+   whole and in place; validation, the mini-form and the CTA are untouched.
+   Progress becomes the count plus the five step buttons in one group — the
+   percentage and bar go, and the visible step name is clipped (the buttons
+   keep their aria-label). Steps 2-5 never match, so they render as before. */
+.ec-planner .planner-workspace:has(.wizard-res-ticket) .planner-lede,
+.ec-planner .planner-workspace:has(.wizard-res-ticket) .planner-modes > .ec-eyebrow,
+.ec-planner .planner-workspace:has(.wizard-res-ticket) .ai-planner-pricing-note > .ec-eyebrow,
+.ec-planner .planner-workspace:has(.wizard-res-ticket) .wizard-res-ticket > div:first-child > p,
+.ec-planner .planner-workspace:has(.wizard-res-ticket) .wizard-res-row__sub,
+.ec-planner .planner-workspace:has(.wizard-res-ticket) .planner-question .w-full > .mb-5 > div:first-child > .ec-figure,
+.ec-planner .planner-workspace:has(.wizard-res-ticket) .planner-question .w-full > .mb-5 > .ec-steprail {
+  display: none;
+}
+.ec-planner .planner-workspace:has(.wizard-res-ticket) .planner-mode-row { margin-top: 0; }
+/* Selected mode: brand line and primary ink carry it; no fill. */
+.ec-planner .planner-workspace:has(.wizard-res-ticket) .planner-mode-btn.is-selected {
+  background-color: transparent;
+}
+/* Price rows: same copy and size, without the ledger rules. */
+.ec-planner .planner-workspace:has(.wizard-res-ticket) .ai-planner-pricing-note > ul {
+  margin-top: 0;
+  border-top-width: 0;
+}
+.ec-planner .planner-workspace:has(.wizard-res-ticket) .ai-planner-pricing-note > ul > li {
+  border-bottom-width: 0;
+  padding-top: 4px;
+  padding-bottom: 4px;
+}
+.ec-planner .planner-workspace:has(.wizard-res-ticket) .planner-question .w-full > .mb-5 {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  column-gap: 12px;
+  row-gap: 2px;
+}
+.ec-planner .planner-workspace:has(.wizard-res-ticket) .planner-question .w-full > .mb-5 > ol {
+  margin-top: 0;
+  gap: 4px;
+  min-width: 0;
+  max-width: 100%;
+}
+.ec-planner .planner-workspace:has(.wizard-res-ticket) .planner-question .w-full > .mb-5 .ec-steptick > span:not(.ec-figure) {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+/* The ol scrolls (overflow-x: auto) and clips an outer ring — draw it inset, like the rows. */
+.ec-planner .planner-workspace:has(.wizard-res-ticket) .planner-question .w-full > .mb-5 .ec-steptick:focus-visible {
+  box-shadow: none;
+  outline: 2px solid var(--ec-brand);
+  outline-offset: -2px;
+}
+/* The step hint and the trust line sit below the CTA; on the first step they
+   only lengthen the page. Hidden here alone — validation, the airport/time
+   errors and the resume notice live elsewhere and are untouched. */
+.ec-planner .planner-workspace:has(.wizard-res-ticket) .wizard-step-hint-slot,
+.ec-planner .planner-workspace:has(.wizard-res-ticket) .wizard-trust-list {
+  display: none;
+}
+/* Price note: the first step shows the short wording (same three rows, same
+   FX note, same formatted amounts); steps 2-5 keep the full wording. Both
+   spans are always in the DOM; the hidden one is display:none, so it is out
+   of the accessibility tree too. */
+.ec-planner .planner-workspace:has(.wizard-res-ticket) .ai-planner-pricing-note__full { display: none; }
+.ec-planner .planner-workspace:has(.wizard-res-ticket) .ai-planner-pricing-note__short { display: inline; }
+
+/* Phone, first step: the count is read out but not drawn (the five step
+   buttons carry the progress on one line), the block sits closer to the
+   question, and the price rows and FX note read at 14px. */
+@media (max-width: 767.98px) {
+  .ec-planner .planner-workspace:has(.wizard-res-ticket) .planner-question .w-full > .mb-5 {
+    margin-bottom: 12px;
+  }
+  .ec-planner .planner-workspace:has(.wizard-res-ticket) .planner-question .w-full > .mb-5 > div:first-child {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+  }
+  .ec-planner .planner-workspace:has(.wizard-res-ticket) .planner-question .w-full > .mb-5 > ol {
+    flex: 1 1 100%;
+    flex-wrap: nowrap;
+  }
+  .ec-planner .planner-workspace:has(.wizard-res-ticket) .ai-planner-pricing-note > ul > li,
+  .ec-planner .planner-workspace:has(.wizard-res-ticket) .ai-planner-pricing-note > p:not(.ec-eyebrow) {
+    font-size: 14px;
+  }
+}
+
+/* Steps 2-5 share the first step's compact frame (2026-10-07 scope
+   expansion): same lede/eyebrow drop, quiet price rows with the short
+   wording, five-number step rail with the labels kept for assistive tech,
+   and the hint/trust lines out of the flow. Keyed on the step rail's value
+   (2-5), which is already set while a lazy step still shows its spinner —
+   `.wizard-stage` isn't, so the old frame flashed. The first step's rules
+   above are unchanged and the manual course never matches. The step's own h2,
+   options, warnings, errors, dates and prices are not touched here. */
+.ec-planner .planner-workspace:has(.ec-steprail[aria-valuenow]:not([aria-valuenow="1"])) .planner-lede,
+.ec-planner .planner-workspace:has(.ec-steprail[aria-valuenow]:not([aria-valuenow="1"])) .planner-modes > .ec-eyebrow,
+.ec-planner .planner-workspace:has(.ec-steprail[aria-valuenow]:not([aria-valuenow="1"])) .ai-planner-pricing-note > .ec-eyebrow,
+.ec-planner .planner-workspace:has(.ec-steprail[aria-valuenow]:not([aria-valuenow="1"])) .planner-question .w-full > .mb-5 > div:first-child > .ec-figure,
+.ec-planner .planner-workspace:has(.ec-steprail[aria-valuenow]:not([aria-valuenow="1"])) .planner-question .w-full > .mb-5 > .ec-steprail,
+.ec-planner .planner-workspace:has(.ec-steprail[aria-valuenow]:not([aria-valuenow="1"])) .wizard-step-hint-slot,
+.ec-planner .planner-workspace:has(.ec-steprail[aria-valuenow]:not([aria-valuenow="1"])) .wizard-trust-list {
+  display: none;
+}
+.ec-planner .planner-workspace:has(.ec-steprail[aria-valuenow]:not([aria-valuenow="1"])) .planner-mode-row { margin-top: 0; }
+.ec-planner .planner-workspace:has(.ec-steprail[aria-valuenow]:not([aria-valuenow="1"])) .planner-mode-btn.is-selected {
+  background-color: transparent;
+}
+.ec-planner .planner-workspace:has(.ec-steprail[aria-valuenow]:not([aria-valuenow="1"])) .ai-planner-pricing-note > ul {
+  margin-top: 0;
+  border-top-width: 0;
+}
+.ec-planner .planner-workspace:has(.ec-steprail[aria-valuenow]:not([aria-valuenow="1"])) .ai-planner-pricing-note > ul > li {
+  border-bottom-width: 0;
+  padding-top: 4px;
+  padding-bottom: 4px;
+}
+.ec-planner .planner-workspace:has(.ec-steprail[aria-valuenow]:not([aria-valuenow="1"])) .ai-planner-pricing-note__full { display: none; }
+.ec-planner .planner-workspace:has(.ec-steprail[aria-valuenow]:not([aria-valuenow="1"])) .ai-planner-pricing-note__short { display: inline; }
+.ec-planner .planner-workspace:has(.ec-steprail[aria-valuenow]:not([aria-valuenow="1"])) .planner-question .w-full > .mb-5 {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  column-gap: 12px;
+  row-gap: 2px;
+}
+.ec-planner .planner-workspace:has(.ec-steprail[aria-valuenow]:not([aria-valuenow="1"])) .planner-question .w-full > .mb-5 > ol {
+  margin-top: 0;
+  gap: 4px;
+  min-width: 0;
+  max-width: 100%;
+}
+.ec-planner .planner-workspace:has(.ec-steprail[aria-valuenow]:not([aria-valuenow="1"])) .planner-question .w-full > .mb-5 .ec-steptick > span:not(.ec-figure),
+.ec-planner .planner-workspace:has(.ec-steprail[aria-valuenow]:not([aria-valuenow="1"])) .planner-question .w-full > .mb-5 > .ec-question {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+.ec-planner .planner-workspace:has(.ec-steprail[aria-valuenow]:not([aria-valuenow="1"])) .planner-question .w-full > .mb-5 .ec-steptick:focus-visible {
+  box-shadow: none;
+  outline: 2px solid var(--ec-brand);
+  outline-offset: -2px;
+}
+@media (max-width: 767.98px) {
+  .ec-planner .planner-workspace:has(.ec-steprail[aria-valuenow]:not([aria-valuenow="1"])) .planner-question .w-full > .mb-5 {
+    margin-bottom: 12px;
+  }
+  .ec-planner .planner-workspace:has(.ec-steprail[aria-valuenow]:not([aria-valuenow="1"])) .planner-question .w-full > .mb-5 > div:first-child {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+  }
+  .ec-planner .planner-workspace:has(.ec-steprail[aria-valuenow]:not([aria-valuenow="1"])) .planner-question .w-full > .mb-5 > ol {
+    flex: 1 1 100%;
+    flex-wrap: nowrap;
+  }
+  .ec-planner .planner-workspace:has(.ec-steprail[aria-valuenow]:not([aria-valuenow="1"])) .ai-planner-pricing-note > ul > li,
+  .ec-planner .planner-workspace:has(.ec-steprail[aria-valuenow]:not([aria-valuenow="1"])) .ai-planner-pricing-note > p:not(.ec-eyebrow) {
+    font-size: 14px;
+  }
+}
+
+/* Brief notes — the five inputs, collapsed below the brief. */
+.ec-planner .planner-brief-notes { border-bottom: 1px solid var(--ec-line); }
+.ec-planner .planner-brief-list {
+  display: grid;
+  gap: 0 32px;
+  margin: 12px 0 0;
+  padding: 0;
+  list-style: none;
+}
+.ec-planner .planner-brief-list > li {
+  display: grid;
+  gap: 2px;
+  padding: 10px 0;
+  border-top: 1px solid var(--ec-line);
+}
+.ec-planner .planner-brief-label {
+  color: var(--ec-text-primary);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+@media (min-width: 640px) {
+  .ec-planner .planner-brief-list { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+@media (min-width: 768px) {
+  .ec-planner .planner-question { padding: 24px; }
+  .ec-planner .planner-title { font-size: 38px; }
+}
+
+/* Desktop split — only while the guided brief is on screen. */
+@media (min-width: 1024px) {
+  .ec-planner .planner-workspace { padding-top: 32px; }
+  .ec-planner .planner-workspace.is-split {
+    grid-template-columns: minmax(0, 3.5fr) minmax(0, 8.5fr);
+    gap: 48px;
+  }
+  .ec-planner .planner-workspace.is-split .planner-rail {
+    position: sticky;
+    top: 96px;
+    align-self: start;
+    gap: 24px;
+  }
+  .ec-planner .planner-title { font-size: clamp(40px, 3.6vw, 52px); }
+  /* Japanese: the sans half goes on its own line so the break falls between
+     the two masthead spans, not inside a word. */
+  html:lang(ja) .ec-planner .planner-masthead .planner-title-sans { display: block; }
+  .ec-planner .planner-lede { font-size: 15px; }
+  .ec-planner .planner-question { padding: 28px; }
+}
+
+/* Entrance — 220ms, transform only. No opacity, no fill-mode: if the browser
+   never runs the animation (background tab), the content is simply there. */
+@keyframes planner-rise {
+  from { transform: translateY(6px); }
+  to   { transform: none; }
+}
+.ec-planner .planner-rail,
+.ec-planner .planner-stage {
+  animation: planner-rise 220ms ease-out;
+}
+@media (prefers-reduced-motion: reduce) {
+  .ec-planner .planner-rail,
+  .ec-planner .planner-stage { animation: none; }
+  .ec-planner .planner-mode-btn { transition-property: none; transition-duration: 0s; }
+  /* First-step rows and Continue: transitions off; the selected disc and
+     focus outline are static rules, so they still show. */
+  .ec-planner .wizard-res-rows .wizard-res-row,
+  .ec-planner .wizard-res-ticket .wizard-res-stub .wizard-res-cta { transition-property: none; transition-duration: 0s; }
+}
+
+/* ═══ Night dossier — steps 2-5 (2026-10-07) ═════════════════════════════
+   Destination, food, details and review carry the first step's grammar:
+   hairline-separated groups, quiet option rows, wrapping capsules and a
+   key/value review. Every rule is scoped to `.wizard-stage` (each later
+   step's root), so the booking-status step (`.wizard-res-ticket`) never
+   matches. Presentation only: nothing here hides, clamps or reorders a
+   control, a warning, a validation note, a price or a condition. Colours
+   stay with the callers — no border-color or background is set on an
+   option, a notice or a panel that can carry `border-ec-critical`. */
+
+/* Steps 2-5 sit on the page itself: the question card loses its frame,
+   fill and inset, keyed on the step rail (set before a lazy step resolves)
+   so the geometry never flips back while the spinner shows. The first step
+   keeps its ticket card. */
+.ec-planner .planner-workspace:has(.ec-steprail[aria-valuenow]:not([aria-valuenow="1"])) .planner-question {
+  padding: 4px 0 0;
+  border-color: transparent;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+
+/* Groups: separated by air alone — no hairline or box around them. The
+   dietary warning and error notes keep the stage's own spacing. */
+.ec-planner .wizard-stage:not(.wizard-stage--review) > div + div:not(.ec-error-note):not(.wizard-safety-note) {
+  margin-top: 28px;
+}
+
+/* Question: one restrained heading size across the later steps. */
+.ec-planner .wizard-stage > h2,
+.ec-planner .wizard-stage > div:first-child > h2 {
+  color: var(--ec-text-primary);
+  font-size: 20px;
+  font-weight: 500;
+  line-height: 1.3;
+  letter-spacing: -0.01em;
+}
+
+/* Group labels 15px/500; helper copy 14px/400. */
+.ec-planner .wizard-stage p.text-sm.font-medium.text-ec-ink-3 {
+  color: var(--ec-text-secondary);
+  font-size: 15px;
+  font-weight: 500;
+  line-height: 1.35;
+}
+.ec-planner .wizard-stage p.text-sm.font-medium.text-ec-ink-3 > span { font-weight: 500; }
+.ec-planner .wizard-stage p.text-sm.font-medium.text-ec-ink-3 > svg { color: inherit; }
+.ec-planner .wizard-stage > div:first-child > p,
+.ec-planner .wizard-stage p.ec-help,
+.ec-planner .wizard-stage p.text-xs,
+.ec-planner .wizard-stage p.text-\[11px\] {
+  font-size: 14px;
+  font-weight: 400;
+  line-height: 1.5;
+}
+
+/* Readable floor: sub-labels drawn at 9-11px become 13px, other small copy
+   14px. Text wraps or keeps its existing clamp; nothing is removed. */
+.ec-planner .wizard-stage .text-\[9px\],
+.ec-planner .wizard-stage .text-\[10px\],
+.ec-planner .wizard-stage .text-\[11px\] {
+  font-size: 13px;
+  line-height: 1.4;
+}
+.ec-planner .wizard-stage .text-xs,
+.ec-planner .wizard-stage .text-\[12px\] {
+  font-size: 14px;
+  line-height: 1.45;
+}
+.ec-planner .wizard-stage .font-bold { font-weight: 600; }
+
+/* Options: modest radius, quiet motion, an inset focus ring. Selected state
+   is still `.is-selected` / aria-pressed with its check mark. */
+.ec-planner .wizard-stage .ec-option {
+  border-radius: var(--ec-radius-md);
+  transition:
+    border-color var(--ec-duration-fast) var(--ec-ease-standard),
+    background-color var(--ec-duration-fast) var(--ec-ease-standard);
+}
+/* Dense picks (dietary, bucket list, quick start): wrapping capsules. */
+.ec-planner .wizard-stage .ec-option.ec-option-sm {
+  border-radius: 999px;
+  padding-inline: 14px;
+  font-size: 14px;
+  line-height: 1.3;
+}
+.ec-planner .wizard-stage .ec-option:focus-visible,
+.ec-planner .wizard-stage .ec-field:focus-visible {
+  outline: 2px solid var(--ec-brand);
+  outline-offset: 2px;
+}
+/* Four spice levels across a 390px card: less side padding so the 12px
+   sub-label wraps inside the button instead of pressing on its edge. */
+.ec-planner .wizard-stage .grid-cols-4 > .ec-option {
+  padding-inline: 6px;
+}
+.ec-planner .wizard-stage .ec-option p,
+.ec-planner .wizard-stage .ec-option span {
+  overflow-wrap: anywhere;
+}
+
+/* Dietary warning: stays fully open; a notice-coloured leading rule marks it. */
+.ec-planner .wizard-stage .wizard-safety-note {
+  border-inline-start-width: 2px;
+  border-inline-start-color: var(--ec-notice);
+}
+/* Food: the must-select line and the unverified-restaurant risk read at 14px. */
+.ec-planner .wizard-stage--food .wizard-safety-note .text-\[12px\] { font-size: 14px; }
+
+/* Food spice levels: content-fit chips that wrap, not four cramped columns.
+   Level and example both stay; 44px touch height; quiet weight and colour. */
+.ec-planner .wizard-stage--food .wizard-spice-options > .ec-option {
+  flex: 0 1 auto;
+  width: auto;
+  max-width: 100%;
+  min-height: 44px;
+  padding: 8px 14px;
+}
+.ec-planner .wizard-stage--food .wizard-spice-options > .ec-option > span { align-items: flex-start; text-align: start; }
+.ec-planner .wizard-stage--food .wizard-spice-options .text-\[12px\] { font-size: 15px; font-weight: 500; }
+.ec-planner .wizard-stage--food .wizard-spice-options .text-\[9px\] {
+  font-size: 14px;
+  color: var(--ec-text-secondary);
+}
+.ec-planner .wizard-stage--food .text-\[11px\] { font-size: 14px; }
+
+/* Food styles: picked keeps the same transparent outline as unpicked, so the
+   footprint never shifts; the check and the brand-coloured name mark it. */
+.ec-planner .wizard-stage--food .wizard-pick-grid > .ec-option[aria-pressed='true'] {
+  border-color: transparent;
+  background-color: transparent;
+}
+.ec-planner .wizard-stage--food .wizard-pick-grid > .ec-option[aria-pressed='true'] .text-\[13px\] { color: var(--ec-brand); }
+
+/* Details: fields on the page, not tiles. Quiet panels lose fill, frame and
+   inset — unless validation marks one `border-ec-critical`, which keeps its
+   red frame and padding. The flight-info shortcut stays a full-width button
+   on a single hairline. */
+.ec-planner .wizard-stage--details .ec-panel-quiet:not(.border-ec-critical) {
+  padding-inline: 0;
+  border-color: transparent;
+  border-radius: 0;
+  background-color: transparent;
+}
+/* Date calendar: 7 day cells of 44px + the UA's 1px td padding = 322px. At
+   360 the card leaves 292px, and a centred `.rdp-months` spilled the excess
+   off the left edge, where overflow-x cannot scroll (month label's first
+   glyph and column 1 cut). `safe` keeps any overflow on the scrollable side;
+   below 390 the cells drop that padding (buttons stay 44×44) and the calendar
+   alone takes 8px of the card's 16px inset, so the 308px grid fits. That 8px
+   lies outside `.wizard-step-viewport`, whose `overflow-x: clip` (index.css)
+   cut it, so on this step the viewport's clip box widens by the same 8px and
+   pads it back — every other field stays where it was. */
+.ec-planner .wizard-stage--details .wizard-date-calendar .rdp-months { justify-content: safe center; }
+@media (max-width: 389.98px) {
+  .ec-planner .wizard-step-viewport:has(.wizard-stage--details) {
+    margin-inline: -8px;
+    padding-inline: 8px;
+  }
+  .ec-planner .wizard-stage--details .wizard-date-calendar {
+    margin-inline: -8px;
+    padding-inline: 0;
+  }
+  .ec-planner .wizard-stage--details .wizard-date-calendar .rdp-day { padding: 0; }
+}
+.ec-planner .wizard-stage--details button.ec-panel-quiet:not(.border-ec-critical) {
+  padding-block: 12px;
+  border-width: 0 0 1px;
+  border-bottom-color: var(--ec-line);
+}
+.ec-planner .wizard-stage--details button.ec-panel-quiet:focus-visible {
+  outline: 2px solid var(--ec-brand);
+  outline-offset: 2px;
+}
+.ec-planner .wizard-stage--details .ec-panel-quiet .ec-panel-quiet:not(.border-ec-critical) { padding-block: 4px; }
+.ec-planner .wizard-stage--details .ec-option:not([aria-pressed='true']):not(.is-selected) {
+  background-color: transparent;
+}
+
+/* Choices on the destination and food steps: cities are a borderless photo
+   list — photo and name lead, selection is a lavender ring on the photo plus
+   the existing check. Interests, food styles and budget lose the card look:
+   no fill or frame until picked, then a thin lavender ring and the check.
+   Every option, label, count, error and hint stays; buttons keep their
+   44px height and an inset focus outline. */
+.ec-planner .wizard-stage--dest .ec-option,
+.ec-planner .wizard-stage--food .wizard-pick-grid > .ec-option,
+.ec-planner .wizard-stage--food .wizard-price-grid > .ec-option {
+  background-color: transparent;
+}
+.ec-planner .wizard-stage--dest .ec-option:not([aria-pressed='true']) { border-color: var(--ec-line); }
+.ec-planner .wizard-stage--dest .ec-option:not([aria-pressed='true']):hover { border-color: var(--ec-option-line-hover); }
+.ec-planner .wizard-stage .wizard-pick-grid { gap: 4px 8px; }
+.ec-planner .wizard-stage .wizard-pick-grid > .ec-option:not([aria-pressed='true']) { border-color: transparent; }
+.ec-planner .wizard-stage .wizard-pick-grid > .ec-option:not([aria-pressed='true']):not(:disabled):hover {
+  border-color: transparent;
+  background-color: var(--ec-option-bg);
+}
+.ec-planner .wizard-stage .wizard-pick-grid > .ec-option,
+.ec-planner .wizard-stage .wizard-city-grid > .ec-option { padding: 8px 6px; }
+.ec-planner .wizard-stage .wizard-pick-grid > .ec-option:focus-visible,
+.ec-planner .wizard-stage .wizard-city-grid > .ec-option:focus-visible { outline-offset: -2px; }
+.ec-planner .wizard-stage .wizard-pick-grid > .ec-option > span > span.shrink-0:first-child { color: var(--ec-text-secondary); }
+.ec-planner .wizard-stage .wizard-pick-grid > .ec-option .text-\[13px\],
+.ec-planner .wizard-stage .wizard-price-grid > .ec-option .text-\[13px\] {
+  font-size: 15px;
+  font-weight: 500;
+  line-height: 1.3;
+}
+/* Food names and sub-lines wrap instead of cutting off with an ellipsis. */
+.ec-planner .wizard-stage--food .wizard-pick-grid > .ec-option .truncate {
+  overflow: visible;
+  white-space: normal;
+  text-overflow: clip;
+  overflow-wrap: normal;
+  word-break: keep-all;
+}
+/* Budget ranges and the vegan-disabled reason are conditions: 14px. */
+.ec-planner .wizard-stage--food .wizard-price-grid > .ec-option .text-\[10px\],
+.ec-planner .wizard-stage .wizard-pick-grid > .ec-option:disabled .text-\[10px\] {
+  color: var(--ec-text-secondary);
+  font-size: 14px;
+}
+
+.ec-planner .wizard-stage .wizard-city-grid { gap: 4px 12px; }
+.ec-planner .wizard-stage .wizard-city-grid > .ec-option:not([aria-pressed='true']),
+.ec-planner .wizard-stage .wizard-city-grid > .ec-option[aria-pressed='true'] { border-color: transparent; }
+.ec-planner .wizard-stage .wizard-city-grid > .ec-option:hover { background-color: var(--ec-option-bg); }
+.ec-planner .wizard-stage .wizard-city-grid > .ec-option > span { gap: 10px; }
+.ec-planner .wizard-stage .wizard-city-grid > .ec-option > span > :first-child {
+  width: 52px;
+  height: 52px;
+}
+.ec-planner .wizard-stage .wizard-city-grid > .ec-option[aria-pressed='true'] > span > :first-child {
+  box-shadow: 0 0 0 2px var(--ec-option-line-selected);
+}
+/* City name and "Main base" wrap only between words (never mid-word), so
+   the main-base line reads whole instead of in fragments. */
+.ec-planner .wizard-stage .wizard-city-grid .wizard-city-name,
+.ec-planner .wizard-stage .wizard-city-grid .wizard-city-main {
+  overflow: visible;
+  white-space: normal;
+  text-overflow: clip;
+  overflow-wrap: normal;
+  word-break: keep-all;
+}
+.ec-planner .wizard-stage .wizard-city-grid .wizard-city-name {
+  font-size: 15px;
+  font-weight: 500;
+  line-height: 1.3;
+}
+.ec-planner .wizard-stage .wizard-city-grid .wizard-city-main {
+  margin-top: 2px;
+  font-size: 13px;
+  line-height: 1.3;
+}
+
+@media (min-width: 768px) {
+  .ec-planner .wizard-stage > h2,
+  .ec-planner .wizard-stage > div:first-child > h2 { font-size: 28px; line-height: 1.2; }
+  /* Review's heading is a direct child, so the viewport h2 rule (19px) out-ranks
+     the line above; match the other steps' 28px. */
+  .ec-planner .planner-question .wizard-stage--review > h2.ec-question { font-size: 28px; line-height: 1.2; }
+  .ec-planner .wizard-stage:not(.wizard-stage--review) > div + div:not(.ec-error-note):not(.wizard-safety-note) { margin-top: 40px; }
+  .ec-planner .wizard-stage .wizard-city-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 8px 20px;
+  }
+}
+
+/* Destination, phone: question → cities → (collapsed) Quick Start → Continue.
+   The component renders Quick Start after the grid on phones only, so the DOM
+   order is the visual order. Question reads lighter and a little larger. */
+@media (max-width: 767.98px) {
+  .ec-planner .wizard-stage--dest > div:first-child > h2 {
+    font-family: var(--ec-night-serif, Georgia, 'Times New Roman', serif);
+    font-size: 26px;
+    font-weight: 400;
+    line-height: 1.25;
+    letter-spacing: -0.015em;
+    text-wrap: balance;
+  }
+  /* The "Trip Area" label repeats the question: it stays in the accessibility
+     tree (clip, not display:none); the selected count stays drawn. */
+  .ec-planner .wizard-stage--dest .wizard-dest-label__text {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+  }
+  .ec-planner .wizard-stage--dest .wizard-dest-label { margin-bottom: 8px; }
+  .ec-planner .wizard-stage--dest .wizard-dest-label > span.ml-2 { margin-left: 0; }
+
+  /* Masthead title: quieter than the question below it — 22px, regular weight,
+     the same serif lead; the destination question stays 26px/400. */
+  .ec-planner .planner-workspace:has(.wizard-stage--dest) .planner-title {
+    font-size: 22px;
+    font-weight: 400;
+  }
+  .ec-planner .planner-workspace:has(.wizard-stage--dest) .planner-title .planner-title-serif,
+  .ec-planner .planner-workspace:has(.wizard-stage--dest) .planner-title .planner-title-sans {
+    font-weight: 400;
+  }
+
+  /* Mode choice: one joined, single-line segmented pair (labels and handlers
+     are the planner's own; only the paint changes). */
+  .ec-planner .planner-workspace:has(.wizard-stage--dest) .planner-mode-row {
+    gap: 0;
+  }
+  .ec-planner .planner-workspace:has(.wizard-stage--dest) .planner-mode-btn {
+    min-height: var(--ec-touch-min);
+    padding: 10px 6px;
+    border-radius: 0;
+    font-size: 14px;
+    line-height: 1.2;
+    text-wrap: balance;
+  }
+  .ec-planner .planner-workspace:has(.wizard-stage--dest) .planner-mode-btn:first-child {
+    border-radius: 999px 0 0 999px;
+  }
+  .ec-planner .planner-workspace:has(.wizard-stage--dest) .planner-mode-btn:last-child {
+    border-radius: 0 999px 999px 0;
+    margin-left: -1px;
+  }
+  .ec-planner .planner-workspace:has(.wizard-stage--dest) .planner-mode-btn.is-selected {
+    position: relative;
+    z-index: 1;
+    border-color: var(--ec-brand);
+    background-color: var(--ec-brand-wash);
+    color: var(--ec-text-primary);
+    font-weight: 700;
+  }
+  .ec-planner .planner-workspace:has(.wizard-stage--dest) .planner-mode-btn:focus-visible {
+    z-index: 2;
+    outline: 2px solid var(--ec-brand);
+    outline-offset: 2px;
+    box-shadow: none;
+  }
+
+  /* Pricing: one calm group — a single leading rule, no cards, rows stay whole
+     at 14px with unchanged copy. */
+  .ec-planner .planner-workspace:has(.wizard-stage--dest) .ai-planner-pricing-note {
+    padding: 2px 0 2px 12px;
+    border-width: 0;
+    border-left: 2px solid var(--ec-line-strong);
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
+  }
+  .ec-planner .planner-workspace:has(.wizard-stage--dest) .ai-planner-pricing-note > ul > li,
+  .ec-planner .planner-workspace:has(.wizard-stage--dest) .ai-planner-pricing-note > p:not(.ec-eyebrow) {
+    border: 0;
+    background: transparent;
+    color: var(--ec-text-primary);
+    font-size: 14px;
+    line-height: 1.45;
+  }
+  .ec-planner .planner-workspace:has(.wizard-stage--dest) .ai-planner-pricing-note > ul > li:last-child {
+    color: var(--ec-text-primary);
+    font-weight: 500;
+  }
+
+  /* Cities: physical keys. Unselected = soft translucent raised face, a thin
+     lighter upper edge and a short base shadow; pressed sinks 1px and the base
+     shadow shortens; selected = solid light lavender with dark text, the
+     existing check and the main-base badge. Hover only for fine pointers;
+     touch gets :active alone. */
+  .ec-planner .wizard-stage.wizard-stage--dest .wizard-city-grid { gap: 10px 8px; }
+  .ec-planner .wizard-stage.wizard-stage--dest .wizard-city-grid > .ec-option {
+    position: relative;
+    min-height: 70px;
+    padding: 8px;
+    border-radius: 16px;
+    -webkit-tap-highlight-color: transparent;
+    transition:
+      transform var(--ec-duration-fast) var(--ec-ease-standard),
+      box-shadow var(--ec-duration-fast) var(--ec-ease-standard),
+      background-color var(--ec-duration-fast) var(--ec-ease-standard);
+  }
+  .ec-planner .wizard-stage.wizard-stage--dest .wizard-city-grid > .ec-option:not([aria-pressed='true']) {
+    border-color: color-mix(in srgb, var(--ec-text-primary) 14%, transparent);
+    border-top-color: color-mix(in srgb, var(--ec-text-primary) 40%, transparent);
+    background-color: color-mix(in srgb, var(--ec-text-primary) 13%, transparent);
+    color: var(--ec-text-primary);
+    box-shadow: 0 3px 0 rgb(0 0 0 / 0.2);
+  }
+  .ec-planner .wizard-stage.wizard-stage--dest .wizard-city-grid > .ec-option[aria-pressed='true'] {
+    border-color: transparent;
+    background-color: var(--ec-brand);
+    color: var(--ec-button-primary-fg);
+    box-shadow: 0 3px 0 rgb(0 0 0 / 0.34);
+  }
+  .ec-planner .wizard-stage.wizard-stage--dest .wizard-city-grid > .ec-option[aria-pressed]:active {
+    transform: translateY(1px);
+    box-shadow: 0 1px 0 rgb(0 0 0 / 0.22);
+  }
+  @media (hover: hover) and (pointer: fine) {
+    .ec-planner .wizard-stage.wizard-stage--dest .wizard-city-grid > .ec-option:not([aria-pressed='true']):hover {
+      background-color: color-mix(in srgb, var(--ec-text-primary) 15%, transparent);
+      border-top-color: color-mix(in srgb, var(--ec-text-primary) 46%, transparent);
+    }
+  }
+  .ec-planner .wizard-stage.wizard-stage--dest .wizard-city-grid > .ec-option:focus-visible {
+    outline: 2px solid var(--ec-brand);
+    outline-offset: 2px;
+  }
+  .ec-planner .wizard-stage.wizard-stage--dest .wizard-city-grid > .ec-option > span { gap: 8px; }
+  .ec-planner .wizard-stage.wizard-stage--dest .wizard-city-grid > .ec-option[aria-pressed='true'] > span > :first-child {
+    box-shadow: none;
+  }
+  .ec-planner .wizard-stage.wizard-stage--dest .wizard-city-grid > .ec-option > span > :first-child { opacity: 1; }
+  .ec-planner .wizard-stage.wizard-stage--dest .wizard-city-grid > .ec-option[aria-pressed='true'] .wizard-city-name {
+    color: var(--ec-button-primary-fg);
+    font-weight: 600;
+  }
+  /* Main-base badge: dark pill on the lavender face. */
+  .ec-planner .wizard-stage.wizard-stage--dest .wizard-city-grid > .ec-option .wizard-city-main {
+    display: inline-block;
+    padding: 1px 8px;
+    border-radius: 999px;
+    background: var(--ec-button-primary-fg);
+    color: var(--ec-brand);
+    font-weight: 600;
+  }
+  /* The existing check, out of the text flow: a dark disc in the tile corner. */
+  .ec-planner .wizard-stage.wizard-stage--dest .wizard-city-grid > .ec-option > span > svg {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    box-sizing: border-box;
+    width: 20px;
+    height: 20px;
+    padding: 4px;
+    border-radius: 50%;
+    background: var(--ec-button-primary-fg);
+    color: var(--ec-brand);
+  }
+
+  /* ── Ticket ─────────────────────────────────────────────────────────────
+     One smoky, translucent lavender surface for everything under the question:
+     cities, Quick Start, interests, free text, the pricing note and the nav.
+     Notches, the perforation and the barcode are decoration only: aria-hidden
+     or pseudo-elements, pointer-events none, out of the content's boxes. */
+  .ec-planner .wizard-stage.wizard-stage--dest:not(.wizard-stage--review) > div.wizard-dest-ticket:not(.ec-error-note):not(.wizard-safety-note) {
+    margin-top: 12px;
+  }
+  .ec-planner .wizard-stage--dest .wizard-dest-ticket {
+    position: relative;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 14px;
+    padding: 14px 12px;
+    border: 1px solid color-mix(in srgb, var(--ec-text-primary) 22%, transparent);
+    border-radius: 22px;
+    background: color-mix(in srgb, var(--ec-brand) 24%, color-mix(in srgb, var(--ec-surface-raised) 48%, transparent));
+    -webkit-backdrop-filter: blur(14px) saturate(1.15);
+    backdrop-filter: blur(14px) saturate(1.15);
+    box-shadow: 0 16px 36px rgb(0 0 0 / 0.26);
+  }
+  .ec-planner .wizard-stage--dest .wizard-dest-ticket > * { min-width: 0; margin-top: 0; }
+  /* Thin barcode in the right gutter (outside the 12px content inset). */
+  .ec-planner .wizard-stage--dest .wizard-dest-ticket__barcode {
+    position: absolute;
+    top: 22px;
+    right: 9px;
+    width: 1px;
+    height: 28px;
+    pointer-events: none;
+    color: color-mix(in srgb, var(--ec-text-primary) 42%, transparent);
+    background: currentColor;
+    box-shadow: 2px 0 0 currentColor, 3px 0 0 currentColor, 5px 0 0 currentColor, 6px 0 0 currentColor;
+  }
+  /* Perforation: dashed tear line across the full ticket width, with a notch at
+     each end. The wrapper bleeds into the ticket padding; its content does not. */
+  .ec-planner .wizard-stage--dest .wizard-dest-ticket__price {
+    position: relative;
+    margin-inline: -12px;
+    padding: 16px 12px 0;
+    border-top: 1px dashed color-mix(in srgb, var(--ec-text-primary) 34%, transparent);
+  }
+  .ec-planner .wizard-stage--dest .wizard-dest-ticket__price::before,
+  .ec-planner .wizard-stage--dest .wizard-dest-ticket__price::after {
+    content: '';
+    position: absolute;
+    top: -8px;
+    width: 14px;
+    height: 14px;
+    box-sizing: border-box;
+    border: 1px solid color-mix(in srgb, var(--ec-text-primary) 22%, transparent);
+    border-radius: 50%;
+    background: color-mix(in srgb, var(--ec-surface-page) 78%, transparent);
+    pointer-events: none;
+  }
+  .ec-planner .wizard-stage--dest .wizard-dest-ticket__price::before { left: -8px; }
+  .ec-planner .wizard-stage--dest .wizard-dest-ticket__price::after { right: -8px; }
+  /* Pricing inside the ticket: the same four clauses, whole, at 14px. */
+  .ec-planner .wizard-stage.wizard-stage--dest .wizard-dest-ticket__price .ai-planner-pricing-note {
+    padding: 0;
+    border-left-width: 0;
+  }
+  .ec-planner .wizard-stage--dest .wizard-dest-ticket .wizard-quick-start__summary {
+    padding: 0 14px;
+    border: 1px solid color-mix(in srgb, var(--ec-text-primary) 18%, transparent);
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--ec-text-primary) 6%, transparent);
+  }
+  .ec-planner .wizard-stage--dest .wizard-dest-ticket > div.flex.gap-3 { padding-top: 2px; }
+
+  /* Bright twilight clouds behind the whole phone destination step (home's own
+     poster). Fixed to the viewport, so it adds no page height and covers no
+     control; keyed on the step rail so it is there before the lazy step is. */
+  .ec-planner:has(.ec-steprail[aria-valuenow="2"]) {
+    position: relative;
+    isolation: isolate;
+  }
+  .ec-planner:has(.ec-steprail[aria-valuenow="2"])::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    z-index: -1;
+    pointer-events: none;
+    background: url('/home-dope/v3-cloud-poster.jpg') 50% 30% / cover no-repeat;
+    /* Local reading scrim: softly shades only the upper ~300px behind the text. */
+    box-shadow: inset 0 380px 160px -120px color-mix(in srgb, var(--ec-surface-raised) 45%, transparent);
+    filter: saturate(1.12) brightness(0.8);
+  }
+  .ec-planner:has(.wizard-stage--dest) .planner-title,
+  .ec-planner:has(.wizard-stage--dest) .planner-lede,
+  .ec-planner .wizard-stage--dest > div:first-child > h2,
+  .ec-planner .wizard-stage--dest > div:first-child > p {
+    text-shadow: 0 1px 12px rgb(0 0 0 / 0.45);
+  }
+  .ec-planner .wizard-stage.wizard-stage--dest > div:first-child > p { color: var(--ec-text-primary); }
+  .ec-planner .wizard-stage--dest .wizard-quick-start__summary {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    min-height: var(--ec-touch-min);
+    color: var(--ec-text-secondary);
+    font-size: 15px;
+    font-weight: 500;
+    line-height: 1.35;
+    cursor: pointer;
+    list-style: none;
+  }
+  .ec-planner .wizard-stage--dest .wizard-quick-start__summary::-webkit-details-marker { display: none; }
+  .ec-planner .wizard-stage--dest .wizard-quick-start__summary:focus-visible {
+    outline: 2px solid var(--ec-brand);
+    outline-offset: 2px;
+  }
+  .ec-planner .wizard-stage--dest .wizard-quick-start__chevron { margin-left: auto; }
+  .ec-planner .wizard-stage--dest .wizard-quick-start[open] > .wizard-quick-start__summary .wizard-quick-start__chevron { transform: rotate(180deg); }
+  .ec-planner .wizard-stage--dest .wizard-quick-start[open] > .wizard-quick-start__summary { margin-bottom: 8px; }
+}
+
+/* Review — a plain key / value document on the page: no outer panel, no
+   boxed groups, no boxed preview. Each group stays the edit button (hover
+   tint, inset focus); every row, value, the error note and the price note
+   stay visible. Lavender is left to the Generate button alone. */
+.ec-planner .wizard-stage--review .wizard-dossier,
+.ec-planner .wizard-stage--review .wizard-review-includes,
+.ec-planner .wizard-stage--review .wizard-review-cta {
+  padding: 0;
+  border-color: transparent;
+  border-radius: 0;
+  background: transparent;
+}
+.ec-planner .wizard-stage--review .wizard-dossier > .wizard-dossier-group {
+  margin-top: 0;
+  padding: 14px 0;
+  border-width: 0 0 1px;
+  border-color: var(--ec-line);
+  border-radius: 0;
+}
+.ec-planner .wizard-stage--review .wizard-dossier > .wizard-dossier-group:first-child { padding-top: 4px; }
+.ec-planner .wizard-stage--review .wizard-dossier-group:focus-visible {
+  outline: 2px solid var(--ec-brand);
+  outline-offset: -2px;
+}
+.ec-planner .wizard-stage--review .wizard-dossier-title {
+  margin-bottom: 8px;
+  font-size: 15px;
+  font-weight: 500;
+}
+.ec-planner .wizard-stage--review .wizard-dossier-title > svg { color: var(--ec-text-secondary); }
+.ec-planner .wizard-stage--review .wizard-dossier-row {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(0, 3fr);
+  gap: 12px;
+  padding: 3px 0;
+}
+.ec-planner .wizard-stage--review .wizard-dossier-key {
+  color: var(--ec-text-muted);
+  font-size: 14px;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+.ec-planner .wizard-stage--review .wizard-dossier-value {
+  color: var(--ec-text-primary);
+  font-size: 14px;
+  line-height: 1.45;
+  text-align: start;
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+.ec-planner .wizard-stage--review .wizard-dossier > .wizard-dossier-hint {
+  margin-top: 0;
+  padding: 10px 0 0;
+  font-size: 14px;
+  text-align: start;
+}
+.ec-planner .wizard-stage--review .wizard-review-includes h3 {
+  font-size: 15px;
+  font-weight: 500;
+}
+.ec-planner .wizard-stage--review .wizard-review-includes h3 > svg { color: var(--ec-text-secondary); }
+
+@media (min-width: 768px) {
+  .ec-planner .wizard-stage--review .wizard-dossier-row {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 2fr);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ec-planner .wizard-stage .ec-option,
+  .ec-planner .wizard-stage--review .wizard-dossier-group { transition-property: none; transition-duration: 0s; }
+}
+
+/* ═══ Destination step, desktop (>= 768px) ═══════════════════════════════
+   The phone ticket's language on the desktop frame: home's cloud poster behind
+   the page, a local reading scrim (native box-shadow, no painted gradient) and
+   ONE smoky lavender ticket — the existing `.planner-stage` that holds the
+   price note and the question card. DOM order is untouched: price clauses,
+   step rail, question, Quick Start, cities, interests, free text, navigation.
+   The inner question card is made transparent so it reads as one surface.
+   Keyed on `.wizard-stage--dest`, so every other step stays as it was; the
+   phone rules above are not touched. Edge decoration is pseudo-elements only,
+   absolute, pointer-events none, outside the content boxes. */
+@media (min-width: 768px) {
+  .ec-planner:has(.wizard-stage--dest) {
+    position: relative;
+    isolation: isolate;
+  }
+  .ec-planner:has(.wizard-stage--dest)::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    z-index: -1;
+    pointer-events: none;
+    background: url('/home-dope/v3-cloud-poster.jpg') 50% 30% / cover no-repeat;
+    /* Local reading scrim: the upper band and the left rail column only. */
+    box-shadow:
+      inset 0 380px 160px -120px color-mix(in srgb, var(--ec-surface-raised) 45%, transparent),
+      inset 560px 0 220px -180px color-mix(in srgb, var(--ec-surface-raised) 40%, transparent);
+    filter: saturate(1.12) brightness(0.8);
+  }
+  .ec-planner:has(.wizard-stage--dest) .planner-title,
+  .ec-planner:has(.wizard-stage--dest) .planner-lede,
+  .ec-planner .planner-stage:has(.wizard-stage--dest) .wizard-stage--dest > div:first-child > h2,
+  .ec-planner .planner-stage:has(.wizard-stage--dest) .wizard-stage--dest > div:first-child > p {
+    text-shadow: 0 1px 12px rgb(0 0 0 / 0.45);
+  }
+
+  /* Masthead: serif lead, regular weight, 32–42px. */
+  .ec-planner .planner-workspace:has(.wizard-stage--dest) .planner-title {
+    font-weight: 400;
+  }
+  .ec-planner .planner-workspace:has(.wizard-stage--dest) .planner-title .planner-title-serif,
+  .ec-planner .planner-workspace:has(.wizard-stage--dest) .planner-title .planner-title-sans {
+    font-weight: 400;
+  }
+
+  /* Mode choice: readable over the clouds; the selected one keeps its brand line. */
+  .ec-planner .planner-workspace:has(.wizard-stage--dest) .planner-mode-btn {
+    color: var(--ec-text-primary);
+  }
+  .ec-planner .planner-workspace:has(.wizard-stage--dest) .planner-mode-btn:not(.is-selected) {
+    background-color: color-mix(in srgb, var(--ec-surface-raised) 42%, transparent);
+  }
+  .ec-planner .planner-workspace:has(.wizard-stage--dest) .planner-mode-btn.is-selected {
+    box-shadow: inset 0 0 0 999px color-mix(in srgb, var(--ec-brand) 30%, transparent);
+    font-weight: 700;
+  }
+  .ec-planner .planner-workspace:has(.wizard-stage--dest) .planner-mode-btn:focus-visible {
+    outline: 2px solid var(--ec-brand);
+    outline-offset: 2px;
+  }
+
+  /* The ticket. */
+  .ec-planner .planner-stage:has(.wizard-stage--dest) {
+    position: relative;
+    gap: 18px;
+    padding: 28px 32px;
+    border: 1px solid color-mix(in srgb, var(--ec-text-primary) 22%, transparent);
+    border-radius: 24px;
+    background: color-mix(in srgb, var(--ec-brand) 24%, color-mix(in srgb, var(--ec-surface-raised) 48%, transparent));
+    -webkit-backdrop-filter: blur(14px) saturate(1.15);
+    backdrop-filter: blur(14px) saturate(1.15);
+    box-shadow: 0 16px 36px rgb(0 0 0 / 0.26);
+  }
+  /* Barcode in the right gutter (inside the 32px inset, clear of content). */
+  .ec-planner .planner-stage:has(.wizard-stage--dest)::after {
+    content: '';
+    position: absolute;
+    top: 30px;
+    right: 12px;
+    width: 1px;
+    height: 28px;
+    pointer-events: none;
+    color: color-mix(in srgb, var(--ec-text-primary) 42%, transparent);
+    background: currentColor;
+    box-shadow: 2px 0 0 currentColor, 3px 0 0 currentColor, 5px 0 0 currentColor, 6px 0 0 currentColor;
+  }
+
+  /* Inner question card: no frame, fill or inset — the ticket is the surface. */
+  .ec-planner .planner-stage:has(.wizard-stage--dest) .planner-question {
+    padding: 0;
+    border-color: transparent;
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+
+  /* Pricing: first in the ticket, the same four clauses whole at 15px, then a
+     dashed tear line across the full ticket width with a notch at each end. */
+  .ec-planner .planner-stage:has(.wizard-stage--dest) .planner-price {
+    position: relative;
+    margin-inline: -32px;
+    padding: 0 32px 20px;
+    border: 0;
+    border-bottom: 1px dashed color-mix(in srgb, var(--ec-text-primary) 34%, transparent);
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
+  }
+  .ec-planner .planner-stage:has(.wizard-stage--dest) .planner-price::before,
+  .ec-planner .planner-stage:has(.wizard-stage--dest) .planner-price::after {
+    content: '';
+    position: absolute;
+    bottom: -8px;
+    width: 14px;
+    height: 14px;
+    box-sizing: border-box;
+    border: 1px solid color-mix(in srgb, var(--ec-text-primary) 22%, transparent);
+    border-radius: 50%;
+    background: color-mix(in srgb, var(--ec-surface-page) 78%, transparent);
+    pointer-events: none;
+  }
+  .ec-planner .planner-stage:has(.wizard-stage--dest) .planner-price::before { left: -8px; }
+  .ec-planner .planner-stage:has(.wizard-stage--dest) .planner-price::after { right: -8px; }
+  .ec-planner .planner-stage:has(.wizard-stage--dest) .ai-planner-pricing-note {
+    padding: 0;
+    border-width: 0;
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
+  }
+  .ec-planner .planner-stage:has(.wizard-stage--dest) .ai-planner-pricing-note > ul > li,
+  .ec-planner .planner-stage:has(.wizard-stage--dest) .ai-planner-pricing-note > p:not(.ec-eyebrow) {
+    border: 0;
+    background: transparent;
+    color: var(--ec-text-primary);
+    font-size: 15px;
+    line-height: 1.5;
+  }
+
+  /* Question: serif, 32px / 400, like home's headline tone. */
+  .ec-planner .planner-stage:has(.wizard-stage--dest) .wizard-stage--dest > div:first-child > h2 {
+    font-family: var(--ec-night-serif, Georgia, 'Times New Roman', serif);
+    font-size: 32px;
+    font-weight: 400;
+    line-height: 1.2;
+    letter-spacing: -0.015em;
+    text-wrap: balance;
+  }
+  .ec-planner .planner-stage:has(.wizard-stage--dest) .wizard-stage--dest > div:first-child > p {
+    color: var(--ec-text-primary);
+    font-size: 15px;
+    line-height: 1.5;
+  }
+  .ec-planner .wizard-stage.wizard-stage--dest:not(.wizard-stage--review) > div + div:not(.ec-error-note):not(.wizard-safety-note) {
+    margin-top: 28px;
+  }
+  .ec-planner .wizard-stage--dest p.text-sm.font-medium.text-ec-ink-3 {
+    color: var(--ec-text-primary);
+  }
+  .ec-planner .wizard-stage--dest p.text-xs {
+    color: var(--ec-text-secondary);
+    font-size: 15px;
+  }
+
+  /* Cities: 3, 4 or at most 5 columns by usable width — each tile at least
+     160px, so names and the main-base badge stay whole. */
+  .ec-planner .wizard-stage.wizard-stage--dest .wizard-city-grid {
+    grid-template-columns: repeat(auto-fill, minmax(max(160px, calc((100% - 50px) / 5)), 1fr));
+    gap: 12px;
+  }
+  .ec-planner .wizard-stage.wizard-stage--dest .wizard-city-grid > .ec-option {
+    position: relative;
+    min-height: 70px;
+    padding: 8px;
+    border-radius: 16px;
+    -webkit-tap-highlight-color: transparent;
+    transition:
+      transform var(--ec-duration-fast) var(--ec-ease-standard),
+      box-shadow var(--ec-duration-fast) var(--ec-ease-standard),
+      background-color var(--ec-duration-fast) var(--ec-ease-standard);
+  }
+  .ec-planner .wizard-stage.wizard-stage--dest .wizard-city-grid > .ec-option:not([aria-pressed='true']) {
+    border-color: color-mix(in srgb, var(--ec-text-primary) 14%, transparent);
+    border-top-color: color-mix(in srgb, var(--ec-text-primary) 40%, transparent);
+    background-color: color-mix(in srgb, var(--ec-text-primary) 13%, transparent);
+    color: var(--ec-text-primary);
+    box-shadow: 0 3px 0 rgb(0 0 0 / 0.2);
+  }
+  .ec-planner .wizard-stage.wizard-stage--dest .wizard-city-grid > .ec-option[aria-pressed='true'] {
+    border-color: transparent;
+    background-color: var(--ec-brand);
+    color: var(--ec-button-primary-fg);
+    box-shadow: 0 3px 0 rgb(0 0 0 / 0.34);
+  }
+  .ec-planner .wizard-stage.wizard-stage--dest .wizard-city-grid > .ec-option[aria-pressed]:active {
+    transform: translateY(1px);
+    box-shadow: 0 1px 0 rgb(0 0 0 / 0.22);
+  }
+  @media (hover: hover) and (pointer: fine) {
+    .ec-planner .wizard-stage.wizard-stage--dest .wizard-city-grid > .ec-option:not([aria-pressed='true']):hover {
+      background-color: color-mix(in srgb, var(--ec-text-primary) 15%, transparent);
+      border-top-color: color-mix(in srgb, var(--ec-text-primary) 46%, transparent);
+    }
+  }
+  .ec-planner .wizard-stage.wizard-stage--dest .wizard-city-grid > .ec-option:focus-visible {
+    outline: 2px solid var(--ec-brand);
+    outline-offset: 2px;
+  }
+  .ec-planner .wizard-stage.wizard-stage--dest .wizard-city-grid > .ec-option > span { gap: 8px; }
+  .ec-planner .wizard-stage.wizard-stage--dest .wizard-city-grid > .ec-option[aria-pressed='true'] > span > :first-child {
+    box-shadow: none;
+  }
+  .ec-planner .wizard-stage.wizard-stage--dest .wizard-city-grid > .ec-option > span > :first-child { opacity: 1; }
+  .ec-planner .wizard-stage.wizard-stage--dest .wizard-city-grid > .ec-option[aria-pressed='true'] .wizard-city-name {
+    color: var(--ec-button-primary-fg);
+    font-weight: 600;
+  }
+  .ec-planner .wizard-stage.wizard-stage--dest .wizard-city-grid > .ec-option .wizard-city-main {
+    display: inline-block;
+    padding: 1px 8px;
+    border-radius: 999px;
+    background: var(--ec-button-primary-fg);
+    color: var(--ec-brand);
+    font-weight: 600;
+  }
+  .ec-planner .wizard-stage.wizard-stage--dest .wizard-city-grid > .ec-option > span > svg {
+    position: absolute;
+    top: 6px;
+    right: 6px;
+    box-sizing: border-box;
+    width: 20px;
+    height: 20px;
+    padding: 4px;
+    border-radius: 50%;
+    background: var(--ec-button-primary-fg);
+    color: var(--ec-brand);
+  }
+}
+
+/* From 1024px the frame is two columns: a 240–280px rail and the wide ticket.
+   Below that the rail stacks above the ticket, which takes the full width. */
+@media (min-width: 1024px) {
+  .ec-planner .planner-workspace.is-split:has(.wizard-stage--dest) {
+    grid-template-columns: minmax(240px, 280px) minmax(0, 1fr);
+    gap: 40px;
+  }
+  .ec-planner .planner-workspace:has(.wizard-stage--dest) .planner-title {
+    font-size: clamp(32px, 2.6vw, 38px);
+  }
+}
+
+/* Destination city keys under reduced motion: no transition and no sink
+   transform; the pressed shadow change still shows. Later than the phone rules
+   above at equal specificity, so it wins. */
+@media (prefers-reduced-motion: reduce) and (max-width: 767.98px) {
+  .ec-planner .wizard-stage.wizard-stage--dest .wizard-city-grid > .ec-option {
+    transition-property: none;
+    transition-duration: 0s;
+  }
+  .ec-planner .wizard-stage.wizard-stage--dest .wizard-city-grid > .ec-option[aria-pressed]:active {
+    transform: none;
+  }
+}
+@media (prefers-reduced-motion: reduce) and (min-width: 768px) {
+  .ec-planner .wizard-stage.wizard-stage--dest .wizard-city-grid > .ec-option {
+    transition-property: none;
+    transition-duration: 0s;
+  }
+  .ec-planner .wizard-stage.wizard-stage--dest .wizard-city-grid > .ec-option[aria-pressed]:active {
+    transform: none;
+  }
+}
+
+/* ═══ Guided stages that are not the destination (2026-10-09) ═════════════
+   First input (booking status), food, details and review wear the destination
+   step's cloud-poster page header and sit on ONE outer plate. Every rule here
+   is scoped through `:not(:has(.wizard-stage--dest))`, so the destination step
+   (its poster, ticket, price host and pixels) is never matched; the manual
+   course, loading and preview have no `.planner-question` / rail value 1, 3-5
+   and never match either.
+     first step  → `.wizard-res-ticket` is on screen
+     steps 3-5   → the step rail reads 3, 4 or 5
+   Clouds sit behind the masthead only. The plate is the readable surface:
+   steps 3-5 get a solid token fill, so fields, the calendar, the dietary
+   warning and validation notes never sit on a cloud; the first step keeps its
+   existing translucent card and gains a blur behind it (the card, not a field).
+   The price note keeps its place and wording and gets a solid token fill. */
+
+.ec-planner:not(:has(.wizard-stage--dest)):is(:has(.wizard-res-ticket), :has(.ec-steprail:is([aria-valuenow="3"], [aria-valuenow="4"], [aria-valuenow="5"]))) {
+  position: relative;
+  isolation: isolate;
+}
+.ec-planner:not(:has(.wizard-stage--dest)):is(:has(.wizard-res-ticket), :has(.ec-steprail:is([aria-valuenow="3"], [aria-valuenow="4"], [aria-valuenow="5"])))::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background: url('/home-dope/v3-cloud-poster.jpg') 50% 30% / cover no-repeat;
+  /* Local reading scrim behind the masthead and the top of the plate. */
+  box-shadow: inset 0 420px 180px -120px color-mix(in srgb, var(--ec-surface-raised) 55%, transparent);
+  filter: saturate(1.12) brightness(0.7);
+}
+/* One poster, not two: the first step's faint sky is replaced by it. */
+.ec-planner:not(:has(.wizard-stage--dest)):has(.wizard-res-ticket) .planner-workspace::before { content: none; }
+
+/* Masthead over the clouds. */
+.ec-planner:not(:has(.wizard-stage--dest)):is(:has(.wizard-res-ticket), :has(.ec-steprail:is([aria-valuenow="3"], [aria-valuenow="4"], [aria-valuenow="5"]))) .planner-title {
+  text-shadow: 0 1px 12px rgb(0 0 0 / 0.45);
+}
+.ec-planner:not(:has(.wizard-stage--dest)):is(:has(.wizard-res-ticket), :has(.ec-steprail:is([aria-valuenow="3"], [aria-valuenow="4"], [aria-valuenow="5"]))) .planner-workspace .planner-mode-btn {
+  color: var(--ec-text-primary);
+}
+.ec-planner:not(:has(.wizard-stage--dest)):is(:has(.wizard-res-ticket), :has(.ec-steprail:is([aria-valuenow="3"], [aria-valuenow="4"], [aria-valuenow="5"]))) .planner-workspace .planner-mode-btn:not(.is-selected) {
+  background-color: color-mix(in srgb, var(--ec-surface-raised) 60%, transparent);
+}
+.ec-planner:not(:has(.wizard-stage--dest)):is(:has(.wizard-res-ticket), :has(.ec-steprail:is([aria-valuenow="3"], [aria-valuenow="4"], [aria-valuenow="5"]))) .planner-workspace .planner-mode-btn.is-selected {
+  background-color: color-mix(in srgb, var(--ec-brand) 30%, var(--ec-surface-raised));
+  font-weight: 700;
+}
+.ec-planner:not(:has(.wizard-stage--dest)):is(:has(.wizard-res-ticket), :has(.ec-steprail:is([aria-valuenow="3"], [aria-valuenow="4"], [aria-valuenow="5"]))) .planner-workspace .planner-mode-btn:focus-visible {
+  outline: 2px solid var(--ec-brand);
+  outline-offset: 2px;
+  box-shadow: none;
+}
+
+/* Price note: same place, same rows; solid token surface instead of clouds. */
+.ec-planner:not(:has(.wizard-stage--dest)):is(:has(.wizard-res-ticket), :has(.ec-steprail:is([aria-valuenow="3"], [aria-valuenow="4"], [aria-valuenow="5"]))) .planner-price {
+  padding: 12px 14px;
+  border: 1px solid var(--ec-line-contrast);
+  border-radius: 16px;
+  background: var(--ec-surface-raised);
+}
+.ec-planner:not(:has(.wizard-stage--dest)):is(:has(.wizard-res-ticket), :has(.ec-steprail:is([aria-valuenow="3"], [aria-valuenow="4"], [aria-valuenow="5"]))) .planner-price .ai-planner-pricing-note {
+  padding: 0;
+  border-width: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+/* First step: the existing ticket card, softened clouds behind it; question in
+   the restrained serif at its existing 19px. */
+.ec-planner:not(:has(.wizard-stage--dest)):has(.wizard-res-ticket) .planner-question {
+  -webkit-backdrop-filter: blur(14px) saturate(1.1);
+  backdrop-filter: blur(14px) saturate(1.1);
+}
+.ec-planner:not(:has(.wizard-stage--dest)):has(.wizard-res-ticket) .planner-question .wizard-step-viewport h2 {
+  font-family: var(--ec-night-serif, Georgia, 'Times New Roman', serif);
+  font-weight: 400;
+}
+.ec-planner:not(:has(.wizard-stage--dest)):has(.wizard-res-ticket) .wizard-res-row:hover,
+.ec-planner:not(:has(.wizard-stage--dest)):has(.wizard-res-ticket) .wizard-res-row.is-selected {
+  background: color-mix(in srgb, var(--ec-brand) 28%, var(--ec-surface-raised));
+  color: var(--ec-text-primary);
+}
+
+/* Steps 3-5: one solid outer plate. Corner and line are Home's ticket tokens
+   (--ec-card-radius / --ec-card-line) with no lift; the fill stays opaque. */
+.ec-planner:not(:has(.wizard-stage--dest)):has(.ec-steprail:is([aria-valuenow="3"], [aria-valuenow="4"], [aria-valuenow="5"])) .planner-workspace .planner-question {
+  padding: 16px 16px 20px;
+  border-color: var(--ec-card-line);
+  border-radius: var(--ec-card-radius);
+  background: var(--ec-surface-raised);
+  box-shadow: none;
+}
+@media (min-width: 768px) {
+  .ec-planner:not(:has(.wizard-stage--dest)):has(.ec-steprail:is([aria-valuenow="3"], [aria-valuenow="4"], [aria-valuenow="5"])) .planner-workspace .planner-question {
+    padding: 28px 32px;
+  }
+}
+/* Question: restrained serif, plain body below it. */
+.ec-planner:not(:has(.wizard-stage--dest)):has(.ec-steprail:is([aria-valuenow="3"], [aria-valuenow="4"], [aria-valuenow="5"])) .wizard-stage > h2,
+.ec-planner:not(:has(.wizard-stage--dest)):has(.ec-steprail:is([aria-valuenow="3"], [aria-valuenow="4"], [aria-valuenow="5"])) .wizard-stage > div:first-child > h2 {
+  font-family: var(--ec-night-serif, Georgia, 'Times New Roman', serif);
+  font-weight: 400;
+}
+/* Selected choice: lavender wash, primary ink (food picks keep their own rule). */
+.ec-planner:not(:has(.wizard-stage--dest)):has(.ec-steprail:is([aria-valuenow="3"], [aria-valuenow="4"], [aria-valuenow="5"])) .wizard-stage .ec-option[aria-pressed='true']:not(.wizard-pick-grid > .ec-option) {
+  background-color: color-mix(in srgb, var(--ec-brand) 28%, var(--ec-surface-raised));
+  color: var(--ec-text-primary);
+}
+
+/* Pressed: a natural 1px sink. */
+.ec-planner:not(:has(.wizard-stage--dest)):has(.wizard-res-ticket) .wizard-res-row:active,
+.ec-planner:not(:has(.wizard-stage--dest)):has(.ec-steprail:is([aria-valuenow="3"], [aria-valuenow="4"], [aria-valuenow="5"])) .wizard-stage .ec-option[aria-pressed]:active {
+  transform: translateY(1px);
+}
+
+/* Review: a four-group document inside the plate. Groups are separated by
+   hairlines alone — no tint, no last rule, no second plate for the extras. */
+.ec-planner:not(:has(.wizard-stage--dest)):has(.ec-steprail[aria-valuenow="5"]) .wizard-stage--review .wizard-dossier > .wizard-dossier-group {
+  background-color: transparent;
+  box-shadow: none;
+}
+.ec-planner:not(:has(.wizard-stage--dest)):has(.ec-steprail[aria-valuenow="5"]) .wizard-stage--review .wizard-dossier > .wizard-dossier-group:hover,
+.ec-planner:not(:has(.wizard-stage--dest)):has(.ec-steprail[aria-valuenow="5"]) .wizard-stage--review .wizard-dossier > .wizard-dossier-group:focus-visible {
+  background-color: var(--ec-brand-wash);
+}
+.ec-planner:not(:has(.wizard-stage--dest)):has(.ec-steprail[aria-valuenow="5"]) .wizard-stage--review .wizard-dossier > .wizard-dossier-group:last-of-type {
+  border-bottom-width: 0;
+}
+.ec-planner:not(:has(.wizard-stage--dest)):has(.ec-steprail[aria-valuenow="5"]) .wizard-stage--review .wizard-review-includes,
+.ec-planner:not(:has(.wizard-stage--dest)):has(.ec-steprail[aria-valuenow="5"]) .wizard-stage--review .wizard-review-cta {
+  border-width: 0;
+  box-shadow: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ec-planner:not(:has(.wizard-stage--dest)):has(.wizard-res-ticket) .wizard-res-row:active,
+  .ec-planner:not(:has(.wizard-stage--dest)):has(.ec-steprail:is([aria-valuenow="3"], [aria-valuenow="4"], [aria-valuenow="5"])) .wizard-stage .ec-option[aria-pressed]:active {
+    transform: none;
+  }
+}
+
+/* Food + details option buttons: add 120ms transform to the existing border/background transition so the 1px press sink eases. Review has no matching buttons and is excluded; disabled / aria-disabled buttons are excluded. */
+.ec-planner :is(.wizard-stage--food, .wizard-stage--details) button.ec-option[aria-pressed]:not(:disabled):not([aria-disabled='true']) {
+  transition:
+    border-color var(--ec-duration-fast) var(--ec-ease-standard),
+    background-color var(--ec-duration-fast) var(--ec-ease-standard),
+    transform var(--ec-duration-fast) var(--ec-ease-standard);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ec-planner :is(.wizard-stage--food, .wizard-stage--details) button.ec-option[aria-pressed]:not(:disabled):not([aria-disabled='true']) {
+    transition-property: none;
+  }
+}

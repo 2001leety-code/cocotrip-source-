@@ -46,13 +46,13 @@ describe('public effects state', () => {
       { data: { translated: { tour_title: 'Japanese', days: [] } } },
       { data: { translated: { tour_title: 'Japanese again', days: [] } } },
     ];
-    const fetchMock = vi.fn(() => Promise.resolve({ json: async () => responses.shift() }));
+    const fetchMock = vi.fn(() => Promise.resolve({ ok: true, json: async () => responses.shift() }));
     vi.stubGlobal('fetch', fetchMock);
 
     const { result, rerender } = renderHook(
       ({ language }) => {
         const [plan, setPlan] = useState<PlanDocument | null>(originalPlan);
-        return { ...useAutoTranslate(plan, setPlan, language), plan, setPlan };
+        return { ...useAutoTranslate(plan, setPlan, language, { planId: String(plan?.id || ''), publicView: false, allowCache: true, accessKey: 'owner' }), plan, setPlan };
       },
       { initialProps: { language: 'ja' } },
     );
@@ -79,12 +79,12 @@ describe('public effects state', () => {
   });
 
   it('finishes a missing translation response and retries only after the language changes', async () => {
-    const fetchMock = vi.fn(() => Promise.resolve({ json: async () => ({ data: { translated: null } }) }));
+    const fetchMock = vi.fn(() => Promise.resolve({ ok: true, json: async () => ({ data: { translated: null } }) }));
     vi.stubGlobal('fetch', fetchMock);
     const { result, rerender } = renderHook(
       ({ language }) => {
         const [plan, setPlan] = useState<PlanDocument | null>(originalPlan);
-        return useAutoTranslate(plan, setPlan, language);
+        return useAutoTranslate(plan, setPlan, language, { planId: String(plan?.id || ''), publicView: false, allowCache: true, accessKey: 'owner' });
       },
       { initialProps: { language: 'ja' } },
     );
@@ -101,12 +101,12 @@ describe('public effects state', () => {
   it('retries a failed translation after switching languages', async () => {
     const fetchMock = vi.fn()
       .mockRejectedValueOnce(new Error('temporary failure'))
-      .mockResolvedValueOnce({ json: async () => ({ data: { translated: { tour_title: 'Korean', days: [] } } }) });
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ data: { translated: { tour_title: 'Korean', days: [] } } }) });
     vi.stubGlobal('fetch', fetchMock);
     const { result, rerender } = renderHook(
       ({ language }) => {
         const [plan, setPlan] = useState<PlanDocument | null>(originalPlan);
-        return { ...useAutoTranslate(plan, setPlan, language), plan };
+        return { ...useAutoTranslate(plan, setPlan, language, { planId: String(plan?.id || ''), publicView: false, allowCache: true, accessKey: 'owner' }), plan };
       },
       { initialProps: { language: 'ja' } },
     );
@@ -123,7 +123,7 @@ describe('public effects state', () => {
     const { result, rerender } = renderHook(
       ({ language }) => {
         const [plan, setPlan] = useState<PlanDocument | null>(cachedPlan);
-        return { ...useAutoTranslate(plan, setPlan, language), plan };
+        return { ...useAutoTranslate(plan, setPlan, language, { planId: String(plan?.id || ''), publicView: false, allowCache: true, accessKey: 'owner' }), plan };
       },
       { initialProps: { language: 'ja' } },
     );

@@ -130,12 +130,12 @@ function CartPanelInner() {
         <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm">
           <div
             ref={panelRef}
-            className="absolute right-0 top-0 h-full w-full max-w-sm bg-[#0c1220] border-l border-white/10 shadow-2xl animate-slide-in-right overflow-y-auto"
+            className="absolute right-0 top-0 h-full w-full max-w-sm bg-[#0c1220] border-l border-white/10 shadow-2xl animate-slide-in-right overflow-y-auto customer-cart-panel"
           >
-            <div className="sticky top-0 bg-[#0c1220]/95 backdrop-blur-sm border-b border-white/10 p-4 flex items-center justify-between">
+            <div className="sticky top-0 bg-[#0c1220]/95 backdrop-blur-sm border-b border-white/10 p-4 flex items-center justify-between customer-cart-header">
               <div className="flex items-center gap-2">
-                <ShoppingCart size={18} className="text-[#7C5CFC]" />
-                <h2 className="text-white font-semibold text-lg">{c.title || 'Cart'}</h2>
+                <ShoppingCart size={18} className="text-[#7C5CFC] customer-cart-icon" />
+                <h2 className="text-white font-semibold text-lg customer-cart-title">{c.title || 'Cart'}</h2>
                 <span className="text-white/55 text-sm">({items.length})</span>
               </div>
               <button onClick={() => setIsOpen(false)} className="p-1.5 rounded-lg hover:bg-white/10">
@@ -145,7 +145,7 @@ function CartPanelInner() {
 
             {!user && (
               <div className="mx-4 mt-4 p-3 rounded-lg bg-[#7C5CFC]/10 border border-[#7C5CFC]/20">
-                <p className="text-xs text-[#7C5CFC]">
+                <p className="text-xs text-[#7C5CFC] customer-cart-note">
                   {c.signInHint || '💡 Sign in to keep your cart across devices'}
                 </p>
               </div>
@@ -178,29 +178,29 @@ function CartPanelInner() {
                 {items.map(item => (
                   <div
                     key={item.id}
-                    className="group bg-white/[0.04] rounded-xl p-3 border border-white/5 hover:border-[#7C5CFC]/30 transition-all"
+                    className="group bg-white/[0.04] rounded-xl p-3 border border-white/5 hover:border-[#7C5CFC]/30 transition-all customer-cart-item"
                   >
                     <div className="flex items-start justify-between gap-3">
                       <div className="flex-1 min-w-0">
-                        <p className="text-white text-sm font-medium truncate">{item.displayName}</p>
+                        <p className="text-white text-sm font-medium truncate customer-cart-item-name">{item.displayName}</p>
                         <div className="flex items-center gap-2 mt-1.5">
                           {item.priceUSD ? (
-                            <span className="text-[#C4956A] font-semibold text-sm">${item.priceUSD}</span>
+                            <span className="text-[#C4956A] font-semibold text-sm customer-cart-price">${item.priceUSD}</span>
                           ) : null}
-                          <span className="text-white/55 text-[10px] uppercase tracking-wider">
+                          <span className="text-white/55 text-[10px] uppercase tracking-wider customer-cart-meta">
                             {item.booking ? item.booking.productType : ''}
                           </span>
                         </div>
                       </div>
                       <button
                         onClick={() => remove(item.id)}
-                        className="p-1.5 rounded-lg opacity-0 group-hover:opacity-100 hover:bg-red-500/10 transition-all"
+                        className="p-1.5 rounded-lg opacity-0 group-hover:opacity-100 hover:bg-red-500/10 transition-all customer-cart-remove"
                         aria-label={c.remove || 'Remove'}
                       >
                         <Trash2 size={14} className="text-red-400/60" />
                       </button>
                     </div>
-                    <div className="mt-2 flex items-center gap-1.5 text-white/55 text-[10px]">
+                    <div className="mt-2 flex items-center gap-1.5 text-white/55 text-[10px] customer-cart-meta">
                       <Calendar size={10} />
                       <span>{new Date(item.addedAt).toLocaleDateString()}</span>
                     </div>
@@ -211,13 +211,13 @@ function CartPanelInner() {
                 <div className="pt-1 space-y-2">
                   <button
                     onClick={() => setShowCheckout(true)}
-                    className="w-full py-3 rounded-xl text-sm font-bold text-white bg-[#7C5CFC] hover:bg-[#6a4ce0] transition-colors"
+                    className="w-full py-3 rounded-xl text-sm font-bold text-white bg-[#7C5CFC] hover:bg-[#6a4ce0] transition-colors customer-cart-checkout"
                   >
                     {c.checkout || 'Proceed to checkout'}
                   </button>
                   <button
                     onClick={() => clear()}
-                    className="text-xs text-red-400/70 hover:text-red-400 inline-flex items-center gap-1"
+                    className="text-xs text-red-400/70 hover:text-red-400 inline-flex items-center gap-1 customer-cart-clear"
                   >
                     <Trash2 size={12} /> {c.clear || 'Clear cart'}
                   </button>

@@ -737,12 +737,12 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
     const captured = paymentReview.paymentCaptured;
     return (
       <div className="cocotrip-mobile-modal-backdrop fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.85)', backdropFilter: 'blur(8px)' }}>
-        <div className="w-full max-w-md bg-gradient-to-b from-[#0f1628] to-[#0a0f1a] rounded-3xl border border-amber-400/30 overflow-hidden">
+        <div className="w-full max-w-md bg-gradient-to-b from-[#0f1628] to-[#0a0f1a] rounded-3xl border border-amber-400/30 overflow-hidden customer-paypal-review-panel">
           <div className="px-6 pt-8 pb-6 text-center">
             <div className="w-20 h-20 mx-auto mb-4 rounded-full bg-amber-500/20 border border-amber-400/40 flex items-center justify-center">
               <span className="text-3xl" aria-hidden="true">🕒</span>
             </div>
-            <h2 className="text-2xl font-bold text-white mb-1">{captured ? rl.title : rl.titleNc}</h2>
+            <h2 className="text-2xl font-bold text-white mb-1 customer-paypal-heading">{captured ? rl.title : rl.titleNc}</h2>
             <p className="text-sm text-white/60">{captured ? rl.subtitle : rl.subtitleNc}</p>
           </div>
           <div className="px-6 pb-6 space-y-3">
@@ -778,13 +778,13 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
     
     return (
       <div className="cocotrip-mobile-modal-backdrop fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.85)', backdropFilter: 'blur(8px)' }}>
-        <div className="cocotrip-mobile-paypal-success w-full max-w-md bg-gradient-to-b from-[#0f1628] to-[#0a0f1a] rounded-3xl border border-[#7C5CFC]/30 shadow-[0_0_60px_rgba(124,92,252,0.15)] overflow-hidden animate-[fade-slide-up_0.4s_ease-out]">
+        <div className="cocotrip-mobile-paypal-success w-full max-w-md bg-gradient-to-b from-[#0f1628] to-[#0a0f1a] rounded-3xl border border-[#7C5CFC]/30 shadow-[0_0_60px_rgba(124,92,252,0.15)] overflow-hidden animate-[fade-slide-up_0.4s_ease-out] customer-paypal-success-panel">
           {/* Header with gradient */}
           <div className="relative px-6 pt-8 pb-6 text-center" style={{ background: 'linear-gradient(180deg, rgba(124,92,252,0.15) 0%, transparent 100%)' }}>
             <div className="w-20 h-20 mx-auto mb-4 rounded-full bg-gradient-to-tr from-emerald-500 to-emerald-400 flex items-center justify-center shadow-[0_0_30px_rgba(16,185,129,0.3)]">
               <Check className="w-10 h-10 text-white" />
             </div>
-            <h2 className="text-2xl font-bold text-white mb-1">{cl.title}</h2>
+            <h2 className="text-2xl font-bold text-white mb-1 customer-paypal-heading">{cl.title}</h2>
             <p className="text-sm text-white/50">{cl.subtitle}</p>
           </div>
           
@@ -969,8 +969,8 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
                       <Sparkles className="w-4 h-4 text-white" />
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="text-[12.5px] font-bold text-white leading-tight">{pl.adTitle}</p>
-                      <p className="text-[11px] text-white/65 leading-snug mt-1">{fillPrice(pl.adBody, lang)}</p>
+                      <p className="text-[12.5px] font-bold text-white leading-tight customer-paypal-coupon-copy">{pl.adTitle}</p>
+                      <p className="text-[11px] text-white/65 leading-snug mt-1 customer-paypal-coupon-copy">{fillPrice(pl.adBody, lang)}</p>
                       <Link
                         to="/planner"
                         onClick={() => haptic('tap')}
@@ -981,7 +981,7 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
                       </Link>
                     </div>
                   </div>
-                  <p className="text-[10px] text-white/35 mt-2.5 pt-2.5 border-t border-white/[0.05]">
+                  <p className="text-[10px] text-white/35 mt-2.5 pt-2.5 border-t border-white/[0.05] customer-paypal-coupon-copy">
                     {pl.pickerEmpty}
                   </p>
                 </div>
@@ -1003,7 +1003,7 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
                           </div>
                           <div className="flex-1 min-w-0">
                             <p className="text-[13px] font-bold text-white truncate">{c.label}</p>
-                            <p className="text-[10.5px] text-white/45 mt-0.5">{pl.expires}: {expDate}</p>
+                            <p className="text-[10.5px] text-white/45 mt-0.5 customer-paypal-coupon-meta">{pl.expires}: {expDate}</p>
                           </div>
                           <span className="text-[14px] font-black text-[#B668FC] shrink-0">{valueLabel}</span>
                         </button>
@@ -1017,21 +1017,21 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
         </div>
       )}
       {promoError && (
-        <div className="flex items-center gap-1.5 text-xs text-red-400">
+        <div className="flex items-center gap-1.5 text-xs text-red-400 customer-paypal-promo-error">
           <AlertCircle className="w-3.5 h-3.5" />
           {promoError}
         </div>
       )}
       {promoApplied && (
-        <div className="flex items-center justify-between bg-emerald-500/10 border border-emerald-500/25 rounded-xl px-3 py-2">
-          <div className="flex items-center gap-1.5 text-xs text-emerald-300">
+        <div className="flex items-center justify-between bg-emerald-500/10 border border-emerald-500/25 rounded-xl px-3 py-2 customer-paypal-promo-applied">
+          <div className="flex items-center gap-1.5 text-xs text-emerald-300 customer-paypal-promo-text">
             <Check className="w-3.5 h-3.5" />
             {/* \uC774\uC288 37 fix: percent \uCFE0\uD3F0\uC77C \uB54C\uB9CC (-N%) \uD45C\uC2DC, fixed-amount\uB294 \uC6B0\uCE21 \u20A9\uCC28\uAC10\uC561\uC73C\uB85C \uCDA9\uBD84.
                 discountRate\uAC00 \uAE54\uB054\uD55C percent (5/10/20%)\uC77C \uB54C\uB9CC percent \uD45C\uAE30 \u2014 \uD658\uC728 \uD658\uC0B0\uB41C
                 fixed-amount\uB294 5.4% \uAC19\uC740 \uC5B4\uC0C9\uD55C \uC218\uCE58\uAC00 \uB098\uC624\uBBC0\uB85C \uC0DD\uB7B5. */}
             {pl.success}{discountRate != null && Number.isInteger(discountRate * 100) && discountRate > 0 ? ` (-${Math.round(discountRate * 100)}%)` : ''}
           </div>
-          <span className="text-xs font-bold text-emerald-300">{'-\u20A9'}{savedAmount.toLocaleString('ko-KR')}</span>
+          <span className="text-xs font-bold text-emerald-300 customer-paypal-promo-text">{'-\u20A9'}{savedAmount.toLocaleString('ko-KR')}</span>
         </div>
       )}
 
@@ -1151,7 +1151,7 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
            5/7 추가: SDK 차단 케이스 (한국 ISP의 paypalobjects.com 일부 차단) 대비
            "QR 로 결제" fallback 버튼 — paypal.me 외부 redirect 흐름. */}
       {error && (
-        <div className="rounded-xl bg-red-500/10 border border-red-500/30 px-4 py-3 space-y-2">
+        <div className="rounded-xl bg-red-500/10 border border-red-500/30 px-4 py-3 space-y-2 customer-paypal-error">
           <div className="flex items-center justify-between gap-3">
             <p className="text-sm text-red-300">{error}</p>
             <button

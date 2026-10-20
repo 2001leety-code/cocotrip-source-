@@ -426,3 +426,123 @@
     padding-right: 48px;
   }
 }
+
+
+
+/* Customer night: MyPlans purpose pass (selectors only, no token declarations) */
+.ec-night .my-plans-editorial .ec-h1 {
+  font-family: var(--ec-night-serif);
+  font-size: clamp(28px, 4vw, 32px);
+  font-weight: 400;
+  line-height: 1.1;
+  letter-spacing: -0.01em;
+}
+
+.ec-night .my-plans-editorial .my-plans-editorial-subtitle {
+  font-size: 16px;
+}
+
+.ec-night .my-plans-editorial .my-plans-editorial-account dt {
+  font-size: 12px;
+}
+
+.ec-night .my-plans-editorial .my-plans-editorial-tab {
+  font-size: 15px;
+}
+
+.ec-night .my-plans-editorial .ec-btn {
+  min-width: 44px;
+  min-height: 44px;
+}
+
+.ec-night .my-plans-editorial .my-plans-editorial-search input {
+  font-size: 16px;
+}
+
+.ec-night .my-plans-editorial .my-plans-editorial-card {
+  border-color: var(--ec-line);
+  background: var(--ec-surface-raised);
+}
+
+.ec-night .my-plans-editorial .my-plans-editorial-card:hover {
+  border-color: var(--ec-line-contrast);
+}
+
+.ec-night .my-plans-editorial .my-plans-editorial-card h2 {
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.ec-night .my-plans-editorial .my-plans-editorial-meta {
+  font-size: 14px;
+}
+
+.ec-night .my-plans-editorial .my-plans-editorial-status {
+  font-size: 12px;
+}
+
+/* Saved-plans bookings: existing night inverse is white, so keep the legacy
+   Tailwind light labels on a dark raised surface instead. */
+.ec-night .my-plans-editorial .my-plans-bookings-boundary {
+  border: 1px solid var(--ec-line);
+  color: var(--ec-text-primary);
+  background: var(--ec-surface-raised);
+}
+
+.ec-night .my-plans-editorial .my-plans-bookings-boundary :where(button, a, input, textarea, select):focus-visible,
+.ec-night .refined .my-plans-editorial .my-plans-bookings-boundary :where(button, a, input, textarea, select):focus-visible {
+  outline-color: var(--ec-brand);
+}
+
+@media (min-width: 768px) {
+  .ec-night .my-plans-editorial .my-plans-editorial-main {
+    padding-top: calc(var(--ec-shell-height-md) + 40px);
+    padding-bottom: 80px;
+  }
+
+  .ec-night .my-plans-editorial .my-plans-editorial-masthead {
+    gap: 32px;
+    padding-bottom: 28px;
+  }
+
+  .ec-night .my-plans-editorial .my-plans-editorial-tabs {
+    margin-top: 20px;
+  }
+
+  .ec-night .my-plans-editorial .my-plans-editorial-panel {
+    padding-top: 24px;
+  }
+
+  .ec-night .my-plans-editorial .my-plans-editorial-grid {
+    gap: 12px;
+    margin-top: 20px;
+  }
+
+  .ec-night .my-plans-editorial .my-plans-editorial-card {
+    min-height: 148px;
+    padding: 18px 52px 18px 18px;
+  }
+
+  .ec-night .my-plans-editorial .my-plans-editorial-card h2 {
+    margin-top: 14px;
+  }
+
+  .ec-night .my-plans-editorial .my-plans-bookings-boundary {
+    margin-top: 24px;
+    padding: 20px;
+  }
+}
+
+@media (max-width: 767px) {
+  .ec-night .my-plans-editorial .my-plans-bookings-boundary {
+    border-inline-width: 0;
+  }
+}
+
+
+/* Coordinator-approved title contract: mobile <=32px, desktop 32-40px. */
+@media (min-width: 768px) {
+  .ec-night .my-plans-editorial .ec-h1 {
+    font-size: clamp(32px, 3vw, 40px);
+  }
+}

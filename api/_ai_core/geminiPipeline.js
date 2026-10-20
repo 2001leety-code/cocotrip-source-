@@ -12,7 +12,7 @@
  *   - Timeout (>240s)                   → throws Error with code GEMINI_TIMEOUT, statusCode 504.
  *   - Other Gemini errors               → re-thrown with code GEMINI_ERROR if missing.
  */
-import { GoogleGenerativeAI } from '@google/generative-ai';
+import { createLlmModel, resolveLlmModel, resolveLlmProvider } from '../_shared/llm/index.js';
 import { repairAndParseJSON, cleanAddresses, sanitizeStops, validateResponse, hasCriticalDietaryViolation, validatePatternStructure, checkSoftQualityWarnings } from './responseValidator.js';
 import { applyDBMatcher } from './dbMatcher.js';
 import { captureError } from '../_shared/sentry.js';
@@ -22,7 +22,16 @@ import { throttledTelegramAlert } from '../_shared/telegram-throttle.js';
 import { selfHealLodgingBookend, updatePlanProgressive } from './planPersister.js';
 import { recordGeminiUsage } from '../_shared/apiUsageRecorder.js';
 import { replaceViolatingFoodStops } from './dietaryStopReplacer.js';
-import { runFinalItineraryValidation, buildFinalGateError } from './finalItineraryGate.js';
+import { runFinalItineraryValidation, buildFinalGateError, FINAL_GATE_DUPLICATE_CODE } from './finalItineraryGate.js';
+
+/**
+ * pass2Resolve fail-closed (Busan #1438): 미사용 DB 식당이 없을 때 던지는 에러.
+ * retry catch 가 삼키면 pass2 도중 상태(일부 slot 만 해석된 일정)가 저장 경로로 흘러간다 — 재던짐 대상.
+ */
+function isPass2CandidatesExhausted(err) {
+  return Boolean(err) && err.code === FINAL_GATE_DUPLICATE_CODE && err.statusCode === 422
+    && err.reason === 'UNUSED_FOOD_CANDIDATES_EXHAUSTED';
+}
 
 /**
  * 식이 검증을 통과한 시점의 일정 스냅샷 (2026-08-24).
@@ -152,9 +161,10 @@ export function logCacheMetrics(stage, cm) {
   // 사용량 트래커 (fire-and-forget, 완전 guard — 본 plan 생성 흐름 무영향).
   // stage 로 모델 추론: pro-escalate=Pro, 그 외=main(resolveGeminiModel). recorder 내부 await 안 함.
   try {
-    const model = /pro/i.test(stage)
+    // LLM 공급자 전환: 라벨 = 실제 공급자 모델 (claude 면 CLAUDE_MODEL_PLANNER, gemini 면 기존 resolver).
+    const model = (/pro/i.test(stage) && resolveLlmProvider('main') === 'gemini')
       ? ((process.env.P181_PRO_ESCALATE_MODEL || '').trim() || 'gemini-2.5-pro')
-      : resolveGeminiModel('main');
+      : resolveLlmModel('main');
     recordGeminiUsage({ stage, model, cm });
   } catch { /* 트래커 실패는 본 흐름에 영향 0 */ }
 }
@@ -599,7 +609,8 @@ export function isPass3BackgroundEnabled() {
  *   미지정 시 기존 동작 (P135 Pro 유지). backward-compat 100%.
  */
 export function buildModel(apiKey, temperatureOverride, opts = {}) {
-  const genAI = new GoogleGenerativeAI(apiKey);
+  // LLM 공급자 전환 (2026-10-13): SDK 직접 생성 → 공용 어댑터(createLlmModel). 아래 generationConfig 는
+  // Gemini 모양 그대로 두고, claude 공급자가 temperature/thinking 을 떼고 responseSchema 를 변환한다.
   // 2026-05-21 P135: 2.5 Pro → resolveGeminiModel('main') default 3.5 Flash.
   // ENV GEMINI_MAIN_MODEL=gemini-3.5-pro 로 Pro 유지 가능 (운영자 명시).
   // P171 (2026-05-23): isAdminBypass=true 일 때 GEMINI_ADMIN_BYPASS_MODEL 우선.
@@ -621,7 +632,7 @@ export function buildModel(apiKey, temperatureOverride, opts = {}) {
   const isFlash = modelId.toLowerCase().includes('flash');
   const thinkingBudget = isFlash ? 0 : -1;
 
-  return genAI.getGenerativeModel({
+  return createLlmModel({
     model: modelId,
     generationConfig: {
       temperature: typeof temperatureOverride === 'number' ? temperatureOverride : 0.5,
@@ -654,7 +665,7 @@ export function buildModel(apiKey, temperatureOverride, opts = {}) {
       // Gemini 가 추가 field 출력 OK. 점진 strict 화 가능.
       responseSchema: PLAN_RESPONSE_SCHEMA,
     },
-  });
+  }, { role: 'main', stage: 'planner-main', apiKey, forceModelOverride: opts.forceModelOverride, isAdminBypass: opts.isAdminBypass, identifierForBucketing: opts.identifierForBucketing });
 }
 
 /**
@@ -1195,18 +1206,21 @@ function buildDietaryReinforcedPrompt(systemPrompt, dietary) {
   ];
   if (wantsHalal) {
     parts.push(
-      '- Halal: ONLY recommend restaurants explicitly certified or verified Halal.',
+      '- Halal: ONLY recommend restaurants from the provided list whose line is marked [HALAL].',
+      '  [HALAL] means our DB lists halal-friendly evidence for that restaurant - it is NOT halal certification.',
       '  NEVER recommend restaurants serving pork (돼지/삼겹), bacon, ham, or alcohol.',
       '  Mark each food stop with `dietary_tags: ["halal"]` AND mention "halal" or "할랄" in the tip.',
       // 2026-07-10: 안심 문구("no pork served")의 pork 단어가 검증기 conflict 로 걸려 재시도도
       // 실패하던 원인 — 금지어 자체를 아예 쓰지 말라고 명시.
       '  Do NOT write the words "pork/돼지/삼겹" anywhere in tips/reasons — not even in',
-      '  reassurances like "no pork served". Phrase it positively: "100% halal menu".',
+      '  reassurances like "no pork served". Phrase it positively and without certification claims,',
+      '  e.g. "halal-friendly menu (listed in our DB)". Never write "certified", "100%", or "인증" unless the restaurant line is marked [HALAL] AND that same line states halal certification for that restaurant ([HALAL — CERTIFIED]).',
+      '  A [HALAL] marker by itself is never certification; a CERTIFIED label for another diet (e.g. [VEGAN — CERTIFIED]) is never halal certification.',
     );
   }
   if (wantsVegan) {
     parts.push(
-      '- Vegan: ONLY plant-based restaurants. NEVER recommend places serving',
+      '- Vegan: ONLY plant-based restaurants. NEVER claim "100% vegan"/"vegan restaurant" unless the line is marked [VEGAN] in the provided list. NEVER recommend places serving',
       '  beef/chicken/pork/fish/seafood (소고기/돼지/닭/생선/해산물) — even as an option.',
       '  Mark each food stop with `dietary_tags: ["vegan"]` AND mention "vegan" or "비건" in the tip.',
     );
@@ -1376,6 +1390,7 @@ export async function runGeminiPipeline({ apiKey, systemPrompt, userMessage, are
         }
         issues = validateResponse(itinerary, { lang: language, dietary: dietaryArr, styles: body?.styles }, foodIndex);
       } catch (retryErr) {
+        if (isPass2CandidatesExhausted(retryErr)) throw retryErr;
         console.error('[planner] dietary retry failed:', retryErr.message);
       }
       if (hasCriticalDietaryViolation(issues)) {
@@ -1438,6 +1453,7 @@ export async function runGeminiPipeline({ apiKey, systemPrompt, userMessage, are
         }
         patternErrors = validatePatternStructure(itinerary, body || {});
       } catch (retryErr) {
+        if (isPass2CandidatesExhausted(retryErr)) throw retryErr;
         console.error('[planner] pattern retry failed:', retryErr.message);
       }
       if (patternErrors.length > 0) {

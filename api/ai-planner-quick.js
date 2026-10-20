@@ -16,7 +16,7 @@
  * validated for language/destination/table-shape/dietary-safety across the
  * whole payload (not just the narrative) before being accepted.
  */
-import { GoogleGenerativeAI } from '@google/generative-ai';
+import { createLlmModel, resolveLlmApiKey } from './_shared/llm/index.js';
 import { FieldValue } from 'firebase-admin/firestore';
 import { initAdminDb } from './_shared/firebase-admin.js';
 import { checkIpRateLimit, getClientIp } from './_shared/ip-rate-limit.js';
@@ -26,7 +26,6 @@ import { getExactCityAttractionsContext } from './_attractions_helper.js';
 import { getExactCityTrustedFoodContext, getExactCityGeneralFoodContext, matchesCuisinePrefs, isCuisineStyleKey } from './_food_helper.js';
 import { getExactCitySpotsContext } from './_spots_helper.js';
 import { describeDietaryEvidence } from './_shared/dietary-trust.js';
-import { resolveGeminiModel } from './_ai_core/geminiModelResolver.js';
 
 // ── Firebase Admin (카운터 전용, 공유 헬퍼 사용) ──────────────────────
 const counterDb = initAdminDb('quick');
@@ -1293,14 +1292,12 @@ export default async function handler(req, res) {
       return res.end(JSON.stringify(_err(`Verified local data for "${primaryCityKey}" is temporarily unavailable.`, 'CITY_DATA_UNAVAILABLE')));
     }
 
-    const apiKey = process.env.GEMINI_API_KEY || '';
-    if (!apiKey) throw new Error('API Key configuration missing');
-
-    const genAI = new GoogleGenerativeAI(apiKey);
+    const apiKey = resolveLlmApiKey('quick'); // LLM 공급자 전환: gemini 면 GEMINI_API_KEY 필수, 아니면 자리표시
     // 2026-08-24 (planner-trust-course #8): common resolver (env override +
     // established per-module role pattern) instead of a hardcoded model id.
-    const resolvedModel = resolveGeminiModel('quick');
-    const model = genAI.getGenerativeModel({ model: resolvedModel });
+    // 30s/18s 는 아래 AbortController 가 관리 — 어댑터 timeout 은 그보다 길게.
+    const model = createLlmModel({}, { role: 'quick', stage: 'planner-quick', apiKey, timeoutMs: 31000 });
+    const resolvedModel = model.modelId;
 
     const cleanSpecialRequest = sanitizeSpecialRequest(intent.specialRequest);
     const { system: systemPrompt, user: userPrompt } = buildPrompt(lang, intent, foodPrefs, cleanSpecialRequest, hasSafetyDiet, canonicalCityLabel, reservation.status);
@@ -1361,7 +1358,7 @@ export default async function handler(req, res) {
           // but `signal` was never passed to the SDK call — the 30s/18s timers
           // fired and left the promise dangling instead of actually aborting
           // the in-flight request. Second positional arg = Gemini SDK's
-          // per-request options (matches @google/generative-ai's RequestOptions).
+          // per-request options (SDK RequestOptions 모양 — 어댑터가 공급자별로 전달).
           }, { signal: controller.signal });
         } catch (genErr) {
           aborted = controller.signal.aborted;

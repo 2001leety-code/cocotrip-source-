@@ -13,59 +13,75 @@
  *   - the database the itinerary is written from, with the two counts recomputed
  *     from `api/_food_index.json` by `tests/unit/editorial-home-foundation.test.ts`;
  *   - the limits, in the same breath as the claims.
+ *
+ * 2026-10-07 (compact workspace): the masthead is now the top of the page's
+ * left rail — eyebrow, a two-beat headline and one short line. The five input
+ * notes and the long-form lede used to sit above the brief as a wall of
+ * equal-weight paragraphs; they moved, word for word, into `PlannerBriefNotes`,
+ * a native disclosure below the wizard. Nothing was dropped, only the order.
  */
 import type { PlannerCopy } from '../plannerCopy';
 
 /* ── Masthead ───────────────────────────────────────────────────────────── */
 
 /**
- * Desktop: the claim on the left, the four inputs as a spec column on the right.
- * Mobile: the claim and the four input names only — the notes move down to
- * `PlannerEvidence`, below the wizard. That ordering is deliberate and measured:
- * in June the first question sat 1.6 screens down and the ad cohort left after a
- * median of ten seconds, so on a phone nothing outranks the first question.
+ * Splits the headline at its first sentence or clause break so the two beats
+ * can carry different faces ("Korea." serif / "At your pace." sans). A headline
+ * with no break renders as one serif line — the split is presentation only.
  */
-export function PlannerMasthead({ copy, isMobile }: { copy: PlannerCopy; isMobile: boolean }) {
+function splitHeadline(headline: string): [string, string] {
+  const match = headline.match(/^(.+?[.,。、，])\s*(.+)$/);
+  return match ? [match[1], match[2]] : [headline, ''];
+}
+
+export function PlannerMasthead({ copy }: { copy: PlannerCopy }) {
+  const m = copy.masthead;
+  const [lead, rest] = splitHeadline(m.headline);
+
+  return (
+    <header className="planner-masthead">
+      <p className="ec-eyebrow">{m.eyebrow}</p>
+      <h1 className="planner-title">
+        <span className="planner-title-serif">{lead}</span>
+        {rest && <> <span className="planner-title-sans">{rest}</span></>}
+      </h1>
+      <p className="planner-lede">{m.lede}</p>
+    </header>
+  );
+}
+
+/* ── Brief notes ────────────────────────────────────────────────────────── */
+
+/**
+ * The five inputs and what each one changes, plus the long-form description of
+ * what comes back. Collapsed by default and placed after the brief: on a phone
+ * the first question has to be the first thing (2026-08-06: it was 1.6 screens
+ * down and the June ad cohort left at a median of ten seconds). A `ul`, not a
+ * `dl`, so the evidence ledger stays the page's only description list.
+ */
+export function PlannerBriefNotes({ copy }: { copy: PlannerCopy }) {
   const m = copy.masthead;
 
-  if (isMobile) {
-    return (
-      <header className="px-4 pb-2.5 pt-3">
-        <p className="ec-eyebrow">{m.eyebrow}</p>
-        <h1 className="ec-h2 mt-1.5">{m.headline}</h1>
-        <p className="ec-body-sm mt-2 text-ec-ink-3">
-          {m.inputs.map((i) => i.label).join(' · ')}
-        </p>
-      </header>
-    );
-  }
-
-  // The spec column is a 2×2 grid rather than four stacked rows on purpose:
-  // stacked, it was the tallest thing on the page and pushed the mode choice to
-  // y=586 on a 1280×720 laptop — the first screen showed the claim and nothing
-  // to do about it. Two columns halve that without dropping a single note.
   return (
-    <header className="ec-container-wide pt-8 pb-6">
-      <div className="grid gap-6 lg:grid-cols-12 lg:gap-10">
-        <div className="lg:col-span-6">
-          <p className="ec-eyebrow">{m.eyebrow}</p>
-          <h1 className="ec-h2 mt-2.5">{m.headline}</h1>
-          <p className="ec-body ec-measure mt-3">{m.lede}</p>
-        </div>
-
-        <div className="lg:col-span-6">
-          <p className="ec-eyebrow">{m.inputsHeading}</p>
-          <dl className="mt-2 grid gap-x-8 sm:grid-cols-2">
-            {m.inputs.map((item) => (
-              <div key={item.label} className="border-t border-ec-line py-2.5">
-                <dt className="text-[14px] font-semibold text-ec-ink">{item.label}</dt>
-                <dd className="ec-body-sm mt-0.5 text-ec-ink-3">{item.note}</dd>
-              </div>
-            ))}
-          </dl>
-        </div>
+    <details className="planner-disclosure planner-brief-notes">
+      <summary className="planner-disclosure-summary">
+        <span className="planner-disclosure-heading">
+          <span>{m.inputsHeading}</span>
+          <span aria-hidden="true" className="planner-disclosure-mark">＋</span>
+        </span>
+      </summary>
+      <div className="planner-disclosure-body">
+        <p className="ec-body-sm ec-measure text-ec-ink-3">{m.detail}</p>
+        <ul className="planner-brief-list">
+          {m.inputs.map((item) => (
+            <li key={item.label}>
+              <span className="planner-brief-label">{item.label}</span>
+              <span className="ec-body-sm text-ec-ink-3">{item.note}</span>
+            </li>
+          ))}
+        </ul>
       </div>
-    </header>
+    </details>
   );
 }
 

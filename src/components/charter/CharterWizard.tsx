@@ -391,16 +391,16 @@ export function CharterWizard({ initialState, onComplete, language = 'en' }: Cha
 
   // 모바일은 하단 패딩 96px 확보(고정 sticky 바가 인플로우 nav/마지막 입력 가리지 않게). 데스크탑 무패딩.
   return (
-    <div className="mx-auto w-full max-w-6xl px-0 py-2.5 sm:px-4 sm:py-6 lg:py-8" style={isMobile ? { paddingBottom: 88 } : undefined}>
+    <div className="charter-funnel-wizard mx-auto w-full max-w-6xl px-0 py-2.5 sm:px-4 sm:py-6 lg:py-8" style={isMobile ? { paddingBottom: 88 } : undefined}>
       <div className="grid gap-2.5 sm:gap-6 lg:grid-cols-[minmax(0,1fr)_340px] lg:items-start">
         <section className="min-w-0">
-          <div className="mb-2 overflow-hidden rounded-[14px] border border-white/10 bg-[radial-gradient(circle_at_top_left,rgba(124,92,252,0.20),transparent_34%),linear-gradient(145deg,rgba(255,255,255,0.075),rgba(255,255,255,0.025))] p-2 shadow-[0_12px_32px_rgba(0,0,0,0.22)] sm:mb-5 sm:rounded-[28px] sm:p-5 sm:shadow-[0_24px_80px_rgba(0,0,0,0.30)]">
+          <div className="charter-funnel-step-nav mb-2 overflow-hidden rounded-[10.8px] border border-white/[0.12] bg-white/[0.04] p-2 sm:mb-5 sm:p-5">
             <div className="flex flex-wrap items-center justify-between gap-3">
-              <div className="coco-step-badge inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.12em] sm:gap-2 sm:px-3 sm:py-1.5 sm:text-[11px]">
+              <div className="charter-funnel-step-badge coco-step-badge inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.12em] sm:gap-2 sm:px-3 sm:py-1.5 sm:text-[11px]">
                 <Sparkles className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
                 {i18n.stepOf} {currentStep} / {STEP_LABELS.length}
               </div>
-              <div className="hidden items-center gap-3 text-[11px] font-semibold text-white/70 sm:flex">
+              <div className="charter-funnel-trust-chips hidden items-center gap-3 text-[11px] font-semibold text-white/70 sm:flex">
                 <span className="inline-flex items-center gap-1.5"><ShieldCheck className="h-3.5 w-3.5 text-[#00D28C]" /> PayPal</span>
                 <span className="inline-flex items-center gap-1.5"><Clock3 className="h-3.5 w-3.5 text-[#C4956A]" /> {cutoffChipLabel}</span>
               </div>
@@ -417,19 +417,19 @@ export function CharterWizard({ initialState, onComplete, language = 'en' }: Cha
             </div>
           </div>
 
-          <div className="rounded-[16px] border border-white/10 bg-[#0B1020]/85 p-2.5 shadow-[0_12px_34px_rgba(0,0,0,0.26)] backdrop-blur-xl sm:rounded-[30px] sm:p-7 sm:shadow-[0_24px_90px_rgba(0,0,0,0.34)] lg:p-8">
+          <div className="charter-funnel-step-panel rounded-[16px] border border-white/10 bg-[#0B1020]/85 p-2.5 shadow-[0_12px_34px_rgba(0,0,0,0.26)] backdrop-blur-xl sm:rounded-[30px] sm:p-7 sm:shadow-[0_24px_90px_rgba(0,0,0,0.34)] lg:p-8">
             <div className="mb-2.5 flex flex-col gap-1 sm:mb-7 sm:flex-row sm:items-start sm:justify-between sm:gap-3">
               <div>
-                <h2 className="text-[18px] font-black leading-tight text-white sm:text-[28px]">
+                <h2 className="charter-funnel-step-heading text-[18px] font-black leading-tight text-white sm:text-[28px]">
                   {STEP_LABELS[currentStep - 1]}
                 </h2>
-                <p className="mt-0.5 max-w-2xl text-[11px] leading-relaxed text-white/70 sm:mt-2 sm:text-sm">
+                <p className="charter-funnel-step-help mt-0.5 max-w-2xl text-[11px] leading-relaxed text-white/70 sm:mt-2 sm:text-sm">
                   {stepHelp[currentStep - 1]}
                 </p>
               </div>
               {desktopAmount && (
                 <div className="hidden rounded-2xl border border-[#B668FC]/25 bg-[#B668FC]/10 px-4 py-3 text-right sm:block">
-                  <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-white/70">
+                  <p className="charter-funnel-caption text-[10px] font-bold uppercase tracking-[0.16em] text-white/70">
                     {language === 'ko' ? '현재 견적' : language === 'ja' ? '現在の見積' : language === 'zh' ? '当前报价' : 'Live quote'}
                   </p>
                   <p className="mt-1 text-lg font-black text-white">{desktopAmount}</p>
@@ -473,7 +473,7 @@ export function CharterWizard({ initialState, onComplete, language = 'en' }: Cha
                     </div>
                   )}
                   {distanceSource && !loading && (
-                    <p className="rounded-full border border-white/10 bg-white/[0.03] px-3 py-2 text-xs text-white/70">
+                    <p className="charter-funnel-note rounded-full border border-white/10 bg-white/[0.03] px-3 py-2 text-xs text-white/70">
                       {language === 'ko' ? '거리 출처' : language === 'ja' ? '距離ソース' : language === 'zh' ? '距离来源' : 'Distance source'}:{' '}
                       <span className="text-white/85">{distanceSourceLabel(distanceSource, language)}</span>
                     </p>
@@ -483,12 +483,12 @@ export function CharterWizard({ initialState, onComplete, language = 'en' }: Cha
                   {!user && (
                     <div className="rounded-2xl border border-[#B668FC]/40 bg-gradient-to-br from-[#B668FC]/15 to-[#FF6B9D]/10 p-4">
                       <p className="text-sm font-bold text-white mb-1">🎁 {CARROT_TITLE[language] || CARROT_TITLE.en}</p>
-                      <p className="text-xs text-white/70 mb-3 leading-relaxed">{CARROT_BODY[language] || CARROT_BODY.en}</p>
+                      <p className="charter-funnel-body text-xs text-white/70 mb-3 leading-relaxed">{CARROT_BODY[language] || CARROT_BODY.en}</p>
                       <button
                         type="button"
                         onClick={() => void signInWithGoogle()}
-                        className="w-full rounded-xl py-3 text-sm font-bold text-white transition-all active:scale-[0.99]"
-                        style={{ background: 'linear-gradient(135deg, #B668FC, #FF6B9D)' }}
+                        className="charter-funnel-action w-full rounded-xl py-3 text-sm font-bold text-white transition-all active:scale-[0.99]"
+                        style={{ background: 'var(--ec-button-primary-bg, #c9b8ff)', color: 'var(--ec-button-primary-fg, #0a0b14)' }}
                       >
                         {CARROT_CTA[language] || CARROT_CTA.en}
                       </button>
@@ -497,8 +497,9 @@ export function CharterWizard({ initialState, onComplete, language = 'en' }: Cha
                   {geocodingFailed && (
                     <div className="rounded-2xl border border-amber-500/40 bg-amber-500/10 p-4">
                       <p className="text-sm text-amber-200/85 mb-2">⚠ {geocodingFailedLabel(language)}</p>
-                      <label className="block text-xs text-white/60 mb-1">{manualKmLabel(language)}</label>
+                      <label htmlFor="charter-manual-km" className="charter-funnel-field-label block text-xs text-white/60 mb-1">{manualKmLabel(language)}</label>
                       <input
+                        id="charter-manual-km"
                         type="number"
                         min={1}
                         value={manualKm ?? ''}
@@ -506,7 +507,7 @@ export function CharterWizard({ initialState, onComplete, language = 'en' }: Cha
                           const n = Number(e.target.value);
                           setManualKm(Number.isFinite(n) && n > 0 ? n : null);
                         }}
-                        className="w-32 px-3 py-2 rounded-lg border border-white/15 bg-white/[0.04] text-white/85 text-sm outline-none focus:border-[#B668FC]/40"
+                        className="charter-funnel-control min-h-[44px] w-32 px-3 py-2 rounded-lg border border-white/15 bg-white/[0.04] text-white/85 text-sm outline-none focus:border-[#B668FC]/40"
                       />
                     </div>
                   )}
@@ -520,7 +521,7 @@ export function CharterWizard({ initialState, onComplete, language = 'en' }: Cha
               <button
                 type="button"
                 onClick={goPrev}
-                className="flex-1 rounded-2xl border border-white/15 py-4 text-sm font-bold text-white/70 transition-colors hover:bg-white/5 flex items-center justify-center gap-2"
+                className="charter-funnel-action-secondary flex-1 rounded-2xl border border-white/15 py-4 text-sm font-bold text-white/70 transition-colors hover:bg-white/5 flex items-center justify-center gap-2"
               >
                 <ChevronLeft className="w-4 h-4" /> {i18n.prev}
               </button>
@@ -530,8 +531,8 @@ export function CharterWizard({ initialState, onComplete, language = 'en' }: Cha
                 type="button"
                 onClick={goNext}
                 disabled={!canAdvance()}
-                className="flex-[1.35] rounded-2xl py-4 text-sm font-black text-white disabled:cursor-not-allowed disabled:opacity-40 flex items-center justify-center gap-2 transition-all"
-                style={{ background: 'linear-gradient(135deg, #7C5CFC, #EA537E)' }}
+                className="charter-funnel-action flex-[1.35] rounded-2xl py-4 text-sm font-black text-white disabled:cursor-not-allowed disabled:opacity-40 flex items-center justify-center gap-2 transition-all"
+                style={{ background: 'var(--ec-button-primary-bg, #c9b8ff)', color: 'var(--ec-button-primary-fg, #0a0b14)' }}
               >
                 {i18n.next} <ChevronRight className="w-4 h-4" />
               </button>
@@ -541,7 +542,7 @@ export function CharterWizard({ initialState, onComplete, language = 'en' }: Cha
                 type="button"
                 onClick={handleProceedPayment}
                 disabled={!canAdvance()}
-                className="flex-[1.35] rounded-2xl py-4 text-sm font-black text-white disabled:opacity-40 flex items-center justify-center gap-2"
+                className="charter-funnel-action flex-[1.35] rounded-2xl py-4 text-sm font-black text-white disabled:opacity-40 flex items-center justify-center gap-2"
                 style={{ background: '#0070BA' }}
               >
                 {i18n.payProceed}
@@ -552,9 +553,9 @@ export function CharterWizard({ initialState, onComplete, language = 'en' }: Cha
 
         <aside className="hidden lg:block">
           <div className="sticky top-24 space-y-4">
-            <div className="overflow-hidden rounded-[28px] border border-white/10 bg-white/[0.045] shadow-[0_24px_80px_rgba(0,0,0,0.28)] backdrop-blur-xl">
+            <div className="charter-funnel-summary-panel overflow-hidden rounded-[28px] border border-white/10 bg-white/[0.045] shadow-[0_24px_80px_rgba(0,0,0,0.28)] backdrop-blur-xl">
               <div className="border-b border-white/10 bg-gradient-to-br from-[#7C5CFC]/18 to-[#EA537E]/10 p-5">
-                <div className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-[0.16em] text-[#D8C0FF]">
+                <div className="charter-funnel-caption flex items-center gap-2 text-[11px] font-bold uppercase tracking-[0.16em] text-[#D8C0FF]">
                   <MapPin className="h-3.5 w-3.5" />
                   {language === 'ko' ? '예약 요약' : language === 'ja' ? '予約サマリー' : language === 'zh' ? '预订摘要' : 'Trip summary'}
                 </div>
@@ -562,13 +563,13 @@ export function CharterWizard({ initialState, onComplete, language = 'en' }: Cha
                   {(desktopAmount ? `${desktopAmount} USD` : null) || (language === 'ko' ? '정보를 선택하면 견적이 나옵니다' : language === 'ja' ? '選択すると見積もりが表示されます' : language === 'zh' ? '选择后即显示报价' : 'Quote appears as you choose')}
                 </p>
                 {desktopAmount && stickyAmountKRW != null && (
-                  <p className="mt-1 text-xs text-white/70">{`₩${stickyAmountKRW.toLocaleString('ko-KR')} KRW`}</p>
+                  <p className="charter-funnel-note mt-1 text-xs text-white/70">{`₩${stickyAmountKRW.toLocaleString('ko-KR')} KRW`}</p>
                 )}
               </div>
               <div className="space-y-3 p-5">
                 {summaryRows.map((row) => (
-                  <div key={row.label} className="rounded-2xl border border-white/[0.08] bg-black/10 px-4 py-3">
-                    <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-white/70">{row.label}</p>
+                  <div key={row.label} className="charter-funnel-summary-row rounded-2xl border border-white/[0.08] bg-black/10 px-4 py-3">
+                    <p className="charter-funnel-caption text-[10px] font-bold uppercase tracking-[0.14em] text-white/70">{row.label}</p>
                     <p className="mt-1 truncate text-sm font-semibold text-white/80">{row.value}</p>
                   </div>
                 ))}
@@ -582,7 +583,7 @@ export function CharterWizard({ initialState, onComplete, language = 'en' }: Cha
                   <p className="text-sm font-bold text-white">
                     {language === 'ko' ? '현지 운영자가 확인합니다' : language === 'ja' ? '現地運営チームが確認' : language === 'zh' ? '本地团队确认' : 'Checked by our local team'}
                   </p>
-                  <p className="mt-1 text-xs leading-relaxed text-white/70">
+                  <p className="charter-funnel-body mt-1 text-xs leading-relaxed text-white/70">
                     {language === 'ko'
                       ? '차량, 기사, 항공편, 수하물 정보를 결제 전 한 번에 맞춥니다.'
                       : language === 'ja'
@@ -596,15 +597,15 @@ export function CharterWizard({ initialState, onComplete, language = 'en' }: Cha
             </div>
 
             <div className="grid grid-cols-2 gap-3">
-              <div className="rounded-2xl border border-white/10 bg-white/[0.035] p-4">
+              <div className="rounded-2xl border border-white/10 bg-white/[0.035] p-4 charter-funnel-summary-note-card">
                 <Clock3 className="h-4 w-4 text-[#C4956A]" />
-                <p className="mt-2 text-xs font-bold text-white">{cutoffHours}h</p>
-                <p className="text-[11px] text-white/70">{language === 'ko' ? '예약 마감' : language === 'ja' ? '予約締切' : language === 'zh' ? '预订截止' : 'booking cutoff'}</p>
+                <p className="mt-2 text-xs font-bold text-white charter-funnel-summary-note-value">{cutoffHours}h</p>
+                <p className="text-[11px] text-white/70 charter-funnel-summary-note-caption">{language === 'ko' ? '예약 마감' : language === 'ja' ? '予約締切' : language === 'zh' ? '预订截止' : 'booking cutoff'}</p>
               </div>
-              <div className="rounded-2xl border border-white/10 bg-white/[0.035] p-4">
+              <div className="rounded-2xl border border-white/10 bg-white/[0.035] p-4 charter-funnel-summary-note-card">
                 <CreditCard className="h-4 w-4 text-[#B9A4FF]" />
-                <p className="mt-2 text-xs font-bold text-white">PayPal</p>
-                <p className="text-[11px] text-white/70">{language === 'ko' ? '보안 결제' : language === 'ja' ? '安全な決済' : language === 'zh' ? '安全支付' : 'secure checkout'}</p>
+                <p className="mt-2 text-xs font-bold text-white charter-funnel-summary-note-value">PayPal</p>
+                <p className="text-[11px] text-white/70 charter-funnel-summary-note-caption">{language === 'ko' ? '보안 결제' : language === 'ja' ? '安全な決済' : language === 'zh' ? '安全支付' : 'secure checkout'}</p>
               </div>
             </div>
           </div>
@@ -619,18 +620,18 @@ export function CharterWizard({ initialState, onComplete, language = 'en' }: Cha
         const barDisabled = !canAdvance();
         const barLabel = isPayStep ? i18n.payProceed : i18n.next;
         const barOnClick = isPayStep ? handleProceedPayment : goNext;
-        // 2026-07-19 라이트 스킨: 모바일 차터는 라이트 셸(cocotrip-mobile-charter)이므로 바도 라이트로.
+        // 2026-10-07 customer night: 모바일 차터도 다크 셸이므로 바도 다크(#0a0b14 + 헤어라인 + 라벤더 CTA).
         // 가격 표기·핸들러·게이트는 무변경. 결제 진입 버튼은 PayPal 인지색(#0070BA) 유지.
         return (
-          <div style={{ position: 'fixed', bottom: 0, left: 0, right: 0, zIndex: 1100, padding: '12px 16px calc(12px + env(safe-area-inset-bottom))', background: 'rgba(255,255,255,0.94)', backdropFilter: 'blur(20px)', borderTop: '1px solid rgba(124,92,255,0.14)', boxShadow: '0 -18px 60px rgba(48,39,118,0.16)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+          <div style={{ position: 'fixed', bottom: 0, left: 0, right: 0, zIndex: 1100, padding: '12px 16px calc(12px + env(safe-area-inset-bottom))', background: 'rgba(10,11,20,0.94)', backdropFilter: 'blur(20px)', borderTop: '1px solid rgba(255,255,255,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
             <div style={{ minWidth: 0 }}>
               {stickyAmountKRW != null ? (
                 <>
-                  <div style={{ fontSize: 18, fontWeight: 900, lineHeight: 1.1, color: '#15143d' }}>{`${stickyUsdFixed} USD`}</div>
-                  <div style={{ fontSize: 11, color: '#756d96' }}>{`₩${stickyAmountKRW.toLocaleString('ko-KR')} KRW`}</div>
+                  <div style={{ fontSize: 18, fontWeight: 900, lineHeight: 1.1, color: '#ffffff' }}>{`${stickyUsdFixed} USD`}</div>
+                  <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.68)' }}>{`₩${stickyAmountKRW.toLocaleString('ko-KR')} KRW`}</div>
                 </>
               ) : (
-                <div style={{ fontSize: 13, fontWeight: 600, color: '#756d96' }}>{`${currentStep} / 6`}</div>
+                <div style={{ fontSize: 13, fontWeight: 600, color: 'rgba(255,255,255,0.68)' }}>{`${currentStep} / 6`}</div>
               )}
             </div>
             <button
@@ -638,7 +639,7 @@ export function CharterWizard({ initialState, onComplete, language = 'en' }: Cha
               disabled={barDisabled}
               onClick={barOnClick}
               className={barDisabled ? undefined : 'm-cta'}
-              style={{ flex: '0 0 auto', minWidth: 150, padding: '14px 20px', border: 'none', borderRadius: 999, background: barDisabled ? 'rgba(124,92,255,0.10)' : (isPayStep ? '#0070BA' : 'var(--coco-cta-gradient)'), color: barDisabled ? 'rgba(21,20,61,0.35)' : '#fff', fontSize: 15, fontWeight: 900, cursor: barDisabled ? 'not-allowed' : 'pointer', boxShadow: barDisabled ? undefined : 'var(--coco-cta-shadow)' }}
+              style={{ flex: '0 0 auto', minWidth: 150, padding: '14px 20px', border: 'none', borderRadius: 999, background: barDisabled ? 'rgba(201,184,255,0.12)' : (isPayStep ? '#0070BA' : '#c9b8ff'), color: barDisabled ? 'rgba(255,255,255,0.35)' : (isPayStep ? '#fff' : '#0a0b14'), fontSize: 15, fontWeight: 900, cursor: barDisabled ? 'not-allowed' : 'pointer' }}
             >
               {barLabel}
             </button>

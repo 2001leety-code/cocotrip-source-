@@ -21,9 +21,9 @@ export function BookingStatusTimeline({
 }) {
   if (status === 'CANCELED') {
     return (
-      <div className="flex items-center gap-2 py-1">
+      <div className="flex items-center gap-2 py-1 customer-booking-timeline-canceled">
         <span className="h-2.5 w-2.5 rounded-full bg-red-400" />
-        <span className="text-[12px] font-bold text-red-300">{labels.canceled}</span>
+        <span className="text-[12px] font-bold text-red-300 customer-booking-timeline-canceled-label">{labels.canceled}</span>
       </div>
     );
   }
@@ -33,7 +33,7 @@ export function BookingStatusTimeline({
   const activeIdx = status === 'COMPLETED' ? 2 : 0;
 
   return (
-    <div className="flex items-center py-1" aria-label="booking status timeline">
+    <div className="flex items-center py-1 customer-booking-timeline" aria-label="booking status timeline">
       {steps.map((label, i) => {
         const done = i <= activeIdx;
         return (
@@ -44,7 +44,7 @@ export function BookingStatusTimeline({
           >
             <div className="flex flex-col items-center">
               <span className={`h-2.5 w-2.5 rounded-full ${done ? 'bg-emerald-400' : 'bg-white/20'}`} />
-              <span className={`mt-1 whitespace-nowrap text-[9px] font-semibold ${done ? 'text-emerald-300' : 'text-white/40'}`}>
+              <span className={`mt-1 whitespace-nowrap text-[9px] font-semibold customer-booking-timeline-label ${done ? 'text-emerald-300' : 'text-white/40'}`}>
                 {label}
               </span>
             </div>

@@ -13,7 +13,7 @@
 // 2026-05-09 (batch 9 fix B9-1+B9-2): 픽업 시각 입력을 Step 3 select 에서
 //   Step 5 날짜 아래 type="time" 자유 입력으로 이동. 30분 단위 제약 해제.
 //   야간 할증 자동 계산도 여기 onChange 에서 처리.
-import { useRef, useState } from 'react';
+import { useId, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import type { WizardState, LodgingLocation, VehicleType, QuoteBreakdown } from './types';
 import { EXTRA_CHARGES } from '@/data/charterPricing';
@@ -93,6 +93,10 @@ interface Props {
 
 export function Step5DateOptions({ state, patch, language = 'en', quote, footerSlot, termsAgreed, onTermsChange, onMarketingChange }: Props) {
   const i18n = getWizardI18n(language);
+  // 2026-10-19: 날짜·픽업시각·복귀일 input 의 접근성 이름 — 보이는 Label(<p>)을 aria-labelledby 로 연결.
+  const startDateLabelId = useId();
+  const pickupTimeLabelId = useId();
+  const returnDateLabelId = useId();
   // KST 기준 오늘 — toISOString()(UTC)을 쓰면 00~09시 KST 구간에 "어제"가 min 으로 깔려
   // 지난 날짜가 선택 가능해진다.
   const today = todayKstISO();
@@ -225,10 +229,17 @@ export function Step5DateOptions({ state, patch, language = 'en', quote, footerS
     previousBookingFields.current = d;
     const next: Partial<WizardState> = {};
     const fullName = `${d.lastName} ${d.firstName}`.trim();
+    // 2026-10-18 P2: 첫 emit 은 저장된 split 성·이름(=폼 seed)과 비교 — 복원 emit 은 무해,
+    //   split 필드 없는 레거시 draft/프로필의 customerName 은 보존 (combined 를 split 하지 않음).
     const nameChanged = previous
       ? d.lastName !== previous.lastName || d.firstName !== previous.firstName
-      : !!fullName;
-    if (nameChanged) next.customerName = d.lastName && d.firstName ? fullName : '';
+      : d.lastName !== (state.customerLastName !== undefined ? state.customerLastName : '')
+        || d.firstName !== (state.customerFirstName !== undefined ? state.customerFirstName : '');
+    if (nameChanged) {
+      next.customerLastName = d.lastName;
+      next.customerFirstName = d.firstName;
+      next.customerName = d.lastName && d.firstName ? fullName : '';
+    }
     if (d.messengerId) next.customerMessenger = `${d.messenger}: ${d.messengerId}`;
     if (d.notes) next.notes = d.notes;
     // MEDIUM fix (2026-06-29): email·meetingPlace silent drop 방지 (BookingInfoForm 필수 수집분).
@@ -236,9 +247,10 @@ export function Step5DateOptions({ state, patch, language = 'en', quote, footerS
     if (d.meetingPlace) next.meetingPlace = d.meetingPlace;
     if (isAirport) {
       const lugTotal = d.lugSmall + d.lugMedium + d.lugLarge;
+      // 첫 emit 은 저장된 편명(=폼 seed)과 비교 — 같은 편명 복원 시 arrival·terminal·luggage 보존.
       const flightInputChanged = previous
         ? d.flightNo !== previous.flightNo
-        : !!d.flightNo;
+        : d.flightNo !== (airport.flightNumber || '');
       const flightChanged = flightInputChanged && d.flightNo !== (airport.flightNumber || '');
       if (flightInputChanged || lugTotal > 0) {
         next.airport = {
@@ -254,12 +266,13 @@ export function Step5DateOptions({ state, patch, language = 'en', quote, footerS
   };
 
   return (
-    <div className="space-y-6">
+    <div className="charter-funnel-step-body space-y-6">
       <div className="grid gap-4 sm:grid-cols-2">
         {/* 날짜 */}
         <div className="rounded-2xl border border-white/10 bg-white/[0.025] p-4">
-          <Label>{i18n.date}</Label>
+          <Label id={startDateLabelId}>{i18n.date}</Label>
           <input type="date" min={minDate}
+            aria-labelledby={startDateLabelId}
             value={state.startDate ?? ''}
             onChange={e => patch({ startDate: e.target.value })}
             className={inputCls}
@@ -269,9 +282,10 @@ export function Step5DateOptions({ state, patch, language = 'en', quote, footerS
         {/* batch 9 fix (B9-1+B9-2): 픽업 시각 직접 입력 — Step 3 select 에서 이동.
             type="time" 으로 30분 단위 제약 없이 자유 입력. 야간 할증 자동 계산. */}
         <div className="rounded-2xl border border-white/10 bg-white/[0.025] p-4">
-          <Label>{i18n.bookingPickupTimeLabel}</Label>
+          <Label id={pickupTimeLabelId}>{i18n.bookingPickupTimeLabel}</Label>
           <input
             type="time"
+            aria-labelledby={pickupTimeLabelId}
             // 오늘을 골랐으면 마감선 이전 시각은 브라우저 단에서도 못 고르게 한다.
             min={isToday && minPickupToday ? minPickupToday : undefined}
             value={pickup}
@@ -284,7 +298,7 @@ export function Step5DateOptions({ state, patch, language = 'en', quote, footerS
             placeholder="HH:mm"
             className={inputCls}
             style={{ colorScheme: 'dark' }} />
-          <p className="text-[11px] text-white/45 mt-2 px-1 leading-snug">
+          <p className="charter-funnel-field-help text-[11px] text-white/45 mt-2 px-1 leading-snug">
             {i18n.bookingCutoffNote(cutoffHours)}
           </p>
         </div>
@@ -300,7 +314,7 @@ export function Step5DateOptions({ state, patch, language = 'en', quote, footerS
       )}
 
       {/* 배차 실패 시 자동취소 고지 — 결제 전에 반드시 보이게 (운영자 2026-07-28). */}
-      <div className="rounded-xl border border-white/10 bg-white/[0.03] px-4 py-3 text-[13px] text-white/60 flex items-start gap-2">
+      <div className="charter-funnel-note charter-funnel-note-neutral rounded-xl border border-white/10 bg-white/[0.03] px-4 py-3 text-[13px] text-white/60 flex items-start gap-2">
         <span className="text-base leading-none">🚐</span>
         <span>{i18n.dispatchFailAutoCancelNote}</span>
       </div>
@@ -313,6 +327,7 @@ export function Step5DateOptions({ state, patch, language = 'en', quote, footerS
               const selected = (state.tripType ?? 'oneway') === tt;
               return (
                 <button key={tt} type="button"
+                  aria-pressed={selected}
                   onClick={() => patch({ tripType: tt })}
                   className={`py-3 px-3 rounded-xl text-sm font-medium border transition-colors ${selected ? 'border-[#B668FC] bg-[#B668FC]/15 text-white' : 'border-white/10 bg-white/[0.03] text-white/70 hover:border-[#B668FC]/40'}`}>
                   {tt === 'oneway' ? i18n.tripOneway : i18n.tripRoundtrip}
@@ -326,8 +341,9 @@ export function Step5DateOptions({ state, patch, language = 'en', quote, footerS
       {isMulti && (
         <>
           <div>
-            <Label>{i18n.returnDate}</Label>
+            <Label id={returnDateLabelId}>{i18n.returnDate}</Label>
             <input type="date" min={state.startDate ?? today}
+              aria-labelledby={returnDateLabelId}
               value={state.endDate ?? ''}
               onChange={e => patch({ endDate: e.target.value })}
               className={inputCls} />
@@ -342,6 +358,7 @@ export function Step5DateOptions({ state, patch, language = 'en', quote, footerS
                 const text = loc === 'seoul' ? i18n.lodgingSeoul : loc === 'local' ? i18n.lodgingLocal : i18n.lodgingDailyReturn;
                 return (
                   <button key={loc} type="button"
+                    aria-pressed={selected}
                     onClick={() => patch({ lodgingLocation: loc })}
                     className={`py-3 px-3 rounded-xl text-sm font-medium border transition-colors ${selected ? 'border-[#B668FC] bg-[#B668FC]/15 text-white' : 'border-white/10 bg-white/[0.03] text-white/70 hover:border-[#B668FC]/40'}`}>
                     {text}
@@ -349,7 +366,7 @@ export function Step5DateOptions({ state, patch, language = 'en', quote, footerS
                 );
               })}
             </div>
-            <p className="text-xs text-white/55 mt-2">{i18n.lodgingNote}</p>
+            <p className="charter-funnel-field-help text-xs text-white/55 mt-2">{i18n.lodgingNote}</p>
           </div>
         </>
       )}
@@ -363,6 +380,7 @@ export function Step5DateOptions({ state, patch, language = 'en', quote, footerS
           <div className="grid grid-cols-2 gap-2">
             {(['T1', 'T2'] as const).map(t => (
               <button key={t} type="button"
+                aria-pressed={airport.terminal === t}
                 onClick={() => patchAirport({ terminal: t })}
                 className={`py-3 rounded-xl text-sm font-bold border ${airport.terminal === t ? 'border-[#B668FC] bg-[#B668FC]/15 text-white' : 'border-white/10 bg-white/[0.03] text-white/60'}`}>
                 {t}
@@ -388,14 +406,14 @@ export function Step5DateOptions({ state, patch, language = 'en', quote, footerS
             checked={!!state.options?.childSeat} onChange={v => patch({ options: { ...state.options, childSeat: v } })} />
         </div>
         {isNight && (
-          <p className="text-xs text-amber-300 mt-3">⚠ {i18n.nightWarn(EXTRA_CHARGES.nightSurchargePercent)}</p>
+          <p className="charter-funnel-note text-xs text-amber-300 mt-3">⚠ {i18n.nightWarn(EXTRA_CHARGES.nightSurchargePercent)}</p>
         )}
         {/* 공항 서비스 시 수하물 → 차량 수 권장 안내 (BookingInfoForm 캐리어 카운터 입력값 기준) */}
         {isAirport && (() => {
           const lug = state.airport?.luggage ?? {};
           const total = (lug.small ?? 0) + (lug.medium ?? 0) + (lug.large ?? 0);
           return (
-            <p className={`text-[11px] mt-3 px-1 leading-snug ${total >= 7 ? 'text-amber-300' : 'text-white/45'}`}>
+            <p className={`charter-funnel-field-help text-[11px] mt-3 px-1 leading-snug ${total >= 7 ? 'text-amber-300' : 'text-white/45'}`}>
               {total >= 7 ? '⚠ ' : ''}{vehicleLuggageNote(state.vehicle, total, langCode)}
             </p>
           );
@@ -431,6 +449,12 @@ export function Step5DateOptions({ state, patch, language = 'en', quote, footerS
           onAgreeAllChange={onTermsChange}
           onMarketingChange={onMarketingChange}
           onFieldsChange={handleFieldsChange}
+          // 2026-10-18 P2: Step6 → Step5 재마운트 시 성·이름·편명·이메일·메신저 표시 복원 (마운트 1회 seed).
+          initialLastName={state.customerLastName}
+          initialFirstName={state.customerFirstName}
+          initialFlightNo={airport.flightNumber}
+          initialEmail={state.customerEmail}
+          initialMessenger={state.customerMessenger}
           // 🔧 2026-07-18: 옵션·야간할증·할인 내역 행 (표시 전용, quote 파생 — 총액 차액 설명).
           extraRows={extraRows}
           hideAddons
@@ -447,15 +471,18 @@ export function Step5DateOptions({ state, patch, language = 'en', quote, footerS
                 className="min-h-[44px] w-full px-4 py-2.5 rounded-xl text-sm font-bold border border-[#B668FC] bg-[#B668FC]/15 text-white disabled:opacity-40">
                 {flightLoading ? '…' : i18n.flightLookup}
               </button>
-              <p className="text-[11px] text-white/45 mt-1.5">{i18n.flightLookupHint}</p>
-              {flightErr && <p className="text-[11px] text-amber-300 mt-1">{flightErr}</p>}
-              {arr?.lookedUp && (
-                <div className="mt-2 px-3 py-2 rounded-xl bg-[#B668FC]/10 border border-[#B668FC]/25 text-[12px] text-white/85">
-                  ✈ {i18n.flightArrivalLabel} <b>{arr.estimatedTime || arr.scheduledTime}</b>
-                  {arr.origin ? ` · ${arr.origin}` : ''}{arr.gate ? ` · Gate ${arr.gate}` : ''}
-                  {arr.status ? ` · ${arr.status}` : ''}
-                </div>
-              )}
+              <p className="charter-funnel-field-help text-[11px] text-white/45 mt-1.5">{i18n.flightLookupHint}</p>
+              {/* 조회 오류/결과 안내 — 항상 렌더되는 live region 안에서 내용만 바뀌게 해 스크린리더가 읽는다. */}
+              <div aria-live="polite">
+                {flightErr && <p className="charter-funnel-note text-[11px] text-amber-300 mt-1">{flightErr}</p>}
+                {arr?.lookedUp && (
+                  <div className="charter-funnel-note mt-2 px-3 py-2 rounded-xl bg-[#B668FC]/10 border border-[#B668FC]/25 text-[12px] text-white/85">
+                    ✈ {i18n.flightArrivalLabel} <b>{arr.estimatedTime || arr.scheduledTime}</b>
+                    {arr.origin ? ` · ${arr.origin}` : ''}{arr.gate ? ` · Gate ${arr.gate}` : ''}
+                    {arr.status ? ` · ${arr.status}` : ''}
+                  </div>
+                )}
+              </div>
             </div>
           ) : undefined}
           externalArrivalTime={isAirport ? (arr?.estimatedTime || arr?.scheduledTime) : undefined}
@@ -465,18 +492,19 @@ export function Step5DateOptions({ state, patch, language = 'en', quote, footerS
   );
 }
 
-const inputCls = 'w-full px-4 py-3.5 rounded-2xl border border-white/10 bg-black/15 text-white/90 text-sm outline-none transition-colors focus:border-[#B668FC]/55 focus:bg-black/20';
+const inputCls = 'charter-funnel-control w-full px-4 py-3.5 rounded-2xl border border-white/10 bg-black/15 text-white/90 text-sm outline-none transition-colors focus:border-[#B668FC]/55 focus:bg-black/20';
 
-function Label({ children }: { children: React.ReactNode }) {
-  return <p className="text-xs uppercase tracking-wider text-white/55 mb-2 font-semibold">{children}</p>;
+function Label({ children, id }: { children: React.ReactNode; id?: string }) {
+  return <p id={id} className="charter-funnel-field-label text-xs uppercase tracking-wider text-white/55 mb-2 font-semibold">{children}</p>;
 }
 
 function OptionPill({ label, sub, checked, onChange }: { label: string; sub: string; checked: boolean; onChange: (v: boolean) => void }) {
   return (
     <button
       type="button"
+      aria-pressed={checked}
       onClick={() => onChange(!checked)}
-      className={`flex min-h-[46px] items-center gap-2 rounded-2xl border px-4 py-2.5 text-sm font-medium transition-colors ${
+      className={`charter-funnel-option-label flex min-h-[46px] items-center gap-2 rounded-2xl border px-4 py-2.5 text-sm font-medium transition-colors ${
         checked ? 'border-[#B668FC] bg-[#B668FC]/15 text-white' : 'border-white/10 bg-white/[0.03] text-white/70 hover:border-[#B668FC]/40'
       }`}
     >
@@ -484,7 +512,7 @@ function OptionPill({ label, sub, checked, onChange }: { label: string; sub: str
         {checked && <span className="w-1.5 h-1.5 rounded-sm bg-white" />}
       </span>
       <span>{label}</span>
-      <span className="text-white/55 text-xs">{sub}</span>
+      <span className="charter-funnel-option-sub text-white/55 text-xs">{sub}</span>
     </button>
   );
 }

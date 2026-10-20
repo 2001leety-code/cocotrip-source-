@@ -18,6 +18,7 @@ import { fetchMarketingMetrics } from '../_shared/morningBriefingMarketing.js';
 import { aggregateDecisionSummary, DECISION_COLLECTION } from '../_shared/decisionQueue.js';
 import { aggregateApiUsage } from '../_shared/apiPricing.js';
 import { mergeOpsV1IntoBriefing } from '../_shared/opsBriefingBridge.js';
+import { verifyCronRequest } from '../_shared/cron-auth.js';
 
 const FALLBACK_RATE = 1450;
 
@@ -112,7 +113,7 @@ export function buildMessage(agg, rate, marketing, decisions, apiCost, failedSec
   // 💸 AI 사용 (이번달, 자동측정 — api_usage 트래커)
   L.push('', '━━━ 💸 AI 사용 (이번달) ━━━');
   if (apiCost && apiCost.totalUsd > 0) {
-    L.push(`Gemini 예상 <b>${fmtUsd(apiCost.totalUsd)}</b> (${fmtKrw(apiCost.totalUsd, rate)})`);
+    L.push(`AI(LLM) 예상 <b>${fmtUsd(apiCost.totalUsd)}</b> (${fmtKrw(apiCost.totalUsd, rate)})`); // 2026-10-13: Gemini+Claude 합산(api_usage 전 service)
     Object.entries(apiCost.byModel).sort((a, b) => b[1].usd - a[1].usd).slice(0, 4)
       .forEach(([m, v]) => L.push(`  · ${esc(m)} 출력 ${Math.round((v.output || 0) / 1000)}K토큰 ${fmtUsd(v.usd)}`));
   } else {
@@ -199,6 +200,10 @@ export async function morningBriefingTask(options = {}) {
 
 export default async function vercelHandler(req, res) {
   if (req && req.method === 'OPTIONS') return res.status(200).end();
+  const auth = await verifyCronRequest(req);
+  if (!auth.ok) {
+    return res.status(auth.status).json({ ok: false, code: 'AUTH_REQUIRED', error: auth.error });
+  }
   try {
     const r = await morningBriefingTask();
     return res.status(r.statusCode || 200).json({ ok: (r.statusCode || 200) < 400, body: r.body });

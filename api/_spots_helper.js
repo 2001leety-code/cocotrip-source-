@@ -15,7 +15,9 @@ function getSpots() {
   if (!_spots) {
     try {
       const raw = readFileSync(join(__dirname, '_korea_spots.json'), 'utf-8');
-      _spots = JSON.parse(raw);
+      // 2026-10-10: two groups carry "Seoul"/"Busan" (20 places) and every filter below compares `s.city === code`
+      // case-sensitively, so they were silently dropped. Normalise once at load instead of at each caller.
+      _spots = JSON.parse(raw).map((s) => (s && typeof s.city === 'string' ? { ...s, city: s.city.toLowerCase() } : s));
     } catch {
       _spots = [];
     }

@@ -475,9 +475,30 @@ function PDF_KOREAN_FONT({ changed }) {
   return null;
 }
 
+// 신필드 우선 호환 폴백 외에, 검토 후 허용한 정확한 표현만 (파일 + 원문 + 최대 횟수). 파일 전체 예외 금지.
+const STOP_SCHEMA_EXACT_ALLOW = [
+  { file: 'api/_ai_core/dbMatcher.js', text: "!stop.tip && stop.tip_en ? 'tip_en' : 'tip'", max: 1 },
+  { file: 'api/_ai_core/threePassPipeline.js', text: 'identityKeys([stop.name, stop.display_name, stop.name_ko, stop.name_en])', max: 1 },
+];
+const STOP_SCHEMA_BAD_RE = /\bstop\.(name_ko|name_en|tip_en)\b/g;
+const STOP_SCHEMA_FALLBACK_RE = /\bstop\.(name|display_name|tip)\s*\|\|\s*stop\.(name_ko|name_en|tip_en)\b/g;
+
+// 구필드 reference 수 − 신필드 우선 폴백(stop.<new> || stop.<old>) − 정확 허용 표현 내부 reference.
+function countStopSchemaRefs(file, content) {
+  const count = (re, s) => (s.match(re) || []).length;
+  let n = count(STOP_SCHEMA_BAD_RE, content) - count(STOP_SCHEMA_FALLBACK_RE, content);
+  for (const a of STOP_SCHEMA_EXACT_ALLOW) {
+    if (a.file !== file) continue;
+    const occurrences = Math.min(content.split(a.text).length - 1, a.max);
+    n -= count(STOP_SCHEMA_BAD_RE, a.text) * occurrences;
+  }
+  return n;
+}
+
 /**
  * STOP_SCHEMA — CLAUDE.md B-2 + C. stop 필드를 name_ko / name_en / tip_en 으로
- * 되돌리는 변경 차단. base 에 없던 신규 reference 만 잡음.
+ * 되돌리는 변경 차단. base 에 없던 신규 reference 만 잡음. `stop.<new> || stop.<old>` 형태의
+ * 신필드 우선 호환 폴백과 STOP_SCHEMA_EXACT_ALLOW 의 정확한 표현은 세지 않는다 (역순·단독 참조는 계속 셈).
  */
 function STOP_SCHEMA({ changed, base }) {
   const cands = changed.filter(
@@ -489,13 +510,12 @@ function STOP_SCHEMA({ changed, base }) {
   if (cands.length === 0) return { skipped: true };
 
   // base 에서 이미 등장하던 카운트 → head 에서 더 많이 등장하면 신규 추가
-  const badRe = /\bstop\.(name_ko|name_en|tip_en)\b/g;
   let triggered = false;
   for (const c of cands) {
     const head = getChangedFileContent(c.file);
     const baseContent = getBaseFileContent(c.file, base);
-    const headCount = (head.match(badRe) || []).length;
-    const baseCount = (baseContent.match(badRe) || []).length;
+    const headCount = countStopSchemaRefs(c.file, head);
+    const baseCount = countStopSchemaRefs(c.file, baseContent);
     if (headCount > baseCount) {
       triggered = true;
       fail(
@@ -2298,6 +2318,7 @@ function R_Phase0_resumeStrictGate(ctx) {
  * firebase 끌어오는 클라이언트 컴포넌트(TourDetailPage/TourBookingDialog/PayPalBookingButton/
  * lib/firebase)를 static/dynamic import 하면 CI(firebase 키 없음) getAuth() throw → "0 test" crash.
  * PR-B(#741)·PR-F(#746) 2회 재발 → 일반화. 순수함수는 firebase-free 모듈로 분리 후 그것만 import.
+ * 예외: firebase 초기화 모듈 둘 다(lib/firebase-auth + lib/firebase)를 vi.mock 한 테스트만 (하나만 mock = 계속 차단).
  */
 function R_Phase1_testNoFirebaseClientImport(ctx) {
   const LADEN = ['pages/TourDetailPage', 'tours/TourBookingDialog', 'components/PayPalBookingButton', 'lib/firebase'];
@@ -2306,6 +2327,11 @@ function R_Phase1_testNoFirebaseClientImport(ctx) {
   for (const c of tests) {
     let src = '';
     try { src = readFileSync(c.file, 'utf8'); } catch { continue; }
+    // vi.mock 은 모듈 전역 치환 → firebase 초기화 모듈 둘 다(@/lib/firebase-auth: import 시 getAuth(app), @/lib/firebase: getFirestore/getStorage)를
+    // mock 한 테스트만 import 시 크래시 경로가 없다. 하나만 mock 하거나 소비자만 mock 한 경우는 면제하지 않는다.
+    const mocksFirebaseAuth = /vi\.mock\(\s*['"][^'"]*lib\/firebase-auth['"]/.test(src);
+    const mocksFirebaseCore = /vi\.mock\(\s*['"][^'"]*lib\/firebase['"]/.test(src);
+    if (mocksFirebaseAuth && mocksFirebaseCore) continue;
     for (const mod of LADEN) {
       if (new RegExp(`from\\s+['"][^'"]*${mod}['"]|import\\(\\s*['"][^'"]*${mod}['"]`).test(src)) {
         violations.push(`${c.file}: firebase 의존 클라이언트 모듈(...${mod}) import → CI(firebase 키 없음) "0 test" crash (PR-B/PR-F 재발 class)`);
@@ -7799,6 +7825,56 @@ function runSelfTest() {
           'const x = stop.display_name || stop.name;\nconst legacy = stop.name_ko;\n',
       },
       expectRule: 'STOP_SCHEMA',
+    },
+    {
+      label: 'STOP_SCHEMA (false positive 차단): 신필드 우선 폴백 stop.display_name || stop.name_en',
+      base: { 'src/components/Foo.tsx': 'const x = stop.display_name || stop.name;\n' },
+      head: {
+        'src/components/Foo.tsx':
+          'const x = stop.display_name || stop.name;\nconst label = stop.display_name || stop.name_en;\n',
+      },
+      expectRule: 'STOP_SCHEMA',
+      expectClean: true,
+    },
+    {
+      label: 'STOP_SCHEMA: 역순 폴백 stop.name_ko || stop.name 은 계속 차단',
+      base: { 'src/components/Foo.tsx': 'const x = stop.display_name || stop.name;\n' },
+      head: {
+        'src/components/Foo.tsx':
+          'const x = stop.display_name || stop.name;\nconst legacy = stop.name_ko || stop.name;\n',
+      },
+      expectRule: 'STOP_SCHEMA',
+    },
+    {
+      label: 'R_Phase1: TourBookingDialog import without firebase mock',
+      base: { 'tests/unit/foo.component.test.tsx': "import { render } from '@testing-library/react';\n" },
+      head: {
+        'tests/unit/foo.component.test.tsx':
+          "import { render } from '@testing-library/react';\nimport { TourBookingDialog } from '../../src/components/tours/TourBookingDialog';\n",
+      },
+      expectRule: 'R_Phase1_testNoFirebaseClientImport',
+    },
+    {
+      label: 'R_Phase1: lib/firebase 만 mock(불완전) 은 계속 차단',
+      base: { 'tests/unit/foo.component.test.tsx': "import { render } from '@testing-library/react';\n" },
+      head: {
+        'tests/unit/foo.component.test.tsx':
+          "vi.mock('@/lib/firebase', () => ({ auth: { currentUser: null }, db: {} }));\n"
+          + "import { render } from '@testing-library/react';\nimport { TourBookingDialog } from '../../src/components/tours/TourBookingDialog';\n",
+      },
+      expectRule: 'R_Phase1_testNoFirebaseClientImport',
+    },
+    {
+      label: 'R_Phase1 (false positive 차단): lib/firebase + lib/firebase-auth 둘 다 mock 이면 허용',
+      base: { 'tests/unit/foo.component.test.tsx': "import { render } from '@testing-library/react';\n" },
+      head: {
+        'tests/unit/foo.component.test.tsx':
+          "vi.mock('@/lib/firebase', () => ({ auth: { currentUser: null }, db: {} }));\n"
+          + "vi.mock('@/lib/firebase-auth', () => ({ auth: { currentUser: null } }));\n"
+          + "import { render } from '@testing-library/react';\nimport { TourBookingDialog } from '../../src/components/tours/TourBookingDialog';\n",
+      },
+      expectRule: 'R_Phase1_testNoFirebaseClientImport',
+      expectClean: true,
     },
     {
       label: 'P32: useQuoteCalculator licensed_guide push 가 sprinter dedup 없이 호출',
