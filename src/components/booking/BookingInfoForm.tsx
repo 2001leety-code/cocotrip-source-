@@ -9,7 +9,7 @@
 //     자동완성 확인 시 아래 텍스트 input 에 주소 자동 채움. 사용자가 직접 타이핑하면 자동완성 coord 초기화.
 //   externalArrivalTime prop - 호출처(Step5DateOptions)가 /api/flight-status 조회 결과를 전달하면
 //     arrivalTime 입력에 자동 채움(HH:mm 형식). 사용자가 직접 수정 시 input 을 덮어쓰지 않음(isTouched guard).
-import { useEffect, useState } from 'react';
+import { useEffect, useId, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { DEFAULT_DIAL_BY_LANG, parsePhoneValue, normalizeNationalNumber, composePhoneValue, type DialLang } from '@/lib/country-dials';
 import { CountryDialPicker } from '@/components/booking/CountryDialPicker';
@@ -94,7 +94,32 @@ export interface BookingInfoFormProps {
   /** #4 항공편 도착시간 외부 채움 — /api/flight-status 조회 결과 estimatedTime/scheduledTime(HH:mm 형식).
    *  사용자가 arrivalTime 을 직접 수정한 적 없으면 자동 채움. 직접 수정 후에는 덮어쓰지 않음. */
   externalArrivalTime?: string;
+  /** 2026-10-18 P2: 재마운트 복원용 초기값 — 마운트 시 1회만 읽음(이후 prop 변경은 무시, 재동기화 없음).
+   *  미제공(undefined) 시 기존 기본값 ''. */
+  initialLastName?: string;
+  initialFirstName?: string;
+  initialFlightNo?: string;
+  initialEmail?: string;
+  /** 차터 위저드 저장 형식 "<메신저 종류>: <id>" (예 "WhatsApp: id"). parseInitialMessenger 로 분해. */
+  initialMessenger?: string;
 }
+
+const MESSENGER_OPTIONS = ['WhatsApp', 'KakaoTalk', 'LINE', 'WeChat'];
+
+/** initialMessenger("<type>: <id>") → { messenger, messengerId }. 알 수 없는 종류·미제공 시 WhatsApp + ''. */
+function parseInitialMessenger(raw: string | undefined): { messenger: string; messengerId: string } {
+  const fallback = { messenger: 'WhatsApp', messengerId: '' };
+  if (!raw) return fallback;
+  const sep = raw.indexOf(': ');
+  if (sep < 0) return fallback;
+  const type = raw.slice(0, sep);
+  if (!MESSENGER_OPTIONS.includes(type)) return fallback;
+  return { messenger: type, messengerId: raw.slice(sep + 2) };
+}
+
+// Placeholder sample per default dial (digits only, no i18n). Must match the dial shown in the picker,
+// otherwise users type a KR-format number under +1 (verified 2026-10-20).
+const PHONE_PLACEHOLDER_BY_DIAL: Record<string, string> = { '82': '10 1234 5678', '1': '555 123 4567', '81': '90 1234 5678', '86': '138 1234 5678' };
 
 // ── 폼 내부 라벨 4언어 사전 (2026-07-17 — 한국어 하드코딩 해소) ─────────────
 // 외국인 인바운드 결제 직전 폼이 한국어 고정이던 문제. lang prop(DialLang) 기준.
@@ -262,7 +287,9 @@ type FormStrings = (typeof STR)['ko'];
 // ── 스타일 토큰 ──────────────────────────────────────────────
 const C = {
   card: { background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 16, padding: 22, backdropFilter: 'blur(20px)' } as React.CSSProperties,
-  input: { width: '100%', boxSizing: 'border-box', padding: '12px 14px', borderRadius: 12, border: '1px solid rgba(255,255,255,0.12)', background: 'rgba(255,255,255,0.03)', color: 'rgba(255,255,255,0.92)', fontSize: 16, fontFamily: 'inherit', outline: 'none' } as React.CSSProperties,
+  // 필드 색 = night 토큰 쌍(customer-night.css 가 .cocotrip-mobile-booking-form 에 선언). ≤768px 는 index.css 라이트 쌍이 !important 로 유지.
+  //   outline 미지정 — customer-night.css 의 :focus-visible 링이 inline 에 눌리지 않게.
+  input: { width: '100%', boxSizing: 'border-box', padding: '12px 14px', borderRadius: 12, border: '1px solid var(--ec-field-line)', background: 'var(--ec-field-bg)', color: 'var(--ec-text-primary)', fontSize: 16, fontFamily: 'inherit' } as React.CSSProperties,
   label: { display: 'block', fontSize: 14, color: 'rgba(255,255,255,0.65)', margin: '0 0 9px', fontWeight: 500 } as React.CSSProperties,
   req: { color: '#FF6B9D' } as React.CSSProperties,
   opt: { fontSize: 14, color: 'rgba(255,255,255,0.4)' } as React.CSSProperties,
@@ -315,12 +342,16 @@ export function BookingInfoForm(props: BookingInfoFormProps) {
   })();
   const [selDial, setSelDial] = useState<string>(initialDial);
 
-  const [f, setF] = useState<BookingFormData>({
-    lastName: '', firstName: '', phone: '', email: '', messenger: 'WhatsApp', messengerId: '',
-    meetingPlace: '', flightNo: '', arrivalTime: '', lugSmall: 0, lugMedium: 0, lugLarge: 0, notes: '',
+  const [f, setF] = useState<BookingFormData>(() => ({
+    lastName: props.initialLastName !== undefined ? props.initialLastName : '',
+    firstName: props.initialFirstName !== undefined ? props.initialFirstName : '',
+    phone: '', email: props.initialEmail !== undefined ? props.initialEmail : '',
+    ...parseInitialMessenger(props.initialMessenger),
+    meetingPlace: '', flightNo: props.initialFlightNo !== undefined ? props.initialFlightNo : '',
+    arrivalTime: '', lugSmall: 0, lugMedium: 0, lugLarge: 0, notes: '',
     addonMeeting: true, addonChildSeat: false, discountCode: '',
     agree1: false, agree2: false, agree3: false, agree4: false,
-  });
+  }));
   const set = (patch: Partial<BookingFormData>) => setF((p) => ({ ...p, ...patch }));
   const [error, setError] = useState(false);
   const [appliedCode, setAppliedCode] = useState('');
@@ -421,14 +452,21 @@ export function BookingInfoForm(props: BookingInfoFormProps) {
     props.onSubmit(f);
   };
 
+  // 포커스 표시는 테두리 색만 — 배경은 C.input 토큰 그대로(흰 배경 덮어쓰기 = 데스크톱 흰 글씨 소실 원인이었음).
   const focusable = (e: React.FocusEvent<HTMLInputElement | HTMLTextAreaElement>) => {
-    e.target.style.borderColor = 'rgba(124,92,255,0.45)';
-    e.target.style.background = 'rgba(255,255,255,0.98)';
+    e.target.style.borderColor = 'var(--ec-brand)';
   };
   const blurable = (e: React.FocusEvent<HTMLInputElement | HTMLTextAreaElement>) => {
-    e.target.style.borderColor = 'rgba(124,92,255,0.16)';
-    e.target.style.background = 'rgba(255,255,255,0.94)';
+    e.target.style.borderColor = 'var(--ec-field-line)';
   };
+
+  // label↔input 연결용 인스턴스별 id (한 화면에 폼이 둘이어도 충돌 없음).
+  const fieldId = useId();
+  const lastNameId = `${fieldId}-last-name`;
+  const firstNameId = `${fieldId}-first-name`;
+  const emailId = `${fieldId}-email`;
+  const flightNoId = `${fieldId}-flight-no`;
+  const phoneId = `${fieldId}-phone`;
 
   // AddressAutocomplete language 타입 가드.
   const meetingAutocompleteLang: 'ko' | 'en' | 'ja' | 'zh' =
@@ -471,17 +509,17 @@ export function BookingInfoForm(props: BookingInfoFormProps) {
           <SectionHead title={s.travelerSection} sub={s.travelerSub} />
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(150px,1fr))', gap: 12, marginBottom: 13 }}>
             <div>
-              <label style={C.label}>{s.lastName} <span style={C.req}>*</span></label>
-              <input value={f.lastName} onChange={(e) => set({ lastName: e.target.value })} placeholder="HONG" style={C.input} onFocus={focusable} onBlur={blurable} />
+              <label htmlFor={lastNameId} style={C.label}>{s.lastName} <span style={C.req}>*</span></label>
+              <input id={lastNameId} value={f.lastName} onChange={(e) => set({ lastName: e.target.value })} placeholder="HONG" style={C.input} onFocus={focusable} onBlur={blurable} />
             </div>
             <div>
-              <label style={C.label}>{s.firstName} <span style={C.req}>*</span></label>
-              <input value={f.firstName} onChange={(e) => set({ firstName: e.target.value })} placeholder="GILDONG" style={C.input} onFocus={focusable} onBlur={blurable} />
+              <label htmlFor={firstNameId} style={C.label}>{s.firstName} <span style={C.req}>*</span></label>
+              <input id={firstNameId} value={f.firstName} onChange={(e) => set({ firstName: e.target.value })} placeholder="GILDONG" style={C.input} onFocus={focusable} onBlur={blurable} />
             </div>
           </div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(180px,1fr))', gap: 12, marginBottom: 13 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(min(100%, 260px),1fr))', gap: 12, marginBottom: 13 }}>
             <div>
-              <label style={C.label}>{s.phone} <span style={C.req}>*</span></label>
+              <label htmlFor={phoneId} style={C.label}>{s.phone} <span style={C.req}>*</span></label>
               <div style={{ display: 'flex', gap: 8 }}>
                 {/* 국가번호 picker — 트립닷컴식(검색+자주찾는+전세계 ~239국). COUNTRIES SSOT(로그인 전화인증과 공유). */}
                 <CountryDialPicker
@@ -490,9 +528,10 @@ export function BookingInfoForm(props: BookingInfoFormProps) {
                   lang={lang}
                 />
                 <input
+                  id={phoneId}
                   value={localNumber}
                   onChange={(e) => { const v = e.target.value; setLocalNumber(v); emitPhone(selDial, v); }}
-                  placeholder={props.placeholderPhone ?? '10 1234 5678'}
+                  placeholder={props.placeholderPhone !== undefined ? props.placeholderPhone : (PHONE_PLACEHOLDER_BY_DIAL[selDial] || '')}
                   inputMode="tel"
                   style={{ ...C.input, flex: '1 1 auto', minWidth: 0 }}
                   onFocus={focusable}
@@ -502,14 +541,14 @@ export function BookingInfoForm(props: BookingInfoFormProps) {
               <div style={{ fontSize: 14, color: 'rgba(255,255,255,0.35)', marginTop: 6 }}>{s.phoneHint}</div>
             </div>
             <div>
-              <label style={C.label}>{s.email} <span style={C.req}>*</span></label>
-              <input value={f.email} onChange={(e) => set({ email: e.target.value })} placeholder="you@email.com" inputMode="email" style={C.input} onFocus={focusable} onBlur={blurable} />
+              <label htmlFor={emailId} style={C.label}>{s.email} <span style={C.req}>*</span></label>
+              <input id={emailId} value={f.email} onChange={(e) => set({ email: e.target.value })} placeholder="you@email.com" inputMode="email" style={C.input} onFocus={focusable} onBlur={blurable} />
               <div style={{ fontSize: 14, color: 'rgba(255,255,255,0.35)', marginTop: 6 }}>{s.emailHint}</div>
             </div>
           </div>
           <div>
             <label style={C.label}>{s.messenger} <span style={C.opt}>{s.optQuick}</span></label>
-            <div style={{ display: 'grid', gridTemplateColumns: '128px 1fr', gap: 8 }}>
+            <div className="customer-booking-messenger-row" style={{ display: 'grid', gridTemplateColumns: '128px 1fr', gap: 8 }}>
               <select value={f.messenger} onChange={(e) => set({ messenger: e.target.value })} style={{ ...C.input, cursor: 'pointer' }}>
                 <option>WhatsApp</option><option>KakaoTalk</option><option>LINE</option><option>WeChat</option>
               </select>
@@ -556,8 +595,8 @@ export function BookingInfoForm(props: BookingInfoFormProps) {
             <>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(150px,1fr))', gap: 12, marginBottom: 14 }}>
                 <div>
-                  <label style={C.label}>{s.flightNo} <span style={C.opt}>{s.optional}</span></label>
-                  <input value={f.flightNo} onChange={(e) => set({ flightNo: e.target.value.toUpperCase() })} placeholder={s.flightNoPh} style={{ ...C.input, fontFamily: 'JetBrains Mono, monospace', letterSpacing: '.08em' }} onFocus={focusable} onBlur={blurable} />
+                  <label htmlFor={flightNoId} style={C.label}>{s.flightNo} <span style={C.opt}>{s.optional}</span></label>
+                  <input id={flightNoId} value={f.flightNo} onChange={(e) => set({ flightNo: e.target.value.toUpperCase() })} placeholder={s.flightNoPh} style={{ ...C.input, fontFamily: 'JetBrains Mono, monospace', letterSpacing: '.08em' }} onFocus={focusable} onBlur={blurable} />
                 </div>
                 <div>
                   <label style={C.label}>{s.arrivalTime} <span style={C.opt}>{s.localTime}</span></label>

@@ -9,10 +9,11 @@
                              install manifest (versions, pinned file hashes, native inventory).
   -Mode tsc | vite-build | eslint | vitest-unit
                              Refuse unless the install manifest re-verifies (lock hash, versions, files).
-  -UnitSelector targeted|full|rules  vitest-unit only. targeted = the three integration-20261017 tests,
+  -UnitSelector targeted|full|rules|customer-ui  vitest-unit only. targeted = the three integration-20261017 tests,
                              llm-esm-load-smoke, and the two fetch-isolation regressions (p226-inngest-dispatch-
                              decoupling, route-transition.component). rules = the full-unit rules helper test only. full = every
                              unit test, with the full-unit rules helper and the plan-local loader admission.
+                             customer-ui = the six customer UI component tests (fixed list below), hashed as inputs; no full-unit rules, no loader admission.
   -Mode plan-test            node scripts\plan-local\run.mjs (default scenario sample) with the loader admission.
   -Mode fullunit-canary      full-unit boundary canary (helper vectors, Git, denials; exact table).
   -Mode loadercheck          module.register loader canary: `ok` must pass, each negative must fail exactly.
@@ -22,7 +23,7 @@
 param(
   [ValidateSet('selfcheck', 'install', 'tsc', 'vite-build', 'eslint', 'vitest-unit', 'plan-test', 'fullunit-canary', 'loadercheck')]
   [string]$Mode = 'selfcheck',
-  [ValidateSet('targeted', 'full', 'rules')][string]$UnitSelector = 'targeted'
+  [ValidateSet('targeted', 'full', 'rules', 'customer-ui')][string]$UnitSelector = 'targeted'
 )
 Set-StrictMode -Version 3.0
 $ErrorActionPreference = 'Stop'
@@ -96,6 +97,16 @@ $TargetedTests = @(
   'tests/unit/llm-esm-load-smoke.test.ts',
   'tests/unit/p226-inngest-dispatch-decoupling.test.ts',
   'tests/unit/route-transition.component.test.tsx'
+)
+# customer-ui: the six customer UI component (jsdom) tests. Fixed list, hashed before/after as ExtraInputs.
+# Never routed to the full profile: no full-unit rules, no plan-local loader admission, no Git admission.
+$CustomerUiTests = @(
+  'tests/unit/booking-info-form-labels.component.test.tsx',
+  'tests/unit/charter-p2-form-restore.test.tsx',
+  'tests/unit/charter-p2-quote-labels.test.tsx',
+  'tests/unit/tour-addon-toggle-accessibility.component.test.tsx',
+  'tests/unit/tour-section-tabs.component.test.tsx',
+  'tests/unit/community-request-order.component.test.tsx'
 )
 $FixtureDir = Repo 'tests\fixtures\integration-20261017'
 $FixtureFiles = @(
@@ -512,6 +523,7 @@ function Get-ProfileDef([string]$Name, $Manifest, [string]$Variant = '') {
       $def.Args = @('run', '--config', 'scripts/integration/vitest-offline-20261017.config.ts')
       if ($UnitSelector -eq 'targeted') { $def.Args += $TargetedTests }
       elseif ($UnitSelector -eq 'rules') { $def.Args += @($HelperTest); $def.ExtraInputs = $FullUnitInputs }
+      elseif ($UnitSelector -eq 'customer-ui') { $def.Args += $CustomerUiTests; $def.ExtraInputs = @($CustomerUiTests | ForEach-Object { $_.Replace('/', '\') }) }
       else {
         # full: no filter; the helper vectors and the plan-local loader admission (two run.mjs children).
         $def.TimeoutMs = 3600000

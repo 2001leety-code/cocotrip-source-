@@ -112,7 +112,9 @@ export function normalizeNationalNumber(national: string, dial: string): string 
   let n = (national || '').replace(/\D/g, '');
   // 사용자가 national 칸에 "+82..." 또는 "82..." 로 dial 을 중복 입력 → 1회 strip (이중 prefix 방지).
   if (dial && n.startsWith(dial) && n.length > dial.length) {
-    n = n.slice(dial.length);
+    // 1-digit dials (+1 NANP, +7): only a duplicated prefix when what remains is a full 10-digit national number.
+    // Otherwise a national number that merely starts with that digit (e.g. KR "10…" typed under +1) must not lose a digit.
+    if (dial.length >= 2 || n.length - dial.length === 10) n = n.slice(dial.length);
   }
   // 국제 표준에서 가입자번호 선행 0 제외 (한국 010→10, 일본 090→90).
   n = n.replace(/^0+/, '');

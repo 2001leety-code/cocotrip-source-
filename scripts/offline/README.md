@@ -56,6 +56,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File $ps -Mode vite-build    
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File $ps -Mode vitest-unit        # 5. targeted (default)
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File $ps -Mode eslint             # 6.
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File $ps -Mode vitest-unit -UnitSelector rules  # helper test
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File $ps -Mode vitest-unit -UnitSelector customer-ui  # six customer UI component tests
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File $ps -Mode fullunit-canary
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File $ps -Mode loadercheck
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File $ps -Mode vitest-unit -UnitSelector full
@@ -76,11 +77,18 @@ Exit `0` = pass, `1` = run failed, `2` = refused by preflight or setup error.
 | tsc | `node_modules\typescript\bin\tsc -b` | — |
 | vite-build | `node_modules\vite\bin\vite.js build --config scripts/integration/vite-offline-20261017.config.ts` | `PRERENDER=0`, `COCOTRIP_OFFLINE_PORT=5192` (the config requires it; nothing may listen) |
 | eslint | `node_modules\eslint\bin\eslint.js .` | — |
-| vitest-unit | `node_modules\vitest\vitest.mjs run --config scripts/integration/vitest-offline-20261017.config.ts` + targeted files (below), or nothing for `full` | — |
+| vitest-unit | `node_modules\vitest\vitest.mjs run --config scripts/integration/vitest-offline-20261017.config.ts` + targeted files (below), the six customer-ui files (below), or nothing for `full` | — |
 
 `package.json`'s `build` (`tsc -b && vite build`) is run as two separate profiles with no cmd shell.
 Targeted unit files: `tests/unit/integration-20261017-llm-compare-outcome.test.ts`,
 `...-mood-parse-mock-chain.test.ts`, `...-halal-tag-only-not-certified.test.ts`, `tests/unit/llm-esm-load-smoke.test.ts`.
+
+`customer-ui` unit files (fixed list, hashed before/after as extra inputs; never the `full` profile, so no
+full-unit rules, plan-local loader admission or Git admission): `tests/unit/booking-info-form-labels.component.test.tsx`,
+`tests/unit/charter-p2-form-restore.test.tsx`, `tests/unit/charter-p2-quote-labels.test.tsx`,
+`tests/unit/tour-addon-toggle-accessibility.component.test.tsx`, `tests/unit/tour-section-tabs.component.test.tsx`,
+`tests/unit/community-request-order.component.test.tsx`. Same vitest-unit child/native rules as targeted. The tests
+mock auth/Firebase/payment/network at module level (vi.mock) and stub fetch; the guard still denies any real egress.
 
 Base env for every profile (nothing inherited): `SystemRoot`/`WINDIR`, `PATH`=nodejs dir, run-dir
 `TEMP`/`TMP`/`USERPROFILE`/`HOME`/`APPDATA`/`LOCALAPPDATA`/`CLOUDSDK_CONFIG`, `METADATA_SERVER_DETECTION=none`,

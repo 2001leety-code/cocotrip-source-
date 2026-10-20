@@ -68,7 +68,8 @@ describe('community CSS belongs to its lazy route module', () => {
     // Normalize line endings only. Deliberate future community style changes must review these baselines.
     expect(Buffer.byteLength(baseCss)).toBe(35_900);
     expect(hash(baseCss)).toBe('0940c6d7a1ff889bb8e1f36bbeb525206e9bfe1d3bd23523a647c24365fd4895');
-    expect(hash(editorialCss)).toBe('91c45e41c267ffdd3d25e4a05e142f40862ceb369c77b7e11eebeddbd3c9cf5b');
+    // 2026-10-19: editorial block re-pinned after the community-photo-add focus-within ring (+8 lines, reviewed).
+    expect(hash(editorialCss)).toBe('6ab256c3191e2b51a8c0f9b47ed6657cf2f77c9b1b42d6c0b60a5f84b16edc31');
   });
 
   it('keeps the customer night refresh as a separate, scoped, token-only block', () => {
