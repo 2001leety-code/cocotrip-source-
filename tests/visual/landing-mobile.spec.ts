@@ -26,6 +26,14 @@ test.describe('Landing page — mobile visual regression', () => {
     // baseline(칩 없음)과 diff (#1099 CI 2회 관측). goto 전에 등록.
     await stubWeatherUnavailable(page);
 
+    // 2026-10-20: HOME v3 hero (src/sections/home/SkyLayer.tsx) autoplays a
+    // cloud-flight <video>; `animations: 'disabled'` cannot freeze media, so
+    // consecutive screenshots never stabilised (CI run 39426444896, 2~28% px
+    // drift per frame). SkyLayer honours prefers-reduced-motion by rendering
+    // only the poster still (no video, no control) — the decision is taken
+    // once on mount, so emulate it before navigation.
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+
     // P233/P244 패턴 (plan-detail-mobile.spec.ts 와 동일): networkidle 은 SPA 에서
     // chronic flaky — analytics beacon / Sentry / 폰트·이미지 로딩이 "500ms 무요청"
     // 조건을 못 만들면 waitForLoadState 가 그대로 timeout (본 spec 의 로드 타임아웃

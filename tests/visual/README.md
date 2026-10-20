@@ -55,6 +55,17 @@ npx playwright test --config=playwright.visual.config.ts --update-snapshots
 
 PR 코멘트에 `[visual-baseline-regenerate]` 포함 시 CI 가 자동 `--update-snapshots` 후 commit-back. **현재 미구현** — 후속 PR 후보.
 
+#### Docker 없이 Linux baseline 만들기 (2026-10-20 실사용)
+
+`pr-visual-regression.yml` 의 `workflow_dispatch` 를 브랜치에 대고 돌리면 Ubuntu runner 가 actual PNG 를 artifact 로 남긴다. tests-only 변경은 Vercel 프리뷰가 없으므로 배포된 main(prod) 을 대상으로 준다.
+
+1. spec/baseline 변경을 브랜치에 push.
+2. `gh workflow run pr-visual-regression.yml --ref <branch> -f base_url=https://cocotripkr.com`
+3. `gh run download <run-id> -n visual-regression-report-pr-<run-id>` → `data/<sha1>.png` 중 actual 을 고른다 (expected 는 저장소 PNG 와 sha1 이 같고, diff 는 빨간 오버레이, 크기로도 구분된다).
+4. actual 을 `tests/visual/<spec>-snapshots/<name>-mobile-375-linux.png` 로 커밋하고 2번을 다시 돌려 초록을 확인한다. PR 의 `visual` 체크는 tests-only 경로에서 자동 통과하므로 **증거는 dispatch run 링크**를 PR 본문에 남긴다.
+
+흔한 원인 두 가지: 히어로 `<video autoplay>` 는 `animations: 'disabled'` 로 멈추지 않는다 → spec 에서 `page.emulateMedia({ reducedMotion: 'reduce' })` (SkyLayer 가 포스터 정지화면만 렌더). `scrollIntoViewIfNeeded()` 는 최소 스크롤이라 sticky 단언 전에는 `scrollIntoView({ block: 'start', behavior: 'instant' })` 를 쓴다 (html 이 `scroll-behavior: smooth`).
+
 ## 새 페이지 추가 — 절차
 
 1. `tests/visual/<page>-mobile.spec.ts` 작성
