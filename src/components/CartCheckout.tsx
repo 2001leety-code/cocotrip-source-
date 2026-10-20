@@ -186,8 +186,8 @@ export function CartCheckout({ onClose, onBack }: { onClose: () => void; onBack?
   if (status === 'review') {
     return (
       <div className="cocotrip-mobile-cart-checkout p-6 text-center">
-        <div className="text-4xl mb-3" aria-hidden="true">🕒</div>
-        <p className="text-white font-semibold mb-1">{c.checkoutReview || 'Payment received'}</p>
+        <div className="text-4xl mb-3 customer-checkout-review-icon" aria-hidden="true">🕒</div>
+        <p className="text-white font-semibold mb-1 customer-checkout-state-title">{c.checkoutReview || 'Payment received'}</p>
         <p className="text-white/55 text-sm mb-3">
           {c.checkoutReviewSub || 'Your booking is pending verification. We will contact you by email once confirmed.'}
         </p>

@@ -2318,7 +2318,7 @@ function R_Phase0_resumeStrictGate(ctx) {
  * firebase 끌어오는 클라이언트 컴포넌트(TourDetailPage/TourBookingDialog/PayPalBookingButton/
  * lib/firebase)를 static/dynamic import 하면 CI(firebase 키 없음) getAuth() throw → "0 test" crash.
  * PR-B(#741)·PR-F(#746) 2회 재발 → 일반화. 순수함수는 firebase-free 모듈로 분리 후 그것만 import.
- * 예외: lib/firebase(-auth|-app) 모듈 자체를 vi.mock 한 테스트(hoisted mock → import 시 getAuth() 미실행).
+ * 예외: firebase 초기화 모듈 둘 다(lib/firebase-auth + lib/firebase)를 vi.mock 한 테스트만 (하나만 mock = 계속 차단).
  */
 function R_Phase1_testNoFirebaseClientImport(ctx) {
   const LADEN = ['pages/TourDetailPage', 'tours/TourBookingDialog', 'components/PayPalBookingButton', 'lib/firebase'];
@@ -2327,9 +2327,11 @@ function R_Phase1_testNoFirebaseClientImport(ctx) {
   for (const c of tests) {
     let src = '';
     try { src = readFileSync(c.file, 'utf8'); } catch { continue; }
-    // firebase 초기화 모듈 자체를 vi.mock 한 테스트는 import 시 getAuth() 크래시 위험이 없다 (hoisted mock).
-    const mocksFirebaseLib = /vi\.mock\(\s*['"][^'"]*lib\/firebase(?:-auth|-app)?['"]/.test(src);
-    if (mocksFirebaseLib) continue;
+    // vi.mock 은 모듈 전역 치환 → firebase 초기화 모듈 둘 다(@/lib/firebase-auth: import 시 getAuth(app), @/lib/firebase: getFirestore/getStorage)를
+    // mock 한 테스트만 import 시 크래시 경로가 없다. 하나만 mock 하거나 소비자만 mock 한 경우는 면제하지 않는다.
+    const mocksFirebaseAuth = /vi\.mock\(\s*['"][^'"]*lib\/firebase-auth['"]/.test(src);
+    const mocksFirebaseCore = /vi\.mock\(\s*['"][^'"]*lib\/firebase['"]/.test(src);
+    if (mocksFirebaseAuth && mocksFirebaseCore) continue;
     for (const mod of LADEN) {
       if (new RegExp(`from\\s+['"][^'"]*${mod}['"]|import\\(\\s*['"][^'"]*${mod}['"]`).test(src)) {
         violations.push(`${c.file}: firebase 의존 클라이언트 모듈(...${mod}) import → CI(firebase 키 없음) "0 test" crash (PR-B/PR-F 재발 class)`);
@@ -7853,11 +7855,22 @@ function runSelfTest() {
       expectRule: 'R_Phase1_testNoFirebaseClientImport',
     },
     {
-      label: 'R_Phase1 (false positive 차단): vi.mock(@/lib/firebase) 가 있으면 허용',
+      label: 'R_Phase1: lib/firebase 만 mock(불완전) 은 계속 차단',
       base: { 'tests/unit/foo.component.test.tsx': "import { render } from '@testing-library/react';\n" },
       head: {
         'tests/unit/foo.component.test.tsx':
           "vi.mock('@/lib/firebase', () => ({ auth: { currentUser: null }, db: {} }));\n"
+          + "import { render } from '@testing-library/react';\nimport { TourBookingDialog } from '../../src/components/tours/TourBookingDialog';\n",
+      },
+      expectRule: 'R_Phase1_testNoFirebaseClientImport',
+    },
+    {
+      label: 'R_Phase1 (false positive 차단): lib/firebase + lib/firebase-auth 둘 다 mock 이면 허용',
+      base: { 'tests/unit/foo.component.test.tsx': "import { render } from '@testing-library/react';\n" },
+      head: {
+        'tests/unit/foo.component.test.tsx':
+          "vi.mock('@/lib/firebase', () => ({ auth: { currentUser: null }, db: {} }));\n"
+          + "vi.mock('@/lib/firebase-auth', () => ({ auth: { currentUser: null } }));\n"
           + "import { render } from '@testing-library/react';\nimport { TourBookingDialog } from '../../src/components/tours/TourBookingDialog';\n",
       },
       expectRule: 'R_Phase1_testNoFirebaseClientImport',

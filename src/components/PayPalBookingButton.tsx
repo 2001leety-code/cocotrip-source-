@@ -737,12 +737,12 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
     const captured = paymentReview.paymentCaptured;
     return (
       <div className="cocotrip-mobile-modal-backdrop fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.85)', backdropFilter: 'blur(8px)' }}>
-        <div className="w-full max-w-md bg-gradient-to-b from-[#0f1628] to-[#0a0f1a] rounded-3xl border border-amber-400/30 overflow-hidden">
+        <div className="w-full max-w-md bg-gradient-to-b from-[#0f1628] to-[#0a0f1a] rounded-3xl border border-amber-400/30 overflow-hidden customer-paypal-review-panel">
           <div className="px-6 pt-8 pb-6 text-center">
             <div className="w-20 h-20 mx-auto mb-4 rounded-full bg-amber-500/20 border border-amber-400/40 flex items-center justify-center">
               <span className="text-3xl" aria-hidden="true">🕒</span>
             </div>
-            <h2 className="text-2xl font-bold text-white mb-1">{captured ? rl.title : rl.titleNc}</h2>
+            <h2 className="text-2xl font-bold text-white mb-1 customer-paypal-heading">{captured ? rl.title : rl.titleNc}</h2>
             <p className="text-sm text-white/60">{captured ? rl.subtitle : rl.subtitleNc}</p>
           </div>
           <div className="px-6 pb-6 space-y-3">

@@ -17,6 +17,7 @@ import { render, screen, fireEvent, cleanup, within } from '@testing-library/rea
 import { MemoryRouter } from 'react-router-dom';
 
 vi.mock('@/lib/firebase', () => ({ auth: { currentUser: null }, db: {} }));
+vi.mock('@/lib/firebase-auth', () => ({ auth: { currentUser: null } }));
 vi.mock('@/hooks/useAuth', () => ({ useAuth: () => ({ user: null }) }));
 vi.mock('@/hooks/useUserProfile', () => ({ useUserProfile: () => ({ profile: null }) }));
 vi.mock('@/hooks/useProfileContactSync', () => ({ useProfileContactSync: () => {} }));
