@@ -8,7 +8,7 @@
  */
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import {
-  resolveLlmProvider, resolveLlmModel, createLlmModel, LlmBlockedError,
+  resolveLlmProvider, resolveLlmModel, createLlmModel,
   isLlmKillSwitchOn, checkDailyCallLimit, PLANNER_ROLES,
 } from '../../api/_shared/llm/index.js';
 import { buildClaudeRequest, claudeMessageToGeminiResponse } from '../../api/_shared/llm/claude.js';
@@ -141,7 +141,7 @@ describe('checkDailyCallLimit', () => {
       collection: (c: string) => ({
         doc: (id: string) => ({
           get: async () => ({ exists: (c + '/' + id) in docs, data: () => ({ count: docs[c + '/' + id] }) }),
-          set: async (d: any, _o: any) => { docs[c + '/' + id] = Number(d.count) || start; },
+          set: async (d: { count?: unknown }) => { docs[c + '/' + id] = Number(d.count) || start; },
         }),
       }),
     };
@@ -232,7 +232,10 @@ describe('claude provider — end to end with injected client', () => {
   it('generateContent calls client.messages.create with timeout+signal and returns Gemini shape', async () => {
     process.env.LLM_PROVIDER = 'claude';
     process.env.ANTHROPIC_API_KEY = 'test-key';
-    const create = vi.fn(async () => ({
+    type CreateParams = { model: string; max_tokens: number };
+    type CreateOpts = { timeout?: number; signal?: AbortSignal };
+    type ClaudeMessage = { content: { type: string; text: string }[]; stop_reason: string; usage: { input_tokens: number; output_tokens: number }; model: string };
+    const create = vi.fn<(params: CreateParams, opts: CreateOpts) => Promise<ClaudeMessage>>(async () => ({
       content: [{ type: 'text', text: 'hola' }], stop_reason: 'end_turn',
       usage: { input_tokens: 5, output_tokens: 2 }, model: 'claude-haiku-5-5',
     }));
@@ -242,7 +245,7 @@ describe('claude provider — end to end with injected client', () => {
     const r = await model.generateContent('hi', { signal: ac.signal });
     expect(r.response.text()).toBe('hola');
     expect(create).toHaveBeenCalledTimes(1);
-    const [params, opts] = create.mock.calls[0] as any;
+    const [params, opts] = create.mock.calls[0];
     expect(params.model).toBe('claude-haiku-5-5');
     expect(params.max_tokens).toBe(50);
     expect(opts.timeout).toBe(1234);

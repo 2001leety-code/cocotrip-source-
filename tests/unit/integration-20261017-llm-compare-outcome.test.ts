@@ -82,7 +82,8 @@ describe('evaluateCompareRun', () => {
   it('missing / empty / duplicated expectedScenarios fails closed even with passing rows', () => {
     const rows = [good, { ...good, provider: 'claude' }];
     expect(evaluateCompareRun(runOf(rows)).exitCode).toBe(0);
-    const { expectedScenarios: _drop, ...noExpected } = runOf(rows);
+    const noExpected: Partial<ReturnType<typeof runOf>> = { ...runOf(rows) };
+    delete noExpected.expectedScenarios;
     expect(evaluateCompareRun(noExpected).runErrors).toContain('expected_scenarios_missing');
     expect(evaluateCompareRun(noExpected).exitCode).toBe(1);
     expect(evaluateCompareRun(runOf(rows, { expectedScenarios: [] })).runErrors).toContain('expected_scenarios_empty');
@@ -91,7 +92,8 @@ describe('evaluateCompareRun', () => {
   });
   it('providers are never inferred from rows: a run whose claude rows were all lost cannot pass on gemini alone', () => {
     const geminiOnly = [good];
-    const { providers: _drop, ...noProviders } = runOf(geminiOnly);
+    const noProviders: Partial<ReturnType<typeof runOf>> = { ...runOf(geminiOnly) };
+    delete noProviders.providers;
     const missing = evaluateCompareRun(noProviders);
     expect(missing.runErrors).toContain('providers_missing');
     expect(missing).toMatchObject({ ok: false, exitCode: 1 });
@@ -122,7 +124,8 @@ describe('evaluateCompareRun', () => {
     expect(o.exitCode).toBe(1);
   });
   it('display label alone is not an ID: a row without scenarioId fails', () => {
-    const { scenarioId: _id, ...labelOnly } = good;
+    const labelOnly: Partial<typeof good> = { ...good };
+    delete labelOnly.scenarioId;
     const o = evaluateCompareRun(runOf([labelOnly, { ...good, provider: 'claude' }]));
     expect(o.exitCode).toBe(1);
     expect(o.failures[0].reasons).toContain('scenario_id_missing');

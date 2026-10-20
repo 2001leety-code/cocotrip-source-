@@ -22,7 +22,16 @@ import { throttledTelegramAlert } from '../_shared/telegram-throttle.js';
 import { selfHealLodgingBookend, updatePlanProgressive } from './planPersister.js';
 import { recordGeminiUsage } from '../_shared/apiUsageRecorder.js';
 import { replaceViolatingFoodStops } from './dietaryStopReplacer.js';
-import { runFinalItineraryValidation, buildFinalGateError } from './finalItineraryGate.js';
+import { runFinalItineraryValidation, buildFinalGateError, FINAL_GATE_DUPLICATE_CODE } from './finalItineraryGate.js';
+
+/**
+ * pass2Resolve fail-closed (Busan #1438): 미사용 DB 식당이 없을 때 던지는 에러.
+ * retry catch 가 삼키면 pass2 도중 상태(일부 slot 만 해석된 일정)가 저장 경로로 흘러간다 — 재던짐 대상.
+ */
+function isPass2CandidatesExhausted(err) {
+  return Boolean(err) && err.code === FINAL_GATE_DUPLICATE_CODE && err.statusCode === 422
+    && err.reason === 'UNUSED_FOOD_CANDIDATES_EXHAUSTED';
+}
 
 /**
  * 식이 검증을 통과한 시점의 일정 스냅샷 (2026-08-24).
@@ -1381,6 +1390,7 @@ export async function runGeminiPipeline({ apiKey, systemPrompt, userMessage, are
         }
         issues = validateResponse(itinerary, { lang: language, dietary: dietaryArr, styles: body?.styles }, foodIndex);
       } catch (retryErr) {
+        if (isPass2CandidatesExhausted(retryErr)) throw retryErr;
         console.error('[planner] dietary retry failed:', retryErr.message);
       }
       if (hasCriticalDietaryViolation(issues)) {
@@ -1443,6 +1453,7 @@ export async function runGeminiPipeline({ apiKey, systemPrompt, userMessage, are
         }
         patternErrors = validatePatternStructure(itinerary, body || {});
       } catch (retryErr) {
+        if (isPass2CandidatesExhausted(retryErr)) throw retryErr;
         console.error('[planner] pattern retry failed:', retryErr.message);
       }
       if (patternErrors.length > 0) {

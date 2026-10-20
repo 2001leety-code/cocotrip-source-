@@ -36,12 +36,34 @@ function distanceKm(lat1, lng1, lat2, lng2) {
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
+/** 명시 식별자 정규화 — 정확 일치만(trim + 소문자). 브랜드 퍼지·접미사 제거 없음 (지점 구분 보존). */
+function identityKeys(values) {
+  const keys = [];
+  for (const v of values) {
+    if (!v) continue;
+    for (const part of String(v).split('|')) {
+      const k = part.trim().toLowerCase();
+      if (k) keys.push(k);
+    }
+  }
+  return keys;
+}
+
+/** stop 의 명시 식별자 — 현재 필드 + legacy name_ko/name_en, pipe 별칭 전부. */
+function stopIdentityKeys(s) {
+  return s ? identityKeys([s.name, s.display_name, s.name_ko, s.name_en]) : [];
+}
+
+/** DB 행의 명시 식별자 — name 의 pipe 별칭 전부 + nameEn. */
+function rowIdentityKeys(r) {
+  return r ? identityKeys([r.name, r.nameEn]) : [];
+}
+
 function collectPlanNames(itinerary) {
   const names = new Set();
   for (const day of itinerary?.days || []) {
     for (const s of day?.stops || []) {
-      if (s?.name) names.add(String(s.name).split('|')[0].trim());
-      if (s?.display_name) names.add(String(s.display_name).trim());
+      for (const k of stopIdentityKeys(s)) names.add(k);
     }
   }
   return names;
@@ -89,8 +111,7 @@ export function replaceViolatingFoodStops(itinerary, issues, foodIndex, dietaryA
       // 2026-10-10: the 8km radius alone trusted the MODEL's coordinates — a Busan day with Seoul coords pulled
       // Seoul restaurants (final gate then blocked → paid retry). A candidate must belong to the day's city.
       if (dayCity && String(r.city || '').toLowerCase() !== dayCity) return false;
-      const nm = String(r.name || '').split('|')[0].trim();
-      if (usedNames.has(nm) || (r.nameEn && usedNames.has(r.nameEn))) return false;
+      if (rowIdentityKeys(r).some((k) => usedNames.has(k))) return false;
       if (hasCoord && Number.isFinite(r.lat) && Number.isFinite(r.lng)) {
         return distanceKm(target.lat, target.lng, r.lat, r.lng) <= MAX_KM;
       }
@@ -130,8 +151,7 @@ export function replaceViolatingFoodStops(itinerary, issues, foodIndex, dietaryA
       : `Listed in our ${String(pick.tag)} database. Please confirm with the restaurant and check opening hours before visiting.`;
     target._replaced_for_dietary = v.diet; // 감사 추적
 
-    usedNames.add(pickName);
-    if (pick.nameEn) usedNames.add(pick.nameEn);
+    for (const k of rowIdentityKeys(pick)) usedNames.add(k);
     result.replaced++;
     result.detail.push(`replaced ${v.diet}:${v.stop} -> ${pickName}`);
   }

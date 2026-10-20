@@ -46,7 +46,7 @@ describe('buildMockPlan', () => {
       const issues = validateResponse(plan, { dietary: s.dietPrefs, language: s.language, area: s.area, regions: [s.area] }, await loadFoodIndex());
       expect(hasCriticalDietaryViolation(issues)).toBe(false);
       for (const d of plan.days) {
-        expect(d.stops.filter((x: any) => x.category === 'food').length).toBeGreaterThanOrEqual(2);
+        expect(d.stops.filter((x: { category?: string }) => x.category === 'food').length).toBeGreaterThanOrEqual(2);
       }
     });
   }
@@ -64,7 +64,7 @@ describe('buildMockBlockSelection', () => {
       available_blocks: [{ id: 'b1', city: 'seoul' }, { id: 'b2', city: 'seoul' }],
     });
     const out = buildMockBlockSelection({ userText: msg });
-    expect(out.day_selections.map((d: any) => d.block_id)).toEqual(['b1', 'b2', 'b1']);
+    expect(out.day_selections.map((d: { block_id?: string }) => d.block_id)).toEqual(['b1', 'b2', 'b1']);
     expect(out.day_selections[0]).toMatchObject({ day: 1, city: 'seoul' });
   });
   it('multi-city: respects per-day city map when present', () => {

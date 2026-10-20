@@ -7,6 +7,16 @@
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
+type AuthResult = { ok: boolean; email?: string; emailVerified?: boolean; status?: number; error?: string };
+type UsageResponse = { usageMetadata: { promptTokenCount: number; candidatesTokenCount: number } };
+type CapturedError = { code?: string; message?: string };
+type MoodStop = { action?: string; timeHint?: string; label?: string; [k: string]: unknown };
+type MoodBody = {
+  ok?: boolean; code?: string; needsConfirm?: boolean; serviceGuess?: string; hasAirport?: boolean; hasDirector?: boolean;
+  airportCodeGuess?: string; airportDirectionGuess?: string; truncated?: boolean; flights?: unknown[]; dates?: unknown[];
+  stops: MoodStop[];
+};
+
 const h = vi.hoisted(() => {
   const collections: string[] = [];
   const db = {
@@ -32,11 +42,11 @@ const h = vi.hoisted(() => {
     collections,
     initAdminDb: vi.fn(() => db),
     getRuntimeFlags: vi.fn(async () => ({ llm_kill_switch: false })),
-    recordUsageFromResponse: vi.fn(),
-    verifyUserToken: vi.fn(async () => ({ ok: true, email: 'ops@example.test', emailVerified: true })),
-    geocodeAddress: vi.fn(async () => ({ ok: true, lat: 37.5, lng: 127.0 })),
+    recordUsageFromResponse: vi.fn<(stage: string, model: string, response: UsageResponse) => void>(),
+    verifyUserToken: vi.fn<() => Promise<AuthResult>>(async () => ({ ok: true, email: 'ops@example.test', emailVerified: true })),
+    geocodeAddress: vi.fn<(address: string) => Promise<{ ok: boolean; lat: number; lng: number }>>(async () => ({ ok: true, lat: 37.5, lng: 127.0 })),
     resolveCredentialCandidates: vi.fn(() => []),
-    captureError: vi.fn(async () => {}),
+    captureError: vi.fn<(err: CapturedError) => Promise<void>>(async () => {}),
   };
 });
 
@@ -57,12 +67,15 @@ import { resolveLlmApiKey, resolveLlmProvider } from '../../api/_shared/llm/inde
 
 function call(headers: Record<string, string>) {
   const req = { method: 'POST', headers: { authorization: 'Bearer t', ...headers }, body: { text: '■ 9:30 신라호텔 픽업\n■ 오후 3시 인천공항 T2 드랍' } };
-  const out: { status?: number; body?: any } = {};
+  const out: { status?: number; body?: MoodBody } = {};
   const res = {
     writeHead(s: number) { out.status = s; return res; },
     end(b?: string) { out.body = b ? JSON.parse(b) : undefined; return res; },
   };
-  return Promise.resolve(handler(req as any, res as any)).then(() => out);
+  return Promise.resolve(handler(req, res)).then(() => {
+    if (!out.body) throw new Error(`handler ended without a JSON body (status ${out.status})`);
+    return { status: out.status, body: out.body };
+  });
 }
 
 const saved: Record<string, string | undefined> = {};
@@ -107,16 +120,16 @@ describe('x-llm-mock: real adapter -> real mock -> real handler', () => {
     expect(b.truncated).toBe(false);
     expect(b.flights).toEqual([]);
     expect(b.dates).toEqual([]);
-    expect(b.stops.map((s: any) => s.action)).toEqual(['pickup', 'arrive', 'dropoff']);
-    expect(b.stops.map((s: any) => s.timeHint)).toEqual(['09:30', '11:00', '15:00']);
-    expect(b.stops.map((s: any) => s.label)).toEqual(['신라호텔', '강남 코엑스', '인천공항 T2']);
+    expect(b.stops.map((s) => s.action)).toEqual(['pickup', 'arrive', 'dropoff']);
+    expect(b.stops.map((s) => s.timeHint)).toEqual(['09:30', '11:00', '15:00']);
+    expect(b.stops.map((s) => s.label)).toEqual(['신라호텔', '강남 코엑스', '인천공항 T2']);
     expect(b.stops[0]).toMatchObject({ matchedFromPlacebook: true, geocodeOk: true, lat: 37.5559, lng: 127.0054, isAirport: false });
     expect(b.stops[1]).toMatchObject({ matchedFromPlacebook: false, geocodeOk: true, searchGuessed: false });
     expect(b.stops[2]).toMatchObject({ isAirport: true, geocodeOk: true });
     for (const s of b.stops) expect(Object.keys(s)).toEqual(expect.arrayContaining(['order', 'label', 'address', 'lat', 'lng', 'action', 'matchedFromPlacebook', 'geocodeOk', 'searchGuessed', 'date', 'timeHint', 'isAirport']));
 
     // 지오코딩: 주소록 매칭된 stop 1 은 건너뛰고, 나머지는 addressHint > personOrPlace 로.
-    expect(h.geocodeAddress.mock.calls.map((c: any[]) => c[0])).toEqual(['서울 강남구 영동대로 513', '인천공항 T2']);
+    expect(h.geocodeAddress.mock.calls.map((c) => c[0])).toEqual(['서울 강남구 영동대로 513', '인천공항 T2']);
     expect(h.resolveCredentialCandidates).not.toHaveBeenCalled();
 
     // DB: 핸들러 db + 어댑터 킬스위치 db. mock 은 일일 상한(llm_guard) 카운터를 건드리지 않는다.
@@ -129,7 +142,7 @@ describe('x-llm-mock: real adapter -> real mock -> real handler', () => {
 
     // 사용량 레코더: 동적 import + then — 응답 후 정산되는 fire-and-forget.
     await vi.waitFor(() => expect(h.recordUsageFromResponse).toHaveBeenCalledTimes(1));
-    const [stage, model, response] = h.recordUsageFromResponse.mock.calls[0] as any[];
+    const [stage, model, response] = h.recordUsageFromResponse.mock.calls[0];
     expect(stage).toBe('mood-parse');
     expect(model).toBe('mock:mood');
     expect(response.usageMetadata.promptTokenCount).toBeGreaterThan(0);
@@ -143,7 +156,7 @@ describe('x-llm-mock: real adapter -> real mock -> real handler', () => {
     expect(out.status).toBe(200);
     expect(out.body).toMatchObject({ ok: false, code: 'AI_PARSE_FAILED' });
     expect(h.captureError).toHaveBeenCalledTimes(1);
-    expect((h.captureError.mock.calls[0] as any[])[0].code).toBe('LLM_DISABLED');
+    expect(h.captureError.mock.calls[0][0].code).toBe('LLM_DISABLED');
     await Promise.resolve();
     expect(h.recordUsageFromResponse).not.toHaveBeenCalled();
   });
@@ -151,7 +164,7 @@ describe('x-llm-mock: real adapter -> real mock -> real handler', () => {
   it('without the header the request is NOT mocked (claude without key fails, fail-soft)', async () => {
     const out = await call({});
     expect(out.body).toMatchObject({ ok: false, code: 'AI_PARSE_FAILED' });
-    expect(String((h.captureError.mock.calls[0] as any[])[0].message)).toMatch(/ANTHROPIC_API_KEY/);
+    expect(String(h.captureError.mock.calls[0][0].message)).toMatch(/ANTHROPIC_API_KEY/);
     expect(h.recordUsageFromResponse).not.toHaveBeenCalled();
   });
 });
@@ -178,7 +191,7 @@ describe('default provider (LLM_PROVIDER unset) and NO keys', () => {
     expect(h.getRuntimeFlags).toHaveBeenCalledTimes(1);
     expect(h.collections).toEqual(['mood_config', 'mood_places']);
     await vi.waitFor(() => expect(h.recordUsageFromResponse).toHaveBeenCalledTimes(1));
-    expect((h.recordUsageFromResponse.mock.calls[0] as any[])[1]).toBe('mock:mood');
+    expect(h.recordUsageFromResponse.mock.calls[0][1]).toBe('mock:mood');
     expect(h.captureError).not.toHaveBeenCalled();
     // 요청 범위 컨텍스트가 새지 않는다 — 핸들러 밖에서는 여전히 gemini/키 없음.
     expect(resolveLlmProvider('mood')).toBe('gemini');
@@ -205,7 +218,7 @@ describe('default provider (LLM_PROVIDER unset) and NO keys', () => {
     h.getRuntimeFlags.mockImplementation(async () => ({ llm_kill_switch: true }));
     const out = await call({ 'x-llm-mock': '1' });
     expect(out.body).toMatchObject({ ok: false, code: 'AI_PARSE_FAILED' });
-    expect((h.captureError.mock.calls[0] as any[])[0].code).toBe('LLM_DISABLED');
+    expect(h.captureError.mock.calls[0][0].code).toBe('LLM_DISABLED');
     await Promise.resolve();
     expect(h.recordUsageFromResponse).not.toHaveBeenCalled();
   });
@@ -214,15 +227,15 @@ describe('default provider (LLM_PROVIDER unset) and NO keys', () => {
     process.env.LLM_KILL_SWITCH = '1';
     const out = await call({ 'x-llm-mock': '1' });
     expect(out.body).toMatchObject({ ok: false, code: 'AI_PARSE_FAILED' });
-    expect((h.captureError.mock.calls[0] as any[])[0].code).toBe('LLM_DISABLED');
+    expect(h.captureError.mock.calls[0][0].code).toBe('LLM_DISABLED');
   });
 
   it('mock header does not bypass auth / email / allowlist gates', async () => {
-    h.verifyUserToken.mockResolvedValueOnce({ ok: false, status: 401, error: 'no token' } as any);
+    h.verifyUserToken.mockResolvedValueOnce({ ok: false, status: 401, error: 'no token' });
     expect((await call({ 'x-llm-mock': '1' })).body.code).toBe('AUTH_REQUIRED');
-    h.verifyUserToken.mockResolvedValueOnce({ ok: true, email: 'ops@example.test', emailVerified: false } as any);
+    h.verifyUserToken.mockResolvedValueOnce({ ok: true, email: 'ops@example.test', emailVerified: false });
     expect((await call({ 'x-llm-mock': '1' })).body.code).toBe('EMAIL_UNVERIFIED');
-    h.verifyUserToken.mockResolvedValueOnce({ ok: true, email: 'stranger@example.test', emailVerified: true } as any);
+    h.verifyUserToken.mockResolvedValueOnce({ ok: true, email: 'stranger@example.test', emailVerified: true });
     expect((await call({ 'x-llm-mock': '1' })).body.code).toBe('NOT_ALLOWED');
     expect(h.getRuntimeFlags).not.toHaveBeenCalled();
     expect(h.recordUsageFromResponse).not.toHaveBeenCalled();
@@ -231,7 +244,7 @@ describe('default provider (LLM_PROVIDER unset) and NO keys', () => {
 
 describe('auth semantics unchanged by the mock header', () => {
   it('unauthenticated -> 401 before any DB/LLM work', async () => {
-    h.verifyUserToken.mockResolvedValueOnce({ ok: false, status: 401, error: 'no token' } as any);
+    h.verifyUserToken.mockResolvedValueOnce({ ok: false, status: 401, error: 'no token' });
     const out = await call({ 'x-llm-mock': '1' });
     expect(out.status).toBe(401);
     expect(out.body.code).toBe('AUTH_REQUIRED');
@@ -240,7 +253,7 @@ describe('auth semantics unchanged by the mock header', () => {
   });
 
   it('unverified email -> 403 EMAIL_UNVERIFIED', async () => {
-    h.verifyUserToken.mockResolvedValueOnce({ ok: true, email: 'ops@example.test', emailVerified: false } as any);
+    h.verifyUserToken.mockResolvedValueOnce({ ok: true, email: 'ops@example.test', emailVerified: false });
     const out = await call({ 'x-llm-mock': '1' });
     expect(out.status).toBe(403);
     expect(out.body.code).toBe('EMAIL_UNVERIFIED');
@@ -248,7 +261,7 @@ describe('auth semantics unchanged by the mock header', () => {
   });
 
   it('not on the allowlist -> 403 NOT_ALLOWED, no LLM guard, no usage', async () => {
-    h.verifyUserToken.mockResolvedValueOnce({ ok: true, email: 'stranger@example.test', emailVerified: true } as any);
+    h.verifyUserToken.mockResolvedValueOnce({ ok: true, email: 'stranger@example.test', emailVerified: true });
     const out = await call({ 'x-llm-mock': '1' });
     expect(out.status).toBe(403);
     expect(out.body.code).toBe('NOT_ALLOWED');

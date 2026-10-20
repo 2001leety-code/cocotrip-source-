@@ -13,11 +13,13 @@ import { describe, it, expect } from 'vitest';
 import { spawnSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { pathToFileURL } from 'node:url';
 
 const ROOT = join(__dirname, '..', '..');
 const FIX = join(ROOT, 'tests', 'fixtures', 'integration-20261017');
 const CORE_RUNNER = join(FIX, 'esm-load-core.mjs');
 const DUP_RUNNER = join(FIX, 'esm-load-dup.mjs');
+const DUP_SOURCE = join(FIX, 'esm-dup-export.mjs');
 
 const CORE = [
   'api/_shared/llm/index.js', 'api/_ai_core/geminiPipeline.js', 'api/_ai_core/blockMode.js', 'api/_ai_core/handlerCore.js',
@@ -77,4 +79,17 @@ describe('real Node ESM load of core server modules', () => {
     expect(r.stderr).toMatch(/ESM_LOAD_FAILED esm-dup-export\.mjs SyntaxError: Duplicate export of 'A'/);
     expect(r.stdout).not.toContain('LOADED');
   }, 130_000);
+
+  it('negative control stores the exact fixed invalid source and loads it only via a native data: import', async () => {
+    const mod: { DUPLICATE_EXPORT_SOURCE?: unknown } = await import(pathToFileURL(DUP_SOURCE).href);
+    expect(mod.DUPLICATE_EXPORT_SOURCE).toBe('export const A = 1;\nexport { A };\n');
+    expect(Object.keys(mod)).toEqual(['DUPLICATE_EXPORT_SOURCE']);
+
+    const runner = readFileSync(DUP_RUNNER, 'utf8');
+    expect(runner).toContain("import { DUPLICATE_EXPORT_SOURCE } from './esm-dup-export.mjs';");
+    expect(runner).toContain('await import(`data:text/javascript;charset=utf-8,${encodeURIComponent(DUPLICATE_EXPORT_SOURCE)}`);');
+    expect(runner).toMatch(/if \(process\.argv\.length > 2\) \{[\s\S]*?process\.exit\(64\);/);
+    // 외부 입력·eval·자식 프로세스·네트워크·로더 등록 없음.
+    expect(runner).not.toMatch(/process\.argv\[|process\.env|\beval\(|new Function|child_process|node:module|register\(|fetch\(|https?:/);
+  });
 });

@@ -73,7 +73,8 @@ describe('geminiSchemaToJsonSchema', () => {
     expect(json).not.toMatch(/"type":"[A-Z]+"/);
     expect(json).not.toContain('propertyOrdering');
     // every object node closed
-    const walk = (node: any) => {
+    type SchemaNode = { type?: string; additionalProperties?: boolean; properties?: Record<string, SchemaNode>; items?: SchemaNode };
+    const walk = (node: SchemaNode | undefined) => {
       if (!node || typeof node !== 'object') return;
       if (node.type === 'object') expect(node.additionalProperties).toBe(false);
       if (node.properties) Object.values(node.properties).forEach(walk);

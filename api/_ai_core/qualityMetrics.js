@@ -237,15 +237,20 @@ function countBadAddressPrefix(stopsList) {
 // 숙소 앵커는 제외한다 — 모든 day 가 lodging 으로 시작·종료하도록 프롬프트가
 // 강제하므로(buildPrompt.js:375, :390) 같은 숙소가 반복되는 건 설계된 구조다.
 // 손님이 알아채는 진짜 중복은 관광지·식당이 다시 나오는 것.
+// 그룹 키는 trim + 소문자(대소문자·앞뒤 공백만 다른 같은 이름을 한 그룹으로).
+// 표시용 이름은 그 그룹에서 처음 나온 trim 된 라벨. 공백뿐인 라벨은 빈 라벨로 무시.
 function groupNonLodgingStopCounts(stopsList) {
   const counted = stopsList.filter(({ stop }) => !isLodging(stop));
   const seen = new Map();
+  const labels = new Map();
   for (const { stop } of counted) {
-    const key = stopLabel(stop);
-    if (!key) continue;
+    const label = String(stopLabel(stop)).trim();
+    if (!label) continue;
+    const key = label.toLowerCase();
+    if (!labels.has(key)) labels.set(key, label);
     seen.set(key, (seen.get(key) || 0) + 1);
   }
-  return { counted, seen };
+  return { counted, seen, labels };
 }
 
 function countDuplicateStops(stopsList) {
@@ -264,9 +269,9 @@ function countDuplicateStops(stopsList) {
  */
 export function findDuplicateStops(itinerary) {
   const stopsList = flattenStops(itinerary);
-  const { seen } = groupNonLodgingStopCounts(stopsList);
+  const { seen, labels } = groupNonLodgingStopCounts(stopsList);
   const out = [];
-  for (const [name, count] of seen) if (count > 1) out.push({ name, count });
+  for (const [key, count] of seen) if (count > 1) out.push({ name: labels.get(key), count });
   return out;
 }
 
