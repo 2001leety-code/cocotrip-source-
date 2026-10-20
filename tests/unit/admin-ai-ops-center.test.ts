@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  automationWorkItems,
   dedupeConfirmedPendingMirrors,
   normalizeDecision,
   normalizeReservation,
@@ -116,5 +117,16 @@ describe('AI 운영센터 우선순위 회귀 방지', () => {
     const decision = normalizeDecision('DECISION-1', { createdAtMs: NOW }, NOW);
     expect(decision.status).toBe('pending');
     expect(decision.actionRequired).toBe(true);
+  });
+
+  it('held 로 남은 후속처리 intent 는 claim lease 를 넘긴 것만 운영자 주의로 센다', () => {
+    const fresh = { status: 'held', updatedAt: NOW - 1_000 };
+    const orphan = { status: 'held', updatedAt: NOW - 10 * 60_000 };
+    const quiet = retryQueueHealth('processor_retry', '예약 후속처리', [fresh], true, NOW);
+    expect(quiet).toMatchObject({ status: 'ok', held: 0, count: 0, detail: '대기 없음' });
+    const health = retryQueueHealth('processor_retry', '예약 후속처리', [fresh, orphan, { status: 'pending' }], true, NOW);
+    expect(health).toMatchObject({ status: 'attention', held: 1, pending: 1, manual: 0, count: 2 });
+    expect(health.detail).toBe('held 고아 1건');
+    expect(automationWorkItems([health]).map((item) => item.sourceSystem)).toEqual(['processor_retry']);
   });
 });

@@ -6344,25 +6344,36 @@ function P69_firestoreFieldLengthCaps({ changed }) {
  */
 function P68_bookingsWriteRetryAlert({ changed }) {
   const FILE = 'api/capturePaypalOrder.js';
-  if (!isModified(FILE, changed)) return { skipped: true };
+  const MODULE = 'api/_shared/payment-fulfillment-recovery.js';
+  // 2026-10-20: the retry/alert contract may live in the shared recovery module, so a change to either file re-checks it.
+  if (!isModified(FILE, changed) && !isModified(MODULE, changed)) return { skipped: true };
   const content = getChangedFileContent(FILE);
   if (!content) return { skipped: true };
+  const moduleSrc = getChangedFileContent(MODULE);
 
   const violations = [];
 
   // Retry shape — PR #444 inline loop, or (2026-10-20 recovery contract) withBackoff() around the atomic
-  // persistBookingsAtomically() whose default delays are [200, 500, 1000] in payment-fulfillment-recovery.js.
+  // persistBookingsAtomically(). The contract counts only when a failure really reaches the branch below:
+  // no .catch() swallowing the persist, and a helper that actually retries [200, 500, 1000] and returns ok:false.
   const inlineRetry = /BOOKING_WRITE_BACKOFF_MS\s*=\s*\[\s*200\s*,\s*500\s*,\s*1000\s*\]/.test(content)
     && /let\s+bookingWriteOk\s*=\s*false/.test(content)
     && /for\s*\(\s*let\s+attempt\s*=\s*0\s*;\s*attempt\s*<\s*BOOKING_WRITE_BACKOFF_MS\.length/.test(content);
-  const contractRetry = /await\s+withBackoff\s*\(\s*\(\)\s*=>\s*persistBookingsAtomically\s*\(/.test(content)
+  const contractCall = /await\s+withBackoff\s*\(\s*\(\)\s*=>\s*persistBookingsAtomically\s*\([\s\S]*?\}\)\)\s*;/.exec(content);
+  const helper = moduleSrc.match(/export\s+async\s+function\s+withBackoff\s*\(\s*task\s*,\s*delaysMs\s*=\s*\[\s*200\s*,\s*500\s*,\s*1000\s*\]\s*\)[\s\S]{0,900}/);
+  const helperRetries = !!helper
+    && /for\s*\(\s*let\s+attempt\s*=\s*0\s*;\s*attempt\s*<\s*delaysMs\.length/.test(helper[0])
+    && /setTimeout\s*\(\s*resolve\s*,\s*delaysMs\[attempt\]/.test(helper[0])
+    && /return\s*\{\s*ok:\s*false/.test(helper[0]);
+  const contractRetry = !!contractCall
+    && !/\.catch\s*\(/.test(contractCall[0])
     && /const\s+bookingWriteOk\s*=\s*persisted\.ok/.test(content)
-    && /withBackoff\s*\(\s*task\s*,\s*delaysMs\s*=\s*\[\s*200\s*,\s*500\s*,\s*1000\s*\]/.test(getChangedFileContent('api/_shared/payment-fulfillment-recovery.js'));
+    && helperRetries;
   if (!inlineRetry && !contractRetry) {
-    violations.push(`${FILE}: booking write retry missing — Y-H14 needs BOOKING_WRITE_BACKOFF_MS [200, 500, 1000] + let bookingWriteOk = false + retry loop, or withBackoff(() => persistBookingsAtomically(...)) with const bookingWriteOk = persisted.ok`);
+    violations.push(`${FILE}: booking write retry missing — Y-H14 needs BOOKING_WRITE_BACKOFF_MS [200, 500, 1000] + let bookingWriteOk = false + retry loop, or await withBackoff(() => persistBookingsAtomically(...)) (no .catch) with const bookingWriteOk = persisted.ok and a withBackoff helper that retries [200, 500, 1000] and returns ok:false`);
   }
 
-  // Critical alert wire-up
+  // Critical alert wire-up (the key may be a template literal carrying the orderID)
   if (!/throttledTelegramAlert\s*\(\s*\{[\s\S]*?key:\s*[`'"]bookings-doc-write-fail/.test(content)) {
     violations.push(`${FILE}: throttledTelegramAlert with key='bookings-doc-write-fail' missing — operator must learn of payment-without-booking`);
   }
@@ -6370,12 +6381,23 @@ function P68_bookingsWriteRetryAlert({ changed }) {
   if (!/admin-replay-booking-notifications/.test(content)) {
     violations.push(`${FILE}: alert message must include admin-replay-booking-notifications recovery path`);
   }
-  // The bookings-write-fail branch must NOT refund (different semantics from PROMO_LIMIT_EXCEEDED).
+  // The bookings-write-fail branch itself: critical alert inside, never a refund, and (contract shape) a 202
+  // pending answer — never a success body while the booking is missing.
   const writeFailIdx = content.indexOf('if (!bookingWriteOk)');
-  if (writeFailIdx > -1) {
-    const block = content.slice(writeFailIdx, writeFailIdx + 1500);
+  if (writeFailIdx === -1) {
+    violations.push(`${FILE}: 'if (!bookingWriteOk)' branch missing — a failed booking write must be handled, not ignored`);
+  } else {
+    // CRLF-safe: api/capturePaypalOrder.js is checked in with \r\n line endings.
+    const close = /\r?\n {4}\}\r?\n/.exec(content.slice(writeFailIdx));
+    const block = content.slice(writeFailIdx, close ? writeFailIdx + close.index : writeFailIdx + 1500);
     if (/refundPaypalCapture\s*\(/.test(block)) {
       violations.push(`${FILE}: bookings-write-fail branch must NOT refund (payment was captured; operator recovers booking via admin-replay)`);
+    }
+    if (!/throttledTelegramAlert\s*\(/.test(block) || !/severity:\s*['"]critical['"]/.test(block)) {
+      violations.push(`${FILE}: bookings-write-fail branch must raise the critical throttledTelegramAlert itself`);
+    }
+    if (contractRetry && (!/pendingPaymentResponse\s*\(/.test(block) || /\b_ok\s*\(/.test(block))) {
+      violations.push(`${FILE}: bookings-write-fail branch must answer 202 pendingPaymentResponse — never a success body while the booking is missing`);
     }
   }
 
@@ -7207,10 +7229,12 @@ function P48_voucherCjkFont({ changed }) {
  * (db.runTransaction + tx.get + claimToken/claimUntil lease) and that call must precede the /capture POST.
  */
 function delegatesLockToRecoveryContract(content) {
-  if (!/from\s+['"]\.\/_shared\/payment-fulfillment-recovery\.js['"]/.test(content)) return false;
-  const acquireAt = content.search(/await\s+acquirePaymentAttempt\s*\(/);
-  const captureAt = content.search(/\/v2\/checkout\/orders\/[^\n]*\/capture/);
-  if (acquireAt < 0 || captureAt < 0 || acquireAt > captureAt) return false;
+  const code = content.replace(/\/\/[^\n]*/g, ''); // a call in a comment is not a call
+  if (!/from\s+['"]\.\/_shared\/payment-fulfillment-recovery\.js['"]/.test(code)) return false;
+  const acquire = /const\s+(\w+)\s*=\s*await\s+acquirePaymentAttempt\s*\(/.exec(code);
+  const captureAt = code.search(/\/v2\/checkout\/orders\/[^\n]*\/capture/);
+  if (!acquire || captureAt < 0 || acquire.index > captureAt) return false;
+  if (!new RegExp('\\b' + acquire[1] + '\\.kind\\b').test(code)) return false; // the result must drive the flow
   const module = getChangedFileContent('api/_shared/payment-fulfillment-recovery.js');
   const fn = module.match(/export\s+async\s+function\s+acquirePaymentAttempt\s*\([\s\S]{0,2500}/);
   return !!fn && /db\.runTransaction\s*\(/.test(fn[0]) && /tx\.get\s*\(/.test(fn[0]) && /claimUntil/.test(fn[0]);
@@ -7227,7 +7251,7 @@ function delegatesLockToRecoveryContract(content) {
 function P49_paymentIntegrity({ changed }) {
   const violations = [];
 
-  if (isModified('api/capturePaypalOrder.js', changed)) {
+  if (isModified('api/capturePaypalOrder.js', changed) || isModified('api/_shared/payment-fulfillment-recovery.js', changed)) {
     const content = getChangedFileContent('api/capturePaypalOrder.js');
     if (content) {
       const lockBlock = content.match(/used_paypal_orders[\s\S]{0,1200}/);
@@ -7255,6 +7279,7 @@ function P49_paymentIntegrity({ changed }) {
 
   if (violations.length === 0) {
     const touched = isModified('api/capturePaypalOrder.js', changed)
+      || isModified('api/_shared/payment-fulfillment-recovery.js', changed)
       || isModified('api/admin-booking-action.js', changed);
     if (!touched) return { skipped: true };
     return null;
@@ -7495,6 +7520,12 @@ function runRulesInDir(dir, base) {
 }
 
 function runSelfTest() {
+  // 2026-10-20 — realistic recovery-contract fixtures shared by the P49/P68 cases below.
+  const RECOVERY_MODULE_OK = "export async function acquirePaymentAttempt({ db, orderID }) {\n  const ref = db.collection('used_paypal_orders').doc(orderID);\n  return db.runTransaction(async (tx) => { const snap = await tx.get(ref); tx.set(ref, { claimUntil: 1 }); return { kind: 'claimed' }; });\n}\nexport async function withBackoff(task, delaysMs = [200, 500, 1000]) {\n  let lastError = null;\n  for (let attempt = 0; attempt < delaysMs.length; attempt++) {\n    try { return { ok: true, value: await task(attempt) }; } catch (error) { lastError = error; if (attempt < delaysMs.length - 1) await new Promise((resolve) => setTimeout(resolve, delaysMs[attempt])); }\n  }\n  return { ok: false, error: lastError };\n}\n";
+  const RECOVERY_MODULE_NO_TX = RECOVERY_MODULE_OK.replace("return db.runTransaction(async (tx) => { const snap = await tx.get(ref); tx.set(ref, { claimUntil: 1 }); return { kind: 'claimed' }; });", "const snap = await ref.get(); await ref.set({ claimUntil: 1 }); return { kind: 'claimed' };");
+  const RECOVERY_MODULE_NO_RETRY = RECOVERY_MODULE_OK.replace(/export async function withBackoff[\s\S]*$/, "export async function withBackoff(task, delaysMs = [200, 500, 1000]) { return { ok: true, value: await task(0) }; }\n");
+  const CAPTURE_HANDLER_OK = "import { acquirePaymentAttempt, withBackoff, persistBookingsAtomically } from './_shared/payment-fulfillment-recovery.js';\n// used_paypal_orders is owned by the recovery contract\nconst acquired = await acquirePaymentAttempt({ db, orderID });\nif (acquired.kind === 'absent') return;\nconst captureRes = await fetch(`${PAYPAL_BASE_URL}/v2/checkout/orders/${orderID}/capture`, {});\nconst bookingDoc = { amountKRW: 1 };\n    const persisted = await withBackoff(() => persistBookingsAtomically({ db }));\n    const bookingWriteOk = persisted.ok;\n    if (!bookingWriteOk) {\n      await throttledTelegramAlert({ key: `bookings-doc-write-fail-${orderID}`, severity: 'critical', message: 'POST /api/admin-replay-booking-notifications' });\n      return res.end(JSON.stringify(pendingPaymentResponse({ orderID })));\n    }\n";
+  const RECOVERY_STUBS = { 'api/capturePaypalOrder.js': '// stub\n', 'api/_shared/payment-fulfillment-recovery.js': '// stub\n' };
   const cases = [
     {
       label: 'R_plan4d214e83 (true positive): blockMode Day1 cutoff(pastMidnight) 누락',
@@ -8325,41 +8356,74 @@ function runSelfTest() {
     },
     {
       label: 'P49 (false positive 차단): used_paypal_orders lock delegated to acquirePaymentAttempt (recovery contract) — silent',
-      base: { 'api/capturePaypalOrder.js': '// stub\n', 'api/_shared/payment-fulfillment-recovery.js': '// stub\n' },
-      head: {
-        'api/_shared/payment-fulfillment-recovery.js': "export async function acquirePaymentAttempt({ db, orderID }) {\n  const ref = db.collection('used_paypal_orders').doc(orderID);\n  return db.runTransaction(async (tx) => { const snap = await tx.get(ref); tx.set(ref, { claimUntil: 1 }); return { kind: 'claimed' }; });\n}\n",
-        'api/capturePaypalOrder.js': "import { acquirePaymentAttempt } from './_shared/payment-fulfillment-recovery.js';\n// used_paypal_orders is owned by the recovery contract\nconst acquired = await acquirePaymentAttempt({ db, orderID });\nconst captureRes = await fetch(`${PAYPAL_BASE_URL}/v2/checkout/orders/${orderID}/capture`, {});\nconst bookingDoc = { amountKRW: 1 };\n",
-      },
+      base: RECOVERY_STUBS,
+      head: { 'api/_shared/payment-fulfillment-recovery.js': RECOVERY_MODULE_OK, 'api/capturePaypalOrder.js': CAPTURE_HANDLER_OK },
       expectRule: 'P49_paymentIntegrity',
       expectClean: true,
     },
     {
       label: 'P49 (true positive): acquirePaymentAttempt called only AFTER the /capture POST — delegation does not count',
-      base: { 'api/capturePaypalOrder.js': '// stub\n', 'api/_shared/payment-fulfillment-recovery.js': '// stub\n' },
+      base: RECOVERY_STUBS,
       head: {
-        'api/_shared/payment-fulfillment-recovery.js': "export async function acquirePaymentAttempt({ db, orderID }) {\n  const ref = db.collection('used_paypal_orders').doc(orderID);\n  return db.runTransaction(async (tx) => { const snap = await tx.get(ref); tx.set(ref, { claimUntil: 1 }); return { kind: 'claimed' }; });\n}\n",
-        'api/capturePaypalOrder.js': "import { acquirePaymentAttempt } from './_shared/payment-fulfillment-recovery.js';\n// used_paypal_orders comment only\nconst captureRes = await fetch(`${PAYPAL_BASE_URL}/v2/checkout/orders/${orderID}/capture`, {});\nconst acquired = await acquirePaymentAttempt({ db, orderID });\nconst bookingDoc = { amountKRW: 1 };\n",
+        'api/_shared/payment-fulfillment-recovery.js': RECOVERY_MODULE_OK,
+        'api/capturePaypalOrder.js': CAPTURE_HANDLER_OK
+          .replace("const acquired = await acquirePaymentAttempt({ db, orderID });\nif (acquired.kind === 'absent') return;\n", '')
+          .replace("const bookingDoc = { amountKRW: 1 };\n", "const bookingDoc = { amountKRW: 1 };\nconst acquired = await acquirePaymentAttempt({ db, orderID });\nif (acquired.kind === 'absent') return;\n"),
       },
       expectRule: 'P49_paymentIntegrity',
     },
     {
-      label: 'P68 (false positive 차단): withBackoff(() => persistBookingsAtomically(...)) + template-literal alert key — silent',
-      base: { 'api/capturePaypalOrder.js': '// stub\n', 'api/_shared/payment-fulfillment-recovery.js': '// stub\n' },
+      label: 'P49 (true positive): only the shared recovery module changed and its acquirePaymentAttempt lost runTransaction',
+      base: { 'api/capturePaypalOrder.js': CAPTURE_HANDLER_OK, 'api/_shared/payment-fulfillment-recovery.js': RECOVERY_MODULE_OK },
+      head: { 'api/_shared/payment-fulfillment-recovery.js': RECOVERY_MODULE_NO_TX },
+      expectRule: 'P49_paymentIntegrity',
+    },
+    {
+      label: 'P49 (true positive): delegation call whose result never drives the flow (no .kind), the real one only in a comment',
+      base: RECOVERY_STUBS,
       head: {
-        'api/_shared/payment-fulfillment-recovery.js': 'export async function withBackoff(task, delaysMs = [200, 500, 1000]) { return { ok: true }; }\n',
-        'api/capturePaypalOrder.js': "const persisted = await withBackoff(() => persistBookingsAtomically({ db }));\nconst bookingWriteOk = persisted.ok;\nif (!bookingWriteOk) {\n  await throttledTelegramAlert({ key: `bookings-doc-write-fail-${orderID}`, severity: 'critical', message: 'POST /api/admin-replay-booking-notifications' });\n  return res.end(JSON.stringify(pendingPaymentResponse({ orderID })));\n}\n",
+        'api/_shared/payment-fulfillment-recovery.js': RECOVERY_MODULE_OK,
+        'api/capturePaypalOrder.js': CAPTURE_HANDLER_OK.replace("const acquired = await acquirePaymentAttempt({ db, orderID });\nif (acquired.kind === 'absent') return;\n", "// const acquired = await acquirePaymentAttempt({ db, orderID });\nawait acquirePaymentAttempt({ db, orderID });\n"),
       },
+      expectRule: 'P49_paymentIntegrity',
+    },
+    {
+      label: 'P68 (false positive 차단): withBackoff(() => persistBookingsAtomically(...)) + retrying helper + critical alert + 202 — silent',
+      base: RECOVERY_STUBS,
+      head: { 'api/_shared/payment-fulfillment-recovery.js': RECOVERY_MODULE_OK, 'api/capturePaypalOrder.js': CAPTURE_HANDLER_OK },
       expectRule: 'P68_bookingsWriteRetryAlert',
       expectClean: true,
     },
     {
-      label: 'P68 (true positive): recovery-contract shape whose write-fail branch refunds',
-      base: { 'api/capturePaypalOrder.js': '// stub\n', 'api/_shared/payment-fulfillment-recovery.js': '// stub\n' },
-      head: {
-        'api/_shared/payment-fulfillment-recovery.js': 'export async function withBackoff(task, delaysMs = [200, 500, 1000]) { return { ok: true }; }\n',
-        'api/capturePaypalOrder.js': "const persisted = await withBackoff(() => persistBookingsAtomically({ db }));\nconst bookingWriteOk = persisted.ok;\nif (!bookingWriteOk) {\n  await refundPaypalCapture({ captureID });\n  await throttledTelegramAlert({ key: `bookings-doc-write-fail-${orderID}`, message: 'admin-replay-booking-notifications' });\n}\n",
-      },
+      label: 'P68 (true positive): persistBookingsAtomically(...).catch(() => {}) swallows the failure before withBackoff sees it',
+      base: RECOVERY_STUBS,
+      head: { 'api/_shared/payment-fulfillment-recovery.js': RECOVERY_MODULE_OK, 'api/capturePaypalOrder.js': CAPTURE_HANDLER_OK.replace('persistBookingsAtomically({ db }))', 'persistBookingsAtomically({ db }).catch(() => {}))') },
       expectRule: 'P68_bookingsWriteRetryAlert',
+    },
+    {
+      label: 'P68 (true positive): shared withBackoff helper no longer retries',
+      base: { 'api/capturePaypalOrder.js': CAPTURE_HANDLER_OK, 'api/_shared/payment-fulfillment-recovery.js': RECOVERY_MODULE_OK },
+      head: { 'api/_shared/payment-fulfillment-recovery.js': RECOVERY_MODULE_NO_RETRY },
+      expectRule: 'P68_bookingsWriteRetryAlert',
+    },
+    {
+      label: 'P68 (true positive): write-fail branch answers a success body instead of 202 pending',
+      base: RECOVERY_STUBS,
+      head: { 'api/_shared/payment-fulfillment-recovery.js': RECOVERY_MODULE_OK, 'api/capturePaypalOrder.js': CAPTURE_HANDLER_OK.replace('return res.end(JSON.stringify(pendingPaymentResponse({ orderID })));', 'return res.end(JSON.stringify(_ok({ orderID })));') },
+      expectRule: 'P68_bookingsWriteRetryAlert',
+    },
+    {
+      label: 'P68 (true positive): recovery-contract shape whose write-fail branch refunds',
+      base: RECOVERY_STUBS,
+      head: { 'api/_shared/payment-fulfillment-recovery.js': RECOVERY_MODULE_OK, 'api/capturePaypalOrder.js': CAPTURE_HANDLER_OK.replace('      await throttledTelegramAlert(', '      await refundPaypalCapture({ captureID });\n      await throttledTelegramAlert(') },
+      expectRule: 'P68_bookingsWriteRetryAlert',
+    },
+    {
+      label: 'P68 (false positive 차단): same contract shape with CRLF line endings — silent',
+      base: RECOVERY_STUBS,
+      head: { 'api/_shared/payment-fulfillment-recovery.js': RECOVERY_MODULE_OK, 'api/capturePaypalOrder.js': CAPTURE_HANDLER_OK.replace(/\n/g, '\r\n') },
+      expectRule: 'P68_bookingsWriteRetryAlert',
+      expectClean: true,
     },
   ];
 

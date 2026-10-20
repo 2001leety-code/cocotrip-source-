@@ -10,7 +10,7 @@ vi.mock('../../api/_shared/notify.js', () => ({ notify: vi.fn(async () => {}) })
 vi.mock('../../api/_shared/firebase-admin.js', () => ({ initAdminDb: () => null }));
 vi.mock('../../api/_shared/internal-base-url.js', () => ({ internalApiBase: () => 'https://offline.invalid', vercelBypassHeaders: () => ({}) }));
 vi.mock('../../api/_shared/booking-processor-trigger.js', () => ({ triggerBookingProcessor: vi.fn(), PENDING_PROCESSOR_RETRIES_COLLECTION: 'pending_processor_retries' }));
-vi.mock('firebase-admin/firestore', () => ({ FieldValue: { serverTimestamp: () => 'TS' } }));
+vi.mock('firebase-admin/firestore', () => ({ FieldValue: { serverTimestamp: () => 'TS' }, FieldPath: { documentId: () => '__name__' } }));
 
 import { heldOrphanIds, reportHeldOrphans, HELD_ORPHAN_AGE_MS } from '../../api/_crons/processor-retry-sweep.js';
 import { HELD_RETRY_STATUS, CLAIM_LEASE_MS } from '../../api/_shared/payment-fulfillment-recovery.js';
@@ -22,13 +22,26 @@ const ts = (ms: number) => ({ toMillis: () => ms });
 
 function fakeDb(rows: Doc[]) {
   const calls: Array<{ field: string; op: string; value: unknown }> = [];
+  const pages: number[] = [];
+  const query = (filtered: Doc[], limitN = Infinity, after: string | null = null) => ({
+    orderBy: () => query(filtered, limitN, after),
+    limit: (n: number) => query(filtered, n, after),
+    startAfter: (cursor: Doc) => query(filtered, limitN, cursor.id),
+    get: async () => {
+      const ordered = [...filtered].sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+      const start = after === null ? 0 : ordered.findIndex((row) => row.id === after) + 1;
+      const docs = ordered.slice(start, start + limitN);
+      pages.push(docs.length);
+      return { docs, size: docs.length, empty: docs.length === 0 };
+    },
+  });
   return {
     calls,
+    pages,
     collection: () => ({
       where: (field: string, op: string, value: unknown) => {
         calls.push({ field, op, value });
-        const docs = rows.filter((row) => row.data().status === value);
-        return { limit: () => ({ get: async () => ({ docs, empty: docs.length === 0 }) }) };
+        return query(rows.filter((row) => row.data().status === value));
       },
     }),
   };
@@ -57,9 +70,20 @@ describe('held retry intents left behind by a dead capture worker', () => {
     const orphans = await reportHeldOrphans(db as never, NOW);
     expect(orphans).toEqual(['ORDER-H1']);
     expect(db.calls).toEqual([{ field: 'status', op: '==', value: HELD_RETRY_STATUS }]);
+    expect(db.pages).toEqual([2]);
     expect(alerts.throttled).toHaveBeenCalledTimes(1);
     const alert = alerts.throttled.mock.calls[0][0] as { key: string; severity: string; channel: string; message: string };
     expect(alert).toMatchObject({ key: 'held-retry-orphan-ORDER-H1', severity: 'critical', channel: 'booking' });
     expect(alert.message).toContain('pending_processor_retries/ORDER-H1');
+  });
+
+  it('pages through more held intents than one batch so none hides behind the first ten', async () => {
+    const rows = Array.from({ length: 25 }, (_, i) => doc(`H${String(i).padStart(2, '0')}`, { status: HELD_RETRY_STATUS, updatedAt: ts(NOW - 2 * CLAIM_LEASE_MS) }));
+    const db = fakeDb(rows);
+    const orphans = await reportHeldOrphans(db as never, NOW);
+    expect(orphans).toHaveLength(25);
+    expect(db.pages).toEqual([10, 10, 5]);
+    expect(alerts.throttled).toHaveBeenCalledTimes(25);
+    expect(new Set(alerts.throttled.mock.calls.map((call) => (call[0] as { key: string }).key)).size).toBe(25);
   });
 });

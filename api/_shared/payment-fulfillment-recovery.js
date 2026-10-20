@@ -33,6 +33,8 @@ export const CLOSED_RETRY_STATES = ['done', 'manual-intervention', 'permanent-fa
  */
 export const HELD_RETRY_STATUS = 'held';
 export const RUNNABLE_RETRY_STATUS = 'pending';
+/** A held intent older than the capture claim lease can no longer be opened by a live worker: it is an orphan. */
+export const HELD_ORPHAN_AGE_MS = CLAIM_LEASE_MS;
 const STOPPED_BOOKING_STATUSES = ['REFUNDED', 'REFUND_PENDING', 'CANCELLED', 'CANCELED'];
 const FLOWS = ['single', 'cart'];
 const cookieName = (flow) => `cocotrip_checkout_${flow}`;

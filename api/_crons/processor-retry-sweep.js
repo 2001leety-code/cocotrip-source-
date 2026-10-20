@@ -14,7 +14,7 @@
  * booking-processor.js 의 idempotency 가드에 의존.
  */
 import { initAdminDb } from '../_shared/firebase-admin.js';
-import { FieldValue } from 'firebase-admin/firestore';
+import { FieldPath, FieldValue } from 'firebase-admin/firestore';
 import { notify } from '../_shared/notify.js';
 import {
   triggerBookingProcessor,
@@ -22,10 +22,12 @@ import {
 } from '../_shared/booking-processor-trigger.js';
 import { internalApiBase } from '../_shared/internal-base-url.js';
 import { throttledTelegramAlert } from '../_shared/telegram-throttle.js';
-import { HELD_RETRY_STATUS, CLAIM_LEASE_MS } from '../_shared/payment-fulfillment-recovery.js';
+import { HELD_RETRY_STATUS, HELD_ORPHAN_AGE_MS } from '../_shared/payment-fulfillment-recovery.js';
+import { verifyCronRequest } from '../_shared/cron-auth.js';
 
 const MAX_ATTEMPTS = 5;
 const MAX_BATCH = 10;
+const MAX_HELD_PAGES = 10; // ponytail: 100 orphans per run is far beyond a healthy queue; raise if a run ever reports a full last page
 
 /**
  * 2026-10-20 (payments review): capture handlers create the retry intent as HELD_RETRY_STATUS and open it to
@@ -35,7 +37,7 @@ const MAX_BATCH = 10;
  * them here (the mandatory slot/promo decisions may not have settled). A missing or unreadable updatedAt counts
  * as orphaned, so a malformed record is never silently skipped. Alerts are throttled per order (5-minute key).
  */
-export const HELD_ORPHAN_AGE_MS = CLAIM_LEASE_MS;
+export { HELD_ORPHAN_AGE_MS };
 
 export function heldOrphanIds(docs, nowMs = Date.now()) {
   return docs.filter((doc) => {
@@ -47,11 +49,21 @@ export function heldOrphanIds(docs, nowMs = Date.now()) {
 }
 
 export async function reportHeldOrphans(db, nowMs = Date.now()) {
-  const held = await db.collection(PENDING_PROCESSOR_RETRIES_COLLECTION)
-    .where('status', '==', HELD_RETRY_STATUS)
-    .limit(MAX_BATCH)
-    .get();
-  const orphans = heldOrphanIds(held.docs, nowMs);
+  // Paginate by document id so orphans beyond the first batch are never missed while earlier ones stay held.
+  const docs = [];
+  let cursor = null;
+  for (let page = 0; page < MAX_HELD_PAGES; page++) {
+    let query = db.collection(PENDING_PROCESSOR_RETRIES_COLLECTION)
+      .where('status', '==', HELD_RETRY_STATUS)
+      .orderBy(FieldPath.documentId())
+      .limit(MAX_BATCH);
+    if (cursor) query = query.startAfter(cursor);
+    const snap = await query.get();
+    docs.push(...snap.docs);
+    if (snap.size < MAX_BATCH) break;
+    cursor = snap.docs[snap.size - 1];
+  }
+  const orphans = heldOrphanIds(docs, nowMs);
   for (const orderID of orphans) {
     await throttledTelegramAlert({
       key: `held-retry-orphan-${orderID}`,
@@ -71,6 +83,11 @@ export async function reportHeldOrphans(db, nowMs = Date.now()) {
 }
 
 export default async function handler(req, res) {
+  // P44: fail closed even when invoked directly; api/cron-runner.js verifies too and passes the same req.
+  const auth = await verifyCronRequest(req);
+  if (!auth.ok) {
+    return res.status(auth.status).json({ ok: false, code: 'AUTH_REQUIRED', error: auth.error });
+  }
   try {
     const db = initAdminDb('processor-retry-sweep');
     if (!db) {
