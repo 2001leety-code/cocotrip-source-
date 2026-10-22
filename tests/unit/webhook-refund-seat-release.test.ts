@@ -38,7 +38,7 @@ vi.mock('../../api/_shared/booking-confirm.js', () => ({ confirmBookingAsPaid: v
 vi.mock('firebase-admin/firestore', () => ({ FieldValue: FakeFieldValue }));
 vi.mock('../../api/_shared/firebase-admin.js', () => ({ initAdminDb: () => db }));
 
-const { default: handler } = await import('../../api/paypal-webhook.js');
+const { default: handler, DUPLICATE_REINFORCE_DEADLINE_MS } = await import('../../api/paypal-webhook.js');
 
 const AVAIL = 'tour_availability/T1/dates/2026-09-01';
 
@@ -274,6 +274,58 @@ describe('멱등 — 재전송·중복·이미 해제된 주문에서 2회 차�
     expect(db.__get('paypal_webhook_log/txn-1')!.status).toBe('processed');
     expect(seats()!.S1).toBe(5);
     expect(notifySpy).not.toHaveBeenCalled();
+  });
+
+  // 2026-10-21 (review item C round 3): a duplicate must answer its historical 200 inside the budget.
+  describe('중복 보강 예산 — 느린/실패한 PayPal·원장에서도 200 idempotent, 증명 미기록', () => {
+    const markProcessed = () => db.__set('paypal_webhook_log/txn-1', { eventId: 'txn-1', status: 'processed', paypalEnvironment: 'live' });
+    const fetchCalls = () => (global.fetch as unknown as { mock: { calls: any[][] } }).mock.calls.map((c) => String(c[0]));
+
+    it('PayPal capture 상태 조회가 끝나지 않음 → 예산 소진 후 200 idempotent, fullRefundProof 없음', async () => {
+      markProcessed();
+      const verifyOk = { ok: true, status: 200, json: async () => ({ verification_status: 'SUCCESS' }), text: async () => '' };
+      global.fetch = vi.fn((url: any) => (String(url).includes('/v2/payments/captures/')
+        ? new Promise(() => {})                      // never resolves
+        : Promise.resolve(verifyOk))) as never;
+      vi.useFakeTimers();
+      try {
+        const pending = fire();
+        await vi.advanceTimersByTimeAsync(DUPLICATE_REINFORCE_DEADLINE_MS + 1);
+        const r = await pending;
+        expect(r.statusCode).toBe(200);
+        expect(r.json).toEqual({ ok: true, idempotent: true });
+      } finally {
+        vi.useRealTimers();
+      }
+      expect(db.__get('bookings/ORD-1')).not.toHaveProperty('fullRefundProof');
+      expect(db.__get('paypal_webhook_log/txn-1')!.status).toBe('processed');
+      expect(notifySpy).not.toHaveBeenCalled();
+    });
+
+    it('원장/보강 transaction 이 throw → 200 idempotent (503 아님), 증명·로그·알림 없음', async () => {
+      markProcessed();
+      (db as any).runTransaction = async () => { throw new Error('firestore down'); };
+      const r = await fire();
+      expect(r.statusCode).toBe(200);
+      expect(r.json).toEqual({ ok: true, idempotent: true });
+      expect(db.__get('bookings/ORD-1')).not.toHaveProperty('fullRefundProof');
+      expect(db.__get('paypal_webhook_log/txn-1')!.status).toBe('processed');
+      expect(notifySpy).not.toHaveBeenCalled();
+    });
+
+    it('서명 검증 실패 → 200 idempotent, PayPal 상태 조회 없음, 증명·검증로그·알림 없음', async () => {
+      markProcessed();
+      global.fetch = vi.fn(async (url: any) => (String(url).includes('verify-webhook-signature')
+        ? { ok: true, status: 200, json: async () => ({ verification_status: 'FAILURE' }), text: async () => '' }
+        : { ok: true, status: 200, json: async () => ({ status: 'REFUNDED' }), text: async () => '' })) as never;
+      const r = await fire();
+      expect(r.statusCode).toBe(200);
+      expect(r.json).toEqual({ ok: true, idempotent: true });
+      expect(fetchCalls().some((u) => u.includes('/v2/payments/captures/'))).toBe(false);
+      expect(db.__get('bookings/ORD-1')).not.toHaveProperty('fullRefundProof');
+      expect(db.__get('paypal_webhook_log/txn-1')!.status).toBe('processed');
+      expect(notifySpy).not.toHaveBeenCalled();
+    });
   });
 
   it('다른 eventId + 같은 refundId(첫 반영 뒤) → duplicate_refund, 총액 불변, 빠진 증명은 보강된다', async () => {
