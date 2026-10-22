@@ -138,6 +138,9 @@
       "maxDuration": 60,
       "includeFiles": "fonts/**"
     },
+    "api/capturePaypalOrder.js": {
+      "maxDuration": 60
+    },
     "api/*.js": {
       "maxDuration": 30
     }
