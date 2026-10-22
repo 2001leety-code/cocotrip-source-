@@ -9,7 +9,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 
 // Runtime switch tests (2026-10-21): the operator alert and the Gemini SDK are external boundaries — no network.
-const alerts = vi.hoisted(() => ({ throttled: vi.fn(async (_a: { key: string; channel: string; severity: string; message: string }) => ({ ok: true })) }));
+const alerts = vi.hoisted(() => ({ throttled: vi.fn<(a: { key: string; channel: string; severity: string; message: string }) => Promise<{ ok: boolean }>>(async () => ({ ok: true })) }));
 vi.mock('../../api/_shared/telegram-throttle.js', () => ({ throttledTelegramAlert: alerts.throttled }));
 const gem = vi.hoisted(() => ({
   models: [] as string[],
@@ -311,7 +311,7 @@ describe('claude provider — end to end with injected client', () => {
 describe('runtime engine switch (admin flag llm_use_claude)', () => {
   type FakeMessage = { content: { type: string; text: string }[]; stop_reason: string; usage: { input_tokens: number; output_tokens: number } };
   function claudeStub() {
-    const create = vi.fn(async (_params: { model: string; messages: unknown[] }, _opts?: unknown): Promise<FakeMessage> => ({
+    const create = vi.fn<(params: { model: string; messages: unknown[] }, opts?: unknown) => Promise<FakeMessage>>(async () => ({
       content: [{ type: 'text', text: 'hola' }], stop_reason: 'end_turn', usage: { input_tokens: 5, output_tokens: 2 },
     }));
     return { create, client: { messages: { create } } };
