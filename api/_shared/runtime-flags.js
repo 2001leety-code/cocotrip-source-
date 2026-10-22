@@ -20,6 +20,11 @@ export const RUNTIME_FLAG_KEYS = {
     desc: '켜면 플래너·챗·번역 등 모든 AI(LLM) 호출을 즉시 503 으로 막습니다(공급자 불문). 비용 폭주·사고 시 재배포 없이 사용. 끄면 바로 복구.',
     default: false,
   },
+  llm_use_claude: {
+    label: 'AI 엔진: Claude 사용 (끄면 Gemini)',
+    desc: '켜면 플래너·챗·번역 등 모든 AI 호출을 Claude 로 보냅니다. 끄면 Gemini(기본). Claude 키가 없거나 모델 생성에 실패하면 그 호출은 Gemini 로 처리하고 운영자에게 알립니다. 재배포 없이 새 요청부터 적용(서버 캐시 때문에 통상 30초 이내; 이미 시작된 호출은 그대로 끝납니다).',
+    default: false,
+  },
   transfer_margin_guard_enabled: {
     label: 'transfer 최소마진 가드',
     desc: '켜면 transfer 결제가 추정원가×배수 미달 시 차단(협의). ⚠️ 원가모델=추정치 — 실 기사일당/연료 교체 후 권장.',

@@ -49,10 +49,17 @@ import { dietaryEvidenceFor, dietaryTagsOfRow, describeDietaryEvidence } from '.
 
 // 사용량 실측 기록(비용 가시화 2026-07-09) — fire-and-forget, 어떤 실패도 본 흐름에 영향 0.
 // block_mode 는 legacy(logCacheMetrics)와 달리 기록이 전혀 없던 sleeper 공백.
-function recordBlockUsage(cm) {
+// 2026-10-21 런타임 스위치: modelId = 응답 후 읽은 모델 객체의 .modelId(실제 사용 모델). 없을 때만 env 예측.
+function recordBlockUsage(cm, modelId) {
   try {
-    recordGeminiUsage({ stage: 'block', model: resolveLlmModel('block'), cm });
+    recordGeminiUsage({ stage: 'block', model: modelId || resolveLlmModel('block'), cm });
   } catch { /* ignore */ }
+}
+// The model actually used rides on cacheMetadata as a NON-enumerable field: never persisted with
+// itinerary._cache_metadata, invisible to toEqual, and the P278 return shapes stay byte-identical.
+function attachModelId(cacheMetadata, modelId) {
+  Object.defineProperty(cacheMetadata, 'modelId', { value: modelId, enumerable: false });
+  return cacheMetadata;
 }
 
 /** 기본 ENV mode — 운영자가 PLANNER_BLOCK_MODE 미설정 시 'auto' (자동 폴백). */
@@ -482,7 +489,7 @@ export async function selectBlocksWithGemini(blocks, userInput, geminiClient) {
   // Gemini usageMetadata 추출 — implicit cache hit 측정. legacy 만 측정되던 sleeper bug 해소.
   // 측정 100 plan 중 block_mode 46건 _cache_metadata 0% = handlerCore:400 의 itinerary._cache_metadata
   // 가 null (block_mode 가 attach 안 함) → P266 chain layer 2-5 silent skip.
-  const cacheMetadata = (() => {
+  const cacheMetadata = attachModelId((() => {
     const um = result?.response?.usageMetadata;
     if (!um) return { cached: 0, total: 0, output: 0 };
     return {
@@ -490,7 +497,7 @@ export async function selectBlocksWithGemini(blocks, userInput, geminiClient) {
       total: Number(um.promptTokenCount) || 0,
       output: Number(um.candidatesTokenCount) || 0,
     };
-  })();
+  })(), model.modelId);
 
   const raw = (result && result.response && typeof result.response.text === 'function')
     ? result.response.text().trim()
@@ -1572,7 +1579,7 @@ export async function runBlockModePipeline({ adminDb, city, userInput, geminiCli
   // 이전: block_mode 46/100 plan _cache_metadata 0% (legacy 만 측정) sleeper bug.
   if (selections.cacheMetadata) {
     itinerary._cache_metadata = selections.cacheMetadata;
-    recordBlockUsage(selections.cacheMetadata);
+    recordBlockUsage(selections.cacheMetadata, selections.cacheMetadata.modelId);
   }
   return {
     itinerary,
@@ -1766,7 +1773,7 @@ export async function selectBlocksMultiCity(cityBlocksList, userInput, geminiCli
 
   // P278 (2026-05-29): cache instrumentation — multi-city block selection.
   // selectBlocksWithGemini 와 동일 패턴 (block_mode sleeper bug fix).
-  const cacheMetadata = (() => {
+  const cacheMetadata = attachModelId((() => {
     const um = result?.response?.usageMetadata;
     if (!um) return { cached: 0, total: 0, output: 0 };
     return {
@@ -1774,7 +1781,7 @@ export async function selectBlocksMultiCity(cityBlocksList, userInput, geminiCli
       total: Number(um.promptTokenCount) || 0,
       output: Number(um.candidatesTokenCount) || 0,
     };
-  })();
+  })(), model.modelId);
 
   const raw = (result && result.response && typeof result.response.text === 'function')
     ? result.response.text().trim()
@@ -2208,7 +2215,7 @@ export async function runBlockModeMultiCity({ adminDb, cities, userInput, gemini
   // P278 (2026-05-29): multi-city block_mode cache_metadata attach (P266 chain layer 1 호환).
   if (selections.cacheMetadata) {
     itinerary._cache_metadata = selections.cacheMetadata;
-    recordBlockUsage(selections.cacheMetadata);
+    recordBlockUsage(selections.cacheMetadata, selections.cacheMetadata.modelId);
   }
 
   return {

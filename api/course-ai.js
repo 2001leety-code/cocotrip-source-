@@ -253,7 +253,6 @@ export default async function handler(req, res) {
   let resolvedModel = 'unconfigured';
   try {
     const model = createLlmModel({}, { role: 'course', stage: 'course-ai', apiKey, timeoutMs: 12000 }); // maxDuration 15
-    resolvedModel = model.modelId;
     const userPayload = {
       language: lang,
       stops: stops.map((s) => ({
@@ -281,6 +280,7 @@ export default async function handler(req, res) {
         responseMimeType: 'application/json',
       },
     });
+    resolvedModel = model.modelId; // the provider is picked on the first call (runtime switch)
     // 사용량 실측 기록(비용 가시화 2026-07-09) — fire-and-forget, 실패해도 본 흐름 영향 0.
     import('./_shared/apiUsageRecorder.js').then((m) => m.recordUsageFromResponse('course-ai', resolvedModel, result.response)).catch(() => {});
     const raw = result.response.text() || '';
