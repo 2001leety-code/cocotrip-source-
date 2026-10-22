@@ -5,8 +5,12 @@
  *   - 코코트립: `pending_bookings` 컬렉션 (PayPal 결제 흐름 — AdminPayments 가 보는 그것).
  *   - 무드:     `mood_bookings` 컬렉션 (B2B 선불 매니저/차량 예약).
  *
+ *   - PayPal:   `bookings` 컬렉션 (2026-10-23 — PayPal 직접 결제 예약. kind:'paypal', 관리자 전액 환불 대상).
+ *               같은 예약의 pending_bookings 문서가 있으면(동일 id 또는 paypalTransactionId) pending 행이
+ *               대표하고 PayPal 행은 빠진다(2줄 방지). 그 pending 은 목록 limit 밖이어도 포함한다.
+ *
  * 각 항목을 공통 스키마로 정규화 후 출처 라벨을 붙여 합치고 최신순 정렬:
- *   { source:'cocotrip'|'mood', label, date, amountKRW, status, detail, createdAtMs, id }
+ *   { source:'cocotrip'|'mood', kind:'pending'|'paypal'|'mood', label, date, amountKRW, status, detail, createdAtMs, id }
  *
  * 인증: Authorization: Bearer <Firebase ID token> + verifyAdminToken (ADMIN_EMAIL / admin claim).
  *   - mood_bookings 는 firestore.rules 가 client read:false → 반드시 백엔드 admin SDK 로만 읽음.
@@ -19,6 +23,7 @@ import { verifyAdminToken } from './_shared/admin-auth.js';
 import { initAdminDb } from './_shared/firebase-admin.js';
 import { captureError } from './_shared/sentry.js';
 import { buildAdminCors, buildAdminJsonCors } from './_shared/cors.js';
+import { hasExplicitTestSignal, isAutoRefundBlocked } from './_shared/booking-test-flags.js';
 
 export const maxDuration = 15;
 export const config = { runtime: 'nodejs' };
@@ -70,6 +75,7 @@ function normalizeCocotrip(id, b) {
 
   return {
     source: 'cocotrip',
+    kind: 'pending',
     id,
     bookingRef: b.bookingRef || id,
     // "코코트립 — 서울시티투어" 식 라벨 (출처 prefix 는 프론트가 뱃지로 표시).
@@ -106,6 +112,7 @@ function normalizeMood(id, b, clientNameById) {
 
   return {
     source: 'mood',
+    kind: 'mood',
     id,
     bookingRef: id,
     // "무드 — 매니저 3시간" 식 라벨.
@@ -118,6 +125,70 @@ function normalizeMood(id, b, clientNameById) {
     createdAtMs,
     isTest: false,
   };
+}
+
+// ── PayPal (bookings) → 공통 스키마 (2026-10-23) ──────────────────────────
+// isTest = 명시적 테스트 신호만. paymentVerified 미검증은 환불 가능 여부(refundable)에만 반영한다 —
+//   정상 수동·웹훅 확정 예약은 paymentVerified 없이 생성된다(booking-confirm.js).
+function normalizePaypalBooking(id, b) {
+  const createdAtMs = toMillis(b.createdAt);
+  const pax = Number(b.paxCount || b.passengers) > 0 ? `${b.paxCount || b.passengers}인` : '';
+  const hasRefundHistory = Boolean(b.refundID) || Boolean(b.lastRefundId) || Object.keys(b.refundEvents || {}).length > 0;
+  return {
+    source: 'cocotrip',
+    kind: 'paypal',
+    id,
+    bookingRef: id,
+    label: String(b.productName || b.productType || 'PayPal 예약'),
+    date: b.tourDate || ymdKst(createdAtMs),
+    amountKRW: Number(b.amountKRW) || 0,
+    priceUSD: b.amountUSD ? Number(b.amountUSD) : null,
+    status: String(b.status || ''),
+    detail: [b.payerName, b.userEmail || b.payerEmail, pax].filter(Boolean).join(' · '),
+    createdAtMs,
+    isTest: hasExplicitTestSignal(id, b),
+    captureID: b.captureID || null,
+    parentOrderID: b.parentOrderID || null,
+    linkedPendingRef: null,
+    refundable: b.status === 'CONFIRMED'
+      && Boolean(b.captureID)
+      && !b.parentOrderID
+      && b.provider !== 'braintree'
+      && !isAutoRefundBlocked(id, b)
+      && !hasRefundHistory,
+  };
+}
+
+const IN_QUERY_CHUNK = 30;
+
+/**
+ * PayPal 행 ↔ pending_bookings 연결 — 목록 limit 와 **독립** 조회.
+ *   (a) 같은 id 의 pending_bookings/{id}  (b) pending_bookings.paypalTransactionId in [ids]
+ * @returns {Promise<{ ok: boolean, links: Map<string, { pendingId: string, data: object }>, error?: string }>}
+ */
+async function findLinkedPending(db, paypalIds) {
+  const links = new Map();
+  if (paypalIds.length === 0) return { ok: true, links };
+  const chunks = [];
+  for (let i = 0; i < paypalIds.length; i += IN_QUERY_CHUNK) chunks.push(paypalIds.slice(i, i + IN_QUERY_CHUNK));
+  const settled = await Promise.allSettled([
+    db.getAll(...paypalIds.map((pid) => db.collection('pending_bookings').doc(pid))),
+    ...chunks.map((chunk) => db.collection('pending_bookings').where('paypalTransactionId', 'in', chunk).get()),
+  ]);
+  const failed = settled.find((s) => s.status === 'rejected');
+  if (failed) return { ok: false, links, error: failed.reason?.message || 'failed' };
+  const [sameIdRes, ...txResults] = settled;
+  (sameIdRes.value || []).forEach((snap, i) => {
+    if (snap && snap.exists) links.set(paypalIds[i], { pendingId: snap.id || paypalIds[i], data: snap.data() || {} });
+  });
+  txResults.forEach((r) => {
+    r.value.forEach((doc) => {
+      const data = doc.data() || {};
+      const pid = String(data.paypalTransactionId || '');
+      if (pid && !links.has(pid)) links.set(pid, { pendingId: doc.id, data });
+    });
+  });
+  return { ok: true, links };
 }
 
 export default async function handler(req, res) {
@@ -141,11 +212,12 @@ export default async function handler(req, res) {
       return json(req, res, 500, { ok: false, error: 'Firestore unavailable — check FIREBASE_* env vars', code: 'DB_UNAVAILABLE' });
     }
 
-    // 두 컬렉션 병렬 읽기. 각각 createdAt desc 단일 필드 정렬 (자동 인덱스로 충분, composite 불필요).
+    // 세 컬렉션 병렬 읽기. 각각 createdAt desc 단일 필드 정렬 (자동 인덱스로 충분, composite 불필요).
     // 한쪽이 실패해도 다른 쪽은 살리기 위해 allSettled.
-    const [cocoRes, moodRes] = await Promise.allSettled([
+    const [cocoRes, moodRes, paypalRes] = await Promise.allSettled([
       db.collection('pending_bookings').orderBy('createdAt', 'desc').limit(limit).get(),
       db.collection('mood_bookings').orderBy('createdAt', 'desc').limit(limit).get(),
+      db.collection('bookings').orderBy('createdAt', 'desc').limit(limit).get(),
     ]);
 
     const items = [];
@@ -156,6 +228,40 @@ export default async function handler(req, res) {
     } else {
       errors.cocotrip = cocoRes.reason?.message || 'failed';
       console.error('[admin-all-bookings] cocotrip read failed:', errors.cocotrip);
+    }
+
+    // PayPal 예약 — 연결된 pending 이 있으면 pending 이 대표 행(목록 limit 밖이어도 포함), PayPal 행은 제외.
+    if (paypalRes.status === 'fulfilled') {
+      const paypalDocs = paypalRes.value.docs.map((doc) => ({ id: doc.id, data: doc.data() || {} }));
+      const linkResult = await findLinkedPending(db, paypalDocs.map((d) => d.id));
+      if (!linkResult.ok) {
+        // 연결 여부를 모르면 PayPal 자동환불을 전부 막는다(2줄·이중 흐름 위험).
+        errors.pendingLink = linkResult.error;
+        console.error('[admin-all-bookings] pending link lookup failed:', errors.pendingLink);
+      }
+      const pendingIndexById = new Map();
+      items.forEach((item, idx) => { if (item.kind === 'pending') pendingIndexById.set(item.id, idx); });
+      for (const { id, data } of paypalDocs) {
+        const link = linkResult.links.get(id);
+        if (link) {
+          // 명시적 테스트 신호만 OR — paymentVerified 미전파(정상 연결 예약이 기본 목록에 남아야 한다).
+          const paypalTest = hasExplicitTestSignal(id, data);
+          const existing = pendingIndexById.get(link.pendingId);
+          if (existing !== undefined) {
+            items[existing] = { ...items[existing], isTest: items[existing].isTest || paypalTest };
+          } else {
+            const row = normalizeCocotrip(link.pendingId, link.data);
+            pendingIndexById.set(link.pendingId, items.length);
+            items.push({ ...row, isTest: row.isTest || paypalTest });
+          }
+          continue;
+        }
+        const row = normalizePaypalBooking(id, data);
+        items.push(linkResult.ok ? row : { ...row, refundable: false, linkLookupFailed: true });
+      }
+    } else {
+      errors.paypal = paypalRes.reason?.message || 'failed';
+      console.error('[admin-all-bookings] paypal bookings read failed:', errors.paypal);
     }
 
     if (moodRes.status === 'fulfilled') {
@@ -190,6 +296,7 @@ export default async function handler(req, res) {
         counts: {
           cocotrip: items.filter((x) => x.source === 'cocotrip').length,
           mood: items.filter((x) => x.source === 'mood').length,
+          paypal: items.filter((x) => x.kind === 'paypal').length,
         },
         ...(Object.keys(errors).length ? { partialErrors: errors } : {}),
       },

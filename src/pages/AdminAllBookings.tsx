@@ -10,6 +10,8 @@
  *
  * 2026-07-28: "배차실패 취소" 버튼 추가 — 차량·기사를 못 구했을 때 운영자가 사유를 남기고
  * 전액 환불로 취소한다(POST /api/admin-booking-action, action=dispatch-cancel).
+ * 2026-10-23: PayPal 직접 결제 예약(bookings, kind='paypal')도 목록에 포함 — "취소 + 전액 환불 (PayPal)"
+ * 버튼(action=refund-booking). 환불할 수 없는 행(refundable=false)은 버튼 대신 이유를 보여준다.
  * 그 외에는 여전히 읽기 전용.
  */
 import { useEffect, useState, useCallback, useMemo } from 'react';
@@ -20,27 +22,37 @@ import { usePageMeta } from '@/hooks/usePageMeta';
 
 type Source = 'cocotrip' | 'mood';
 type SourceFilter = Source | 'all';
+/** pending = pending_bookings(수동·QR 흐름), paypal = bookings(PayPal 직접 결제), mood = mood_bookings. */
+type Kind = 'pending' | 'paypal' | 'mood';
 
 interface BookingItem {
   source: Source;
+  kind: Kind;
   id: string;
   bookingRef: string;
   label: string;
   date: string;
   amountKRW: number;
-  priceUSD: string | null;
+  priceUSD: number | string | null;
   status: string;
   detail: string;
   createdAtMs: number;
   isTest: boolean;
+  // kind === 'paypal' 전용
+  captureID?: string | null;
+  parentOrderID?: string | null;
+  refundable?: boolean;
+  linkLookupFailed?: boolean;
 }
+
+interface Counts { cocotrip: number; mood: number; paypal?: number }
 
 interface ApiResponse {
   ok: boolean;
   data?: {
     items: BookingItem[];
     total: number;
-    counts: { cocotrip: number; mood: number };
+    counts: Counts;
     partialErrors?: Record<string, string>;
   };
   error?: string;
@@ -81,12 +93,35 @@ function formatKRW(n: number): string {
 }
 
 /** 배차 실패 취소 사유 분류 — 값은 백엔드 DISPATCH_CANCEL_CATEGORIES 와 1:1. */
-type CancelCategory = 'no_vehicle' | 'no_driver' | 'other';
+type CancelCategory = 'no_vehicle' | 'no_driver' | 'customer_request' | 'other';
 const CANCEL_CATEGORY_OPTIONS: { key: CancelCategory; label: string }[] = [
   { key: 'no_vehicle', label: '차량 미확보' },
   { key: 'no_driver', label: '기사 미확보' },
   { key: 'other', label: '기타' },
 ];
+/** PayPal 전액 환불 사유 분류 — 값은 백엔드 REFUND_BOOKING_CATEGORIES 와 1:1 (고객 요청 포함). */
+const REFUND_CATEGORY_OPTIONS: { key: CancelCategory; label: string }[] = [
+  { key: 'customer_request', label: '고객 요청' },
+  { key: 'no_vehicle', label: '차량 미확보' },
+  { key: 'no_driver', label: '기사 미확보' },
+  { key: 'other', label: '기타' },
+];
+
+function formatUSD(v: number | string | null): string | null {
+  if (v === null || v === '') return null;
+  const n = Number(v);
+  return Number.isFinite(n) ? `$${n.toFixed(2)}` : null;
+}
+
+/** PayPal 행이 환불 불가일 때 버튼 대신 보여줄 이유. 결제완료가 아니면 상태 뱃지로 충분하다. */
+function paypalRefundBlockReason(b: BookingItem): string {
+  if (b.linkLookupFailed) return '연결 예약 확인 실패 — 환불 보류';
+  if (b.status !== 'CONFIRMED') return '';
+  if (b.parentOrderID) return '장바구니 항목 — 수동 환불';
+  if (b.isTest) return '테스트 결제 — 자동 환불 불가';
+  if (!b.captureID) return 'capture 없음 — 수동 환불';
+  return '미검증·수동 결제 또는 환불 이력 — 자동 환불 불가';
+}
 
 export default function AdminAllBookings() {
   // 2026-07-28: 관리자 화면마다 브라우저 탭 제목이 일반 CocoTrip 제목으로 같아
@@ -94,7 +129,7 @@ export default function AdminAllBookings() {
   usePageMeta({ title: '통합 예약 (관리자)', description: 'All CocoTrip and MOOD bookings in one list.' });
   const { user } = useAuth();
   const [items, setItems] = useState<BookingItem[] | null>(null);
-  const [counts, setCounts] = useState<{ cocotrip: number; mood: number }>({ cocotrip: 0, mood: 0 });
+  const [counts, setCounts] = useState<Counts>({ cocotrip: 0, mood: 0, paypal: 0 });
   const [partialErrors, setPartialErrors] = useState<Record<string, string> | null>(null);
   const [loading, setLoading] = useState(Boolean(user));
   const [error, setError] = useState<string | null>(null);
@@ -189,6 +224,9 @@ export default function AdminAllBookings() {
           <div className="bg-[#7C5CFC]/[0.08] border border-[#7C5CFC]/25 rounded-xl px-3 py-2.5 text-center">
             <p className="text-[10px] text-[#B9A4FF]/70 uppercase tracking-wider mb-0.5">코코트립</p>
             <p className="text-lg font-extrabold text-[#B9A4FF]">{counts.cocotrip}</p>
+            {Number(counts.paypal) > 0 && (
+              <p className="text-[10px] text-[#B9A4FF]/60">PayPal {counts.paypal}</p>
+            )}
           </div>
           <div className="bg-pink-500/[0.08] border border-pink-500/25 rounded-xl px-3 py-2.5 text-center">
             <p className="text-[10px] text-pink-300/70 uppercase tracking-wider mb-0.5">무드</p>
@@ -258,9 +296,12 @@ export default function AdminAllBookings() {
           <div className="space-y-2.5">
             {filtered.map((b) => {
               const meta = SOURCE_META[b.source];
+              const isPaypal = b.kind === 'paypal';
+              const usd = formatUSD(b.priceUSD);
+              const blockReason = isPaypal && !b.refundable ? paypalRefundBlockReason(b) : '';
               return (
                 <article
-                  key={`${b.source}:${b.id}`}
+                  key={`${b.kind}:${b.id}`}
                   className="bg-white/[0.03] border border-white/[0.08] rounded-2xl p-3 sm:p-4 flex flex-col sm:flex-row sm:items-center gap-2.5 sm:gap-4"
                 >
                   {/* 출처 뱃지 + 라벨 */}
@@ -268,6 +309,11 @@ export default function AdminAllBookings() {
                     <span className={`shrink-0 inline-block px-2 py-1 rounded-md text-[11px] font-bold border ${meta.badgeClass}`}>
                       {meta.label}
                     </span>
+                    {isPaypal && (
+                      <span className="shrink-0 inline-block px-2 py-1 rounded-md text-[11px] font-bold border bg-sky-500/15 text-sky-300 border-sky-500/40">
+                        PayPal
+                      </span>
+                    )}
                     <div className="min-w-0">
                       <p className="text-white font-semibold text-sm truncate">
                         {b.label}
@@ -284,13 +330,20 @@ export default function AdminAllBookings() {
                         <Calendar className="w-3 h-3" /> {b.date}
                       </span>
                     )}
-                    <span className="text-sm font-bold text-white">
-                      {formatKRW(b.amountKRW)}
-                      {b.priceUSD && <span className="text-[10px] text-white/40 ml-1">${b.priceUSD}</span>}
-                    </span>
+                    {isPaypal && usd ? (
+                      <span className="text-sm font-bold text-white">
+                        {usd}
+                        <span className="text-[10px] text-white/40 ml-1">{formatKRW(b.amountKRW)}</span>
+                      </span>
+                    ) : (
+                      <span className="text-sm font-bold text-white">
+                        {formatKRW(b.amountKRW)}
+                        {usd && <span className="text-[10px] text-white/40 ml-1">{usd}</span>}
+                      </span>
+                    )}
                     {statusBadge(b.status)}
-                    {/* 배차 실패 취소 — 코코트립 결제완료 건에만. 무드는 별도 정산 체계라 제외. */}
-                    {b.source === 'cocotrip' && b.status === 'CONFIRMED' && (
+                    {/* 배차 실패 취소 — 수동·QR 흐름(pending) 결제완료 건에만. 무드는 별도 정산 체계라 제외. */}
+                    {b.kind === 'pending' && b.status === 'CONFIRMED' && (
                       <button
                         onClick={() => setCancelTarget(b)}
                         className="px-2.5 py-1.5 rounded-lg text-[11px] font-semibold border border-rose-500/40 bg-rose-500/10 text-rose-300 hover:bg-rose-500/20 transition-colors min-h-[36px]"
@@ -298,6 +351,16 @@ export default function AdminAllBookings() {
                         배차실패 취소
                       </button>
                     )}
+                    {/* PayPal 직접 결제 — 환불 가능할 때만 버튼, 아니면 이유. */}
+                    {isPaypal && b.refundable && (
+                      <button
+                        onClick={() => setCancelTarget(b)}
+                        className="px-2.5 py-1.5 rounded-lg text-[11px] font-semibold border border-rose-500/40 bg-rose-500/10 text-rose-300 hover:bg-rose-500/20 transition-colors min-h-[36px]"
+                      >
+                        취소 + 전액 환불
+                      </button>
+                    )}
+                    {blockReason && <span className="text-[10px] text-white/40">{blockReason}</span>}
                   </div>
                 </article>
               );
@@ -331,10 +394,14 @@ function DispatchCancelModal({
   onDone: () => void;
   getIdToken: () => Promise<string>;
 }) {
-  const [category, setCategory] = useState<CancelCategory>('no_vehicle');
+  // 2026-10-23: PayPal 직접 결제 예약은 같은 모달로 refund-booking(전액 환불)을 보낸다.
+  const isPaypal = booking.kind === 'paypal';
+  const categoryOptions = isPaypal ? REFUND_CATEGORY_OPTIONS : CANCEL_CATEGORY_OPTIONS;
+  const [category, setCategory] = useState<CancelCategory>(isPaypal ? 'customer_request' : 'no_vehicle');
   const [reason, setReason] = useState('');
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const usd = formatUSD(booking.priceUSD);
 
   const submit = async () => {
     if (!reason.trim()) { setErr('사유를 입력해주세요 (고객에게 그대로 전달됩니다)'); return; }
@@ -347,7 +414,7 @@ function DispatchCancelModal({
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${idToken}` },
         body: JSON.stringify({
           bookingRef: booking.bookingRef,
-          action: 'dispatch-cancel',
+          action: isPaypal ? 'refund-booking' : 'dispatch-cancel',
           cancelCategory: category,
           reason: reason.trim(),
         }),
@@ -366,21 +433,27 @@ function DispatchCancelModal({
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.7)' }}>
       <div className="w-full max-w-md rounded-2xl border border-white/[0.10] p-4 sm:p-5 space-y-3.5" style={{ background: '#0c1220' }}>
         <div>
-          <h2 className="text-white font-bold text-[15px]">배차 실패 취소</h2>
+          <h2 className="text-white font-bold text-[15px]">{isPaypal ? '취소 + 전액 환불 (PayPal)' : '배차 실패 취소'}</h2>
           <p className="text-[11px] text-white/45 mt-1">
-            {booking.label} · {booking.bookingRef} · {formatKRW(booking.amountKRW)}
+            {booking.label} · {booking.bookingRef} · {isPaypal && usd ? `${usd} (${formatKRW(booking.amountKRW)})` : formatKRW(booking.amountKRW)}
           </p>
         </div>
 
         <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 px-3 py-2.5 text-[12px] text-amber-200">
-          우리 쪽 사정으로 인한 취소이므로 <b>취소정책과 무관하게 전액 환불</b>됩니다.
-          입력한 사유는 <b>고객 이메일에 그대로</b> 실립니다.
+          {isPaypal ? (
+            <>PayPal 결제 <b>전액 환불</b> · 사유는 <b>고객에게 전달</b>됩니다.</>
+          ) : (
+            <>
+              우리 쪽 사정으로 인한 취소이므로 <b>취소정책과 무관하게 전액 환불</b>됩니다.
+              입력한 사유는 <b>고객 이메일에 그대로</b> 실립니다.
+            </>
+          )}
         </div>
 
         <div>
           <label className="block text-[11px] text-white/50 mb-1.5">사유 분류</label>
-          <div className="grid grid-cols-3 gap-2">
-            {CANCEL_CATEGORY_OPTIONS.map((opt) => (
+          <div className={`grid ${isPaypal ? 'grid-cols-2' : 'grid-cols-3'} gap-2`}>
+            {categoryOptions.map((opt) => (
               <button
                 key={opt.key}
                 onClick={() => setCategory(opt.key)}

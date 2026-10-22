@@ -43,7 +43,7 @@ import { createWalletPass }   from './_create-wallet-pass.js';
 import { loadPricingSpec } from './_shared/pricing.js';
 import {
   bookingStepGuards, BOOKING_STEP_MARKERS, stepStateField,
-  claimStepSafe, finalizeStep, markOutcomeUnknown, CLAIM,
+  claimStepSafe, finalizeStep, completeStep, markOutcomeUnknown, CLAIM,
 } from './_shared/booking-idempotency.js';
 import { internalMoneyApiBase, vercelBypassHeaders } from './_shared/internal-base-url.js';
 import {
@@ -469,17 +469,55 @@ const originalHandler = async (event) => {
   //   - booking  채널 (cocotrip bot): USD/KRW 결제 금액·환율·쿠폰·transactionId 등 영수증
   // Gemini 합본 알림은 사용 중지 — 채널별 deterministic 포맷이 일관성 있고 빠름.
   // generateBookingAlert / sendBookingAlert 는 호환을 위해 export 유지하되 미호출.
+  //
+  // 2026-10-23: 채널별 멱등 — 처리기 재진입(retry sweep·replay) 시 같은 알림이 두 번 가지 않게.
+  //   claim(orderID = bookings 문서 id) → claimed 일 때만 전송 → delivery 로 마무리:
+  //     sent      → completeStep 직접 기록 (finalizeStep/completeBookingStep 금지 — 실패 시 격리해 버린다).
+  //                 기록이 실패해도 선점은 풀지 않는다(in_progress 유지 → quarantine 정책이 재발송을 막는다).
+  //     rejected / skipped → 선점 해제(보내지지 않았다 = 다음 실행이 보내도 된다).
+  //     unknown   → outcome_unknown 격리(보냈는지 모른다 = 재발송 금지).
+  //   선점 결과가 already_completed / in_flight / outcome_unknown / store_unavailable 이면 전송하지 않는다.
+  //   알림 결과는 처리기 응답·예약 상태를 바꾸지 않는다.
+  async function sendTelegramChannel(field, send) {
+    const claim = await claimBookingStep(orderID, field);
+    if (!claim.claimed) return `skip:${claim.reason}`;
+    let result;
+    try {
+      result = await send(booking);
+    } catch (err) {
+      result = { ok: false, delivery: 'unknown', error: err.message };
+    }
+    const delivery = (result && result.delivery) || (result && result.ok ? 'sent' : 'unknown');
+    const db = stepDb();
+    if (delivery === 'sent') {
+      try {
+        const { FieldValue } = await import('firebase-admin/firestore');
+        await completeStep({ db, FieldValue, orderID, field });
+      } catch (e) {
+        console.warn('[booking-processor] 텔레그램 전송됨 — 완료 기록 실패, 선점 유지(재발송 없음):', field, e.message);
+      }
+      return 'sent';
+    }
+    if (delivery === 'rejected' || delivery === 'skipped') {
+      await releaseBookingStep(orderID, field);
+      return delivery;
+    }
+    await markOutcomeUnknown({ db, orderID, field, reason: `telegram_delivery_unknown: ${(result && result.error) || ''}` });
+    return 'unknown';
+  }
   try {
-    const [dispatchRes, paymentRes] = await Promise.allSettled([
-      sendDispatchAlert(booking),
-      sendBookingPaymentAlert(booking),
+    const [dispatchState, paymentState] = await Promise.all([
+      sendTelegramChannel(BOOKING_STEP_MARKERS.telegramDispatch, sendDispatchAlert),
+      sendTelegramChannel(BOOKING_STEP_MARKERS.telegramPayment, sendBookingPaymentAlert),
     ]);
-    const okDispatch = dispatchRes.status === 'fulfilled' && dispatchRes.value?.ok;
-    const okPayment  = paymentRes.status  === 'fulfilled' && paymentRes.value?.ok;
-    results.steps.telegram = okDispatch && okPayment
-      ? 'ok'
-      : `partial: dispatch=${okDispatch} payment=${okPayment}`;
-    console.log('[booking-processor] 텔레그램 알림: dispatch=', okDispatch, 'payment=', okPayment);
+    if (dispatchState === 'sent' && paymentState === 'sent') {
+      results.steps.telegram = 'ok';
+    } else if (dispatchState.startsWith('skip:') && paymentState.startsWith('skip:')) {
+      results.steps.telegram = `skip: dispatch=${dispatchState} payment=${paymentState}`;
+    } else {
+      results.steps.telegram = `partial: dispatch=${dispatchState} payment=${paymentState}`;
+    }
+    console.log('[booking-processor] 텔레그램 알림: dispatch=', dispatchState, 'payment=', paymentState);
   } catch (err) {
     results.steps.telegram = `error: ${err.message}`;
     console.error('[booking-processor] 텔레그램 전송 실패:', err.message);

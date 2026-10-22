@@ -33,8 +33,10 @@ describe('bookingStepGuards — 멱등 단계 가드', () => {
   });
 
   it('마커 필드명 상수 일치 (handler set 시 사용)', () => {
+    // 2026-10-23: 텔레그램 채널별 재발송 방지 마커 2개 추가.
     expect(BOOKING_STEP_MARKERS).toEqual({
       sheets: 'sheetsAppendedAt', loyalty: 'loyaltyEarnedAt', voucher: 'voucherSentAt',
+      telegramDispatch: 'telegramDispatchSentAt', telegramPayment: 'telegramPaymentSentAt',
     });
   });
 });

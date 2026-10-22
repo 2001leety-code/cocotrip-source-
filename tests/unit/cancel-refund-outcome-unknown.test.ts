@@ -14,7 +14,7 @@
  *
  * 행위 테스트 — 핸들러를 실행하고 stateful Firestore 모킹으로 CAS 를 실제로 흉내낸다.
  */
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 const authHolder: { r: any } = { r: { ok: true, email: 'cust@x.com', uid: 'u1' } };
 const refundHolder: { r: any; onCall?: () => void; lastArgs?: any } = { r: { ok: true, refund: { id: 'RF-1', status: 'COMPLETED' } } };
@@ -67,7 +67,15 @@ async function cancel() {
   return { ...res.out, json: res.out.body ? JSON.parse(res.out.body) : null };
 }
 
+// 2026-10-23: cancelBooking 환불 환경 = resolveIsSandbox(). 이 파일은 live 배포(isSandbox:false)를 고정한다.
+const savedEnv = { VERCEL_ENV: process.env.VERCEL_ENV, PAYPAL_ENV: process.env.PAYPAL_ENV };
+afterEach(() => {
+  for (const [k, v] of Object.entries(savedEnv)) { if (v === undefined) delete process.env[k]; else process.env[k] = v; }
+});
+
 beforeEach(() => {
+  process.env.VERCEL_ENV = 'production';
+  delete process.env.PAYPAL_ENV;
   authHolder.r = { ok: true, email: 'cust@x.com', uid: 'u1' };
   refundHolder.r = { ok: true, refund: { id: 'RF-1', status: 'COMPLETED' } };
   refundHolder.onCall = undefined;

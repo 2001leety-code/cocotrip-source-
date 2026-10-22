@@ -28,6 +28,7 @@ import { buildManualPaymentEmail } from './_shared/manual-payment-emails.js';
 import { sendEmail } from './_send-email.js';
 import { verifyUserToken } from './_shared/user-auth.js';
 import { refundPaypalCapture } from './_shared/paypal-refund.js';
+import { resolveIsSandbox } from './_shared/paypal.js';
 import { releaseSlotForCanceledOrder } from './_shared/slot-capacity.js';
 import { throttledTelegramAlert } from './_shared/telegram-throttle.js';
 import { toMinorUnits } from './_shared/paypal-capture-verify.js';
@@ -193,9 +194,10 @@ export default async function handler(req, res) {
       return res.end(JSON.stringify(_err('bookingID required', 'MISSING_FIELDS')));
     }
 
-    // 2026-05-03: TEST 계정도 실제 결제는 LIVE PayPal로 진행되므로 (createPaypalOrder
-    // 변경) refund도 항상 LIVE. sandbox PayPal 환불 호출 케이스 자체가 없음.
-    const isSandbox = false;
+    // 2026-05-03: TEST 계정도 실제 결제는 LIVE PayPal로 진행된다(createPaypalOrder 변경).
+    // 2026-10-23: 환불 환경 = 이 배포의 PayPal 환경(resolveIsSandbox — production 은 항상 live).
+    //   아래에서 예약의 결제 환경(paypalEnvironment)과 대조해 다르면 환불하지 않는다.
+    const isSandbox = resolveIsSandbox();
     void TEST_ACCOUNTS;
     const db = getDb();
 
@@ -210,6 +212,13 @@ export default async function handler(req, res) {
     if ((booking.userEmail || '').toLowerCase() !== userEmail.toLowerCase()) {
       res.writeHead(403, JSON_CORS);
       return res.end(JSON.stringify(_err('Not your booking', 'FORBIDDEN')));
+    }
+    // 환경 대조 (2026-10-23) — 예약 결제 환경(필드 없음 = legacy live)과 이 배포의 PayPal 환경이 다르면
+    //   다른 환경의 capture 를 환불하게 된다 → 선점·환불 없이 거부.
+    const bookingEnv = booking.paypalEnvironment === 'sandbox' ? 'sandbox' : 'live';
+    if ((bookingEnv === 'sandbox') !== isSandbox) {
+      res.writeHead(409, JSON_CORS);
+      return res.end(JSON.stringify(_err('Refund environment does not match this deployment', 'REFUND_ENV_MISMATCH')));
     }
     if (booking.status !== 'CONFIRMED') {
       res.writeHead(409, JSON_CORS);
