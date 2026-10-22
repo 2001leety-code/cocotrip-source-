@@ -41,6 +41,7 @@ import { getPaypalAccessToken, resolveIsSandbox } from './_shared/paypal.js';
 import { confirmBookingAsPaid } from './_shared/booking-confirm.js';
 import {
   applyRefundEvent, applyRefundStatusEvent, fetchAuthoritativeCaptureStatus, checkEnvironmentsMatch,
+  ensureFullRefundProof,
 } from './_shared/refund-ledger.js';
 import { releaseSlotForCanceledOrder } from './_shared/slot-capacity.js';
 
@@ -892,6 +893,8 @@ export default async function handler(req, res) {
       //   누적으로 판정하는 이유: $5 + $4.90 처럼 나눠 전액을 돌려주면, 이번 이벤트
       //     금액만 보고는 영원히 PARTIALLY_REFUNDED 로 남는다.
       const refundId = event?.resource?.id || null;
+      // 2026-10-21 (review item C): refund currency feeds the strict full-refund proof (USD only).
+      const refundCurrency = event?.resource?.amount?.currency_code || null;
 
       // PayPal 이 아는 capture 상태가 최종 진실이다(우리 누계는 이벤트 유실에 취약).
       // 실패하면 null → 누적 계산으로 판정한다. 조회 실패로 환불 기록이 멈추면 안 된다.
@@ -917,6 +920,7 @@ export default async function handler(req, res) {
           authoritativeCaptureStatus,
           // 🔴 검증에 실제로 통과한 PayPal 환경. 예약 문서의 환경과 다르면 원장이 격리한다.
           webhookEnvironment: verifiedEnvironment,
+          refundCurrency,
         });
       } catch (e) {
         // 🔴 실패는 processed 로 기록하지 않는다 — PayPal 재전송으로 다시 처리돼야 한다.
@@ -930,6 +934,20 @@ export default async function handler(req, res) {
         await alertAdmin(`🚨 <b>환불 웹훅 처리 실패 (재시도 대기)</b>\n\nCapture: <code>${captureId}</code>\n환불액: $${refundedUSD}\n사유: ${e.message}`);
         res.writeHead(503, JSON_HEADERS);
         return res.end(JSON.stringify({ ok: false, status: 'retryable', error: 'refund ledger unavailable' }));
+      }
+
+      // 2026-10-21 (review item C): proof-only reinforcement on the bookings doc — an earlier run of this event may
+      //   have committed before the proof existed. Idempotent, writes only fullRefundProof, never pending_bookings
+      //   (bookingsDocId is null for a pending_bookings-only match). Best-effort: never changes the response.
+      if (bookingsDocId && (refundOutcome.applied === true || refundOutcome.reason === 'duplicate_event')) {
+        try {
+          await ensureFullRefundProof({
+            db: adminDb, bookingsDocId, captureId, authoritativeCaptureStatus, refundId, refundCurrency,
+            webhookEnvironment: verifiedEnvironment,
+          });
+        } catch (e) {
+          console.warn('[paypal-webhook] full-refund proof reinforcement failed (non-fatal):', e.message);
+        }
       }
 
       if (!refundOutcome.applied) {

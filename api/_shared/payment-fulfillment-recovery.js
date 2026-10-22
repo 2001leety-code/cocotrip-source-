@@ -503,12 +503,17 @@ export async function recordTerminalBeforeRefund({ db, attempt, orderID, retryDo
  * `refundID` is stored only together with that transition. Returns true only when THIS call made the
  * transition; already REFUNDED / any other status / missing booking => false (no old refund identity is inferred).
  */
-export async function markRefundCompleted({ db, orderID, timestamp, refundID }) {
+export async function markRefundCompleted({ db, orderID, timestamp, refundID, proof }) {
   const bookingRef = db.collection('bookings').doc(orderID);
   return db.runTransaction(async (tx) => {
     const snap = await tx.get(bookingRef);
-    if (!snap.exists || (snap.data() || {}).status !== 'REFUND_PENDING') return false;
-    tx.set(bookingRef, omitUndefined({ status: 'REFUNDED', refundedAt: timestamp, updatedAt: timestamp, refundID: refundID || undefined }), { merge: true });
+    const current = snap.exists ? snap.data() || {} : {};
+    if (!snap.exists || current.status !== 'REFUND_PENDING') return false;
+    tx.set(bookingRef, omitUndefined({
+      status: 'REFUNDED', refundedAt: timestamp, updatedAt: timestamp, refundID: refundID || undefined,
+      // Strict full-refund proof travels only with this transition (2026-10-21 review item C).
+      fullRefundProof: proof ? mergeFullRefundProof(current.fullRefundProof, proof) : undefined,
+    }), { merge: true });
     return true;
   });
 }
@@ -532,6 +537,52 @@ export function provenFullRefundID(result, { amountMinor, currency }) {
   const amount = refund.amount;
   if (!amount || typeof amount !== 'object' || amount.currency_code !== expectedCurrency) return null;
   return toMinorUnits(amount.value, expectedCurrency) === amountMinor ? refund.id : null;
+}
+
+/**
+ * Strict full-refund proof stored on bookings/{orderID}.fullRefundProof by paths that verified a FULL refund of
+ * THIS capture: the promo auto-refund (provenFullRefundID), cancelBooking (provenFullRefundID on a receipt), or
+ * the PayPal webhook when PayPal's own capture status is REFUNDED. Never written for partial/pending refunds,
+ * never for cart children (parentOrderID), never for pending_bookings. An existing proof is kept; only refundIDs
+ * are unioned. Replay accepts it only when captureID/currency/amountMinor/environment equal lock.captureVerified.
+ */
+export function buildFullRefundProof({ captureID, currency, amountMinor, refundIDs, source, environment, nowMs = Date.now() }) {
+  const ids = Array.from(new Set((Array.isArray(refundIDs) ? refundIDs : [refundIDs]).filter((id) => typeof id === 'string' && id.trim()).map((id) => id.trim())));
+  const env = String(environment || '').toLowerCase();
+  if (!captureID || !currency || !Number.isSafeInteger(amountMinor) || amountMinor <= 0 || ids.length === 0 || !['live', 'sandbox'].includes(env)) return null;
+  return { captureID: String(captureID), currency: String(currency).toUpperCase(), amountMinor, refundIDs: ids, source: String(source || 'unknown'), environment: env, provenAtMs: nowMs };
+}
+
+/** Merge rule: keep the existing proof, union refundIDs. Returns the value to store (or the existing one unchanged). */
+export function mergeFullRefundProof(existing, incoming) {
+  if (!incoming) return existing || null;
+  if (!existing || typeof existing !== 'object') return incoming;
+  const ids = Array.from(new Set([...(Array.isArray(existing.refundIDs) ? existing.refundIDs : []), ...incoming.refundIDs]));
+  return { ...existing, refundIDs: ids };
+}
+
+/** Replay gate: the proof must describe exactly the verified capture of this attempt. */
+export function fullRefundProofMatchesCapture(proof, lock) {
+  const cv = lock && lock.captureVerified;
+  if (!proof || !cv || typeof proof !== 'object') return false;
+  if (!Array.isArray(proof.refundIDs) || !proof.refundIDs.length || !proof.refundIDs.every((id) => typeof id === 'string' && id.trim())) return false;
+  if (!proof.captureID || proof.captureID !== cv.captureID) return false;
+  if (String(proof.currency || '').toUpperCase() !== String(cv.currency || '').toUpperCase()) return false;
+  if (!Number.isSafeInteger(proof.amountMinor) || proof.amountMinor !== cv.amountMinor) return false;
+  const env = String(proof.environment || '').toLowerCase();
+  if (!['live', 'sandbox'].includes(env)) return false;
+  if (lock.environment && env !== String(lock.environment).toLowerCase()) return false;
+  return true;
+}
+
+/** Read-only: current strict proof for this order, or null (missing doc / read failure ⇒ null). */
+export async function readFullRefundProof({ db, orderID }) {
+  try {
+    const snap = await db.collection('bookings').doc(orderID).get();
+    if (!snap.exists) return null;
+    const proof = (snap.data() || {}).fullRefundProof;
+    return proof && typeof proof === 'object' ? proof : null;
+  } catch { return null; }
 }
 
 /** persistRetry callback for triggerBookingProcessor: never resets attempts or closed states. */

@@ -24,6 +24,7 @@ import {
   persistBookingsAtomically, shouldDispatchRetry, releaseHeldIntents, recordTerminalBeforeRefund, markRefundCompleted, provenFullRefundID,
   makeRetryPersister, recordProcessorResult, updateAttempt,
   releaseAttemptClaim, discardAttempt, finalizeAttempt, pendingPaymentResponse, notCapturedResponse, withBackoff,
+  buildFullRefundProof, readFullRefundProof, fullRefundProofMatchesCapture,
 } from './_shared/payment-fulfillment-recovery.js';
 
 // ── Admin bypass 허용 이메일 목록 ─────────────────────────────────────────
@@ -347,8 +348,18 @@ export default async function handler(req, res) {
     if (acquired.kind === 'finalized') {
       // Same authorized caller asking again after completion: replay the recorded minimal answer.
       const stored = acquired.lock.finalResponse || { status: 200, body: _ok({ orderID, message: 'Booking already confirmed.' }) };
+      let replayBody = { ...stored.body, replayed: true };
+      // 2026-10-21 (review item C): a finalized promo-limit record answered without refund proof keeps the
+      // customer's recovery pointer alive. If a strict full-refund proof for THIS verified capture now exists
+      // (webhook/cancel/auto-refund), surface it; otherwise the stored body is replayed unchanged. Read-only.
+      if (stored.body && stored.body.code === 'PROMO_LIMIT_EXCEEDED' && !stored.body.refundID) {
+        const proof = await readFullRefundProof({ db: dbForLock, orderID });
+        if (fullRefundProofMatchesCapture(proof, acquired.lock)) {
+          replayBody = { ...replayBody, orderID, finalized: true, paymentStatus: 'REFUNDED', refundID: proof.refundIDs.join('+') };
+        }
+      }
       res.writeHead(stored.status || 200, JSON_CORS);
-      return res.end(JSON.stringify({ ...stored.body, replayed: true }));
+      return res.end(JSON.stringify(replayBody));
     }
     if (acquired.kind === 'duplicate') {
       console.warn('[capturePaypalOrder] duplicate orderID blocked:', orderID);
@@ -959,7 +970,13 @@ export default async function handler(req, res) {
             //    a completed refund upgrades it to REFUNDED. Nothing else is ever downgraded.
             let refundTransitioned = false;
             try {
-              if (refundOk) refundTransitioned = await markRefundCompleted({ db, orderID, timestamp: FieldValue.serverTimestamp(), refundID: provenRefundID || undefined });
+              if (refundOk) {
+                refundTransitioned = await markRefundCompleted({
+                  db, orderID, timestamp: FieldValue.serverTimestamp(), refundID: provenRefundID || undefined,
+                  // Strict proof (review item C): only a proven FULL refund of this verified capture.
+                  proof: provenRefundID ? buildFullRefundProof({ captureID, currency: _verdict.currency, amountMinor: _verdict.amountMinor, refundIDs: [provenRefundID], source: 'capture-auto', environment: _environment }) : null,
+                });
+              }
             } catch (markErr) {
               console.error('[capturePaypalOrder] booking refund-mark failed (non-fatal):', markErr.message);
             }

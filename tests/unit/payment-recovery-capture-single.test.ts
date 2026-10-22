@@ -349,6 +349,10 @@ describe('capturePaypalOrder — promo refund terminal proof (releases the clien
     expect(effects.refund).toHaveBeenCalledTimes(1);
     expect(effects.refund.mock.calls[0][0]).toMatchObject({ captureID: 'CAP-1', idempotencyKey: `${ORDER}:promo-limit`, refundUSD: '100.00', currency: 'USD', receipt: true });
     expect(db.rows.get(`bookings/${ORDER}`)).toMatchObject({ status: 'REFUNDED', refundID: 'REF-1', refundReason: 'PROMO_LIMIT_EXCEEDED' });
+    // 2026-10-21 (review item C): the transition also stores the strict proof for later replays.
+    expect(db.rows.get(`bookings/${ORDER}`)).toMatchObject({
+      fullRefundProof: { captureID: 'CAP-1', currency: 'USD', amountMinor: 10000, refundIDs: ['REF-1'], source: 'capture-auto', environment: 'live' },
+    });
     expect(db.rows.get(LOCK)).toMatchObject({ finalOutcome: 'promo_refunded', finalResponse: { status: 409, body: { refundID: 'REF-1', finalized: true } } });
     const replay = await call({ orderID: ORDER, reconcile: true });
     expect(replay.status).toBe(409);
@@ -377,6 +381,7 @@ describe('capturePaypalOrder — promo refund terminal proof (releases the clien
       expect(state.body, label).not.toHaveProperty('finalized');
       expect((db.rows.get(LOCK) as { finalResponse: { body: Record<string, unknown> } }).finalResponse.body, label).not.toHaveProperty('refundID');
       expect(db.rows.get(`bookings/${ORDER}`), label).not.toHaveProperty('refundID');
+      expect(db.rows.get(`bookings/${ORDER}`), label).not.toHaveProperty('fullRefundProof');
       expect(effects.refund, label).toHaveBeenCalledTimes(1);
     }
   });
@@ -391,6 +396,58 @@ describe('capturePaypalOrder — promo refund terminal proof (releases the clien
     expect(already.body).not.toHaveProperty('refundID');
     expect(db.rows.get(`bookings/${ORDER}`)).toMatchObject({ status: 'REFUNDED', refundReason: 'operator' });
     expect(db.rows.get(`bookings/${ORDER}`)).not.toHaveProperty('refundID');
+    expect(db.rows.get(`bookings/${ORDER}`)).not.toHaveProperty('fullRefundProof');
+  });
+});
+
+describe('capturePaypalOrder — finalized replay surfaces a strict full-refund proof (review item C)', () => {
+  const PROMO_BODY = { ok: false, code: 'PROMO_LIMIT_EXCEEDED', error: 'Promo code "EARLY50" reached its usage limit. A manual refund will be issued — operator notified.' };
+  const proof = (over: Record<string, unknown> = {}) => ({
+    captureID: 'CAP-1', currency: 'USD', amountMinor: 10000, refundIDs: ['WH-REF-1'], source: 'webhook-authoritative', environment: 'live', provenAtMs: 1, ...over,
+  });
+  function finalizedLock(finalResponse: { status: number; body: Record<string, unknown> }) {
+    db.rows.set(LOCK, {
+      status: 'captured', flow: 'single', environment: 'live', requestKey: `${ORDER}-cap`, captureState: 'captured', bookingDurable: true,
+      intent: { body: { ...baseBody, promoCode: 'EARLY50' }, uid: null, coupon: null, discountV2: false },
+      captureVerified: { captureID: 'CAP-1', amountValue: '100.00', amountMinor: 10000, currency: 'USD', pending: false, payerEmail: 'p@example.invalid', payerName: 'P', orderStatus: 'COMPLETED' },
+      finalized: true, finalResponse, claimUntil: 0,
+    });
+  }
+
+  it('(a) promo-limit record without refundID + matching proof on the booking ⇒ replay carries the terminal refund proof', async () => {
+    finalizedLock({ status: 409, body: PROMO_BODY });
+    db.rows.set(`bookings/${ORDER}`, { status: 'REFUNDED', fullRefundProof: proof() });
+    const before = JSON.stringify(db.rows.get(LOCK));
+    const replay = await call({ orderID: ORDER, reconcile: true });
+    expect(replay.status).toBe(409);
+    expect(replay.body).toEqual({ ...PROMO_BODY, replayed: true, orderID: ORDER, finalized: true, paymentStatus: 'REFUNDED', refundID: 'WH-REF-1' });
+    expect(JSON.stringify(db.rows.get(LOCK))).toBe(before); // read-only
+    expect(effects.refund).not.toHaveBeenCalled();
+    expect(provider.calls).toHaveLength(0);
+  });
+
+  it('(b) a proof that does not describe this capture (amountMinor differs) ⇒ stored body replayed unchanged', async () => {
+    finalizedLock({ status: 409, body: PROMO_BODY });
+    db.rows.set(`bookings/${ORDER}`, { status: 'REFUNDED', fullRefundProof: proof({ amountMinor: 9000 }) });
+    const replay = await call({ orderID: ORDER, reconcile: true });
+    expect(replay.status).toBe(409);
+    expect(replay.body).toEqual({ ...PROMO_BODY, replayed: true });
+  });
+
+  it('(c) a finalized non-promo (200 confirmed) record is never rewritten, even with a proof present', async () => {
+    const confirmed = { ok: true, data: { orderID: ORDER, message: 'Booking confirmed.' } };
+    finalizedLock({ status: 200, body: confirmed });
+    db.rows.set(`bookings/${ORDER}`, { status: 'REFUNDED', fullRefundProof: proof() });
+    const replay = await call({ orderID: ORDER, reconcile: true });
+    expect(replay.status).toBe(200);
+    expect(replay.body).toEqual({ ...confirmed, replayed: true });
+  });
+
+  it('(d) no proof (no booking doc) ⇒ stored promo body replayed unchanged', async () => {
+    finalizedLock({ status: 409, body: PROMO_BODY });
+    const replay = await call({ orderID: ORDER, reconcile: true });
+    expect(replay.status).toBe(409);
+    expect(replay.body).toEqual({ ...PROMO_BODY, replayed: true });
   });
 });
 

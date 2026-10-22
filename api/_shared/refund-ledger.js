@@ -21,6 +21,26 @@
  *    transaction 함수는 재실행될 수 있어 부작용을 넣으면 안 된다.
  */
 import { calculateLoyaltyTier } from './loyalty-policy.js';
+import { toMinorUnits } from './paypal-capture-verify.js';
+import { buildFullRefundProof, mergeFullRefundProof } from './payment-fulfillment-recovery.js';
+
+/**
+ * Strict full-refund proof for the bookings document only (2026-10-21 review item C). Written ONLY when PayPal's
+ * own capture status is REFUNDED for THIS capture of a non-cart-child USD booking. FULL_REFUND_RATIO /
+ * cumulative totals never produce proof; pending_bookings never receives it.
+ * @returns {object|null} the proof to merge, or null when not eligible
+ */
+function webhookFullRefundProof({ bookingData, captureId, authoritativeCaptureStatus, refundId, refundCurrency, webhookEnvironment }) {
+  const eligible = bookingData && !bookingData.parentOrderID && captureId && bookingData.captureID === captureId
+    && String(authoritativeCaptureStatus || '').toUpperCase() === 'REFUNDED'
+    && String(refundCurrency || 'USD').toUpperCase() === 'USD';
+  if (!eligible) return null;
+  const ids = Object.keys({ ...(bookingData.refundEvents || {}), ...(refundId ? { [refundId]: true } : {}) });
+  return buildFullRefundProof({
+    captureID: captureId, currency: 'USD', amountMinor: toMinorUnits(bookingData.amountUSD, 'USD'),
+    refundIDs: ids, source: 'webhook-authoritative', environment: webhookEnvironment,
+  });
+}
 
 /** 다른 실행이 처리 중인 이벤트로 보는 시간. 서버리스 최대 실행시간보다 넉넉히. */
 export const REFUND_EVENT_IN_FLIGHT_MS = 2 * 60 * 1000;
@@ -154,6 +174,7 @@ export async function applyRefundEvent({
   bookingRef,
   authoritativeCaptureStatus,
   webhookEnvironment,
+  refundCurrency,
   nowMs,
 }) {
   if (!db) throw new Error('refund-ledger: db required');
@@ -495,7 +516,10 @@ export async function applyRefundEvent({
 
     // ── 쓰기 — 예약 2벌과 로그를 **같은 transaction** 에 넣는다.
     //    한쪽만 갱신된 채 processed 가 되는 상태가 구조적으로 불가능해진다.
-    if (bookingData) tx.set(bookingDocRef, updates, { merge: true });
+    const fullProof = webhookFullRefundProof({ bookingData, captureId, authoritativeCaptureStatus, refundId, refundCurrency, webhookEnvironment });
+    // Strict full-refund proof goes ONLY to the bookings document (never into the shared `updates`).
+    const bookingUpdates = fullProof ? { ...updates, fullRefundProof: mergeFullRefundProof(bookingData.fullRefundProof, fullProof) } : updates;
+    if (bookingData) tx.set(bookingDocRef, bookingUpdates, { merge: true });
     if (pendingData) tx.set(pendingDocRef, updates, { merge: true });
 
     tx.set(logRef, {
@@ -528,6 +552,32 @@ export async function applyRefundEvent({
       wroteBooking: Boolean(bookingData),
       wrotePending: Boolean(pendingData),
     };
+  });
+}
+
+/**
+ * Proof-only reinforcement (2026-10-21 review item C): an earlier run of the same event may have failed before
+ * the proof existed. In its own transaction, re-reads bookings/{bookingsDocId} and — when eligible by the same
+ * rule as applyRefundEvent, computed from the fresh doc — writes ONLY `fullRefundProof` (merge/union).
+ * Never totals, never status, never pending_bookings. Idempotent: an existing proof holding this refundId is left.
+ * @returns {Promise<{written: boolean, reason?: string}>}
+ */
+export async function ensureFullRefundProof({ db, bookingsDocId, captureId, authoritativeCaptureStatus, refundId, refundCurrency, webhookEnvironment }) {
+  if (!db || !bookingsDocId) return { written: false, reason: 'no_booking' };
+  const ref = db.collection('bookings').doc(bookingsDocId);
+  return db.runTransaction(async (tx) => {
+    const snap = await tx.get(ref);
+    if (!snap.exists) return { written: false, reason: 'unmatched' };
+    const bookingData = snap.data() || {};
+    const envMatch = checkEnvironmentsMatch([bookingData.paypalEnvironment], webhookEnvironment);
+    if (!envMatch.ok) return { written: false, reason: 'environment_mismatch' };
+    const proof = webhookFullRefundProof({ bookingData, captureId, authoritativeCaptureStatus, refundId, refundCurrency, webhookEnvironment });
+    if (!proof) return { written: false, reason: 'not_eligible' };
+    const existing = bookingData.fullRefundProof;
+    const existingIds = existing && Array.isArray(existing.refundIDs) ? existing.refundIDs : [];
+    if (existing && proof.refundIDs.every((id) => existingIds.includes(id))) return { written: false, reason: 'already_proven' };
+    tx.set(ref, { fullRefundProof: mergeFullRefundProof(existing, proof) }, { merge: true });
+    return { written: true };
   });
 }
 
