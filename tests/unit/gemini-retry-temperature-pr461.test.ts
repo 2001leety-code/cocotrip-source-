@@ -238,4 +238,10 @@ describe('PR #461 X-H2 — source-level invariants (retry sites use retryModel)'
   it('alert call is fire-and-forget (.catch swallow) — no pipeline latency impact', () => {
     expect(src).toMatch(/throttledTelegramAlert\(\{[\s\S]*?gemini-retry-rate-high[\s\S]*?\}\)\.catch\(\(\)\s*=>\s*\{\s*\}\)/);
   });
+
+  it('Pro-escalate handoff properties are configurable so the later delete cannot throw in strict mode', () => {
+    const defs = src.match(/Object\.defineProperty\(proItinerary, '_pro(?:Response|ModelId)',[^)]*\)/g) || [];
+    expect(defs).toHaveLength(2);
+    for (const d of defs) expect(d).toMatch(/configurable:\s*true/);
+  });
 });

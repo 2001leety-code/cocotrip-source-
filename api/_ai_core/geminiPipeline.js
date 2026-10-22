@@ -367,9 +367,10 @@ export async function tryProEscalate({ apiKey, systemPrompt, userMessage, isAdmi
   const proItinerary = repairAndParseJSON(proRaw);
   if (proItinerary && !proItinerary.__repair_minimal_fallback) {
     // Pro success — cache metadata + response 부착 (호출자 추출)
-    Object.defineProperty(proItinerary, '_proResponse', { value: result.response, enumerable: false });
+    // configurable: the caller deletes these after reading them; a non-configurable delete throws in strict ESM.
+    Object.defineProperty(proItinerary, '_proResponse', { value: result.response, enumerable: false, configurable: true });
     // model actually used (read after the call) for usage recording — non-enumerable, never persisted.
-    Object.defineProperty(proItinerary, '_proModelId', { value: proModel.modelId, enumerable: false });
+    Object.defineProperty(proItinerary, '_proModelId', { value: proModel.modelId, enumerable: false, configurable: true });
     return proItinerary;
   }
   return null;
