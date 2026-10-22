@@ -1297,7 +1297,7 @@ export default async function handler(req, res) {
     // established per-module role pattern) instead of a hardcoded model id.
     // 30s/18s 는 아래 AbortController 가 관리 — 어댑터 timeout 은 그보다 길게.
     const model = createLlmModel({}, { role: 'quick', stage: 'planner-quick', apiKey, timeoutMs: 31000 });
-    const resolvedModel = model.modelId;
+    let resolvedModel = 'unresolved'; // the provider is picked on the first call (runtime switch) — read it after
 
     const cleanSpecialRequest = sanitizeSpecialRequest(intent.specialRequest);
     const { system: systemPrompt, user: userPrompt } = buildPrompt(lang, intent, foodPrefs, cleanSpecialRequest, hasSafetyDiet, canonicalCityLabel, reservation.status);
@@ -1366,6 +1366,7 @@ export default async function handler(req, res) {
         } finally {
           clearTimeout(timer);
         }
+        resolvedModel = model.modelId;
         // 사용량 실측 기록(비용 가시화 2026-07-09) — fire-and-forget, 실패해도 본 흐름 영향 0.
         import('./_shared/apiUsageRecorder.js').then((m) => m.recordUsageFromResponse('planner-quick', resolvedModel, result.response)).catch(() => {});
 

@@ -5,7 +5,7 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'fs';
 import { join } from 'path';
-import { getFailClosedRuntimeFlag, getRuntimeFlags, setRuntimeFlag, __resetRuntimeFlagsCache } from '../../api/_shared/runtime-flags.js';
+import { getFailClosedRuntimeFlag, getRuntimeFlags, setRuntimeFlag, __resetRuntimeFlagsCache, RUNTIME_FLAG_KEYS } from '../../api/_shared/runtime-flags.js';
 import { resolveTransferCheckoutKrw } from '../../api/_shared/charter-transfer-price.js';
 
 const SPEC = JSON.parse(readFileSync(join(process.cwd(), 'api/_pricing_spec.json'), 'utf-8'));
@@ -33,6 +33,17 @@ describe('getRuntimeFlags — fail-safe (장애 시 기본값 OFF)', () => {
     const db = { collection: () => ({ doc: () => ({ get: async () => ({ exists: true, data: () => ({ transfer_margin_guard_enabled: 'true' }) }) }) }) };
     const flags = await getRuntimeFlags(db);
     expect(flags.transfer_margin_guard_enabled).toBe(false);
+  });
+});
+
+describe('llm_use_claude — AI 엔진 스위치 (2026-10-21)', () => {
+  it('화이트리스트 등록, 기본 OFF(= Gemini), 한국어 라벨', async () => {
+    const flag = RUNTIME_FLAG_KEYS.llm_use_claude;
+    expect(flag).toBeDefined();
+    expect(flag.default).toBe(false);
+    expect(flag.label).toMatch(/[가-힣]/);
+    __resetRuntimeFlagsCache();
+    expect((await getRuntimeFlags(null)).llm_use_claude).toBe(false);
   });
 });
 

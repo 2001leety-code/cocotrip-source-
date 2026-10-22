@@ -3,8 +3,10 @@
 //   createLlmModel(geminiStyleConfig, { role, stage?, timeoutMs? })
 //     → { provider, modelId, generateContent, generateContentStream, startChat }  (Gemini SDK 모양)
 //
-// 공급자 선택: LLM_PROVIDER_<ROLE> > LLM_PROVIDER > 'gemini'(기본 = 롤백 안전. 운영 전환은
-//   Vercel 에 ANTHROPIC_API_KEY + LLM_PROVIDER=claude 등록 후).
+// 공급자 선택 (2026-10-21 런타임 스위치): 요청 컨텍스트(mock) > 어드민 런타임 플래그 llm_use_claude
+//   (true ⇒ claude, false ⇒ gemini — env 보다 우선, 양방향) > LLM_PROVIDER_<ROLE> > LLM_PROVIDER > 'gemini'.
+//   플래그를 못 읽으면(어드민 DB 없음 — 유닛 테스트/CI) env 체인. 공급자는 첫 호출 때 정해진다(lazy).
+//   Claude 생성 실패(키 없음 등) ⇒ 그 호출은 Gemini + 운영자 알림(llm-switch-claude-unavailable).
 // 모델: claude → main/block = CLAUDE_MODEL_PLANNER(기본 claude-sonnet-5-5), 나머지 = CLAUDE_MODEL_DEFAULT
 //   (기본 claude-haiku-5-5). gemini → 기존 resolveGeminiModel 그대로.
 // 비용 가드(계획서 ④): LLM_KILL_SWITCH=1 또는 런타임 플래그 llm_kill_switch → 전 공급자 503 LLM_DISABLED.
@@ -17,6 +19,7 @@ import { GoogleGenerativeAI } from '@google/generative-ai';
 import { resolveGeminiModel } from '../../_ai_core/geminiModelResolver.js';
 import { initAdminDb } from '../firebase-admin.js';
 import { getRuntimeFlags } from '../runtime-flags.js';
+import { throttledTelegramAlert } from '../telegram-throttle.js';
 import { createClaudeModel } from './claude.js';
 import { createMockModel } from './mock.js';
 
@@ -82,12 +85,42 @@ export function resolveLlmProvider(role, env = process.env) {
 }
 
 /**
+ * Runtime switch (2026-10-21, operator): admin flag `llm_use_claude` decides the provider for every role —
+ * true ⇒ 'claude', false ⇒ 'gemini' — above env LLM_PROVIDER / LLM_PROVIDER_<ROLE>. The request context
+ * (mock for CI) still wins. When flags cannot be read (no admin DB, e.g. unit tests/CI) the env chain applies.
+ */
+export async function resolveRuntimeLlmProvider(role, { env = process.env, adminDb } = {}) {
+  const ctx = getLlmContext();
+  if (trim(ctx.provider)) return resolveLlmProvider(role, env); // ctx.provider is validated there
+  const flag = await readLlmUseClaudeFlag(adminDb);
+  if (flag === true) return 'claude';
+  if (flag === false) return 'gemini';
+  return resolveLlmProvider(role, env);
+}
+/**
+ * @returns {Promise<boolean|null>} null when there is no admin DB. A Firestore read failure is answered by
+ *   getRuntimeFlags with the whitelist default (false ⇒ Gemini, today's behaviour), not null.
+ */
+async function readLlmUseClaudeFlag(adminDb) {
+  const db = adminDb === undefined ? safeDb() : adminDb;
+  if (!db || typeof db.collection !== 'function') return null;
+  try {
+    const flags = await getRuntimeFlags(db);
+    return flags.llm_use_claude === true;
+  } catch { return null; }
+}
+
+/**
  * @param {string} role
  * @param {{geminiFallback?:string, isAdminBypass?:boolean, identifierForBucketing?:string, forceModelOverride?:string, env?:object}} [opts]
  */
 export function resolveLlmModel(role, opts = {}) {
+  return resolveLlmModelForProvider(resolveLlmProvider(role, opts.env || process.env), role, opts);
+}
+
+/** Model id for an explicit provider (the runtime switch may pick a provider other than the env chain). */
+export function resolveLlmModelForProvider(provider, role, opts = {}) {
   const env = opts.env || process.env;
-  const provider = resolveLlmProvider(role, env);
   if (provider === 'mock') return `mock:${role}`;
   if (provider === 'claude') {
     if (PLANNER_ROLES.includes(role)) return trim(env.CLAUDE_MODEL_PLANNER) || 'claude-sonnet-5-5';
@@ -158,43 +191,101 @@ function claudeClient(env) {
 export function createLlmModel(config = {}, ctx = {}) {
   const env = ctx.env || process.env;
   const role = ctx.role || 'default';
-  const provider = resolveLlmProvider(role, env);
-  const modelId = provider === 'gemini'
-    ? (ctx.forceModelOverride || config.model || resolveLlmModel(role, { ...ctx, env }))
-    : resolveLlmModel(role, { ...ctx, env });
   const stage = ctx.stage || role;
   const timeoutMs = Number(ctx.timeoutMs) > 0 ? Number(ctx.timeoutMs) : (DEFAULT_TIMEOUT_MS[role] || 25_000);
+  // Callers may pass the resolveLlmApiKey placeholder when env said claude; Gemini then needs the real key.
+  const geminiKey = (ctx.apiKey && ctx.apiKey !== 'managed-by-llm-adapter') ? ctx.apiKey : env.GEMINI_API_KEY;
+  // config.model is a Gemini id chosen by the caller (often from the env chain). Never hand a claude/mock id
+  // to the Gemini SDK when the runtime switch forces Gemini.
+  const configGeminiModel = config.model && !/^(claude|mock:)/i.test(String(config.model)) ? config.model : '';
+  const modelFor = (provider) => (provider === 'gemini'
+    ? (ctx.forceModelOverride || configGeminiModel || resolveLlmModelForProvider('gemini', role, { ...ctx, env }))
+    : resolveLlmModelForProvider(provider, role, { ...ctx, env }));
+
+  // Lazy provider (2026-10-21): decided on the first call (runtime flag), fixed for this model object after that.
+  let state = null; // { provider, modelId, inner } — what is actually used
+  let initPromise = null;
 
   const onUsage = (um, ms) => {
-    console.log(`[LLM_USAGE] provider=${provider} role=${role} stage=${stage} model=${modelId} in=${um?.promptTokenCount || 0} out=${um?.candidatesTokenCount || 0} cached=${um?.cachedContentTokenCount || 0} ms=${ms || 0}`);
+    const p = state ? state.provider : 'unresolved';
+    const m = state ? state.modelId : 'unresolved';
+    console.log(`[LLM_USAGE] provider=${p} role=${role} stage=${stage} model=${m} in=${um?.promptTokenCount || 0} out=${um?.candidatesTokenCount || 0} cached=${um?.cachedContentTokenCount || 0} ms=${ms || 0}`);
   };
 
-  let inner;
-  if (provider === 'mock') inner = createMockModel(config, { role, stage, modelId, onUsage });
-  else if (provider === 'claude') {
-    inner = createClaudeModel(config, {
-      modelId, role, timeoutMs, onUsage, plannerRoles: PLANNER_ROLES,
-      maxTokensCap: Number(env.LLM_MAX_TOKENS_CAP) > 0 ? Number(env.LLM_MAX_TOKENS_CAP) : 32000,
-      client: ctx._client || claudeClient(env),
-    });
-  } else {
-    inner = createGeminiModel(config, { modelId, apiKey: ctx.apiKey || env.GEMINI_API_KEY, onUsage });
+  function geminiState() {
+    const modelId = modelFor('gemini');
+    return { provider: 'gemini', modelId, inner: createGeminiModel(config, { modelId, apiKey: geminiKey, onUsage }) };
+  }
+
+  async function build() {
+    const provider = await resolveRuntimeLlmProvider(role, { env, adminDb: ctx._adminDb });
+    if (provider === 'mock') {
+      const modelId = modelFor('mock');
+      return { provider, modelId, inner: createMockModel(config, { role, stage, modelId, onUsage }) };
+    }
+    if (provider === 'claude') {
+      const modelId = modelFor('claude');
+      try {
+        const inner = createClaudeModel(config, {
+          modelId, role, timeoutMs, onUsage, plannerRoles: PLANNER_ROLES,
+          maxTokensCap: Number(env.LLM_MAX_TOKENS_CAP) > 0 ? Number(env.LLM_MAX_TOKENS_CAP) : 32000,
+          client: ctx._client || claudeClient(env),
+        });
+        return { provider, modelId, inner };
+      } catch (error) {
+        console.error('[llm] claude unavailable, falling back to gemini:', error && error.message);
+        throttledTelegramAlert({
+          key: 'llm-switch-claude-unavailable',
+          channel: 'admin',
+          severity: 'high',
+          message: [
+            '⚠️ <b>AI 엔진 스위치: Claude 사용 불가 → Gemini 로 처리</b>',
+            `role=${role} stage=${stage}`,
+            `사유: ${String((error && error.message) || error).slice(0, 200)}`,
+            '→ Vercel 의 ANTHROPIC_API_KEY 와 Claude 모델명을 확인하세요. 스위치를 끄면 알림이 멈춥니다.',
+          ].join('\n'),
+          context: { role, stage, source: 'llm-switch' },
+        }).catch(() => {});
+        return geminiState();
+      }
+    }
+    return geminiState();
+  }
+
+  function init() {
+    if (!initPromise) {
+      initPromise = build().then(
+        (s) => { state = s; return s; },
+        (error) => { initPromise = null; throw error; }, // e.g. GEMINI_API_KEY missing — let a later call retry
+      );
+    }
+    return initPromise;
   }
 
   // 가드: 킬스위치(전 공급자) → 일일 상한(실공급자만) → 호출.
-  async function guard() {
+  async function guard(provider) {
     if (await isLlmKillSwitchOn({ env, adminDb: ctx._adminDb })) throw new LlmBlockedError('LLM_DISABLED', 'LLM calls disabled by kill switch');
     if (provider !== 'mock') await checkDailyCallLimit({ env, adminDb: ctx._adminDb });
   }
-  const guarded = (fn) => async (...args) => { await guard(); return fn(...args); };
+  // Before the first call: the env-chain prediction. After it: what was actually used.
+  const predict = (fn) => { try { return fn(); } catch { return 'unresolved'; } };
 
   return {
-    provider, modelId, role,
-    generateContent: guarded(inner.generateContent),
-    generateContentStream: guarded(inner.generateContentStream),
+    get provider() { return state ? state.provider : predict(() => resolveLlmProvider(role, env)); },
+    get modelId() { return state ? state.modelId : predict(() => modelFor(resolveLlmProvider(role, env))); },
+    role,
+    generateContent: async (...args) => { const s = await init(); await guard(s.provider); return s.inner.generateContent(...args); },
+    generateContentStream: async (...args) => { const s = await init(); await guard(s.provider); return s.inner.generateContentStream(...args); },
     startChat: (args) => {
-      const chat = inner.startChat(args);
-      return { sendMessage: guarded(chat.sendMessage) };
+      let chat = null; // one chat per startChat(), created on the first sendMessage; it keeps the history
+      return {
+        sendMessage: async (...a) => {
+          const s = await init();
+          if (!chat) chat = s.inner.startChat(args);
+          await guard(s.provider);
+          return chat.sendMessage(...a);
+        },
+      };
     },
   };
 }

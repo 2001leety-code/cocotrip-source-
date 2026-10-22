@@ -161,10 +161,12 @@ describe('x-llm-mock: real adapter -> real mock -> real handler', () => {
     expect(h.recordUsageFromResponse).not.toHaveBeenCalled();
   });
 
-  it('without the header the request is NOT mocked (claude without key fails, fail-soft)', async () => {
+  it('without the header the request is NOT mocked (real provider without key fails, fail-soft)', async () => {
     const out = await call({});
     expect(out.body).toMatchObject({ ok: false, code: 'AI_PARSE_FAILED' });
-    expect(String(h.captureError.mock.calls[0][0].message)).toMatch(/ANTHROPIC_API_KEY/);
+    // 2026-10-21 runtime switch: readable flags (llm_use_claude absent ⇒ false) outrank env LLM_PROVIDER=claude,
+    // so the unmocked call goes to Gemini — which has no key here either. Still no paid call.
+    expect(String(h.captureError.mock.calls[0][0].message)).toMatch(/GEMINI_API_KEY/);
     expect(h.recordUsageFromResponse).not.toHaveBeenCalled();
   });
 });
