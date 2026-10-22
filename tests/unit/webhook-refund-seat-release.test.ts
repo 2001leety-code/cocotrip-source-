@@ -360,6 +360,35 @@ describe('멱등 — 재전송·중복·이미 해제된 주문에서 2회 차�
       expect(db.__get('paypal_webhook_log/txn-1')!.status).toBe('processed');
     });
 
+    it('보강 transaction 이 마감 전에 시작했지만 tx.get 이 마감 뒤에 끝남 → 200 idempotent 이후에도 증명 쓰기 없음 (shouldSkip)', async () => {
+      markProcessed();
+      const realTx = db.runTransaction.bind(db);
+      let release!: () => void;
+      const gate = new Promise<void>((resolve) => { release = resolve; });
+      let txCalls = 0;
+      // 1st transaction = applyRefundEvent (duplicate_event, fast). 2nd = ensureFullRefundProof: its read is slow.
+      (db as any).runTransaction = (fn: any, opts?: any) => {
+        txCalls += 1;
+        if (txCalls < 2) return realTx(fn, opts);
+        return realTx(async (tx: any) => fn({ ...tx, get: async (ref: any) => { await gate; return tx.get(ref); } }), opts);
+      };
+      vi.useFakeTimers();
+      const pending = fire();
+      try {
+        await vi.advanceTimersByTimeAsync(DUPLICATE_REINFORCE_DEADLINE_MS + 1);
+      } finally {
+        vi.useRealTimers();
+      }
+      const r = await pending;
+      expect(r.statusCode).toBe(200);
+      expect(r.json).toEqual({ ok: true, idempotent: true });
+      expect(txCalls).toBe(2);                          // the reinforcement DID start before the deadline
+      release();                                        // its read now returns — after the response
+      await new Promise((resolve) => setTimeout(resolve, 20));
+      expect(db.__get('bookings/ORD-1')).not.toHaveProperty('fullRefundProof');
+      expect(db.__get('paypal_webhook_log/txn-1')!.status).toBe('processed');
+    });
+
     it('서명 검증 실패 → 200 idempotent, PayPal 상태 조회 없음, 증명·검증로그·알림 없음', async () => {
       markProcessed();
       global.fetch = vi.fn(async (url: any) => (String(url).includes('verify-webhook-signature')

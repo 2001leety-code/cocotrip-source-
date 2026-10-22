@@ -989,6 +989,9 @@ export default async function handler(req, res) {
           await ensureFullRefundProof({
             db: adminDb, bookingsDocId, captureId, authoritativeCaptureStatus, refundId, refundCurrency,
             webhookEnvironment: verifiedEnvironment,
+            // Duplicate: re-checked inside the transaction (after its read, before any write) so a slow
+            //   transaction never writes once the duplicate answer was sent or the budget is spent.
+            shouldSkip: priorProcessed ? () => duplicateResponded || handlerStartedAt + DUPLICATE_REINFORCE_DEADLINE_MS <= Date.now() : undefined,
           });
         } catch (e) {
           console.warn('[paypal-webhook] full-refund proof reinforcement failed (non-fatal):', e.message);

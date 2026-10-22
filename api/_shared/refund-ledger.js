@@ -561,13 +561,19 @@ export async function applyRefundEvent({
  * the proof existed. In its own transaction, re-reads bookings/{bookingsDocId} and — when eligible by the same
  * rule as applyRefundEvent, computed from the fresh doc — writes ONLY `fullRefundProof` (merge/union).
  * Never totals, never status, never pending_bookings. Idempotent: an existing proof holding this refundId is left.
+ *
+ * `shouldSkip` (optional): checked inside the transaction after the read and before any write. The duplicate
+ * webhook path passes "the response was already sent / the budget is spent", which closes the window where a
+ * slow transaction (e.g. a slow tx.get) would otherwise write after the webhook answered. The only remaining
+ * window is a commit already in flight after the callback returned (milliseconds, inherent to Firestore).
  * @returns {Promise<{written: boolean, reason?: string}>}
  */
-export async function ensureFullRefundProof({ db, bookingsDocId, captureId, authoritativeCaptureStatus, refundId, refundCurrency, webhookEnvironment }) {
+export async function ensureFullRefundProof({ db, bookingsDocId, captureId, authoritativeCaptureStatus, refundId, refundCurrency, webhookEnvironment, shouldSkip }) {
   if (!db || !bookingsDocId) return { written: false, reason: 'no_booking' };
   const ref = db.collection('bookings').doc(bookingsDocId);
   return db.runTransaction(async (tx) => {
     const snap = await tx.get(ref);
+    if (typeof shouldSkip === 'function' && shouldSkip()) return { written: false, reason: 'response_already_sent' };
     if (!snap.exists) return { written: false, reason: 'unmatched' };
     const bookingData = snap.data() || {};
     const envMatch = checkEnvironmentsMatch([bookingData.paypalEnvironment], webhookEnvironment);

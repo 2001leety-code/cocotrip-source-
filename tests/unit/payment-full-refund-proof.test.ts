@@ -142,6 +142,17 @@ describe('refund ledger — webhook proof only on PayPal-authoritative REFUNDED 
     expect(db.rows.get('bookings/ORD-1')).not.toHaveProperty('fullRefundProof');
   });
 
+  it('ensureFullRefundProof: shouldSkip() true inside the transaction ⇒ response_already_sent, no write; false ⇒ normal write', async () => {
+    const db = memoryDb();
+    db.rows.set('bookings/ORD-1', booking({ status: 'REFUNDED', refundEvents: { R1: { usd: 100 } } }));
+    const args = { db: db.db, bookingsDocId: 'ORD-1', captureId: 'CAP-1', authoritativeCaptureStatus: 'REFUNDED', refundId: 'R1', refundCurrency: 'USD', webhookEnvironment: 'live' };
+    const before = JSON.stringify(db.rows.get('bookings/ORD-1'));
+    expect(await ensureFullRefundProof({ ...args, shouldSkip: () => true } as never)).toEqual({ written: false, reason: 'response_already_sent' });
+    expect(JSON.stringify(db.rows.get('bookings/ORD-1'))).toBe(before);
+    expect(await ensureFullRefundProof({ ...args, shouldSkip: () => false } as never)).toEqual({ written: true });
+    expect(db.rows.get('bookings/ORD-1')).toMatchObject({ fullRefundProof: { refundIDs: ['R1'] } });
+  });
+
   it('a missing refund currency is never defaulted to USD ⇒ no proof (applyRefundEvent and ensureFullRefundProof)', async () => {
     const db = memoryDb();
     db.rows.set('bookings/ORD-1', booking());
