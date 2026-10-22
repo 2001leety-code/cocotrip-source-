@@ -520,7 +520,10 @@ export default async function handler(req, res) {
   //   which is fine — and the duplicate always answers the historical 200 idempotent body (logWebhookEvent merges
   //   `status` and would otherwise overwrite 'processed'). Every network step races DUPLICATE_REINFORCE_DEADLINE_MS.
   let priorProcessed = false;
+  // Set before the duplicate answer is written: a ledger that finishes later must not write anything afterwards.
+  let duplicateResponded = false;
   const answerIdempotent = () => {
+    duplicateResponded = true;
     res.writeHead(200, JSON_HEADERS);
     return res.end(JSON.stringify({ ok: true, idempotent: true }));
   };
@@ -850,8 +853,10 @@ export default async function handler(req, res) {
       //   금액(원결제·이미 환불된 누계)은 transaction 안에서 다시 읽는다 —
       //   여기서 읽어 두면 읽기와 쓰기 사이에 다른 환불이 끼어들어 누계가 유실된다.
       //   capturedExchangeRate 만 예외: 표시용 KRW 환산에만 쓰고 판정에는 안 쓴다.
-      // Duplicate: no booking-matching reads once the reinforcement budget is spent.
+      // Duplicate: no booking-matching reads once the reinforcement budget is spent, and each read races it.
       if (priorProcessed && handlerStartedAt + DUPLICATE_REINFORCE_DEADLINE_MS <= Date.now()) return answerIdempotent();
+      const BUDGET_EXHAUSTED = Symbol('duplicate_budget_exhausted');
+      const budgetedRead = (read) => (priorProcessed ? withinDuplicateBudget(handlerStartedAt, read, BUDGET_EXHAUSTED) : read);
       let bookingsDocId = null;
       let bookingRef = null;
       let capturedRate = 0;
@@ -859,7 +864,8 @@ export default async function handler(req, res) {
       // 슬롯 자체는 여기서 읽지 않는다 — 근거는 서버 스냅샷뿐이다.
       let bookingData = null;
 
-      let bookingDoc = await adminDb.collection('bookings').doc(captureId).get();
+      let bookingDoc = await budgetedRead(adminDb.collection('bookings').doc(captureId).get());
+      if (bookingDoc === BUDGET_EXHAUSTED) return answerIdempotent();
       if (bookingDoc.exists) {
         bookingsDocId = captureId;
         bookingData = bookingDoc.data();
@@ -872,9 +878,10 @@ export default async function handler(req, res) {
         //   __name__ ASC 정렬 때문에 **항상 첫 라인(__L0)**만 골라 REFUNDED 로 마킹한다 → 실제
         //   환불된 라인은 CONFIRMED 로 남고 엉뚱한 라인이 환불처리된다(기록 오류). size>1 이면
         //   captureID 만으로 어느 라인 환불인지 특정 불가 → 자동 마킹 금지, 운영자 수동 확인.
-        const captureFieldMatch = await adminDb.collection('bookings')
+        const captureFieldMatch = await budgetedRead(adminDb.collection('bookings')
           .where('captureID', '==', captureId)
-          .get();
+          .get());
+        if (captureFieldMatch === BUDGET_EXHAUSTED) return answerIdempotent();
         if (captureFieldMatch.size > 1) {
           if (priorProcessed) return answerIdempotent();
           await logWebhookEvent({
@@ -899,9 +906,10 @@ export default async function handler(req, res) {
           capturedRate = Number(bookingDoc.data().capturedExchangeRate) || 0;
         } else {
           // Manual QR path — admin-matched paypalTransactionId on pending_bookings.
-          const pendingMatch = await adminDb.collection('pending_bookings')
+          const pendingMatch = await budgetedRead(adminDb.collection('pending_bookings')
             .where('paypalTransactionId', '==', captureId)
-            .limit(1).get();
+            .limit(1).get());
+          if (pendingMatch === BUDGET_EXHAUSTED) return answerIdempotent();
           if (!pendingMatch.empty) {
             bookingRef = pendingMatch.docs[0].id;
             // bookingsDocId stays null — pending_bookings update only.
@@ -992,8 +1000,12 @@ export default async function handler(req, res) {
         // Same transmission id already processed: ledger (answers duplicate_event without writing) + reinforcement
         //   race the remaining budget together. Exhaustion or a throw ⇒ the historical duplicate answer — no
         //   webhook log, no alert (a throw is still reported to Sentry).
+        //   The race does not cancel the losing pair, so the reinforcement is gated: once the duplicate answer was
+        //   sent (or the budget is spent — the fallback timer has fired even if answerIdempotent has not run yet),
+        //   nothing is written after the response.
         refundOutcome = await withinDuplicateBudget(handlerStartedAt, (async () => {
           const outcome = await runRefundLedger();
+          if (duplicateResponded || handlerStartedAt + DUPLICATE_REINFORCE_DEADLINE_MS <= Date.now()) return outcome;
           await reinforceRefundProof(outcome);
           return outcome;
         })().catch((e) => {

@@ -313,6 +313,53 @@ describe('멱등 — 재전송·중복·이미 해제된 주문에서 2회 차�
       expect(notifySpy).not.toHaveBeenCalled();
     });
 
+    it('예약 매칭 Firestore 읽기가 끝나지 않음 → 예산 안에서 200 idempotent, PayPal 상태 조회 없음, 증명 없음', async () => {
+      markProcessed();
+      const realCollection = db.collection.bind(db);
+      (db as any).collection = (name: string) => (name === 'bookings'
+        ? { doc: () => ({ get: () => new Promise(() => {}) }), where: () => ({ get: () => new Promise(() => {}) }) }
+        : realCollection(name));
+      vi.useFakeTimers();
+      const pending = fire();
+      try {
+        await vi.advanceTimersByTimeAsync(DUPLICATE_REINFORCE_DEADLINE_MS + 1);
+      } finally {
+        vi.useRealTimers();
+      }
+      const r = await pending;
+      expect(r.statusCode).toBe(200);
+      expect(r.json).toEqual({ ok: true, idempotent: true });
+      expect(fetchCalls().some((u) => u.includes('/v2/payments/captures/'))).toBe(false);
+      (db as any).collection = realCollection;
+      expect(db.__get('bookings/ORD-1')).not.toHaveProperty('fullRefundProof');
+      expect(notifySpy).not.toHaveBeenCalled();
+    });
+
+    it('원장이 예산 fallback 뒤에야 끝남 → 200 idempotent 이후 ensureFullRefundProof·증명 쓰기 없음', async () => {
+      markProcessed();
+      const realTx = db.runTransaction.bind(db);
+      let release!: () => void;
+      const gate = new Promise<void>((resolve) => { release = resolve; });
+      let txCalls = 0;
+      (db as any).runTransaction = async (fn: any) => { txCalls += 1; await gate; return realTx(fn); };
+      vi.useFakeTimers();
+      const pending = fire();
+      try {
+        await vi.advanceTimersByTimeAsync(DUPLICATE_REINFORCE_DEADLINE_MS + 1);
+      } finally {
+        vi.useRealTimers();
+      }
+      const r = await pending;
+      expect(r.statusCode).toBe(200);
+      expect(r.json).toEqual({ ok: true, idempotent: true });
+      // The ledger now finishes (duplicate_event) — the late pair must not reinforce after the response.
+      release();
+      await new Promise((resolve) => setTimeout(resolve, 20));
+      expect(txCalls).toBe(1);                          // applyRefundEvent only — ensureFullRefundProof never ran
+      expect(db.__get('bookings/ORD-1')).not.toHaveProperty('fullRefundProof');
+      expect(db.__get('paypal_webhook_log/txn-1')!.status).toBe('processed');
+    });
+
     it('서명 검증 실패 → 200 idempotent, PayPal 상태 조회 없음, 증명·검증로그·알림 없음', async () => {
       markProcessed();
       global.fetch = vi.fn(async (url: any) => (String(url).includes('verify-webhook-signature')
