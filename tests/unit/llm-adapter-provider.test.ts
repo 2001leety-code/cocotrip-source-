@@ -13,10 +13,12 @@ const alerts = vi.hoisted(() => ({ throttled: vi.fn(async (_a: { key: string; ch
 vi.mock('../../api/_shared/telegram-throttle.js', () => ({ throttledTelegramAlert: alerts.throttled }));
 const gem = vi.hoisted(() => ({
   models: [] as string[],
+  keys: [] as string[],
   generateContent: vi.fn(async () => ({ response: { text: () => 'gem', usageMetadata: { promptTokenCount: 3, candidatesTokenCount: 1 } } })),
 }));
 vi.mock('@google/generative-ai', () => ({
   GoogleGenerativeAI: class {
+    constructor(key: string) { gem.keys.push(key); }
     getGenerativeModel(cfg: { model: string }) {
       gem.models.push(cfg.model);
       return { generateContent: gem.generateContent, generateContentStream: vi.fn(), startChat: vi.fn() };
@@ -26,7 +28,7 @@ vi.mock('@google/generative-ai', () => ({
 
 import {
   resolveLlmProvider, resolveLlmModel, createLlmModel, resolveRuntimeLlmProvider, runWithLlmContext,
-  isLlmKillSwitchOn, checkDailyCallLimit, PLANNER_ROLES,
+  isLlmKillSwitchOn, checkDailyCallLimit, PLANNER_ROLES, LlmBlockedError,
 } from '../../api/_shared/llm/index.js';
 import { buildClaudeRequest, claudeMessageToGeminiResponse } from '../../api/_shared/llm/claude.js';
 import { __resetRuntimeFlagsCache } from '../../api/_shared/runtime-flags.js';
@@ -330,6 +332,7 @@ describe('runtime engine switch (admin flag llm_use_claude)', () => {
     alerts.throttled.mockClear();
     gem.generateContent.mockClear();
     gem.models.length = 0;
+    gem.keys.length = 0;
   });
 
   it('flag ON + env unset ⇒ Claude after the first call (getters: env prediction before, actual after)', async () => {
@@ -352,8 +355,9 @@ describe('runtime engine switch (admin flag llm_use_claude)', () => {
     const db = flagsDb({ llm_use_claude: false });
     expect(await resolveRuntimeLlmProvider('translate', { adminDb: db })).toBe('gemini');
     const { create, client } = claudeStub();
-    // apiKey = the resolveLlmApiKey placeholder a caller gets when env says claude.
-    const model = createLlmModel({}, { role: 'translate', apiKey: 'managed-by-llm-adapter', _adminDb: db, _client: client });
+    // apiKey = the resolveLlmApiKey placeholder a caller gets when env says claude; config.model = a claude id
+    // the caller picked from the env chain — neither may reach the Gemini SDK.
+    const model = createLlmModel({ model: 'claude-haiku-5-5' }, { role: 'translate', apiKey: 'managed-by-llm-adapter', _adminDb: db, _client: client });
     expect(model.provider).toBe('claude'); // env prediction before the first call
     const r = await model.generateContent('hi');
     expect(r.response.text()).toBe('gem');
@@ -361,6 +365,44 @@ describe('runtime engine switch (admin flag llm_use_claude)', () => {
     expect(model.provider).toBe('gemini');
     expect(model.modelId).toMatch(/^gemini/);
     expect(gem.models).toEqual([model.modelId]);
+    expect(gem.models[0]).not.toMatch(/claude/);
+    expect(gem.keys).toEqual(['test-gemini']);
+  });
+
+  it('two concurrent first calls share ONE initialisation (one Claude-unavailable alert, one Gemini model built)', async () => {
+    process.env.GEMINI_API_KEY = 'test-gemini';
+    const err = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const model = createLlmModel({}, { role: 'translate', _adminDb: flagsDb({ llm_use_claude: true }) });
+    const [a, b] = await Promise.all([model.generateContent('1'), model.generateContent('2')]);
+    err.mockRestore();
+    expect(a.response.text()).toBe('gem');
+    expect(b.response.text()).toBe('gem');
+    expect(alerts.throttled).toHaveBeenCalledTimes(1);
+    expect(gem.models).toHaveLength(1);
+    expect(gem.generateContent).toHaveBeenCalledTimes(2);
+  });
+
+  it('a failed initialisation (GEMINI_API_KEY missing, flag OFF) is not memoised — the next call retries and succeeds', async () => {
+    const model = createLlmModel({}, { role: 'translate', _adminDb: flagsDb({ llm_use_claude: false }) });
+    await expect(model.generateContent('1')).rejects.toThrow(/GEMINI_API_KEY/);
+    process.env.GEMINI_API_KEY = 'test-gemini';
+    const r = await model.generateContent('2');
+    expect(r.response.text()).toBe('gem');
+    expect(model.provider).toBe('gemini');
+    expect(gem.keys).toEqual(['test-gemini']);
+  });
+
+  it('after initialisation the guard still runs on every call (kill switch turned on between calls ⇒ 503)', async () => {
+    const flags: Record<string, unknown> = { llm_use_claude: true };
+    const { create, client } = claudeStub();
+    const model = createLlmModel({}, { role: 'chat', _adminDb: flagsDb(flags), _client: client });
+    await model.generateContent('1');
+    flags.llm_kill_switch = true;
+    __resetRuntimeFlagsCache();
+    const blocked = model.generateContent('2');
+    await expect(blocked).rejects.toBeInstanceOf(LlmBlockedError);
+    await expect(blocked).rejects.toMatchObject({ code: 'LLM_DISABLED', statusCode: 503 });
+    expect(create).toHaveBeenCalledTimes(1);
   });
 
   it('flags unavailable (no admin DB) ⇒ the env chain still applies (LLM_PROVIDER=claude ⇒ Claude)', async () => {

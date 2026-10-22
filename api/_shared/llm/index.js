@@ -98,8 +98,9 @@ export async function resolveRuntimeLlmProvider(role, { env = process.env, admin
   return resolveLlmProvider(role, env);
 }
 /**
- * @returns {Promise<boolean|null>} null when there is no admin DB. A Firestore read failure is answered by
- *   getRuntimeFlags with the whitelist default (false ⇒ Gemini, today's behaviour), not null.
+ * @returns {Promise<boolean|null>} null ⇒ the env chain decides: no admin DB, or getRuntimeFlags itself
+ *   throwing. An ordinary Firestore read error is absorbed inside getRuntimeFlags, which returns the cached
+ *   flags or the whitelist default (false ⇒ Gemini) — that is a boolean, not null.
  */
 async function readLlmUseClaudeFlag(adminDb) {
   const db = adminDb === undefined ? safeDb() : adminDb;
@@ -194,7 +195,8 @@ export function createLlmModel(config = {}, ctx = {}) {
   const stage = ctx.stage || role;
   const timeoutMs = Number(ctx.timeoutMs) > 0 ? Number(ctx.timeoutMs) : (DEFAULT_TIMEOUT_MS[role] || 25_000);
   // Callers may pass the resolveLlmApiKey placeholder when env said claude; Gemini then needs the real key.
-  const geminiKey = (ctx.apiKey && ctx.apiKey !== 'managed-by-llm-adapter') ? ctx.apiKey : env.GEMINI_API_KEY;
+  // Read at build time (not creation) so a retry after a failed initialisation sees a key set meanwhile.
+  const geminiKey = () => ((ctx.apiKey && ctx.apiKey !== 'managed-by-llm-adapter') ? ctx.apiKey : env.GEMINI_API_KEY);
   // config.model is a Gemini id chosen by the caller (often from the env chain). Never hand a claude/mock id
   // to the Gemini SDK when the runtime switch forces Gemini.
   const configGeminiModel = config.model && !/^(claude|mock:)/i.test(String(config.model)) ? config.model : '';
@@ -214,7 +216,7 @@ export function createLlmModel(config = {}, ctx = {}) {
 
   function geminiState() {
     const modelId = modelFor('gemini');
-    return { provider: 'gemini', modelId, inner: createGeminiModel(config, { modelId, apiKey: geminiKey, onUsage }) };
+    return { provider: 'gemini', modelId, inner: createGeminiModel(config, { modelId, apiKey: geminiKey(), onUsage }) };
   }
 
   async function build() {

@@ -22,7 +22,7 @@ export const RUNTIME_FLAG_KEYS = {
   },
   llm_use_claude: {
     label: 'AI 엔진: Claude 사용 (끄면 Gemini)',
-    desc: '켜면 플래너·챗·번역 등 모든 AI 호출을 Claude 로 보냅니다. 끄면 Gemini(기본). Claude 키가 없거나 모델 생성에 실패하면 그 호출은 Gemini 로 처리하고 운영자에게 알립니다. 재배포 없이 약 30초 안에 적용(관리자 저장 시 즉시).',
+    desc: '켜면 플래너·챗·번역 등 모든 AI 호출을 Claude 로 보냅니다. 끄면 Gemini(기본). Claude 키가 없거나 모델 생성에 실패하면 그 호출은 Gemini 로 처리하고 운영자에게 알립니다. 재배포 없이 새 요청부터 적용(서버 캐시 때문에 통상 30초 이내; 이미 시작된 호출은 그대로 끝납니다).',
     default: false,
   },
   transfer_margin_guard_enabled: {

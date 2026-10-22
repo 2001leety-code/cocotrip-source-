@@ -230,7 +230,8 @@ export async function generateInquiryResponseDraft(inquiry = {}, options = {}) {
     };
   }
 
-  const modelName = options.model || resolveLlmModel('classifier');
+  // Prediction until the call; reassigned to the model actually used after it (2026-10-21 runtime switch).
+  let modelName = options.model || resolveLlmModel('classifier');
   try {
     let text;
     if (options.generateText) {
@@ -245,6 +246,7 @@ export async function generateInquiryResponseDraft(inquiry = {}, options = {}) {
         },
       }, { role: 'classifier', stage: 'inquiry-draft', apiKey, timeoutMs: 15000 });
       const result = await model.generateContent(buildInquiryDraftPrompt(inquiry));
+      modelName = model.modelId;
       text = result.response.text();
     }
     let parsed = validateInquiryDraft(parseJsonObject(text), fallback.language);
