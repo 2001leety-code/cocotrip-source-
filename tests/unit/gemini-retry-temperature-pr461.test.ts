@@ -79,32 +79,39 @@ describe('PR #461 X-H2 — buildModel accepts temperature override', () => {
     genModelCalls.length = 0;
   });
 
-  it('default call uses temperature 0.5 (preserves pre-PR default)', () => {
-    buildModel('fake-key');
+  // 2026-10-21 lazy provider: the adapter builds the Gemini SDK model on the first call, not in buildModel().
+  const buildAndCall = async (apiKey: string, temperature?: number) => {
+    const model = temperature === undefined ? buildModel(apiKey) : buildModel(apiKey, temperature);
+    await model.generateContent('x');
+    return model;
+  };
+
+  it('default call uses temperature 0.5 (preserves pre-PR default)', async () => {
+    await buildAndCall('fake-key');
     expect(genModelCalls.length).toBe(1);
     expect(genModelCalls[0].generationConfig.temperature).toBe(0.5);
   });
 
-  it('override 0.1 produces a deterministic retry model', () => {
-    buildModel('fake-key', 0.1);
+  it('override 0.1 produces a deterministic retry model', async () => {
+    await buildAndCall('fake-key', 0.1);
     expect(genModelCalls.length).toBe(1);
     expect(genModelCalls[0].generationConfig.temperature).toBe(0.1);
   });
 
-  it('override 0 (boundary) is honored (NOT coerced to default)', () => {
-    buildModel('fake-key', 0);
+  it('override 0 (boundary) is honored (NOT coerced to default)', async () => {
+    await buildAndCall('fake-key', 0);
     expect(genModelCalls.length).toBe(1);
     expect(genModelCalls[0].generationConfig.temperature).toBe(0);
   });
 
-  it('non-number override falls back to default 0.5', () => {
-    buildModel('fake-key', 'high' as unknown as number);
+  it('non-number override falls back to default 0.5', async () => {
+    await buildAndCall('fake-key', 'high' as unknown as number);
     expect(genModelCalls.length).toBe(1);
     expect(genModelCalls[0].generationConfig.temperature).toBe(0.5);
   });
 
-  it('still configures thinkingBudget/maxOutputTokens/responseMimeType', () => {
-    buildModel('fake-key', 0.1);
+  it('still configures thinkingBudget/maxOutputTokens/responseMimeType', async () => {
+    await buildAndCall('fake-key', 0.1);
     const cfg = genModelCalls[0].generationConfig;
     // P192 (5/25): thinkingBudget Pro 32K→4K, Flash 0 (GitHub Issue #609/#2062 — Pro 도 output 16K 침범).
     // retry default model = Pro 이므로 ≤8K 안전 상한.
@@ -230,5 +237,11 @@ describe('PR #461 X-H2 — source-level invariants (retry sites use retryModel)'
 
   it('alert call is fire-and-forget (.catch swallow) — no pipeline latency impact', () => {
     expect(src).toMatch(/throttledTelegramAlert\(\{[\s\S]*?gemini-retry-rate-high[\s\S]*?\}\)\.catch\(\(\)\s*=>\s*\{\s*\}\)/);
+  });
+
+  it('Pro-escalate handoff properties are configurable so the later delete cannot throw in strict mode', () => {
+    const defs = src.match(/Object\.defineProperty\(proItinerary, '_pro(?:Response|ModelId)',[^)]*\)/g) || [];
+    expect(defs).toHaveLength(2);
+    for (const d of defs) expect(d).toMatch(/configurable:\s*true/);
   });
 });

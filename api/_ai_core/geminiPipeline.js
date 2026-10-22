@@ -153,18 +153,19 @@ export function accumulateCacheMetadata(acc, next) {
  * P195: cache metadata Vercel logs 한 줄 출력 — grep `[P195 CACHE_METRICS]`.
  * @param {string} stage  호출 단계 라벨 (예: 'legacy' / 'streaming' / 'retry-dietary')
  * @param {{cached:number,total:number,output:number}} cm
+ * @param {string} [modelId]  model object's .modelId read after the response = the model actually used
  */
-export function logCacheMetrics(stage, cm) {
+export function logCacheMetrics(stage, cm, modelId) {
   if (!cm || cm.total === 0) return;
   const hitRate = cm.total > 0 ? (cm.cached / cm.total * 100).toFixed(1) : '0';
   console.log(`[P195 CACHE_METRICS] stage=${stage} cached=${cm.cached} total=${cm.total} hit_rate=${hitRate}% output=${cm.output}`);
   // 사용량 트래커 (fire-and-forget, 완전 guard — 본 plan 생성 흐름 무영향).
-  // stage 로 모델 추론: pro-escalate=Pro, 그 외=main(resolveGeminiModel). recorder 내부 await 안 함.
+  // 2026-10-21 런타임 스위치: 실제 사용 모델(modelId) 우선, 없을 때만 env 예측. pro-escalate 보정은 Gemini id 일 때만.
   try {
-    // LLM 공급자 전환: 라벨 = 실제 공급자 모델 (claude 면 CLAUDE_MODEL_PLANNER, gemini 면 기존 resolver).
-    const model = (/pro/i.test(stage) && resolveLlmProvider('main') === 'gemini')
+    const actual = modelId || resolveLlmModel('main');
+    const model = (/pro/i.test(stage) && !/^(claude|mock:)/i.test(actual))
       ? ((process.env.P181_PRO_ESCALATE_MODEL || '').trim() || 'gemini-2.5-pro')
-      : resolveLlmModel('main');
+      : actual;
     recordGeminiUsage({ stage, model, cm });
   } catch { /* 트래커 실패는 본 흐름에 영향 0 */ }
 }
@@ -366,7 +367,10 @@ export async function tryProEscalate({ apiKey, systemPrompt, userMessage, isAdmi
   const proItinerary = repairAndParseJSON(proRaw);
   if (proItinerary && !proItinerary.__repair_minimal_fallback) {
     // Pro success — cache metadata + response 부착 (호출자 추출)
-    Object.defineProperty(proItinerary, '_proResponse', { value: result.response, enumerable: false });
+    // configurable: the caller deletes these after reading them; a non-configurable delete throws in strict ESM.
+    Object.defineProperty(proItinerary, '_proResponse', { value: result.response, enumerable: false, configurable: true });
+    // model actually used (read after the call) for usage recording — non-enumerable, never persisted.
+    Object.defineProperty(proItinerary, '_proModelId', { value: proModel.modelId, enumerable: false, configurable: true });
     return proItinerary;
   }
   return null;
@@ -547,13 +551,13 @@ export async function runGeminiStreaming({ model, systemPrompt, userMessage, adm
       cacheMetadata = extractCacheMetadata({ usageMetadata: lastChunkUsageMetadata });
       source = 'chunk-fallback';
     }
-    logCacheMetrics(`streaming-${source}`, cacheMetadata);
+    logCacheMetrics(`streaming-${source}`, cacheMetadata, model.modelId);
   } catch (e) {
     console.warn('[geminiPipeline P195] streaming cache metadata extract failed:', e.message);
     // P267: final await throw 시도 chunk-level fallback.
     if (lastChunkUsageMetadata) {
       cacheMetadata = extractCacheMetadata({ usageMetadata: lastChunkUsageMetadata });
-      logCacheMetrics('streaming-chunk-fallback-on-error', cacheMetadata);
+      logCacheMetrics('streaming-chunk-fallback-on-error', cacheMetadata, model.modelId);
     }
   }
 
@@ -1068,7 +1072,8 @@ export async function retryWithExpandedTokens({ apiKey, systemPrompt, userMessag
   );
   const expandedReason = extractFinishReason(expandedResult);
   // P219: thought 필터 (Raw Logic Leak / 파싱 실패 방어).
-  return { text: extractTextFromResponse(expandedResult.response).trim(), result: expandedResult, finishReason: expandedReason };
+  // modelId read after the call = the model actually used (2026-10-21 runtime switch; usage recording).
+  return { text: extractTextFromResponse(expandedResult.response).trim(), result: expandedResult, finishReason: expandedReason, modelId: expandedModel.modelId };
 }
 
 /**
@@ -1097,9 +1102,9 @@ export async function handleFinishReason(finishReason, stage, retryArgs) {
     }).catch(() => {});
 
     try {
-      const { text: retryText, result: retryResult, finishReason: retryReason } = await retryWithExpandedTokens(retryArgs);
+      const { text: retryText, result: retryResult, finishReason: retryReason, modelId: retryModelId } = await retryWithExpandedTokens(retryArgs);
       const retryCm = extractCacheMetadata(retryResult.response);
-      logCacheMetrics(`p215-retry-${stage}`, retryCm);
+      logCacheMetrics(`p215-retry-${stage}`, retryCm, retryModelId);
 
       if (retryReason === 'MAX_TOKENS') {
         // 65K 에서도 잘림 — alert 후 잘린 결과 반환 (P201 Pro escalate 가 후속 처리 가능)
@@ -1592,7 +1597,7 @@ export async function runGeminiPipeline({ apiKey, systemPrompt, userMessage, are
       // P195: legacy 1-pass response 의 cache metadata 추출 + 누적.
       const cm = extractCacheMetadata(result.response);
       cacheMetadata = accumulateCacheMetadata(cacheMetadata, cm);
-      logCacheMetrics('legacy', cm);
+      logCacheMetrics('legacy', cm, model.modelId);
     }
 
     console.log('[planner] Gemini:', Date.now() - geminiStart, 'ms');
@@ -1608,9 +1613,10 @@ export async function runGeminiPipeline({ apiKey, systemPrompt, userMessage, are
         if (proItinerary) {
           // Pro success — cache metadata 추출 + itinerary 교체
           const proCm = extractCacheMetadata(proItinerary._proResponse);
+          const proModelId = proItinerary._proModelId;
           delete proItinerary._proResponse;
           cacheMetadata = accumulateCacheMetadata(cacheMetadata, proCm);
-          logCacheMetrics('pro-escalate-p201', proCm);
+          logCacheMetrics('pro-escalate-p201', proCm, proModelId);
           recordProEscalateAttempt('success');
           itinerary = proItinerary;
           console.log('[P201] Pro escalate SUCCESS — minimal fallback recovered');
@@ -1660,7 +1666,7 @@ export async function runGeminiPipeline({ apiKey, systemPrompt, userMessage, are
         // P195: dietary retry response 의 cache metadata 추출 + 누적.
         const retryCm = extractCacheMetadata(retryResult.response);
         cacheMetadata = accumulateCacheMetadata(cacheMetadata, retryCm);
-        logCacheMetrics('dietary-retry', retryCm);
+        logCacheMetrics('dietary-retry', retryCm, retryModel.modelId);
         itinerary = repairAndParseJSON(retryRaw);
         cleanAddresses(itinerary);
         sanitizeStops(itinerary, language);
@@ -1733,7 +1739,7 @@ export async function runGeminiPipeline({ apiKey, systemPrompt, userMessage, are
         // P195: pattern retry response 의 cache metadata 추출 + 누적.
         const retryCm = extractCacheMetadata(retryResult.response);
         cacheMetadata = accumulateCacheMetadata(cacheMetadata, retryCm);
-        logCacheMetrics('pattern-retry', retryCm);
+        logCacheMetrics('pattern-retry', retryCm, retryModel.modelId);
         itinerary = repairAndParseJSON(retryRaw);
         cleanAddresses(itinerary);
         sanitizeStops(itinerary, language);

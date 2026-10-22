@@ -18,13 +18,14 @@ import { FINAL_GATE_DUPLICATE_CODE } from './finalItineraryGate.js';
 
 // 사용량 실측 기록 — fire-and-forget, 절대 throw 안 함(recorder 내부 완전 guard).
 // 3-pass 는 legacy(logCacheMetrics 경유)와 달리 기록이 전혀 없었음(2026-07-09 비용 가시화).
-function recordUsage(stage, response) {
+// modelId = 응답 후 읽은 모델 객체의 .modelId(2026-10-21 런타임 스위치: 실제 사용 모델). 없을 때만 env 예측.
+function recordUsage(stage, response, modelId) {
   try {
     const um = response && response.usageMetadata;
     if (!um) return;
     recordGeminiUsage({
       stage,
-      model: resolveLlmModel('main'), // LLM 공급자 전환: 3-pass 는 main 모델을 그대로 쓴다
+      model: modelId || resolveLlmModel('main'), // LLM 공급자 전환: 3-pass 는 main 모델을 그대로 쓴다
       cm: {
         total: Number(um.promptTokenCount) || 0,
         cached: Number(um.cachedContentTokenCount) || 0,
@@ -63,7 +64,7 @@ Non-food stops (culture, shopping, nature, etc.) should use real place names as 
     contents: [{ role: 'user', parts: [{ text: userMessage }] }],
     systemInstruction: { role: 'system', parts: [{ text: augmentedSystem }] },
   }, { signal });
-  recordUsage('3pass-intent', result.response);
+  recordUsage('3pass-intent', result.response, model.modelId);
 
   // P219: thought:true part 필터 — Raw Logic Leak / 파싱 실패 방어 (보안).
   return extractTextFromResponse(result.response).trim();
@@ -245,7 +246,7 @@ ${JSON.stringify(foodStops, null, 2)}`;
         parts: [{ text: `You are a Korean food and restaurant expert. Always respond with valid JSON array. Language: ${langLabel}.` }],
       },
     });
-    recordUsage('3pass-enrich', result.response);
+    recordUsage('3pass-enrich', result.response, model.modelId);
 
     // P219: thought:true part 필터 — Pass3 enrich 응답에 thought leak 금지.
     const rawEnrich = extractTextFromResponse(result.response).trim();

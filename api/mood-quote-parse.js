@@ -415,7 +415,7 @@ function parseGeminiJson(text) {
 
 async function extractSchedule(text, apiKey) {
   const model = createLlmModel({}, { role: 'classifier', stage: 'mood-quote-parse', apiKey, timeoutMs: 17000 }); // maxDuration 20
-  const modelId = model.modelId;
+  let modelId = 'unresolved'; // the provider is picked on the first call (runtime switch) — read it after
   const result = await model.generateContent({
     contents: [{
       role: 'user',
@@ -429,6 +429,7 @@ async function extractSchedule(text, apiKey) {
       responseMimeType: 'application/json',
     },
   });
+  modelId = model.modelId;
   recordUsageFromResponse('mood-quote-parse', modelId, result.response);
   return parseGeminiJson(result.response.text() || '');
 }

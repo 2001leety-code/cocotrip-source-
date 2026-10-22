@@ -31,13 +31,14 @@ import { readFileSync } from 'fs';
 import { recordGeminiUsage } from './apiUsageRecorder.js';
 
 // 사용량 실측 기록(비용 가시화 2026-07-09) — fire-and-forget, 실패해도 번역 흐름 영향 0.
-function recordTranslatorUsage(stage, r) {
+// modelId = 응답 후 읽은 모델 객체의 .modelId(2026-10-21 런타임 스위치: 실제 사용 모델). 없을 때만 env 예측.
+function recordTranslatorUsage(stage, r, modelId) {
   try {
     const um = r && r.response && r.response.usageMetadata;
     if (!um) return;
     recordGeminiUsage({
       stage,
-      model: resolveLlmModel('translate', { geminiFallback: GEMINI_VERSION }),
+      model: modelId || resolveLlmModel('translate', { geminiFallback: GEMINI_VERSION }),
       cm: {
         total: Number(um.promptTokenCount) || 0,
         cached: Number(um.cachedContentTokenCount) || 0,
@@ -123,7 +124,7 @@ export async function detectLanguage(text) {
     });
     const prompt = `Detect the language of the following text. Reply with ONE of: ko, en, ja, zh, other. No explanation.\n\nText: ${s.slice(0, 500)}`;
     const r = await model.generateContent(prompt);
-    recordTranslatorUsage('translator-detect', r);
+    recordTranslatorUsage('translator-detect', r, model.modelId);
     const out = (r.response.text() || '').trim().toLowerCase();
     if (['ko', 'en', 'ja', 'zh', 'other'].includes(out)) {
       cacheSet(`detect:${s}`, out);
@@ -188,7 +189,7 @@ ${s}`;
       },
     });
     const r = await model.generateContent(prompt);
-    recordTranslatorUsage('translator-translate', r);
+    recordTranslatorUsage('translator-translate', r, model.modelId);
     const out = (r.response.text() || '').trim();
     if (!out) return null;
     cacheSet(cacheKey, out);
@@ -404,7 +405,7 @@ async function geminiTranslatePlaceName(text, targetLang) {
       },
     });
     const r = await model.generateContent(buildPlaceNamePrompt(text, targetLang));
-    recordTranslatorUsage('translator-place', r);
+    recordTranslatorUsage('translator-place', r, model.modelId);
     let out = (r.response.text() || '').trim();
     // Gemini 가 quotes 또는 explanation 을 반환하면 정리
     out = out.replace(/^["'`]+|["'`]+$/g, '').trim();
