@@ -17,6 +17,7 @@
  * 지원 범위는 이 레포가 실제로 쓰는 것만:
  *   collection().doc().get/set/update/delete, collection().where().get(),
  *   runTransaction(tx.get/set/update/delete), FieldValue.serverTimestamp/increment/delete
+ *   진짜 firebase-admin FieldValue 변환 객체도 methodName 으로 인식(2026-10-23)
  */
 
 const SERVER_TIMESTAMP = { __sentinel: 'serverTimestamp' };
@@ -52,6 +53,11 @@ function mergeInto(target, patch, nowMs) {
       target[k] = (Number(target[k]) || 0) + Number(v.by || 0);
       continue;
     }
+    // 진짜 @google-cloud/firestore 변환 객체(동적 import 로 들어온 firebase-admin FieldValue)는 methodName 으로 구분된다.
+    const realMethod = v && typeof v === 'object' && typeof v.methodName === 'string' ? v.methodName : '';
+    if (realMethod === 'FieldValue.delete') { delete target[k]; continue; }
+    if (realMethod === 'FieldValue.serverTimestamp') { target[k] = nowMs; continue; }
+    if (realMethod === 'FieldValue.increment') { target[k] = (Number(target[k]) || 0) + Number(v.operand || 0); continue; }
     if (isPlainObject(v)) {
       if (!isPlainObject(target[k])) target[k] = {};
       mergeInto(target[k], v, nowMs);

@@ -136,7 +136,12 @@ function resolveToken(channel) {
  * @param {keyof typeof CHANNEL_ENV} channel
  * @param {string} text — HTML parse_mode (기본)
  * @param {object} [options]
- * @returns {Promise<{ ok: boolean, channel: string, fallback?: boolean, error?: string }>}
+ * @returns {Promise<{ ok: boolean, channel: string, delivery: 'sent'|'skipped'|'rejected'|'unknown', fallback?: boolean, error?: string }>}
+ *   `delivery` (2026-10-23, 필드 추가만 — ok/channel/error 는 그대로): 재발송 판단용.
+ *     sent     = Telegram 이 받았다(ok:true)
+ *     skipped  = 토큰/chat_id 미설정 — 아무것도 보내지 않았다
+ *     rejected = Telegram 이 HTTP 4xx + ok:false 로 거절 — 보내지지 않았다(재시도 가능)
+ *     unknown  = HTTP 5xx·fetch 예외·JSON 파싱 실패 등 — 전달됐는지 모른다(재발송 금지)
  */
 export async function notify(channel, text, options = {}) {
   // 디스코드 미러: DISCORD_WEBHOOK_URL 설정 시 텔레그램과 "병렬"로 디스코드에도 전송(미설정=no-op).
@@ -150,7 +155,7 @@ export async function notify(channel, text, options = {}) {
 
     if (!token || !chatId) {
       console.warn(`[notify:${channel}] 토큰 또는 chat_id 미설정 — skip`);
-      return { ok: false, channel, error: 'no_token_or_chat' };
+      return { ok: false, channel, error: 'no_token_or_chat', delivery: 'skipped' };
     }
 
     const channelEnv = CHANNEL_ENV[channel];
@@ -175,16 +180,27 @@ export async function notify(channel, text, options = {}) {
           ...(options.replyMarkup ? { reply_markup: options.replyMarkup } : {}),
         }),
       });
-      const data = await res.json();
-      if (!data.ok) {
-        console.error(`[notify:${channel}] Telegram error:`, data.description);
-        return { ok: false, channel, error: data.description };
+      let data;
+      try {
+        data = await res.json();
+      } catch (parseErr) {
+        // 요청은 나갔는데 응답을 못 읽었다 — 전달 여부 미상.
+        console.error(`[notify:${channel}] Telegram response unreadable:`, parseErr.message);
+        return { ok: false, channel, error: `unreadable_response: ${parseErr.message}`, delivery: 'unknown' };
+      }
+      if (!data || !data.ok) {
+        const description = data && data.description;
+        console.error(`[notify:${channel}] Telegram error:`, description);
+        const httpStatus = Number(res.status);
+        // 거절 = Telegram 이 ok:false 를 **명시**한 4xx 만. 4xx + null/{}/{ok:null} 은 전달 여부 미상(unknown).
+        const rejected = Boolean(data && data.ok === false) && httpStatus >= 400 && httpStatus < 500;
+        return { ok: false, channel, error: description, delivery: rejected ? 'rejected' : 'unknown' };
       }
       // result.message_id를 호출자가 알 수 있어야 추후 reply_to_message 매핑 가능
-      return { ok: true, channel, fallback: isFallback, messageId: data.result?.message_id, truncated };
+      return { ok: true, channel, fallback: isFallback, messageId: data.result?.message_id, delivery: 'sent', truncated };
     } catch (err) {
       console.error(`[notify:${channel}] fetch failed:`, err.message);
-      return { ok: false, channel, error: err.message };
+      return { ok: false, channel, error: err.message, delivery: 'unknown' };
     }
   } finally {
     await discordMirror.catch(() => {}); // 모든 반환 경로에서 디스코드 완료 보장(텔레그램은 이미 끝난 뒤)
@@ -198,12 +214,15 @@ export async function notifyLong(channel, text, options = {}) {
   const MAX = 4096;
   if (text.length <= MAX) return notify(channel, text, options);
 
+  // 2026-10-23: 첫 조각의 결과(delivery 포함)를 돌려준다 — 재발송 판단은 첫 조각 기준.
+  let first = null;
   for (let i = 0; i < text.length; i += MAX) {
     const part = text.slice(i, i + MAX);
-    await notify(channel, part, options);
-    if (i + MAX < text.length) await new Promise((r) => setTimeout(r, 300));
+    const partResult = await notify(channel, part, options);
+    if (!first) first = partResult;
+    if (i + MAX < text.length) await new Promise((resolve) => setTimeout(resolve, 300));
   }
-  return { ok: true, channel };
+  return first;
 }
 
 /**

@@ -61,6 +61,9 @@ export const BOOKING_STEP_MARKERS = {
   sheets: 'sheetsAppendedAt',
   loyalty: 'loyaltyEarnedAt',
   voucher: 'voucherSentAt',
+  // 2026-10-23: 텔레그램 채널별 재발송 방지 (처리기 재진입 시 같은 알림이 두 번 가지 않게).
+  telegramDispatch: 'telegramDispatchSentAt',
+  telegramPayment: 'telegramPaymentSentAt',
 };
 
 /**
@@ -79,6 +82,9 @@ export const STEP_ZOMBIE_POLICY = {
   sheetsAppendedAt: 'reclaim',
   loyaltyEarnedAt: 'reclaim',
   voucherSentAt: 'quarantine',
+  // 텔레그램은 멱등 키가 없다 — 보냈는지 모르면 다시 보내지 않는다.
+  telegramDispatchSentAt: 'quarantine',
+  telegramPaymentSentAt: 'quarantine',
 };
 
 /** 선점 결과. 호출부는 claimed 가 true 일 때만 외부 작업을 실행해야 한다. */

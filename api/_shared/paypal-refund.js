@@ -57,16 +57,18 @@ const REFUND_TIMEOUT_MS = 20_000;
  * @param {boolean} [args.isSandbox=false]
  * @param {boolean} [args.receipt=false] — `Prefer: return=representation` 요청(환불 금액·통화가 담긴 영수증).
  *   기본(minimal) 응답엔 amount 가 없다. 고객 화면 종결 증명이 필요한 호출자만 켠다. 호출 횟수·멱등키 불변.
- * @returns {Promise<{ok: true, final: boolean, refund: object, httpStatus: number} | {ok: false, code: string, error: string, status: number}>}
+ * @returns {Promise<{ok: true, final: boolean, refund: object, httpStatus: number} | {ok: false, code: string, error: string, status: number, outcomeUnknown: boolean}>}
  *   `httpStatus` 는 부가 메타데이터 — 기존 호출자의 ok/final 판정은 그대로다.
+ *   `outcomeUnknown` (2026-10-23, 필드 추가만): true = 돈이 움직였을 수 있음(타임아웃·네트워크·비정상 본문·
+ *   5xx·명시 실패 아님) → 호출자는 재시도·CONFIRMED 복구 금지. false = 송신 전 실패 또는 PayPal 이 명시한 실패.
  */
 export async function refundPaypalCapture({ captureID, idempotencyKey, refundUSD, currency, note, isSandbox = false, receipt = false }) {
   if (!captureID) {
-    return { ok: false, code: 'NO_CAPTURE_ID', error: 'captureID required', status: 400 };
+    return { ok: false, code: 'NO_CAPTURE_ID', error: 'captureID required', status: 400, outcomeUnknown: false };
   }
   // fail-closed — 키 없이 환불을 쏘면 재시도가 이중환불이 된다. 조용히 넘어가지 않는다.
   if (!idempotencyKey || typeof idempotencyKey !== 'string') {
-    return { ok: false, code: 'NO_IDEMPOTENCY_KEY', error: 'idempotencyKey required (double-refund guard)', status: 500 };
+    return { ok: false, code: 'NO_IDEMPOTENCY_KEY', error: 'idempotencyKey required (double-refund guard)', status: 500, outcomeUnknown: false };
   }
   // 🔴 F1c 백스톱 (2026-07-16) — refundUSD 유한성 검사. 호출자가 NaN/0/음수/비숫자를 흘려도
   //   여기서 fail-closed 한다. 아래 body 는 refundUSD 가 falsy 면 amount 를 통째로 생략하고,
@@ -76,7 +78,7 @@ export async function refundPaypalCapture({ captureID, idempotencyKey, refundUSD
     const _usd = Number(refundUSD);
     if (!Number.isFinite(_usd) || _usd <= 0) {
       return { ok: false, code: 'REFUND_AMOUNT_INVALID',
-        error: `refundUSD must be a finite positive number (got ${JSON.stringify(refundUSD)})`, status: 500 };
+        error: `refundUSD must be a finite positive number (got ${JSON.stringify(refundUSD)})`, status: 500, outcomeUnknown: false };
     }
   }
   let token;
@@ -88,7 +90,7 @@ export async function refundPaypalCapture({ captureID, idempotencyKey, refundUSD
     ({ accessToken: token, baseUrl } = await getPaypalAccessToken(isSandbox));
   } catch (e) {
     // 토큰 단계 실패는 **환불 요청이 나가기 전**이라 결과가 미상이 아니다 — 돈은 확실히 안 움직였다.
-    return { ok: false, code: 'PAYPAL_AUTH_FAILED', error: e.message, status: 502 };
+    return { ok: false, code: 'PAYPAL_AUTH_FAILED', error: e.message, status: 502, outcomeUnknown: false };
   }
 
   // 통화는 capture 통화를 따라야 한다. 이전엔 'USD' 하드코딩이었다 — 시스템이 사실상 USD 단일이라
@@ -122,7 +124,12 @@ export async function refundPaypalCapture({ captureID, idempotencyKey, refundUSD
       // 무한 대기 금지 — 서버리스가 먼저 죽으면 우리는 결과를 영영 모르고 사용자는 재시도한다.
       signal: AbortSignal.timeout(REFUND_TIMEOUT_MS),
     });
-    refundData = await res.json().catch(() => ({}));
+    // 2026-10-23: 본문 형태를 `.status` 접근 **전에** 검사한다. res.json() 이 null/배열/문자열을 돌려주면
+    //   이전엔 `refundData.status` 가 TypeError(cause 없음)를 던져 아래 catch 가 REFUND_REQUEST_INVALID
+    //   (송신 전 확정 실패)로 오분류했다 — 실제로는 요청이 이미 나간 뒤라 결과 미상이다.
+    const raw = await res.json().catch(() => null);
+    const parsed = (raw && typeof raw === 'object' && !Array.isArray(raw)) ? raw : null;
+    refundData = parsed || {};
     // 🔴 F3 (2026-07-16): PayPal refund status enum = CANCELLED/FAILED/PENDING/COMPLETED.
     //   COMPLETED 만 **종단 성공**이다. PENDING(eCheck·리스크홀드)은 나중에 FAILED 로 뒤집힐 수 있어
     //   REFUNDED 로 확정하면 미환불 은폐가 된다. ok:true 는 유지(기존 계약 보존)하되 final 로 구분한다.
@@ -135,6 +142,13 @@ export async function refundPaypalCapture({ captureID, idempotencyKey, refundUSD
     if (refundData.status === 'PENDING') {
       return { ok: true, final: false, pending: true, refund: refundData, httpStatus: res.status };
     }
+    // 2026-10-23 `outcomeUnknown`: COMPLETED/PENDING 이 아닌 응답은 **기본 결과 미상**(2xx+null·2xx+{}·5xx·
+    //   파싱 실패 포함 — 돈이 움직였을 수 있다). PayPal 이 실패를 **명시적으로** 확인한 경우만 false:
+    //   refund status FAILED/CANCELLED, 또는 4xx + PayPal 오류 이름(name).
+    const confirmedFailure = Boolean(parsed) && (
+      parsed.status === 'FAILED' || parsed.status === 'CANCELLED'
+      || (res.status >= 400 && res.status < 500 && typeof parsed.name === 'string' && parsed.name.length > 0)
+    );
     // 이전엔 HTTP status 를 아예 보지 않고 body 의 status 필드만 봤다. 4xx/5xx 로 body 가 비어도
     // 'unknown' 만 남아 진단이 불가능했다 → HTTP status 를 에러에 포함한다(동작은 동일: ok:false).
     return {
@@ -142,6 +156,7 @@ export async function refundPaypalCapture({ captureID, idempotencyKey, refundUSD
       code: 'PAYPAL_REFUND_FAILED',
       error: `PayPal refund ${refundData.status || `HTTP ${res.status}`}: ${refundData.message || refundData.name || ''}`,
       status: 502,
+      outcomeUnknown: !confirmedFailure,
     };
   } catch (e) {
     const timedOut = e && (e.name === 'TimeoutError' || e.name === 'AbortError');
@@ -154,7 +169,7 @@ export async function refundPaypalCapture({ captureID, idempotencyKey, refundUSD
     //   토큰 단계는 이미 PAYPAL_AUTH_FAILED 로 같은 구분을 한다 — 그 대칭을 맞춘다.
     if (!timedOut && (e instanceof TypeError) && e.cause === undefined) {
       return { ok: false, code: 'REFUND_REQUEST_INVALID',
-        error: `refund request could not be built (no money moved): ${e.message}`, status: 500 };
+        error: `refund request could not be built (no money moved): ${e.message}`, status: 500, outcomeUnknown: false };
     }
     // 여기부터는 결과 미상 — PayPal 이 처리했을 수 있다. 재시도 시 **같은 idempotencyKey** 를 쓰면
     //   이중환불이 되지 않는다.
@@ -163,6 +178,7 @@ export async function refundPaypalCapture({ captureID, idempotencyKey, refundUSD
       code: timedOut ? 'PAYPAL_REFUND_TIMEOUT' : 'PAYPAL_NETWORK_ERROR',
       error: timedOut ? `PayPal refund timed out after ${REFUND_TIMEOUT_MS}ms (outcome unknown — retry with same key)` : e.message,
       status: 502,
+      outcomeUnknown: true,
     };
   }
 }

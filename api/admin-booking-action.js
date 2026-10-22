@@ -40,6 +40,11 @@ import { confirmBookingAsPaid } from './_shared/booking-confirm.js';
 import { refundPaypalCapture } from './_shared/paypal-refund.js';
 import { releaseSlotForCanceledOrder } from './_shared/slot-capacity.js';
 import { buildAdminJsonCors } from './_shared/cors.js';
+import { resolveIsSandbox } from './_shared/paypal.js';
+import { toMinorUnits } from './_shared/paypal-capture-verify.js';
+import { provenFullRefundID, buildFullRefundProof, mergeFullRefundProof } from './_shared/payment-fulfillment-recovery.js';
+import { throttledTelegramAlert } from './_shared/telegram-throttle.js';
+import { isAutoRefundBlocked } from './_shared/booking-test-flags.js';
 
 /**
  * 취소·환불이 **확정 성공**한 뒤 확정 좌석(slot_bookings)을 해제한다 (2026-08-09).
@@ -124,7 +129,7 @@ export const maxDuration = 30;
 const JSON_HEADERS_STATIC = { 'Cache-Control': 'no-store' };
 const CORS_METHODS = 'POST, OPTIONS';
 
-const VALID_ACTIONS = new Set(['mark-paid', 'mark-refunded', 'mark-canceled', 'dispatch-cancel']);
+const VALID_ACTIONS = new Set(['mark-paid', 'mark-refunded', 'mark-canceled', 'dispatch-cancel', 'refund-booking']);
 
 /**
  * 'dispatch-cancel' — 차량·기사를 못 구해 우리 쪽 사정으로 취소하는 경우 (운영자 2026-07-28).
@@ -141,8 +146,253 @@ const DISPATCH_CANCEL_LABEL = {
   other: { ko: '운영 사정', en: 'Operational reason', ja: '運営上の事情', zh: '运营原因' },
 };
 
+/**
+ * 'refund-booking' (2026-10-23) — 관리자 PayPal 예약(bookings 컬렉션) 전액 환불 + 취소.
+ * 고객 셀프 취소(cancelBooking)와 **같은 멱등키**(bookings 문서 id)를 써서 두 표면이 한 예약에 환불 1회다.
+ * 사유 분류는 dispatch-cancel 것을 재사용하고 고객 요청(customer_request)만 추가한다.
+ */
+const REFUND_BOOKING_CATEGORIES = new Set(['no_vehicle', 'no_driver', 'customer_request', 'other']);
+const REFUND_BOOKING_LABEL = {
+  ...DISPATCH_CANCEL_LABEL,
+  customer_request: {
+    ko: '고객 요청 — 운영자 승인 전액환불',
+    en: 'Customer request (approved by operator)',
+    ja: 'お客様のご要望（運営承認）',
+    zh: '客户申请（运营审批）',
+  },
+};
+// cancelBooking.js 와 같은 값(import 아님) — 돈이 움직였는지 모르는 결과.
+const REFUND_OUTCOME_UNKNOWN = new Set(['PAYPAL_REFUND_TIMEOUT', 'PAYPAL_NETWORK_ERROR']);
+
 function _err(error, code = 'UNKNOWN_ERROR') {
   return { ok: false, error, code };
+}
+
+/** CANCELING 일 때만 patch (CAS). 웹훅 등이 먼저 상태를 확정했으면 건드리지 않는다. */
+async function casFromCanceling(adminDb, ref, patch) {
+  return adminDb.runTransaction(async (tx) => {
+    const snap = await tx.get(ref);
+    const cur = snap.exists ? (snap.data() || {}) : null;
+    if (!cur || cur.status !== 'CANCELING') return false;
+    tx.update(ref, patch);
+    return true;
+  });
+}
+
+async function alertRefundUnknown({ bookingRef, captureID, code }) {
+  await throttledTelegramAlert({
+    key: 'refund-outcome-unknown',
+    channel: 'admin',
+    severity: 'critical',
+    message: `🚨 <b>관리자 환불 결과 미상 — PayPal 대조 필요</b>\n`
+      + `<code>${bookingRef}</code>\n`
+      + `capture: <code>${captureID}</code>\n`
+      + `코드: ${code}\n`
+      + `→ 재시도 금지. PayPal 거래내역에서 환불 여부·금액 확인 후 수동 확정`,
+    context: { bookingRef, code, source: 'admin-refund-booking' },
+  }).catch(() => {});
+}
+
+/**
+ * action='refund-booking' — PayPal 예약(bookings/{bookingRef}) 관리자 전액 환불.
+ * 상태 전이: CONFIRMED → CANCELING(선점) → CANCELED | CONFIRMED(확정 실패) | REFUND_UNKNOWN(결과 미상·금액 불일치).
+ * 성공 저장도 최신 문서 기준 CAS — 웹훅이 먼저 REFUNDED 를 썼으면 상태는 두고 증명만 merge.
+ */
+async function handleRefundBooking({ res, JSON_HEADERS, adminDb, adminUid, adminEmail, bookingRef, reason, cancelCategory }) {
+  const send = (status, payload) => { res.writeHead(status, JSON_HEADERS); return res.end(JSON.stringify(payload)); };
+  const action = 'refund-booking';
+  const ref = adminDb.collection('bookings').doc(bookingRef);
+  const snap = await ref.get();
+  if (!snap.exists) return send(404, _err(`bookings/${bookingRef} not found`, 'NOT_FOUND'));
+  const booking = snap.data() || {};
+
+  // 감사 로그 — 외부 호출 전.
+  await adminDb.collection('admin_actions').add({
+    adminUid, adminEmail, bookingRef, action,
+    reason: reason || null, cancelCategory: cancelCategory || null,
+    previousStatus: booking.status || null, target: 'bookings',
+    at: FieldValue.serverTimestamp(),
+  });
+
+  // 거부 가드 — 환불 호출 0, 선점 0.
+  if (booking.status === 'CANCELING') return send(409, _err('Cancellation already in progress', 'CANCEL_IN_PROGRESS'));
+  if (booking.status === 'REFUND_UNKNOWN') return send(409, _err('Refund outcome unknown — verify on PayPal before any retry', 'REFUND_UNKNOWN_BLOCKED'));
+  if (booking.status !== 'CONFIRMED') return send(400, _err(`Cannot refund — current status: ${booking.status}`, 'INVALID_STATUS'));
+  if (booking.parentOrderID) return send(409, _err('Cart line items share one capture — refund manually', 'CART_CHILD_MANUAL_REFUND'));
+  if (booking.provider === 'braintree') return send(409, _err('Legacy Braintree booking — manual refund required', 'LEGACY_BRAINTREE_BOOKING'));
+  if (!booking.captureID) return send(400, _err('captureID missing — PayPal refund impossible', 'NO_CAPTURE_ID'));
+  // refundEvents 는 객체(refund-ledger.js) — 키가 하나라도 있으면 환불 이력.
+  if (booking.refundID || booking.lastRefundId || Object.keys(booking.refundEvents || {}).length > 0) {
+    return send(409, _err('This booking already has refund history', 'REFUND_HISTORY_EXISTS'));
+  }
+  let linkedPending = true; // 조회 실패도 차단(fail-closed)
+  try {
+    const [sameIdSnap, byTxSnap] = await Promise.all([
+      adminDb.collection('pending_bookings').doc(bookingRef).get(),
+      adminDb.collection('pending_bookings').where('paypalTransactionId', '==', bookingRef).limit(1).get(),
+    ]);
+    linkedPending = Boolean(sameIdSnap.exists) || !byTxSnap.empty;
+  } catch (e) {
+    console.warn('[admin-booking-action] linked pending lookup failed — refund blocked:', bookingRef, e.message);
+  }
+  if (linkedPending) {
+    return send(409, _err('A linked pending booking exists — use the existing pending-booking flow', 'LINKED_PENDING_USE_EXISTING_FLOW'));
+  }
+
+  // 환경 대조 — 이 배포의 PayPal 환경과 예약 결제 환경이 같아야 한다(필드 없음 = legacy live).
+  const runtimeSandbox = resolveIsSandbox();
+  const bookingEnv = booking.paypalEnvironment === 'sandbox' ? 'sandbox' : 'live';
+  if ((bookingEnv === 'sandbox') !== runtimeSandbox) {
+    return send(409, _err(`Refund environment mismatch (booking ${bookingEnv}, runtime ${runtimeSandbox ? 'sandbox' : 'live'})`, 'REFUND_ENV_MISMATCH'));
+  }
+  const isSandbox = runtimeSandbox;
+
+  // 테스트/수동 결제 — PayPal 자동 환불 금지(환경이 일치하는 sandbox 예약 포함).
+  if (isAutoRefundBlocked(bookingRef, booking)) {
+    return send(400, _err('Test or unverified/manual payment — no automatic PayPal refund', 'TEST_OR_MANUAL_NO_AUTO_REFUND'));
+  }
+
+  // 선점 — 최신 문서가 CONFIRMED 일 때만.
+  const claimed = await adminDb.runTransaction(async (tx) => {
+    const fresh = await tx.get(ref);
+    const f = fresh.exists ? (fresh.data() || {}) : null;
+    if (!f || f.status !== 'CONFIRMED') return false;
+    tx.update(ref, { status: 'CANCELING', cancelClaimedAt: FieldValue.serverTimestamp() });
+    return true;
+  });
+  if (!claimed) return send(409, _err('Cancellation already in progress or completed', 'CANCEL_IN_PROGRESS'));
+
+  const lang = booking.language || 'en';
+  const categoryLabel = REFUND_BOOKING_LABEL[cancelCategory] || REFUND_BOOKING_LABEL.other;
+  const reasonText = `${categoryLabel[lang] || categoryLabel.en} — ${String(reason).trim()}`;
+  const captureID = booking.captureID;
+
+  const result = await refundPaypalCapture({
+    captureID,
+    // 고객 셀프 취소(cancelBooking)와 같은 키 = 두 표면이 한 예약에 환불 1회.
+    idempotencyKey: bookingRef,
+    refundUSD: null,
+    currency: booking.currency,
+    note: `CocoTrip admin refund: ${String(reason).trim().slice(0, 60)}`,
+    isSandbox,
+    receipt: true,
+  });
+
+  if (!result.ok) {
+    const outcomeUnknown = result.outcomeUnknown === true || REFUND_OUTCOME_UNKNOWN.has(result.code);
+    if (outcomeUnknown) {
+      try {
+        await casFromCanceling(adminDb, ref, {
+          status: 'REFUND_UNKNOWN',
+          refundUnknownAt: FieldValue.serverTimestamp(),
+          refundUnknownCode: result.code || 'UNKNOWN',
+          refundIdempotencyKey: bookingRef,
+          updatedAt: FieldValue.serverTimestamp(),
+        });
+      } catch (e) { console.error('[admin-booking-action] REFUND_UNKNOWN write failed:', e.message); }
+      await alertRefundUnknown({ bookingRef, captureID, code: result.code || 'UNKNOWN' });
+      return send(202, _err('환불 처리를 확인 중입니다. PayPal 에서 결과를 확인한 뒤 수동 확정하세요.', 'REFUND_PENDING_VERIFICATION'));
+    }
+    // PayPal 이 실패를 명시적으로 확인 — 돈이 안 움직였다 → CONFIRMED 복구(재시도 허용).
+    try {
+      await casFromCanceling(adminDb, ref, { status: 'CONFIRMED', cancelClaimedAt: FieldValue.delete(), updatedAt: FieldValue.serverTimestamp() });
+    } catch (e) { console.error('[admin-booking-action] CONFIRMED restore failed:', e.message); }
+    console.error('[admin-booking-action] refund-booking failed:', result.code, result.error);
+    return send(result.status || 502, _err(result.error, result.code || 'REFUND_FAILED'));
+  }
+
+  // 성공 — 금액 검증(전액·USD·HTTP 2xx·refund id). COMPLETED 인데 전액이 아니면 결과 미상 격리.
+  const fullAmountMinor = toMinorUnits(booking.amountUSD, 'USD');
+  const provenID = provenFullRefundID(result, { amountMinor: fullAmountMinor, currency: 'USD' });
+  if (result.final && !provenID) {
+    try {
+      await casFromCanceling(adminDb, ref, {
+        status: 'REFUND_UNKNOWN',
+        refundUnknownAt: FieldValue.serverTimestamp(),
+        refundUnknownCode: 'REFUND_AMOUNT_MISMATCH',
+        refundIdempotencyKey: bookingRef,
+        updatedAt: FieldValue.serverTimestamp(),
+      });
+    } catch (e) { console.error('[admin-booking-action] REFUND_UNKNOWN (amount) write failed:', e.message); }
+    await alertRefundUnknown({ bookingRef, captureID, code: 'REFUND_AMOUNT_MISMATCH' });
+    return send(202, _err('환불 금액이 결제 전액과 일치하지 않아 확인이 필요합니다.', 'REFUND_PENDING_VERIFICATION'));
+  }
+
+  const refund = result.refund || {};
+  const refundFinal = result.final === true && Boolean(provenID);
+  const refundedUSD = Number(booking.amountUSD);
+  const refundedKRW = Number(booking.amountKRW) || 0;
+  const fullProof = provenID
+    ? buildFullRefundProof({ captureID, currency: 'USD', amountMinor: fullAmountMinor, refundIDs: [provenID], source: 'admin-api', environment: isSandbox ? 'sandbox' : 'live' })
+    : null;
+
+  // 저장 — 최신 문서 기준 CAS. 웹훅이 먼저 확정했으면 상태·환불 필드는 두고 증명만 merge.
+  await adminDb.runTransaction(async (tx) => {
+    const latestSnap = await tx.get(ref);
+    const latest = latestSnap.exists ? (latestSnap.data() || {}) : {};
+    if (latest.status === 'CANCELING') {
+      tx.update(ref, {
+        status: 'CANCELED',
+        canceledAt: FieldValue.serverTimestamp(),
+        canceledByUid: adminUid,
+        canceledReason: reasonText,
+        cancelReason: reasonText,
+        cancelCategory,
+        cancelFault: cancelCategory === 'customer_request' ? 'customer' : 'operator',
+        refundID: refund.id,
+        refundStatus: refund.status,
+        refundedUSD,
+        refundedAmount: refundedKRW,
+        refundedKRW,
+        refundPercent: 100,
+        refundSource: 'paypal-api',
+        updatedAt: FieldValue.serverTimestamp(),
+        ...(fullProof ? { fullRefundProof: mergeFullRefundProof(latest.fullRefundProof, fullProof) } : {}),
+      });
+      return;
+    }
+    console.warn('[admin-booking-action] refund-booking: status changed meanwhile — keeping it, proof merge only:', bookingRef, latest.status);
+    if (fullProof) tx.update(ref, { fullRefundProof: mergeFullRefundProof(latest.fullRefundProof, fullProof) });
+  });
+
+  await releaseSeatsAfterRefund({ adminDb, bookingRef, bookingId: bookingRef, bookingData: booking, action, refundFinal });
+
+  notify('booking', [
+    '🧾 <b>관리자 전액 환불</b>',
+    '',
+    `<b>예약번호:</b> <code>${bookingRef}</code>`,
+    `<b>사유:</b> ${reasonText}`,
+    `<b>환불액:</b> $${refundedUSD} / ₩${refundedKRW.toLocaleString('ko-KR')}`,
+    `<b>PayPal refund:</b> <code>${refund.id}</code>`,
+    result.pending ? '🟠 PENDING — 확정 전(좌석·고객 안내 보류)' : null,
+  ].filter(Boolean).join('\n')).catch(() => {});
+
+  if (refundFinal) {
+    sendCustomerNotification('refunded', {
+      ...booking,
+      customerEmail: booking.userEmail || booking.payerEmail,
+      refundedKRW,
+      refundReason: reasonText,
+      language: lang,
+    }).catch(() => {});
+  } else {
+    notify('admin', `🟠 <b>관리자 환불 PENDING 관측 (eCheck?)</b>\n<code>${bookingRef}</code>\nrefund: <code>${refund.id}</code>\n→ 고객 안내·좌석 해제 보류. 실패 시 REFUND.FAILED webhook 이 REFUND_FAILED 로 전환`).catch(() => {});
+  }
+
+  return send(200, {
+    ok: true,
+    data: {
+      bookingRef,
+      status: 'CANCELED',
+      cancelCategory,
+      reason: reasonText,
+      refundedUSD,
+      refundedKRW,
+      refundSource: 'paypal-api',
+      refundID: refund.id,
+      refundFinal,
+    },
+  });
 }
 
 export default async function handler(req, res) {
@@ -193,6 +443,19 @@ export default async function handler(req, res) {
         return res.end(JSON.stringify(_err('취소 사유를 입력해주세요 (고객에게 그대로 전달됩니다)', 'MISSING_REASON')));
       }
     }
+    // refund-booking 도 사유가 고객에게 전달된다 — 분류·사유 필수.
+    if (action === 'refund-booking') {
+      if (!REFUND_BOOKING_CATEGORIES.has(cancelCategory)) {
+        res.writeHead(400, JSON_HEADERS);
+        return res.end(JSON.stringify(_err(
+          `cancelCategory required. Allowed: ${[...REFUND_BOOKING_CATEGORIES].join(', ')}`,
+          'MISSING_CANCEL_CATEGORY')));
+      }
+      if (!String(reason || '').trim()) {
+        res.writeHead(400, JSON_HEADERS);
+        return res.end(JSON.stringify(_err('환불 사유를 입력해주세요 (고객에게 그대로 전달됩니다)', 'MISSING_REASON')));
+      }
+    }
 
     // 🔴 F1 money 가드 (2026-07-16): refundedKRW 는 운영자 자유입력(AdminPayments window.prompt)이라
     //   '50,000'(한국 로케일 콤마)·'abc'·{} 가 들어올 수 있다. Number() 가 NaN 을 만들고
@@ -217,6 +480,11 @@ export default async function handler(req, res) {
     if (!adminDb) {
       res.writeHead(500, JSON_HEADERS);
       return res.end(JSON.stringify(_err('Firestore unavailable', 'FIRESTORE_UNAVAILABLE')));
+    }
+
+    // PayPal 예약(bookings 컬렉션) 관리자 환불 — pending_bookings 조회보다 앞에서 분기.
+    if (action === 'refund-booking') {
+      return await handleRefundBooking({ res, JSON_HEADERS, adminDb, adminUid, adminEmail, bookingRef, reason, cancelCategory });
     }
 
     const pendingRef = adminDb.collection('pending_bookings').doc(bookingRef);
