@@ -17,7 +17,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 const authHolder: { r: any } = { r: { ok: true, email: 'cust@x.com', uid: 'u1' } };
-const refundHolder: { r: any; onCall?: () => void } = { r: { ok: true, refund: { id: 'RF-1', status: 'COMPLETED' } } };
+const refundHolder: { r: any; onCall?: () => void; lastArgs?: any } = { r: { ok: true, refund: { id: 'RF-1', status: 'COMPLETED' } } };
 const alertSpy = vi.fn(async () => ({ ok: true }));
 let bookingState: any;
 let txUpdates: any[];
@@ -25,7 +25,7 @@ let plainUpdates: any[];
 
 vi.mock('../../api/_shared/user-auth.js', () => ({ verifyUserToken: async () => authHolder.r }));
 vi.mock('../../api/_shared/paypal-refund.js', () => ({
-  refundPaypalCapture: async () => { if (refundHolder.onCall) refundHolder.onCall(); return refundHolder.r; },
+  refundPaypalCapture: async (args: any) => { refundHolder.lastArgs = args; if (refundHolder.onCall) refundHolder.onCall(); return refundHolder.r; },
 }));
 vi.mock('../../api/_shared/telegram-throttle.js', () => ({ throttledTelegramAlert: (...a: any[]) => alertSpy(...a) }));
 vi.mock('../../api/_shared/notify.js', () => ({ notify: vi.fn(async () => ({ ok: true })) }));
@@ -71,6 +71,7 @@ beforeEach(() => {
   authHolder.r = { ok: true, email: 'cust@x.com', uid: 'u1' };
   refundHolder.r = { ok: true, refund: { id: 'RF-1', status: 'COMPLETED' } };
   refundHolder.onCall = undefined;
+  refundHolder.lastArgs = undefined;
   alertSpy.mockClear();
   txUpdates = []; plainUpdates = [];
   // 100% 환불 창(먼 미래 tourDate). captureID 존재. AI 플래너 아님.
@@ -141,6 +142,47 @@ describe('F2 — 미상 결과는 CONFIRMED 로 단정하지 않는다', () => {
     expect(bookingState.status).toBe('CANCELED');          // 옵션 B: 종단 유지
     expect(bookingState.refundStatus).toBe('PENDING');     // 기록은 남음
     expect(alertSpy).toHaveBeenCalledTimes(1);             // ★ 관측 알럿 (빈도 측정 = F3c strict 게이트 데이터)
+  });
+});
+
+// 2026-10-21 (review item C): strict full-refund proof — only a receipt that proves a FULL refund of this capture.
+describe('cancelBooking — strict full-refund proof on the bookings update', () => {
+  const receipt = (value: string, status = 'COMPLETED', extra: Record<string, unknown> = {}) => ({
+    ok: true, final: status === 'COMPLETED', ...(status === 'PENDING' ? { pending: true } : {}), httpStatus: 201,
+    refund: { id: 'RF-1', status, amount: { value, currency_code: 'USD' } }, ...extra,
+  });
+
+  it('receipt amount equal to the booking ⇒ fullRefundProof written (cancel-api, live); refund asked for a receipt', async () => {
+    refundHolder.r = receipt('100.00');
+    const r = await cancel();
+    expect(r.statusCode).toBe(200);
+    expect(refundHolder.lastArgs).toMatchObject({ captureID: 'CAP-1', idempotencyKey: 'CT-1', receipt: true, isSandbox: false });
+    expect(plainUpdates[0].status).toBe('CANCELED');
+    expect(plainUpdates[0].fullRefundProof).toMatchObject({
+      captureID: 'CAP-1', currency: 'USD', amountMinor: 10000, refundIDs: ['RF-1'], source: 'cancel-api', environment: 'live',
+    });
+  });
+
+  it('partial receipt amount ⇒ no proof (refund itself unchanged)', async () => {
+    refundHolder.r = receipt('50.00');
+    const r = await cancel();
+    expect(r.statusCode).toBe(200);
+    expect(bookingState.status).toBe('CANCELED');
+    expect(plainUpdates[0]).not.toHaveProperty('fullRefundProof');
+  });
+
+  it('pending refund ⇒ no proof', async () => {
+    refundHolder.r = receipt('100.00', 'PENDING');
+    const r = await cancel();
+    expect(r.statusCode).toBe(200);
+    expect(plainUpdates[0]).not.toHaveProperty('fullRefundProof');
+  });
+
+  it('an existing proof is kept and refund ids are unioned', async () => {
+    bookingState.fullRefundProof = { captureID: 'CAP-1', currency: 'USD', amountMinor: 10000, refundIDs: ['OLD-1'], source: 'webhook-authoritative', environment: 'live', provenAtMs: 1 };
+    refundHolder.r = receipt('100.00');
+    await cancel();
+    expect(plainUpdates[0].fullRefundProof).toMatchObject({ source: 'webhook-authoritative', provenAtMs: 1, refundIDs: ['OLD-1', 'RF-1'] });
   });
 });
 

@@ -41,6 +41,7 @@ import { getPaypalAccessToken, resolveIsSandbox } from './_shared/paypal.js';
 import { confirmBookingAsPaid } from './_shared/booking-confirm.js';
 import {
   applyRefundEvent, applyRefundStatusEvent, fetchAuthoritativeCaptureStatus, checkEnvironmentsMatch,
+  ensureFullRefundProof,
 } from './_shared/refund-ledger.js';
 import { releaseSlotForCanceledOrder } from './_shared/slot-capacity.js';
 
@@ -54,6 +55,27 @@ export const config = {
   api: { bodyParser: false },
 };
 export const maxDuration = 30;
+
+/** Refund event types that still run the read-only duplicate path (2026-10-21 review item C). */
+const REFUND_EVENT_TYPES = ['PAYMENT.CAPTURE.REFUNDED', 'PAYMENT.SALE.REFUNDED'];
+
+/**
+ * Duplicate-refund reinforcement budget (review item C): a replayed webhook must answer its historical 200 well
+ * inside maxDuration (30 s) even when PayPal is slow. Every network step on the priorProcessed path races the
+ * remaining budget; on exhaustion the duplicate answers 200 idempotent and the reinforcement is simply skipped
+ * (nothing was written).
+ */
+export const DUPLICATE_REINFORCE_DEADLINE_MS = 18_000;
+
+/** Resolves to `promise` or, once the budget measured from `startedAt` is spent, to `fallback`. */
+async function withinDuplicateBudget(startedAt, promise, fallback) {
+  promise.catch(() => {}); // a late rejection after the fallback won must not surface as unhandled
+  const remaining = startedAt + DUPLICATE_REINFORCE_DEADLINE_MS - Date.now();
+  if (remaining <= 0) return fallback;
+  let timer;
+  const expiry = new Promise((resolve) => { timer = setTimeout(() => resolve(fallback), remaining); });
+  try { return await Promise.race([promise, expiry]); } finally { clearTimeout(timer); }
+}
 
 const JSON_HEADERS = {
   'Content-Type': 'application/json',
@@ -489,8 +511,22 @@ export default async function handler(req, res) {
     return res.end(JSON.stringify({ ok: false, error: 'POST only' }));
   }
 
+  const handlerStartedAt = Date.now();
   const headers = req.headers || {};
   const eventId = headers['paypal-transmission-id'] || headers['Paypal-Transmission-Id'] || `noheader-${Date.now()}`;
+  // 2026-10-21 (review item C): this transmission id was already processed. Refund events still run the
+  //   read-only path to the proof-only reinforcement; the business writes on the way (webhook log, seat release,
+  //   benefit reversal, operator alerts) are skipped — an unexpected exception may still be reported to Sentry,
+  //   which is fine — and the duplicate always answers the historical 200 idempotent body (logWebhookEvent merges
+  //   `status` and would otherwise overwrite 'processed'). Every network step races DUPLICATE_REINFORCE_DEADLINE_MS.
+  let priorProcessed = false;
+  // Set before the duplicate answer is written: a ledger that finishes later must not write anything afterwards.
+  let duplicateResponded = false;
+  const answerIdempotent = () => {
+    duplicateResponded = true;
+    res.writeHead(200, JSON_HEADERS);
+    return res.end(JSON.stringify({ ok: true, idempotent: true }));
+  };
 
   try {
     // 🔴 2026-07-29 (단일 환경 검증): 이 배포는 **한 환경만** 받는다.
@@ -528,10 +564,8 @@ export default async function handler(req, res) {
       // 멱등 확인을 못 하면 이중 반영 위험이 있다 → 처리하지 않고 재전송을 받는다.
       return respondRetryable(res, 'webhook_log_read_failed', e.message);
     }
-    if (existing.exists && existing.data()?.status === 'processed') {
-      res.writeHead(200, JSON_HEADERS);
-      return res.end(JSON.stringify({ ok: true, idempotent: true }));
-    }
+    // The idempotent answer itself is given after signature verification (below), once the event type is known.
+    priorProcessed = existing.exists && existing.data()?.status === 'processed';
 
     // raw body 읽기
     const bodyString = await readRawBody(req);
@@ -540,14 +574,21 @@ export default async function handler(req, res) {
     //   폴백이 없다. 다른 환경의 Webhook ID 는 요청 본문에 들어가지 않는다.
     //   verifiedEnvironment 기본값은 'unverified' — 서명이 실제로 통과해야 환경이 확정된다.
     let verifiedEnvironment = 'unverified';
-    const verifyResult = await verifyWebhookSignature({
+    const verifySignature = async () => await verifyWebhookSignature({
       headers, bodyString, webhookId: activeWebhookId, isSandbox: isSandboxDeploy,
     });
+    // A duplicate races the budget; on exhaustion it is treated as an unverified duplicate ⇒ 200 idempotent
+    //   below (no verify log, no alert). First deliveries wait for the real answer as before.
+    const verifyResult = priorProcessed
+      ? await withinDuplicateBudget(handlerStartedAt, verifySignature(), { verified: false, kind: VERIFY.TRANSIENT, reason: 'duplicate_budget_exhausted' })
+      : await verifySignature();
     if (verifyResult.verified) {
       verifiedEnvironment = isSandboxDeploy ? 'sandbox' : 'live';
     }
 
     if (!verifyResult.verified) {
+      // A duplicate never writes a verify log over 'processed' and never alerts — same 200 as before.
+      if (priorProcessed) return answerIdempotent();
       // 🔴 검증 API 자체가 죽은 경우(429/5xx/네트워크)를 "서명 실패" 로 분류해 버리면 안 된다.
       //   결정적 실패가 아니므로 5xx 로 재전송을 받는다.
       if (verifyResult.kind === VERIFY.TRANSIENT) {
@@ -596,6 +637,11 @@ export default async function handler(req, res) {
     const event = verifyResult.webhookEvent;
     const eventType = event.event_type || 'unknown';
     console.log('[paypal-webhook] verified event:', eventType, eventId);
+
+    // 멱등 — 같은 transmission-id 재시도면 처리 스킵. Refund events continue (read-only) so the
+    //   proof-only reinforcement can repair a proof an earlier run never wrote (review item C).
+    const isRefundEvent = REFUND_EVENT_TYPES.includes(eventType);
+    if (priorProcessed && !isRefundEvent) return answerIdempotent();
 
     // ─── PAYMENT.CAPTURE.COMPLETED / PAYMENT.SALE.COMPLETED ─────────
     if (eventType === 'PAYMENT.CAPTURE.COMPLETED' || eventType === 'PAYMENT.SALE.COMPLETED') {
@@ -785,6 +831,7 @@ export default async function handler(req, res) {
       const { value: refundedUSD } = extractAmountUSD(event);
 
       if (!captureId) {
+        if (priorProcessed) return answerIdempotent();
         await logWebhookEvent({
           db: adminDb, environment: verifiedEnvironment, eventId, eventType,
           status: 'unmatched',
@@ -806,6 +853,10 @@ export default async function handler(req, res) {
       //   금액(원결제·이미 환불된 누계)은 transaction 안에서 다시 읽는다 —
       //   여기서 읽어 두면 읽기와 쓰기 사이에 다른 환불이 끼어들어 누계가 유실된다.
       //   capturedExchangeRate 만 예외: 표시용 KRW 환산에만 쓰고 판정에는 안 쓴다.
+      // Duplicate: no booking-matching reads once the reinforcement budget is spent, and each read races it.
+      if (priorProcessed && handlerStartedAt + DUPLICATE_REINFORCE_DEADLINE_MS <= Date.now()) return answerIdempotent();
+      const BUDGET_EXHAUSTED = Symbol('duplicate_budget_exhausted');
+      const budgetedRead = (read) => (priorProcessed ? withinDuplicateBudget(handlerStartedAt, read, BUDGET_EXHAUSTED) : read);
       let bookingsDocId = null;
       let bookingRef = null;
       let capturedRate = 0;
@@ -813,7 +864,8 @@ export default async function handler(req, res) {
       // 슬롯 자체는 여기서 읽지 않는다 — 근거는 서버 스냅샷뿐이다.
       let bookingData = null;
 
-      let bookingDoc = await adminDb.collection('bookings').doc(captureId).get();
+      let bookingDoc = await budgetedRead(adminDb.collection('bookings').doc(captureId).get());
+      if (bookingDoc === BUDGET_EXHAUSTED) return answerIdempotent();
       if (bookingDoc.exists) {
         bookingsDocId = captureId;
         bookingData = bookingDoc.data();
@@ -826,10 +878,12 @@ export default async function handler(req, res) {
         //   __name__ ASC 정렬 때문에 **항상 첫 라인(__L0)**만 골라 REFUNDED 로 마킹한다 → 실제
         //   환불된 라인은 CONFIRMED 로 남고 엉뚱한 라인이 환불처리된다(기록 오류). size>1 이면
         //   captureID 만으로 어느 라인 환불인지 특정 불가 → 자동 마킹 금지, 운영자 수동 확인.
-        const captureFieldMatch = await adminDb.collection('bookings')
+        const captureFieldMatch = await budgetedRead(adminDb.collection('bookings')
           .where('captureID', '==', captureId)
-          .get();
+          .get());
+        if (captureFieldMatch === BUDGET_EXHAUSTED) return answerIdempotent();
         if (captureFieldMatch.size > 1) {
+          if (priorProcessed) return answerIdempotent();
           await logWebhookEvent({
             db: adminDb, environment: verifiedEnvironment, eventId, eventType,
             status: 'ambiguous',
@@ -852,9 +906,10 @@ export default async function handler(req, res) {
           capturedRate = Number(bookingDoc.data().capturedExchangeRate) || 0;
         } else {
           // Manual QR path — admin-matched paypalTransactionId on pending_bookings.
-          const pendingMatch = await adminDb.collection('pending_bookings')
+          const pendingMatch = await budgetedRead(adminDb.collection('pending_bookings')
             .where('paypalTransactionId', '==', captureId)
-            .limit(1).get();
+            .limit(1).get());
+          if (pendingMatch === BUDGET_EXHAUSTED) return answerIdempotent();
           if (!pendingMatch.empty) {
             bookingRef = pendingMatch.docs[0].id;
             // bookingsDocId stays null — pending_bookings update only.
@@ -863,6 +918,7 @@ export default async function handler(req, res) {
       }
 
       if (!bookingRef) {
+        if (priorProcessed) return answerIdempotent();
         await logWebhookEvent({
           db: adminDb, environment: verifiedEnvironment, eventId, eventType,
           status: 'unmatched',
@@ -892,44 +948,91 @@ export default async function handler(req, res) {
       //   누적으로 판정하는 이유: $5 + $4.90 처럼 나눠 전액을 돌려주면, 이번 이벤트
       //     금액만 보고는 영원히 PARTIALLY_REFUNDED 로 남는다.
       const refundId = event?.resource?.id || null;
+      // 2026-10-21 (review item C): refund currency feeds the strict full-refund proof (USD only).
+      const refundCurrency = event?.resource?.amount?.currency_code || null;
 
       // PayPal 이 아는 capture 상태가 최종 진실이다(우리 누계는 이벤트 유실에 취약).
       // 실패하면 null → 누적 계산으로 판정한다. 조회 실패로 환불 기록이 멈추면 안 된다.
-      const authoritativeCaptureStatus = await fetchAuthoritativeCaptureStatus(captureId, {
+      const authoritativeStatusCall = fetchAuthoritativeCaptureStatus(captureId, {
         getPaypalAccessToken,
         isSandbox: resolveIsSandbox(),
       });
+      // Duplicate: a slow PayPal lookup falls back to null (not eligible ⇒ no proof), never past the budget.
+      const authoritativeCaptureStatus = priorProcessed
+        ? await withinDuplicateBudget(handlerStartedAt, authoritativeStatusCall, null)
+        : await authoritativeStatusCall;
+
+      const runRefundLedger = () => applyRefundEvent({
+        db: adminDb,
+        FieldValue,
+        eventId,
+        eventType,
+        refundId,
+        captureId,
+        refundedUSD,
+        refundedKRW,
+        usdToKrw,
+        bookingsDocId,
+        bookingRef,
+        authoritativeCaptureStatus,
+        // 🔴 검증에 실제로 통과한 PayPal 환경. 예약 문서의 환경과 다르면 원장이 격리한다.
+        webhookEnvironment: verifiedEnvironment,
+        refundCurrency,
+      });
+
+      // 2026-10-21 (review item C): proof-only reinforcement on the bookings doc — an earlier run of this event may
+      //   have committed before the proof existed. Idempotent, writes only fullRefundProof, never pending_bookings
+      //   (bookingsDocId is null for a pending_bookings-only match). Best-effort: never changes the response.
+      const reinforceRefundProof = async (outcome) => {
+        if (!bookingsDocId || !(outcome.applied === true || outcome.reason === 'duplicate_event' || outcome.reason === 'duplicate_refund')) return;
+        try {
+          await ensureFullRefundProof({
+            db: adminDb, bookingsDocId, captureId, authoritativeCaptureStatus, refundId, refundCurrency,
+            webhookEnvironment: verifiedEnvironment,
+            // Duplicate: re-checked inside the transaction (after its read, before any write) so a slow
+            //   transaction never writes once the duplicate answer was sent or the budget is spent.
+            shouldSkip: priorProcessed ? () => duplicateResponded || handlerStartedAt + DUPLICATE_REINFORCE_DEADLINE_MS <= Date.now() : undefined,
+          });
+        } catch (e) {
+          console.warn('[paypal-webhook] full-refund proof reinforcement failed (non-fatal):', e.message);
+        }
+      };
 
       let refundOutcome;
-      try {
-        refundOutcome = await applyRefundEvent({
-          db: adminDb,
-          FieldValue,
-          eventId,
-          eventType,
-          refundId,
-          captureId,
-          refundedUSD,
-          refundedKRW,
-          usdToKrw,
-          bookingsDocId,
-          bookingRef,
-          authoritativeCaptureStatus,
-          // 🔴 검증에 실제로 통과한 PayPal 환경. 예약 문서의 환경과 다르면 원장이 격리한다.
-          webhookEnvironment: verifiedEnvironment,
-        });
-      } catch (e) {
-        // 🔴 실패는 processed 로 기록하지 않는다 — PayPal 재전송으로 다시 처리돼야 한다.
-        console.error('[paypal-webhook] 환불 원장 transaction 실패 (재시도 가능):', e.message);
-        captureError(e, { tag: 'paypal-webhook-refund-tx', eventId, captureId });
-        await logWebhookEvent({
-          db: adminDb, environment: verifiedEnvironment, eventId, eventType,
-          status: 'retryable_error',
-          detail: { reason: e.message, captureId, refundId },
-        });
-        await alertAdmin(`🚨 <b>환불 웹훅 처리 실패 (재시도 대기)</b>\n\nCapture: <code>${captureId}</code>\n환불액: $${refundedUSD}\n사유: ${e.message}`);
-        res.writeHead(503, JSON_HEADERS);
-        return res.end(JSON.stringify({ ok: false, status: 'retryable', error: 'refund ledger unavailable' }));
+      if (priorProcessed) {
+        // Same transmission id already processed: ledger (answers duplicate_event without writing) + reinforcement
+        //   race the remaining budget together. Exhaustion or a throw ⇒ the historical duplicate answer — no
+        //   webhook log, no alert (a throw is still reported to Sentry).
+        //   The race does not cancel the losing pair, so the reinforcement is gated: once the duplicate answer was
+        //   sent (or the budget is spent — the fallback timer has fired even if answerIdempotent has not run yet),
+        //   nothing is written after the response.
+        refundOutcome = await withinDuplicateBudget(handlerStartedAt, (async () => {
+          const outcome = await runRefundLedger();
+          if (duplicateResponded || handlerStartedAt + DUPLICATE_REINFORCE_DEADLINE_MS <= Date.now()) return outcome;
+          await reinforceRefundProof(outcome);
+          return outcome;
+        })().catch((e) => {
+          captureError(e, { tag: 'paypal-webhook-refund-duplicate', eventId, captureId });
+          return { applied: false, reason: 'duplicate_ledger_error' };
+        }), { applied: false, reason: 'duplicate_budget_exhausted' });
+        if (!refundOutcome.applied) return answerIdempotent();
+      } else {
+        try {
+          refundOutcome = await runRefundLedger();
+        } catch (e) {
+          // 🔴 실패는 processed 로 기록하지 않는다 — PayPal 재전송으로 다시 처리돼야 한다.
+          console.error('[paypal-webhook] 환불 원장 transaction 실패 (재시도 가능):', e.message);
+          captureError(e, { tag: 'paypal-webhook-refund-tx', eventId, captureId });
+          await logWebhookEvent({
+            db: adminDb, environment: verifiedEnvironment, eventId, eventType,
+            status: 'retryable_error',
+            detail: { reason: e.message, captureId, refundId },
+          });
+          await alertAdmin(`🚨 <b>환불 웹훅 처리 실패 (재시도 대기)</b>\n\nCapture: <code>${captureId}</code>\n환불액: $${refundedUSD}\n사유: ${e.message}`);
+          res.writeHead(503, JSON_HEADERS);
+          return res.end(JSON.stringify({ ok: false, status: 'retryable', error: 'refund ledger unavailable' }));
+        }
+        await reinforceRefundProof(refundOutcome);
       }
 
       if (!refundOutcome.applied) {
@@ -1110,6 +1213,8 @@ export default async function handler(req, res) {
   } catch (err) {
     console.error('[paypal-webhook] failed:', err.message, err.stack);
     await captureError(err, { route: '/api/paypal-webhook', eventId });
+    // An already-processed transmission keeps its historical 200 even when the read-only replay path throws.
+    if (priorProcessed) return answerIdempotent();
     // 500 응답 → PayPal 재시도. 단, 같은 eventId 면 위 멱등 체크가 차단.
     res.writeHead(500, JSON_HEADERS);
     return res.end(JSON.stringify({ ok: false, error: err.message || 'internal error' }));

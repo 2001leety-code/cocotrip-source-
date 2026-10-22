@@ -31,6 +31,7 @@ import { buildEstimateConsentRecord } from './_shared/estimate-consent.js';
 // 🔴 2026-07-18 차터 옵션 미청구 fix: 옵션(면허가이드 30만 등)·야간할증이 표시 총액에만 있고
 //   청구에서 통째로 빠지던 돈버그. 프론트 미러 = src/lib/charterExtras.ts (P311).
 import { isCharterExtrasProduct, charterExtrasKrw, sanitizeCharterOptions, deriveNightFromPickup } from './_shared/charter-extras.js';
+import { findUnfinishedCheckout, newCheckoutCapability, checkoutCookie, verifyBearerUid } from './_shared/payment-fulfillment-recovery.js';
 
 export const maxDuration = 30;
 export const config = { runtime: 'nodejs' };
@@ -201,6 +202,23 @@ export default async function handler(req, res) {
       return res.end(JSON.stringify(_err(aiPlannerGate.error, aiPlannerGate.code)));
     }
     const isAiPlanner = isAiPlannerProduct(productType);
+
+    // 🔴 2026-10-10 recovery contract: while an earlier capture in THIS browser (either flow) is unresolved,
+    //   no new order may be created — the customer must reconcile the same order first. Cookie present but
+    //   storage unreadable = fail closed (no money moves yet, retry is safe). No cookie = nothing to check.
+    try {
+      const unfinished = await findUnfinishedCheckout({ db: initAdminDb('createPaypalOrder-recovery'), req });
+      if (unfinished) {
+        res.writeHead(409, JSON_CORS);
+        return res.end(JSON.stringify(unfinished));
+      }
+    } catch (recoveryErr) {
+      console.error('[createPaypalOrder] unfinished-checkout check failed → order creation blocked (fail-closed):', recoveryErr.message);
+      res.writeHead(503, JSON_CORS);
+      return res.end(JSON.stringify(_err('Could not verify earlier payments right now — please retry', 'RECOVERY_CHECK_UNAVAILABLE')));
+    }
+    const checkoutCapability = newCheckoutCapability();
+    const ownerUid = await verifyBearerUid(req.headers && req.headers.authorization);
 
     // PR-R (2026-05-08): 예약 마감 정책 검증 — 값의 SSOT = _shared/booking-cutoff.js
     // (2026-07-28 운영자: 상품군 분리 — 전세차량 1h / 투어 8h. 옛 "전 상품 12h 통일"은 폐기)
@@ -549,6 +567,10 @@ export default async function handler(req, res) {
         // 🔴 F2: 서버가 실제로 잠근 슬롯(정원 = 서버 재확인값). 슬롯 없는 상품은 null.
         //   capturePaypalOrder 의 confirmSlotLock 은 이 값만 쓴다(capture body 불신).
         slotBooking,
+        // 🔴 Same-order authority for capture/recovery: sha256 of the HttpOnly capability secret handed to
+        //   this browser only, plus the verified owner uid (guest = null). Never the secret itself.
+        recoveryDigest: checkoutCapability.digest,
+        ownerUid: ownerUid || null,
         createdAt: new Date().toISOString(),
       });
     } catch (_snapErr) {
@@ -557,7 +579,7 @@ export default async function handler(req, res) {
       return res.end(JSON.stringify(_err('Order setup failed — please retry', 'SNAPSHOT_FAILED')));
     }
 
-    res.writeHead(200, JSON_CORS);
+    res.writeHead(200, { ...JSON_CORS, 'Set-Cookie': checkoutCookie('single', order.id, checkoutCapability.secret, req) });
     res.end(JSON.stringify(_ok({ orderID: order.id, usdAmount, krwAmount, currentRate: Math.round(usdToKrw), displayKRW: krwAmount.toLocaleString('ko-KR') + '원', displayUSD: '$' + usdAmount + ' USD' })));
   } catch (err) {
     console.error('[createPaypalOrder] Error:', err);

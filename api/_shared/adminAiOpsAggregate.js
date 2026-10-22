@@ -6,6 +6,7 @@
  * bookingRef/order/capture 계열의 명시적 식별자가 bookings 와 일치할 때만 제거한다.
  */
 
+import { HELD_ORPHAN_AGE_MS } from './payment-fulfillment-recovery.js';
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 const OPEN_INQUIRY_STATUSES = new Set(['new', 'pending']);
@@ -315,7 +316,7 @@ export function normalizeDecision(id, raw = {}, nowMs = Date.now()) {
   };
 }
 
-export function retryQueueHealth(key, label, docs, sourceAvailable = true) {
+export function retryQueueHealth(key, label, docs, sourceAvailable = true, nowMs = Date.now()) {
   if (!sourceAvailable) {
     return {
       key,
@@ -323,6 +324,7 @@ export function retryQueueHealth(key, label, docs, sourceAvailable = true) {
       status: 'unknown',
       pending: 0,
       manual: 0,
+      held: 0,
       count: 0,
       detail: '상태 확인 실패',
       deepLink: '/admin/reconciliation',
@@ -330,21 +332,28 @@ export function retryQueueHealth(key, label, docs, sourceAvailable = true) {
   }
   let pending = 0;
   let manual = 0;
+  // Capture-time intents are created 'held' and opened to 'pending' at the end of the request; one still held
+  // after the claim lease was left behind by a dead worker (2026-10-20 payments review) and needs the operator.
+  let held = 0;
   for (const doc of docs) {
     const status = lower(doc.status);
     if (status === 'pending') pending += 1;
     else if (status === 'manual-intervention' || status === 'permanent-failure') manual += 1;
+    else if (status === 'held' && nowMs - toMillis(doc.updatedAt) > HELD_ORPHAN_AGE_MS) held += 1;
   }
   return {
     key,
     label,
-    status: manual > 0 ? 'attention' : pending > 0 ? 'retrying' : 'ok',
+    status: manual + held > 0 ? 'attention' : pending > 0 ? 'retrying' : 'ok',
     pending,
     manual,
-    count: pending + manual,
-    detail: manual > 0
-      ? `수동 확인 ${manual}건`
-      : pending > 0 ? `자동 재시도 ${pending}건` : '대기 없음',
+    held,
+    count: pending + manual + held,
+    detail: held > 0
+      ? `held 고아 ${held}건${manual > 0 ? ` · 수동 확인 ${manual}건` : ''}`
+      : manual > 0
+        ? `수동 확인 ${manual}건`
+        : pending > 0 ? `자동 재시도 ${pending}건` : '대기 없음',
     deepLink: '/admin/reconciliation',
   };
 }
@@ -359,8 +368,9 @@ export function automationWorkItems(automation) {
       sourceRecordId: item.key,
       title: `${item.label} · ${item.count}건`,
       status: item.status,
-      priority: item.manual > 0 ? 'P0' : 'P1',
-      nextAction: item.manual > 0 ? '수동 처리 필요' : '자동 재시도 확인',
+      // held orphans are never retried automatically (2026-10-20): they are operator work, like manual-intervention.
+      priority: item.manual > 0 || (item.held || 0) > 0 ? 'P0' : 'P1',
+      nextAction: (item.held || 0) > 0 ? '수동 처리 필요 (held 고아)' : item.manual > 0 ? '수동 처리 필요' : '자동 재시도 확인',
       actionRequired: true,
       ageHours: 0,
       eventDate: '',

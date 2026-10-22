@@ -30,6 +30,8 @@ import { verifyUserToken } from './_shared/user-auth.js';
 import { refundPaypalCapture } from './_shared/paypal-refund.js';
 import { releaseSlotForCanceledOrder } from './_shared/slot-capacity.js';
 import { throttledTelegramAlert } from './_shared/telegram-throttle.js';
+import { toMinorUnits } from './_shared/paypal-capture-verify.js';
+import { buildFullRefundProof, mergeFullRefundProof, provenFullRefundID } from './_shared/payment-fulfillment-recovery.js';
 
 export const maxDuration = 30;
 export const config = { runtime: 'nodejs' };
@@ -325,7 +327,11 @@ export default async function handler(req, res) {
         ? `CocoTrip cancellation: ${policy.refundPercent}% refund`
         : 'CocoTrip cancellation: full refund',
       isSandbox,
+      // 2026-10-21 (review item C): receipt carries the refunded amount/currency — needed only for the strict
+      //   full-refund proof below. Call count and idempotency key are unchanged.
+      receipt: true,
     });
+    const usedEnvironment = isSandbox ? 'sandbox' : 'live'; // the environment this refund call actually used
     if (!refundResult.ok) {
       const outcomeUnknown = REFUND_OUTCOME_UNKNOWN.has(refundResult.code);
       // 🔴 F2 (2026-07-16): CAS 로만 상태를 되돌린다. 이전엔 무조건 `ref.update({status:'CONFIRMED'})`
@@ -376,6 +382,14 @@ export default async function handler(req, res) {
       return res.end(JSON.stringify(_err(refundResult.error, refundResult.code || 'REFUND_FAILED')));
     }
     const refundData = refundResult.refund;
+    // Strict full-refund proof (review item C): null unless the receipt proves a FULL refund of this capture
+    //   (partial / pending / other currency ⇒ provenFullRefundID null ⇒ no proof). Refund logic unchanged.
+    const fullAmountMinor = toMinorUnits(booking.amountUSD, 'USD');
+    const fullProof = buildFullRefundProof({
+      captureID: booking.captureID, currency: 'USD', amountMinor: fullAmountMinor,
+      refundIDs: [provenFullRefundID(refundResult, { amountMinor: fullAmountMinor, currency: 'USD' })],
+      source: 'cancel-api', environment: usedEnvironment,
+    });
 
     // 🟠 F3c-lite (옵션 B, 2026-07-16): PENDING(eCheck 등)은 비종단이지만 CANCELED 종단은 유지한다 —
     //   strict(비종단 REFUND_PENDING 상태 도입)는 eCheck 가 API 에서 영구 PENDING 으로 남으면 정상
@@ -403,6 +417,7 @@ export default async function handler(req, res) {
       refundPercent: policy.refundPercent,
       refundStatus: refundData.status,
       updatedAt: FieldValue.serverTimestamp(),
+      ...(fullProof ? { fullRefundProof: mergeFullRefundProof(booking.fullRefundProof, fullProof) } : {}),
     });
 
     // 4-1. 🔴 좌석 해제 (2026-08-09) — 환불이 **확정 성공**하고 예약이 CANCELED 로 확정된 뒤에만.

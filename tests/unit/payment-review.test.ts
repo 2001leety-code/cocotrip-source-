@@ -16,6 +16,10 @@ import { resolve } from 'node:path';
 import {
   buildPaymentReviewDoc, buildPaymentReviewResponse, summarizeCapture, recordPaymentReview, PAYMENT_REVIEW_STATUS,
 } from '../../api/_shared/payment-review.js';
+import { classifyCaptureResponse, isFinalPayment } from '../../src/lib/paymentRecovery';
+
+// 분류기 모듈의 네트워크 의존만 차단(분류기 자체는 실제 구현).
+vi.mock('@/lib/authFetch', () => ({ authFetch: vi.fn() }));
 
 const singleSrc = readFileSync(resolve(process.cwd(), 'api/capturePaypalOrder.js'), 'utf8');
 const cartSrc = readFileSync(resolve(process.cwd(), 'api/captureCartOrder.js'), 'utf8');
@@ -199,23 +203,33 @@ describe('capture 핸들러 — 불일치 시 후속처리 차단 (source 가드
     expect(cartSrc).toMatch(/writeHead\(202/);
   });
 
-  it('프론트: PAYMENT_REVIEW 를 성공으로 처리하지 않음 (허위 전환·확정 오인 방지)', () => {
-    const btn = readFileSync(resolve(process.cwd(), 'src/components/PayPalBookingButton.tsx'), 'utf8');
-    const cart = readFileSync(resolve(process.cwd(), 'src/components/CartCheckout.tsx'), 'utf8');
-    // 두 소비부 모두 finalized/bookingStatus 를 ok 보다 **먼저** 확인해야 한다.
-    for (const [name, src] of [['PayPalBookingButton', btn], ['CartCheckout', cart]] as const) {
-      const reviewIdx = src.indexOf('PAYMENT_REVIEW');
-      const okIdx = src.indexOf('json.ok');
-      expect(reviewIdx, `${name}: PAYMENT_REVIEW 분기 없음`).toBeGreaterThan(-1);
-      expect(okIdx, `${name}: json.ok 판정 없음`).toBeGreaterThan(-1);
-      expect(reviewIdx, `${name}: review 분기가 json.ok 판정보다 앞서야 함`).toBeLessThan(okIdx);
-      expect(src).toMatch(/finalized === false/);
+  // 프론트 판정은 두 소비부(PayPalBookingButton·CartCheckout)가 공유하는 paymentRecovery 분류기에 있다.
+  //   소스 문자열이 아니라 실제 export 의 동작으로 고정한다 — review 가 성공(final)으로 새면 실패한다.
+  //   두 화면의 실제 소비 동작(포인터 유지·성공/전환/장바구니 삭제 없음)은 payment-recovery-ui.test.tsx.
+  it('프론트: PAYMENT_REVIEW 는 ok:true / finalized:true 여도 성공(final)이 아니다 (허위 전환·확정 오인 방지)', () => {
+    const data = { orderID: 'ORD1', amount: '50.00' };
+    const cases: Record<string, unknown>[] = [
+      { ok: true, finalized: false, bookingStatus: PAYMENT_REVIEW_STATUS, paymentCaptured: true, captureID: 'CAP-9', data },
+      { ok: true, finalized: true, bookingStatus: PAYMENT_REVIEW_STATUS, paymentCaptured: true, captureID: 'CAP-9', data },
+      { ...buildPaymentReviewResponse({ orderID: 'ORD1', captureID: 'CAP-9', capture: CAPTURE }), ok: true, data },
+    ];
+    for (const json of cases) {
+      expect(isFinalPayment(json, 'ORD1')).toBe(false);
+      expect(classifyCaptureResponse(json, 'ORD1')).toEqual({ kind: 'review', captured: true, captureID: 'CAP-9' });
     }
-    // 단건: review 분기에서 전환(GA4/posthog)이 발화하면 안 됨 → 분기 안에서 early return.
-    const rIdx = btn.indexOf('json.finalized === false');
-    const okIdx = btn.indexOf('const isSuccess = json.ok === true');
-    expect(btn.slice(rIdx, okIdx)).toMatch(/return;/);
-    expect(btn.slice(rIdx, okIdx)).not.toMatch(/trackPaidConversion|posthogTrack/);
+    // 캡처 안 된 review 는 "결제됨" 으로 표시하지 않는다.
+    expect(classifyCaptureResponse({ ...buildPaymentReviewResponse({ orderID: 'ORD1' }), ok: true, data }, 'ORD1')).toMatchObject({ kind: 'review', captured: false });
+  });
+
+  it('프론트: ok:true + finalized:false 는 review 표시가 없어도 성공이 아니다; 같은 주문의 확정 응답만 성공', () => {
+    const notFinal = { ok: true, finalized: false, data: { orderID: 'ORD1' } };
+    expect(isFinalPayment(notFinal, 'ORD1')).toBe(false);
+    expect(classifyCaptureResponse(notFinal, 'ORD1').kind).toBe('pending');
+    // 양성 대조: 같은 주문의 확정 응답은 final — 위 가드가 "항상 false" 로 통과하는 것이 아님을 보증.
+    const final = { ok: true, finalized: true, data: { orderID: 'ORD1', amount: '50.00' } };
+    expect(isFinalPayment(final, 'ORD1')).toBe(true);
+    expect(classifyCaptureResponse(final, 'ORD1')).toEqual({ kind: 'final', data: final.data });
+    expect(isFinalPayment(final, 'ORD2')).toBe(false);
   });
 
   // 🔴 회귀 가드 — PENDING(리스크홀드/eCheck)을 격리하면 booking doc 이 안 생기고

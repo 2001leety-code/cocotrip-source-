@@ -17,6 +17,7 @@ import { readFileSync } from 'fs';
 import { join } from 'path';
 import { AI_PLANNER_FULL_USD as SERVER_USD, loadPricingSpec, resolveKrwAmount } from '../../api/_shared/pricing.js';
 import { fixedUsdPriceFor, isFixedUsdPriceProduct, usesFixedUsdRate } from '../../api/_shared/usd-rate-policy.js';
+import { toMinorUnits, verifyCaptureIntegrity } from '../../api/_shared/paypal-capture-verify.js';
 import {
   AI_PLANNER_FULL_USD as CLIENT_USD,
   AI_PLANNER_REFERENCE_KRW,
@@ -102,13 +103,28 @@ describe('주문 생성 — 환율 미개입 + 금액 대조', () => {
 describe('Capture · booking · 원장 — 금액 출처', () => {
   it('Capture 금액은 PayPal 응답에서 온다 (클라이언트 body 아님)', () => {
     const code = codeOf('api/capturePaypalOrder.js');
-    expect(code).toContain('const amount = captureNode?.amount?.value');
+    // 2026-10-10 recovery rewrite: `const amount = captureNode?.amount?.value` → `_stored ? _stored.amountValue : (captureNode?.amount?.value ?? '')`
+    //   (_stored = the verified-capture summary written only after verifyCaptureIntegrity passed; body never supplies the amount).
+    expect(code).toContain('const amount = _stored ? _stored.amountValue : (captureNode?.amount?.value ?? \'\')');
+    expect(code).not.toMatch(/const amount = (req\.)?body/);
     expect(code).toContain('amountUSD: amount');
   });
 
   it('Capture 검증은 스냅샷 expectedUSD 와 대조한다', () => {
     const code = codeOf('api/capturePaypalOrder.js');
     expect(code).toContain('_snapExpectedUSD');
+    // 2026-10-10 recovery rewrite: same guarantee, proven by source (call site) + behavior (verifier verdicts)
+    expect(code).toMatch(/verifyCaptureIntegrity\(\{\s*capture,\s*expectedAmountMinor:\s*_expectedMinor,\s*expectedCurrency:\s*'USD'\s*\}\)/);
+    expect(code).toContain("const _expectedMinor = toMinorUnits(_snapExpectedUSD, 'USD')");
+    const cap = (value: string, currency = 'USD') => ({
+      status: 'COMPLETED',
+      purchase_units: [{ payments: { captures: [{ id: 'CAP1', status: 'COMPLETED', amount: { value, currency_code: currency } }] } }],
+    });
+    const expectedMinor = toMinorUnits('9.90', 'USD');
+    expect(verifyCaptureIntegrity({ capture: cap('9.90'), expectedAmountMinor: expectedMinor, expectedCurrency: 'USD' }).ok).toBe(true);
+    const under = verifyCaptureIntegrity({ capture: cap('9.06'), expectedAmountMinor: expectedMinor, expectedCurrency: 'USD' });
+    expect(under).toMatchObject({ ok: false, code: 'AMOUNT_MISMATCH' });
+    expect(verifyCaptureIntegrity({ capture: cap('9.90', 'KRW'), expectedAmountMinor: expectedMinor, expectedCurrency: 'USD' })).toMatchObject({ ok: false, code: 'CURRENCY_MISMATCH' });
   });
 
   it('원장은 booking.amountUSD 만 본다 (예상 여행비 아님)', () => {

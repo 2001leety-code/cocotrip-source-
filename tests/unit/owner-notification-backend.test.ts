@@ -871,8 +871,62 @@ describe('transport adapter and schedule contracts, with no external calls', () 
     expect(source('api/capturePaypalOrder.js')).toContain('bookingRef: orderID');
     expect(source('api/capturePaypalOrder.js')).toContain("paypalEnvironment: _isSandboxCapture ? 'sandbox' : 'live'");
     expect(source('api/captureCartOrder.js')).toContain("paypalEnvironment: isSandbox ? 'sandbox' : 'live'");
-    expect(source('api/_shared/booking-confirm.js')).toContain('const bookingId = paypalTransactionId || bookingRef');
-    expect(source('api/_shared/booking-confirm.js')).toContain("provider: source === 'webhook' ? 'paypal-webhook' : 'paypal-manual'");
+    // 2026-10-10 recovery rewrite: `const bookingId = paypalTransactionId || bookingRef` → first confirm still derives it that way,
+    //   re-confirm reuses the stored id (behavior proven in the next test).
+    expect(source('api/_shared/booking-confirm.js')).toContain('const bookingId = alreadyConfirmed ? pending.paypalTransactionId || bookingRef : paypalTransactionId || bookingRef');
+    // 2026-10-10 recovery rewrite: `provider: source === 'webhook' ? …` → `originalSource === 'webhook' ? …` inside bookingMirror
+    expect(source('api/_shared/booking-confirm.js')).toContain("provider: originalSource === 'webhook' ? 'paypal-webhook' : 'paypal-manual'");
     expect(source('api/_shared/inquiry-response-delivery.js')).toContain("{ status: 'responded' }");
+  });
+  it('booking-confirm bookingId: PayPal tx id (else bookingRef) on first confirm, stable on re-confirm; provider by source', async () => {
+    vi.resetModules();
+    vi.doMock('../../api/_shared/booking-processor-trigger.js', () => ({ triggerBookingProcessor: async () => ({ ok: true }) }));
+    vi.doMock('../../api/_shared/ai-planner-trigger.js', () => ({ triggerAiPlanner: async () => ({ ok: true }) }));
+    vi.doMock('../../api/_shared/customer-email-trigger.js', () => ({ sendCustomerEmailWithAlert: async () => ({ ok: true }) }));
+    vi.doMock('../../api/_shared/notify.js', () => ({ notify: async () => {} }));
+    vi.doMock('../../api/_shared/manual-payment-emails.js', () => ({ buildManualPaymentEmail: () => ({ subject: 's', html: 'h', text: 't' }) }));
+    try {
+      const { confirmBookingAsPaid } = await import('../../api/_shared/booking-confirm.js');
+      const makeDb = (pendingId: string) => {
+        const docs = new Map<string, Record<string, unknown>>([[`pending_bookings/${pendingId}`, {
+          status: 'PENDING', productType: 'tour', customerEmail: 'a@example.com', priceKRW: 100000, passengers: 2,
+        }]]);
+        const ref = (path: string) => ({
+          path,
+          get: async () => ({ exists: docs.has(path), data: () => docs.get(path) }),
+          update: async (patch: Record<string, unknown>) => { docs.set(path, { ...(docs.get(path) || {}), ...patch }); },
+        });
+        const db = {
+          collection: (c: string) => ({ doc: (id: string) => ref(`${c}/${id}`) }),
+          runTransaction: async (cb: (tx: unknown) => Promise<unknown>) => cb({
+            get: async (r: { path: string }) => ({ exists: docs.has(r.path), data: () => docs.get(r.path) }),
+            set: (r: { path: string }, data: Record<string, unknown>, opts?: { merge?: boolean }) => { docs.set(r.path, opts?.merge ? { ...(docs.get(r.path) || {}), ...data } : { ...data }); },
+            update: (r: { path: string }, patch: Record<string, unknown>) => { docs.set(r.path, { ...(docs.get(r.path) || {}), ...patch }); },
+          }),
+        };
+        return { db, docs };
+      };
+      // first confirm with a PayPal transaction id → bookings/{txId}
+      const a = makeDb('REF-A');
+      const first = await confirmBookingAsPaid({ db: a.db, bookingRef: 'REF-A', paypalTransactionId: 'TX-1', source: 'webhook' });
+      expect(first).toMatchObject({ ok: true, bookingId: 'TX-1' });
+      expect(a.docs.get('bookings/TX-1')).toMatchObject({ captureID: 'TX-1', bookingRef: 'REF-A', provider: 'paypal-webhook' });
+      // re-confirm with a different id (admin) must NOT mint a second booking id — it reuses the stored one
+      const again = await confirmBookingAsPaid({ db: a.db, bookingRef: 'REF-A', paypalTransactionId: 'TX-OTHER', source: 'admin', adminUid: 'u1' });
+      expect(again).toMatchObject({ ok: true, bookingId: 'TX-1', alreadyConfirmed: true });
+      expect(a.docs.has('bookings/TX-OTHER')).toBe(false);
+      // first confirm without a transaction id → bookingRef is the id; admin → manual provider
+      const b = makeDb('REF-B');
+      const noTx = await confirmBookingAsPaid({ db: b.db, bookingRef: 'REF-B', source: 'admin', adminUid: 'u1' });
+      expect(noTx).toMatchObject({ ok: true, bookingId: 'REF-B' });
+      expect(b.docs.get('bookings/REF-B')).toMatchObject({ captureID: 'REF-B', provider: 'paypal-manual' });
+    } finally {
+      vi.doUnmock('../../api/_shared/booking-processor-trigger.js');
+      vi.doUnmock('../../api/_shared/ai-planner-trigger.js');
+      vi.doUnmock('../../api/_shared/customer-email-trigger.js');
+      vi.doUnmock('../../api/_shared/notify.js');
+      vi.doUnmock('../../api/_shared/manual-payment-emails.js');
+      vi.resetModules();
+    }
   });
 });

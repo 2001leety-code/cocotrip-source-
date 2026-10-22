@@ -38,7 +38,7 @@ vi.mock('../../api/_shared/booking-confirm.js', () => ({ confirmBookingAsPaid: v
 vi.mock('firebase-admin/firestore', () => ({ FieldValue: FakeFieldValue }));
 vi.mock('../../api/_shared/firebase-admin.js', () => ({ initAdminDb: () => db }));
 
-const { default: handler } = await import('../../api/paypal-webhook.js');
+const { default: handler, DUPLICATE_REINFORCE_DEADLINE_MS } = await import('../../api/paypal-webhook.js');
 
 const AVAIL = 'tour_availability/T1/dates/2026-09-01';
 
@@ -254,6 +254,168 @@ describe('멱등 — 재전송·중복·이미 해제된 주문에서 2회 차�
     await fire();
     const again = await fire({ eventId: 'txn-2' });
     expect(again.json.status).toBe('duplicate_refund');
+    expect(seats()!.S1).toBe(3);
+  });
+
+  // 2026-10-21 (review item C): both duplicate paths must still reach the proof-only reinforcement.
+  it('같은 eventId 재전송(이미 processed) + 증명 없는 예약 → 200 idempotent, fullRefundProof 만 기록, 총액·좌석·로그·알림 불변', async () => {
+    db.__set('paypal_webhook_log/txn-1', { eventId: 'txn-1', status: 'processed', paypalEnvironment: 'live' });
+    const before = { ...db.__get('bookings/ORD-1') };
+    const r = await fire();
+    expect(r.statusCode).toBe(200);
+    expect(r.json).toEqual({ ok: true, idempotent: true });
+    const after = db.__get('bookings/ORD-1')!;
+    expect(after.fullRefundProof).toMatchObject({
+      captureID: 'CAP-1', currency: 'USD', amountMinor: 10000, refundIDs: ['REFUND-1'], source: 'webhook-authoritative', environment: 'live',
+    });
+    const { fullRefundProof: _ignored, ...rest } = after;
+    void _ignored;
+    expect(rest).toEqual(before);                                  // status / totals untouched
+    expect(db.__get('paypal_webhook_log/txn-1')!.status).toBe('processed');
+    expect(seats()!.S1).toBe(5);
+    expect(notifySpy).not.toHaveBeenCalled();
+  });
+
+  // 2026-10-21 (review item C round 3): a duplicate must answer its historical 200 inside the budget.
+  describe('중복 보강 예산 — 느린/실패한 PayPal·원장에서도 200 idempotent, 증명 미기록', () => {
+    const markProcessed = () => db.__set('paypal_webhook_log/txn-1', { eventId: 'txn-1', status: 'processed', paypalEnvironment: 'live' });
+    const fetchCalls = () => (global.fetch as unknown as { mock: { calls: any[][] } }).mock.calls.map((c) => String(c[0]));
+
+    it('PayPal capture 상태 조회가 끝나지 않음 → 예산 소진 후 200 idempotent, fullRefundProof 없음', async () => {
+      markProcessed();
+      const verifyOk = { ok: true, status: 200, json: async () => ({ verification_status: 'SUCCESS' }), text: async () => '' };
+      global.fetch = vi.fn((url: any) => (String(url).includes('/v2/payments/captures/')
+        ? new Promise(() => {})                      // never resolves
+        : Promise.resolve(verifyOk))) as never;
+      vi.useFakeTimers();
+      try {
+        const pending = fire();
+        await vi.advanceTimersByTimeAsync(DUPLICATE_REINFORCE_DEADLINE_MS + 1);
+        const r = await pending;
+        expect(r.statusCode).toBe(200);
+        expect(r.json).toEqual({ ok: true, idempotent: true });
+      } finally {
+        vi.useRealTimers();
+      }
+      expect(db.__get('bookings/ORD-1')).not.toHaveProperty('fullRefundProof');
+      expect(db.__get('paypal_webhook_log/txn-1')!.status).toBe('processed');
+      expect(notifySpy).not.toHaveBeenCalled();
+    });
+
+    it('원장/보강 transaction 이 throw → 200 idempotent (503 아님), 증명·로그·알림 없음', async () => {
+      markProcessed();
+      (db as any).runTransaction = async () => { throw new Error('firestore down'); };
+      const r = await fire();
+      expect(r.statusCode).toBe(200);
+      expect(r.json).toEqual({ ok: true, idempotent: true });
+      expect(db.__get('bookings/ORD-1')).not.toHaveProperty('fullRefundProof');
+      expect(db.__get('paypal_webhook_log/txn-1')!.status).toBe('processed');
+      expect(notifySpy).not.toHaveBeenCalled();
+    });
+
+    it('예약 매칭 Firestore 읽기가 끝나지 않음 → 예산 안에서 200 idempotent, PayPal 상태 조회 없음, 증명 없음', async () => {
+      markProcessed();
+      const realCollection = db.collection.bind(db);
+      (db as any).collection = (name: string) => (name === 'bookings'
+        ? { doc: () => ({ get: () => new Promise(() => {}) }), where: () => ({ get: () => new Promise(() => {}) }) }
+        : realCollection(name));
+      vi.useFakeTimers();
+      const pending = fire();
+      try {
+        await vi.advanceTimersByTimeAsync(DUPLICATE_REINFORCE_DEADLINE_MS + 1);
+      } finally {
+        vi.useRealTimers();
+      }
+      const r = await pending;
+      expect(r.statusCode).toBe(200);
+      expect(r.json).toEqual({ ok: true, idempotent: true });
+      expect(fetchCalls().some((u) => u.includes('/v2/payments/captures/'))).toBe(false);
+      (db as any).collection = realCollection;
+      expect(db.__get('bookings/ORD-1')).not.toHaveProperty('fullRefundProof');
+      expect(notifySpy).not.toHaveBeenCalled();
+    });
+
+    it('원장이 예산 fallback 뒤에야 끝남 → 200 idempotent 이후 ensureFullRefundProof·증명 쓰기 없음', async () => {
+      markProcessed();
+      const realTx = db.runTransaction.bind(db);
+      let release!: () => void;
+      const gate = new Promise<void>((resolve) => { release = resolve; });
+      let txCalls = 0;
+      (db as any).runTransaction = async (fn: any) => { txCalls += 1; await gate; return realTx(fn); };
+      vi.useFakeTimers();
+      const pending = fire();
+      try {
+        await vi.advanceTimersByTimeAsync(DUPLICATE_REINFORCE_DEADLINE_MS + 1);
+      } finally {
+        vi.useRealTimers();
+      }
+      const r = await pending;
+      expect(r.statusCode).toBe(200);
+      expect(r.json).toEqual({ ok: true, idempotent: true });
+      // The ledger now finishes (duplicate_event) — the late pair must not reinforce after the response.
+      release();
+      await new Promise((resolve) => setTimeout(resolve, 20));
+      expect(txCalls).toBe(1);                          // applyRefundEvent only — ensureFullRefundProof never ran
+      expect(db.__get('bookings/ORD-1')).not.toHaveProperty('fullRefundProof');
+      expect(db.__get('paypal_webhook_log/txn-1')!.status).toBe('processed');
+    });
+
+    it('보강 transaction 이 마감 전에 시작했지만 tx.get 이 마감 뒤에 끝남 → 200 idempotent 이후에도 증명 쓰기 없음 (shouldSkip)', async () => {
+      markProcessed();
+      const realTx = db.runTransaction.bind(db);
+      let release!: () => void;
+      const gate = new Promise<void>((resolve) => { release = resolve; });
+      let txCalls = 0;
+      // 1st transaction = applyRefundEvent (duplicate_event, fast). 2nd = ensureFullRefundProof: its read is slow.
+      (db as any).runTransaction = (fn: any, opts?: any) => {
+        txCalls += 1;
+        if (txCalls < 2) return realTx(fn, opts);
+        return realTx(async (tx: any) => fn({ ...tx, get: async (ref: any) => { await gate; return tx.get(ref); } }), opts);
+      };
+      vi.useFakeTimers();
+      const pending = fire();
+      try {
+        await vi.advanceTimersByTimeAsync(DUPLICATE_REINFORCE_DEADLINE_MS + 1);
+      } finally {
+        vi.useRealTimers();
+      }
+      const r = await pending;
+      expect(r.statusCode).toBe(200);
+      expect(r.json).toEqual({ ok: true, idempotent: true });
+      expect(txCalls).toBe(2);                          // the reinforcement DID start before the deadline
+      release();                                        // its read now returns — after the response
+      await new Promise((resolve) => setTimeout(resolve, 20));
+      expect(db.__get('bookings/ORD-1')).not.toHaveProperty('fullRefundProof');
+      expect(db.__get('paypal_webhook_log/txn-1')!.status).toBe('processed');
+    });
+
+    it('서명 검증 실패 → 200 idempotent, PayPal 상태 조회 없음, 증명·검증로그·알림 없음', async () => {
+      markProcessed();
+      global.fetch = vi.fn(async (url: any) => (String(url).includes('verify-webhook-signature')
+        ? { ok: true, status: 200, json: async () => ({ verification_status: 'FAILURE' }), text: async () => '' }
+        : { ok: true, status: 200, json: async () => ({ status: 'REFUNDED' }), text: async () => '' })) as never;
+      const r = await fire();
+      expect(r.statusCode).toBe(200);
+      expect(r.json).toEqual({ ok: true, idempotent: true });
+      expect(fetchCalls().some((u) => u.includes('/v2/payments/captures/'))).toBe(false);
+      expect(db.__get('bookings/ORD-1')).not.toHaveProperty('fullRefundProof');
+      expect(db.__get('paypal_webhook_log/txn-1')!.status).toBe('processed');
+      expect(notifySpy).not.toHaveBeenCalled();
+    });
+  });
+
+  it('다른 eventId + 같은 refundId(첫 반영 뒤) → duplicate_refund, 총액 불변, 빠진 증명은 보강된다', async () => {
+    await fire();
+    expect(db.__get('bookings/ORD-1')!.fullRefundProof.refundIDs).toEqual(['REFUND-1']);
+    // Simulate a first run that committed before proof existed.
+    db.__patch('bookings/ORD-1', { fullRefundProof: undefined });
+    const totals = { usd: db.__get('bookings/ORD-1')!.refundedUSDTotal, status: db.__get('bookings/ORD-1')!.status };
+    const again = await fire({ eventId: 'txn-2' });
+    expect(again.statusCode).toBe(200);
+    expect(again.json.status).toBe('duplicate_refund');
+    const after = db.__get('bookings/ORD-1')!;
+    expect({ usd: after.refundedUSDTotal, status: after.status }).toEqual(totals);
+    expect(after.fullRefundProof).toMatchObject({ refundIDs: ['REFUND-1'], amountMinor: 10000, environment: 'live' });
     expect(seats()!.S1).toBe(3);
   });
 

@@ -14,18 +14,80 @@
  * booking-processor.js 의 idempotency 가드에 의존.
  */
 import { initAdminDb } from '../_shared/firebase-admin.js';
-import { FieldValue } from 'firebase-admin/firestore';
+import { FieldPath, FieldValue } from 'firebase-admin/firestore';
 import { notify } from '../_shared/notify.js';
 import {
   triggerBookingProcessor,
   PENDING_PROCESSOR_RETRIES_COLLECTION,
 } from '../_shared/booking-processor-trigger.js';
 import { internalApiBase } from '../_shared/internal-base-url.js';
+import { throttledTelegramAlert } from '../_shared/telegram-throttle.js';
+import { HELD_RETRY_STATUS, HELD_ORPHAN_AGE_MS } from '../_shared/payment-fulfillment-recovery.js';
+import { verifyCronRequest } from '../_shared/cron-auth.js';
 
 const MAX_ATTEMPTS = 5;
 const MAX_BATCH = 10;
+const MAX_HELD_PAGES = 10; // ponytail: 100 orphans per run is far beyond a healthy queue; raise if a run ever reports a full last page
+
+/**
+ * 2026-10-20 (payments review): capture handlers create the retry intent as HELD_RETRY_STATUS and open it to
+ * 'pending' only in releaseHeldIntents at the end of the request. If the function dies in between, the money is
+ * captured and the booking is CONFIRMED, but nothing dispatches mail/voucher: this sweep selects 'pending' only
+ * and the ops center used to ignore 'held'. Report intents still held after the claim lease — never dispatch
+ * them here (the mandatory slot/promo decisions may not have settled). A missing or unreadable updatedAt counts
+ * as orphaned, so a malformed record is never silently skipped. Alerts are throttled per order (5-minute key).
+ */
+export { HELD_ORPHAN_AGE_MS };
+
+export function heldOrphanIds(docs, nowMs = Date.now()) {
+  return docs.filter((doc) => {
+    const data = doc.data() || {};
+    const updated = data.updatedAt;
+    const updatedMs = updated && typeof updated.toMillis === 'function' ? updated.toMillis() : (Date.parse(updated) || 0);
+    return nowMs - updatedMs > HELD_ORPHAN_AGE_MS;
+  }).map((doc) => (doc.data() || {}).orderID || doc.id);
+}
+
+export async function reportHeldOrphans(db, nowMs = Date.now()) {
+  // Paginate by document id so orphans beyond the first batch are never missed while earlier ones stay held.
+  const docs = [];
+  let cursor = null;
+  for (let page = 0; page < MAX_HELD_PAGES; page++) {
+    let query = db.collection(PENDING_PROCESSOR_RETRIES_COLLECTION)
+      .where('status', '==', HELD_RETRY_STATUS)
+      .orderBy(FieldPath.documentId())
+      .limit(MAX_BATCH);
+    if (cursor) query = query.startAfter(cursor);
+    const snap = await query.get();
+    docs.push(...snap.docs);
+    if (snap.size < MAX_BATCH) break;
+    cursor = snap.docs[snap.size - 1];
+  }
+  const orphans = heldOrphanIds(docs, nowMs);
+  for (const orderID of orphans) {
+    await throttledTelegramAlert({
+      key: `held-retry-orphan-${orderID}`,
+      channel: 'booking',
+      severity: 'critical',
+      message: [
+        '🚨 <b>결제 완료·예약 저장됐는데 후속처리 intent 가 held 로 남음 — 수동 확인 필요</b>',
+        `<b>예약번호:</b> <code>${orderID}</code>`,
+        '',
+        '→ 메일·바우처 발송이 열리지 않았습니다. 자동 재시도하지 않습니다(슬롯·프로모 판정이 미확정일 수 있음).',
+        `→ <code>${PENDING_PROCESSOR_RETRIES_COLLECTION}/${orderID}</code> 와 예약 상태를 확인한 뒤 처리하세요.`,
+      ].join('\n'),
+      context: { orderID, source: 'processor-retry-sweep' },
+    }).catch(() => {});
+  }
+  return orphans;
+}
 
 export default async function handler(req, res) {
+  // P44: fail closed even when invoked directly; api/cron-runner.js verifies too and passes the same req.
+  const auth = await verifyCronRequest(req);
+  if (!auth.ok) {
+    return res.status(auth.status).json({ ok: false, code: 'AUTH_REQUIRED', error: auth.error });
+  }
   try {
     const db = initAdminDb('processor-retry-sweep');
     if (!db) {
@@ -36,13 +98,19 @@ export default async function handler(req, res) {
 
     const siteUrl = internalApiBase();
 
+    // Orphan report runs before the pending sweep so an empty pending set never hides it; it must not break the sweep.
+    const heldOrphans = await reportHeldOrphans(db).catch((error) => {
+      console.error('[cron:processor-retry-sweep] held-orphan report failed:', error && error.message);
+      return [];
+    });
+
     const snap = await db.collection(PENDING_PROCESSOR_RETRIES_COLLECTION)
       .where('status', '==', 'pending')
       .limit(MAX_BATCH)
       .get();
 
     if (snap.empty) {
-      res.status(200).json({ ok: true, swept: 0 });
+      res.status(200).json({ ok: true, swept: 0, heldOrphans: heldOrphans.length });
       return;
     }
 
@@ -136,8 +204,8 @@ export default async function handler(req, res) {
       }
     }
 
-    console.log(`[cron:processor-retry-sweep] swept ok=${ok} fail=${failed} escalated=${escalated} of ${snap.size}`);
-    res.status(200).json({ ok: true, swept: snap.size, succeeded: ok, retryAgain: failed, escalated });
+    console.log(`[cron:processor-retry-sweep] swept ok=${ok} fail=${failed} escalated=${escalated} of ${snap.size} held-orphans=${heldOrphans.length}`);
+    res.status(200).json({ ok: true, swept: snap.size, succeeded: ok, retryAgain: failed, escalated, heldOrphans: heldOrphans.length });
   } catch (err) {
     console.error('[cron:processor-retry-sweep] error:', err);
     res.status(500).json({ ok: false, error: err.message });
