@@ -561,7 +561,10 @@ export function mergeFullRefundProof(existing, incoming) {
   return { ...existing, refundIDs: ids };
 }
 
-/** Replay gate: the proof must describe exactly the verified capture of this attempt. */
+/**
+ * Replay gate: the proof must describe exactly the verified capture of this attempt — captureID, currency,
+ * amountMinor and environment. A lock without an environment never matches.
+ */
 export function fullRefundProofMatchesCapture(proof, lock) {
   const cv = lock && lock.captureVerified;
   if (!proof || !cv || typeof proof !== 'object') return false;
@@ -571,7 +574,7 @@ export function fullRefundProofMatchesCapture(proof, lock) {
   if (!Number.isSafeInteger(proof.amountMinor) || proof.amountMinor !== cv.amountMinor) return false;
   const env = String(proof.environment || '').toLowerCase();
   if (!['live', 'sandbox'].includes(env)) return false;
-  if (lock.environment && env !== String(lock.environment).toLowerCase()) return false;
+  if (!lock.environment || env !== String(lock.environment).toLowerCase()) return false;
   return true;
 }
 

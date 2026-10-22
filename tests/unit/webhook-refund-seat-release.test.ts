@@ -257,6 +257,40 @@ describe('멱등 — 재전송·중복·이미 해제된 주문에서 2회 차�
     expect(seats()!.S1).toBe(3);
   });
 
+  // 2026-10-21 (review item C): both duplicate paths must still reach the proof-only reinforcement.
+  it('같은 eventId 재전송(이미 processed) + 증명 없는 예약 → 200 idempotent, fullRefundProof 만 기록, 총액·좌석·로그·알림 불변', async () => {
+    db.__set('paypal_webhook_log/txn-1', { eventId: 'txn-1', status: 'processed', paypalEnvironment: 'live' });
+    const before = { ...db.__get('bookings/ORD-1') };
+    const r = await fire();
+    expect(r.statusCode).toBe(200);
+    expect(r.json).toEqual({ ok: true, idempotent: true });
+    const after = db.__get('bookings/ORD-1')!;
+    expect(after.fullRefundProof).toMatchObject({
+      captureID: 'CAP-1', currency: 'USD', amountMinor: 10000, refundIDs: ['REFUND-1'], source: 'webhook-authoritative', environment: 'live',
+    });
+    const { fullRefundProof: _ignored, ...rest } = after;
+    void _ignored;
+    expect(rest).toEqual(before);                                  // status / totals untouched
+    expect(db.__get('paypal_webhook_log/txn-1')!.status).toBe('processed');
+    expect(seats()!.S1).toBe(5);
+    expect(notifySpy).not.toHaveBeenCalled();
+  });
+
+  it('다른 eventId + 같은 refundId(첫 반영 뒤) → duplicate_refund, 총액 불변, 빠진 증명은 보강된다', async () => {
+    await fire();
+    expect(db.__get('bookings/ORD-1')!.fullRefundProof.refundIDs).toEqual(['REFUND-1']);
+    // Simulate a first run that committed before proof existed.
+    db.__patch('bookings/ORD-1', { fullRefundProof: undefined });
+    const totals = { usd: db.__get('bookings/ORD-1')!.refundedUSDTotal, status: db.__get('bookings/ORD-1')!.status };
+    const again = await fire({ eventId: 'txn-2' });
+    expect(again.statusCode).toBe(200);
+    expect(again.json.status).toBe('duplicate_refund');
+    const after = db.__get('bookings/ORD-1')!;
+    expect({ usd: after.refundedUSDTotal, status: after.status }).toEqual(totals);
+    expect(after.fullRefundProof).toMatchObject({ refundIDs: ['REFUND-1'], amountMinor: 10000, environment: 'live' });
+    expect(seats()!.S1).toBe(3);
+  });
+
   it('cancelBooking 이 먼저 해제한 뒤 웹훅 도착 → 원장 tombstone 이 2회 차감을 막는다', async () => {
     // cancelBooking 경로가 남긴 상태: 좌석은 이미 3, 원장은 count 0.
     db.__patch(AVAIL, {

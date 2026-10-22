@@ -59,6 +59,10 @@ describe('fullRefundProofMatchesCapture', () => {
     expect(fullRefundProofMatchesCapture(proof, { environment: 'live' })).toBe(false);
     expect(fullRefundProofMatchesCapture(null, lock)).toBe(false);
   });
+  it('a proof with an environment never matches a lock without one (strict, review round 2)', () => {
+    expect(fullRefundProofMatchesCapture(proof, { captureVerified: lock.captureVerified })).toBe(false);
+    expect(fullRefundProofMatchesCapture(proof, { environment: '', captureVerified: lock.captureVerified })).toBe(false);
+  });
 });
 
 describe('readFullRefundProof', () => {
@@ -135,6 +139,17 @@ describe('refund ledger — webhook proof only on PayPal-authoritative REFUNDED 
     const db = memoryDb();
     db.rows.set('bookings/ORD-1', booking());
     await event(db, { refundCurrency: 'EUR' });
+    expect(db.rows.get('bookings/ORD-1')).not.toHaveProperty('fullRefundProof');
+  });
+
+  it('a missing refund currency is never defaulted to USD ⇒ no proof (applyRefundEvent and ensureFullRefundProof)', async () => {
+    const db = memoryDb();
+    db.rows.set('bookings/ORD-1', booking());
+    expect((await event(db, { refundCurrency: undefined })).applied).toBe(true);
+    expect(db.rows.get('bookings/ORD-1')).not.toHaveProperty('fullRefundProof');
+    expect(await ensureFullRefundProof({
+      db: db.db, bookingsDocId: 'ORD-1', captureId: 'CAP-1', authoritativeCaptureStatus: 'REFUNDED', refundId: 'R1', refundCurrency: null, webhookEnvironment: 'live',
+    } as never)).toEqual({ written: false, reason: 'not_eligible' });
     expect(db.rows.get('bookings/ORD-1')).not.toHaveProperty('fullRefundProof');
   });
 

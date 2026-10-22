@@ -398,6 +398,19 @@ describe('capturePaypalOrder — promo refund terminal proof (releases the clien
     expect(db.rows.get(`bookings/${ORDER}`)).not.toHaveProperty('refundID');
     expect(db.rows.get(`bookings/${ORDER}`)).not.toHaveProperty('fullRefundProof');
   });
+
+  it('ordering (review item C round 2): the webhook proved the full refund BEFORE the auto-refund path ran ⇒ the finalized replay answers that proof', async () => {
+    const webhookProof = { captureID: 'CAP-1', currency: 'USD', amountMinor: 10000, refundIDs: ['WH-REF-1'], source: 'webhook-authoritative', environment: 'live', provenAtMs: 1 };
+    const first = await promoRefund(receipt(), () => db.rows.set(`bookings/${ORDER}`, { status: 'REFUNDED', refundReason: 'webhook', fullRefundProof: webhookProof }));
+    // markRefundCompleted returns false (status is not REFUND_PENDING): THIS call proves nothing itself.
+    expect(first.status).toBe(409);
+    expect(first.body).not.toHaveProperty('refundID');
+    expect(db.rows.get(`bookings/${ORDER}`)).toMatchObject({ status: 'REFUNDED', fullRefundProof: webhookProof });
+    const replay = await call({ orderID: ORDER, reconcile: true });
+    expect(replay.status).toBe(409);
+    expect(replay.body).toMatchObject({ code: 'PROMO_LIMIT_EXCEEDED', replayed: true, orderID: ORDER, finalized: true, paymentStatus: 'REFUNDED', refundID: 'WH-REF-1' });
+    expect(effects.refund).toHaveBeenCalledTimes(1);
+  });
 });
 
 describe('capturePaypalOrder — finalized replay surfaces a strict full-refund proof (review item C)', () => {

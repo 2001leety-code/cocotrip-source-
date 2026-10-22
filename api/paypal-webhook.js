@@ -56,6 +56,9 @@ export const config = {
 };
 export const maxDuration = 30;
 
+/** Refund event types that still run the read-only duplicate path (2026-10-21 review item C). */
+const REFUND_EVENT_TYPES = ['PAYMENT.CAPTURE.REFUNDED', 'PAYMENT.SALE.REFUNDED'];
+
 const JSON_HEADERS = {
   'Content-Type': 'application/json',
   'Cache-Control': 'no-store',
@@ -492,6 +495,15 @@ export default async function handler(req, res) {
 
   const headers = req.headers || {};
   const eventId = headers['paypal-transmission-id'] || headers['Paypal-Transmission-Id'] || `noheader-${Date.now()}`;
+  // 2026-10-21 (review item C): this transmission id was already processed. Refund events still run the
+  //   read-only path to the proof-only reinforcement; every log/alert write on the way is skipped and the
+  //   duplicate always answers the historical 200 idempotent body (logWebhookEvent merges `status` and would
+  //   otherwise overwrite 'processed').
+  let priorProcessed = false;
+  const answerIdempotent = () => {
+    res.writeHead(200, JSON_HEADERS);
+    return res.end(JSON.stringify({ ok: true, idempotent: true }));
+  };
 
   try {
     // 🔴 2026-07-29 (단일 환경 검증): 이 배포는 **한 환경만** 받는다.
@@ -529,10 +541,8 @@ export default async function handler(req, res) {
       // 멱등 확인을 못 하면 이중 반영 위험이 있다 → 처리하지 않고 재전송을 받는다.
       return respondRetryable(res, 'webhook_log_read_failed', e.message);
     }
-    if (existing.exists && existing.data()?.status === 'processed') {
-      res.writeHead(200, JSON_HEADERS);
-      return res.end(JSON.stringify({ ok: true, idempotent: true }));
-    }
+    // The idempotent answer itself is given after signature verification (below), once the event type is known.
+    priorProcessed = existing.exists && existing.data()?.status === 'processed';
 
     // raw body 읽기
     const bodyString = await readRawBody(req);
@@ -549,6 +559,8 @@ export default async function handler(req, res) {
     }
 
     if (!verifyResult.verified) {
+      // A duplicate never writes a verify log over 'processed' and never alerts — same 200 as before.
+      if (priorProcessed) return answerIdempotent();
       // 🔴 검증 API 자체가 죽은 경우(429/5xx/네트워크)를 "서명 실패" 로 분류해 버리면 안 된다.
       //   결정적 실패가 아니므로 5xx 로 재전송을 받는다.
       if (verifyResult.kind === VERIFY.TRANSIENT) {
@@ -597,6 +609,11 @@ export default async function handler(req, res) {
     const event = verifyResult.webhookEvent;
     const eventType = event.event_type || 'unknown';
     console.log('[paypal-webhook] verified event:', eventType, eventId);
+
+    // 멱등 — 같은 transmission-id 재시도면 처리 스킵. Refund events continue (read-only) so the
+    //   proof-only reinforcement can repair a proof an earlier run never wrote (review item C).
+    const isRefundEvent = REFUND_EVENT_TYPES.includes(eventType);
+    if (priorProcessed && !isRefundEvent) return answerIdempotent();
 
     // ─── PAYMENT.CAPTURE.COMPLETED / PAYMENT.SALE.COMPLETED ─────────
     if (eventType === 'PAYMENT.CAPTURE.COMPLETED' || eventType === 'PAYMENT.SALE.COMPLETED') {
@@ -786,6 +803,7 @@ export default async function handler(req, res) {
       const { value: refundedUSD } = extractAmountUSD(event);
 
       if (!captureId) {
+        if (priorProcessed) return answerIdempotent();
         await logWebhookEvent({
           db: adminDb, environment: verifiedEnvironment, eventId, eventType,
           status: 'unmatched',
@@ -831,6 +849,7 @@ export default async function handler(req, res) {
           .where('captureID', '==', captureId)
           .get();
         if (captureFieldMatch.size > 1) {
+          if (priorProcessed) return answerIdempotent();
           await logWebhookEvent({
             db: adminDb, environment: verifiedEnvironment, eventId, eventType,
             status: 'ambiguous',
@@ -864,6 +883,7 @@ export default async function handler(req, res) {
       }
 
       if (!bookingRef) {
+        if (priorProcessed) return answerIdempotent();
         await logWebhookEvent({
           db: adminDb, environment: verifiedEnvironment, eventId, eventType,
           status: 'unmatched',
@@ -926,6 +946,8 @@ export default async function handler(req, res) {
         // 🔴 실패는 processed 로 기록하지 않는다 — PayPal 재전송으로 다시 처리돼야 한다.
         console.error('[paypal-webhook] 환불 원장 transaction 실패 (재시도 가능):', e.message);
         captureError(e, { tag: 'paypal-webhook-refund-tx', eventId, captureId });
+        // The duplicate was processed before: never overwrite that log, never alert, same 200 as before.
+        if (priorProcessed) return answerIdempotent();
         await logWebhookEvent({
           db: adminDb, environment: verifiedEnvironment, eventId, eventType,
           status: 'retryable_error',
@@ -939,7 +961,7 @@ export default async function handler(req, res) {
       // 2026-10-21 (review item C): proof-only reinforcement on the bookings doc — an earlier run of this event may
       //   have committed before the proof existed. Idempotent, writes only fullRefundProof, never pending_bookings
       //   (bookingsDocId is null for a pending_bookings-only match). Best-effort: never changes the response.
-      if (bookingsDocId && (refundOutcome.applied === true || refundOutcome.reason === 'duplicate_event')) {
+      if (bookingsDocId && (refundOutcome.applied === true || refundOutcome.reason === 'duplicate_event' || refundOutcome.reason === 'duplicate_refund')) {
         try {
           await ensureFullRefundProof({
             db: adminDb, bookingsDocId, captureId, authoritativeCaptureStatus, refundId, refundCurrency,
@@ -949,6 +971,9 @@ export default async function handler(req, res) {
           console.warn('[paypal-webhook] full-refund proof reinforcement failed (non-fatal):', e.message);
         }
       }
+
+      // Same transmission id already processed ⇒ the historical duplicate answer (no alerts/logs below).
+      if (priorProcessed && !refundOutcome.applied) return answerIdempotent();
 
       if (!refundOutcome.applied) {
         if (refundOutcome.reason === 'environment_mismatch') {
@@ -1128,6 +1153,8 @@ export default async function handler(req, res) {
   } catch (err) {
     console.error('[paypal-webhook] failed:', err.message, err.stack);
     await captureError(err, { route: '/api/paypal-webhook', eventId });
+    // An already-processed transmission keeps its historical 200 even when the read-only replay path throws.
+    if (priorProcessed) return answerIdempotent();
     // 500 응답 → PayPal 재시도. 단, 같은 eventId 면 위 멱등 체크가 차단.
     res.writeHead(500, JSON_HEADERS);
     return res.end(JSON.stringify({ ok: false, error: err.message || 'internal error' }));

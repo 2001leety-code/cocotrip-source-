@@ -26,14 +26,15 @@ import { buildFullRefundProof, mergeFullRefundProof } from './payment-fulfillmen
 
 /**
  * Strict full-refund proof for the bookings document only (2026-10-21 review item C). Written ONLY when PayPal's
- * own capture status is REFUNDED for THIS capture of a non-cart-child USD booking. FULL_REFUND_RATIO /
- * cumulative totals never produce proof; pending_bookings never receives it.
+ * own capture status is REFUNDED for THIS capture of a non-cart-child booking, with the event's refund currency
+ * explicitly USD (a missing currency is NOT eligible). FULL_REFUND_RATIO / cumulative totals never produce proof;
+ * pending_bookings never receives it.
  * @returns {object|null} the proof to merge, or null when not eligible
  */
 function webhookFullRefundProof({ bookingData, captureId, authoritativeCaptureStatus, refundId, refundCurrency, webhookEnvironment }) {
   const eligible = bookingData && !bookingData.parentOrderID && captureId && bookingData.captureID === captureId
     && String(authoritativeCaptureStatus || '').toUpperCase() === 'REFUNDED'
-    && String(refundCurrency || 'USD').toUpperCase() === 'USD';
+    && String(refundCurrency || '').toUpperCase() === 'USD';
   if (!eligible) return null;
   const ids = Object.keys({ ...(bookingData.refundEvents || {}), ...(refundId ? { [refundId]: true } : {}) });
   return buildFullRefundProof({
