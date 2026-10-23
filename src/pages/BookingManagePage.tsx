@@ -7,7 +7,7 @@
  * 날짜 변경(②b): canModify 면 BookingDateChangeModal(auth guest). 성공 응답(복구 응답 포함)의 새 manageToken 으로
  * state 토큰을 교체한다(해시·URL 에는 다시 쓰지 않는다) — 날짜 변경이 버전을 올려 옛 토큰은 더 이상 통하지 않는다.
  */
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useLanguage } from '@/hooks/useLanguage';
 import { usePageMeta } from '@/hooks/usePageMeta';
 import { Header } from '@/sections/Header';
@@ -80,6 +80,8 @@ export default function BookingManagePage() {
   const [conflictNotice, setConflictNotice] = useState(false);
   const [dateChangeOpen, setDateChangeOpen] = useState(false);
   const [dateNotice, setDateNotice] = useState('');
+  // 날짜 변경 모달이 닫힌 뒤 초점을 돌려줄 버튼(DialogTrigger 없이 열기 때문에 Radix 기본 복귀가 없다).
+  const dateChangeBtnRef = useRef<HTMLButtonElement>(null);
 
   usePageMeta({ title: copy.bmTitle, description: copy.bmTitle, robots: 'noindex, nofollow' });
 
@@ -227,6 +229,7 @@ export default function BookingManagePage() {
                   )}
                   {booking.canModify && (
                     <button
+                      ref={dateChangeBtnRef}
                       type="button"
                       className="ec-btn ec-btn-secondary mt-3 ml-0 sm:ml-3 min-h-[44px] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ec-brand"
                       onClick={() => { setDateNotice(''); setDateChangeOpen(true); }}
@@ -283,6 +286,7 @@ export default function BookingManagePage() {
           tourTime={booking.tourTime}
           language={language}
           auth={{ kind: 'guest', manageToken }}
+          returnFocusTo={() => dateChangeBtnRef.current}
           onClose={() => setDateChangeOpen(false)}
           onSaved={onDateChanged}
           onReload={() => { setDateChangeOpen(false); void refreshBooking(); }}

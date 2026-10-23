@@ -165,7 +165,24 @@ describe('pre-guards (read stage) — zero writes', () => {
   }
 
   // Astra r1 P1 — 값이 비었거나 문자열이 아닌 tourDate 가 메모 분기로 새어 tourDate:'' 를 저장하던 회귀.
-  for (const bad of ['', [], 123, '2026-02-30', {}, '2099-1-5'] as unknown[]) {
+  // Astra r2 — null 도 같다(필터가 null 을 버리기 전 원본 changes 의 키 존재로 판정).
+  it('tourDate:null alone → 400 INVALID_DATE (not NO_CHANGES), booking untouched, no transaction', async () => {
+    db = createFakeFirestore(tourDocs(member()));
+    const before = JSON.stringify(db.__dump());
+    const r = await call({ bookingID: ID, changes: { tourDate: null } }, BEARER);
+    expect(r.statusCode).toBe(400);
+    expect(r.json.code).toBe('INVALID_DATE');
+    expect(JSON.stringify(db.__dump())).toBe(before);
+    expect(db.__stats.transactions).toBe(0);
+  });
+
+  it('INVALID_DATE wins over pre-guards but not over auth (unauthenticated → 401 first)', async () => {
+    db = createFakeFirestore(tourDocs(member({ status: 'CANCELING' })));
+    expect((await call({ bookingID: ID, changes: { tourDate: null, memo: 'x' } }, BEARER)).json.code).toBe('INVALID_DATE');
+    expect((await call({ bookingID: ID, changes: { tourDate: null, memo: 'x' } })).statusCode).toBe(401);
+  });
+
+  for (const bad of ['', [], 123, '2026-02-30', {}, '2099-1-5', null] as unknown[]) {
     it(`tourDate ${JSON.stringify(bad)} → 400 INVALID_DATE, booking untouched, memo branch not entered`, async () => {
       db = createFakeFirestore(tourDocs(member()));
       const before = JSON.stringify(db.__dump());

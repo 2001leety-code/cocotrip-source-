@@ -1,5 +1,5 @@
 // MyBookingsTab — MyPage의 "My Bookings" 탭 콘텐츠 · i18n
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { Package, Clock, XCircle, Edit, Check, X, Star, ExternalLink, Download } from 'lucide-react';
 import { getWizardI18n } from '@/components/charter/wizard-i18n';
@@ -107,6 +107,8 @@ export function MyBookingsTab({ userEmail, tier = 'Bronze', language = 'en' }: P
   const [cancelingId, setCancelingId] = useState<string | null>(null);
   const [modifyTarget, setModifyTarget] = useState<Booking | null>(null);
   const [dateChangeTarget, setDateChangeTarget] = useState<Booking | null>(null);
+  // 날짜 변경 모달이 닫힌 뒤 초점 복귀 대상 — 그 예약 카드의 "수정" 버튼(ModifyModal 은 그때 이미 닫혀 있다).
+  const cardModifyBtnRefs = useRef(new Map<string, HTMLButtonElement>());
   const [reviewTarget, setReviewTarget] = useState<Booking | null>(null);
   // 2026-05-04 P0 fix: 예약 카드 클릭 시 상세 모달 표시. 이전엔 카드 클릭 시 아무 동작도 없어
   // 사용자가 PNR/세부 정보를 볼 수 없었음 (사용자 신고: "들어가볼 수도 없음").
@@ -287,6 +289,7 @@ export function MyBookingsTab({ userEmail, tier = 'Bronze', language = 'en' }: P
               {b.canModify && (
                 <button
                   type="button"
+                  ref={(el) => { if (el) cardModifyBtnRefs.current.set(b.id, el); else cardModifyBtnRefs.current.delete(b.id); }}
                   onClick={(e) => { e.stopPropagation(); setModifyTarget(b); }}
                   className="flex items-center gap-1 px-3 py-1.5 rounded-lg border border-white/10 text-white/60 text-[11px] hover:bg-white/5 customer-booking-action"
                 >
@@ -382,6 +385,7 @@ export function MyBookingsTab({ userEmail, tier = 'Bronze', language = 'en' }: P
           currentDate={dateChangeTarget.tourDate}
           language={language}
           auth={{ kind: 'member' }}
+          returnFocusTo={() => cardModifyBtnRefs.current.get(dateChangeTarget.id) || null}
           onClose={() => setDateChangeTarget(null)}
           onReload={() => { setDateChangeTarget(null); void load(); }}
           onSaved={async (result) => {

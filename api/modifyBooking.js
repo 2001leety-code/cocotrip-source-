@@ -206,10 +206,11 @@ export default async function handler(req, res) {
       if (ALLOWED_FIELDS.includes(k)) cleanChanges[k] = changes[k];
       else ignored.push(k);
     }
-    // 날짜 변경 여부는 **키 존재**로 판정한다 — 값이 '' · [] · 숫자여도 메모 분기로 새지 않고 아래 INVALID_DATE 로 거부.
+    // 날짜 변경 여부는 **원본 changes 의 키 존재**로 판정한다 — 값이 '' · [] · 숫자 · null 이어도 메모 분기로 새지 않고
+    //   아래(인증 직후) INVALID_DATE 로 거부(쓰기 0). 위 필터는 null 을 버리므로 cleanChanges 기준이면 tourDate:null 이 샌다.
     //   (값으로 판정하면 tourDate:'' 가 메모 분기의 패치에 실려 좌석은 옛 날짜에 둔 채 예약 날짜만 지워진다.)
-    const hasDate = Object.prototype.hasOwnProperty.call(cleanChanges, 'tourDate');
-    const newDate = hasDate && typeof cleanChanges.tourDate === 'string' ? cleanChanges.tourDate : '';
+    const hasDate = Object.prototype.hasOwnProperty.call(changes, 'tourDate');
+    const newDate = typeof changes.tourDate === 'string' ? changes.tourDate : '';
 
     const db = getDb();
     const ref = db.collection('bookings').doc(bookingID);
@@ -229,6 +230,11 @@ export default async function handler(req, res) {
     const actor = access.actor;
     const booking = access.booking;
     const requestedBy = actor.email || 'guest';
+
+    // 날짜 값 검증 — 인증 뒤, NO_CHANGES·사전 가드·메모 분기보다 먼저(문자열·실제 달력 날짜가 아니면 쓰기 0).
+    if (hasDate && !isCalendarDate(newDate)) {
+      return send(res, 400, _err('tourDate must be a real YYYY-MM-DD date', 'INVALID_DATE'));
+    }
 
     if (Object.keys(cleanChanges).length === 0) {
       return send(res, 400, { ...(_err('No valid changes provided', 'NO_CHANGES')), ignored });
@@ -278,11 +284,6 @@ export default async function handler(req, res) {
       from: booking[k] === undefined ? null : booking[k],
       to: cleanChanges[k],
     }]));
-
-    // 날짜 값 검증 — 메모 분기 진입 전(문자열이 아니거나 실제 달력 날짜가 아니면 쓰기 0).
-    if (hasDate && !isCalendarDate(newDate)) {
-      return send(res, 400, _err('tourDate must be a real YYYY-MM-DD date', 'INVALID_DATE'));
-    }
 
     // ── 메모·공항만 ──
     if (!hasDate) {

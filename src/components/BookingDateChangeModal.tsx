@@ -39,6 +39,11 @@ interface Props {
   onSaved: (result: DateChangeResult) => void | Promise<void>;
   /** BOOKING_CHANGED(그 사이 예약이 바뀜) 때 "다시 불러오기" — 없으면 닫기만 한다. */
   onReload?: () => void;
+  /**
+   * 닫힌 뒤 초점을 돌려줄 요소(보통 이 모달을 연 버튼). DialogTrigger 없이 열기 때문에 Radix 기본 복귀가 없다 —
+   * 주지 않으면 초점 복귀를 하지 않을 뿐 오류는 없다.
+   */
+  returnFocusTo?: () => HTMLElement | null | undefined;
 }
 
 type Copy = Translations['bookingDateChange'];
@@ -60,7 +65,7 @@ function errorText(copy: Copy, code: string): string {
 }
 
 export function BookingDateChangeModal({
-  bookingID, bookingRef, currentDate, tourTime, language, auth, onClose, onSaved, onReload,
+  bookingID, bookingRef, currentDate, tourTime, language, auth, onClose, onSaved, onReload, returnFocusTo,
 }: Props) {
   const copy = translations[language].bookingDateChange;
   const [date, setDate] = useState('');
@@ -132,6 +137,12 @@ export function BookingDateChangeModal({
         showCloseButton={false}
         onInteractOutside={blockWhileSubmitting}
         onEscapeKeyDown={blockWhileSubmitting}
+        onCloseAutoFocus={(e) => {
+          // 닫힘·언마운트 때 FocusScope 가 부른다. preventDefault 로 Radix 의 triggerRef(없음) 복귀를 건너뛰고 직접 돌려준다.
+          e.preventDefault();
+          const el = returnFocusTo && returnFocusTo();
+          if (el) el.focus();
+        }}
         className="customer-booking-date-change-modal max-w-md gap-0 p-0 overflow-hidden rounded-2xl border-[#7C5CFC]/30 bg-[#0f1628] text-white"
       >
         <DialogHeader className="flex-row items-center justify-between gap-2 px-5 py-4 border-b border-white/5 text-left">

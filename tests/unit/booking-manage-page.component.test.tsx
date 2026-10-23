@@ -138,6 +138,17 @@ describe('/booking/manage — date change (②b)', () => {
     return NEW;
   }
 
+  it('closing the date-change dialog returns focus to the "Change date" button', async () => {
+    manageFetchMock.mockResolvedValueOnce(lookupOk({ canModify: true }));
+    renderPage();
+    fireEvent.click(await screen.findByRole('button', { name: dc.bdcButton }));
+    const dialog = await screen.findByRole('dialog');
+    await waitFor(() => expect(dialog.contains(document.activeElement)).toBe(true));
+    fireEvent.keyDown(document.activeElement || document.body, { key: 'Escape' });
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    await waitFor(() => expect(document.activeElement).toBe(screen.getByRole('button', { name: dc.bdcButton })));
+  });
+
   it('no button when canModify is false', async () => {
     manageFetchMock.mockResolvedValueOnce(lookupOk({ canModify: false }));
     renderPage();

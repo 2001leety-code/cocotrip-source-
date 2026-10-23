@@ -210,6 +210,49 @@ describe('BookingDateChangeModal', () => {
     expect(onClose).toHaveBeenCalledTimes(1);
   });
 
+  // Astra r2 — DialogTrigger 없이 여므로 Radix 기본 복귀가 없다 → returnFocusTo 로 연 버튼에 돌려준다.
+  function Harness({ withReturn }: { withReturn: boolean }) {
+    const [open, setOpen] = React.useState(true);
+    const opener = React.useRef<HTMLButtonElement>(null);
+    return (
+      <>
+        <button ref={opener} type="button">opener</button>
+        {open && (
+          <BookingDateChangeModal
+            bookingID="ORD-1" bookingRef="CT-1" currentDate={CURRENT} language="en" auth={{ kind: 'member' }}
+            onClose={() => setOpen(false)} onSaved={async () => { setOpen(false); }}
+            returnFocusTo={withReturn ? () => opener.current : undefined}
+          />
+        )}
+      </>
+    );
+  }
+
+  it('Esc closes and focus returns to the element from returnFocusTo', async () => {
+    render(<Harness withReturn />);
+    const dialog = await screen.findByRole('dialog');
+    await waitFor(() => expect(dialog.contains(document.activeElement)).toBe(true));
+    fireEvent.keyDown(document.activeElement || document.body, { key: 'Escape' });
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    await waitFor(() => expect(document.activeElement).toBe(screen.getByRole('button', { name: 'opener' })));
+  });
+
+  it('the close button also returns focus', async () => {
+    render(<Harness withReturn />);
+    await screen.findByRole('dialog');
+    fireEvent.click(screen.getAllByRole('button', { name: copy.bdcClose })[0]);
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    await waitFor(() => expect(document.activeElement).toBe(screen.getByRole('button', { name: 'opener' })));
+  });
+
+  it('without returnFocusTo closing still works (no error)', async () => {
+    render(<Harness withReturn={false} />);
+    await screen.findByRole('dialog');
+    fireEvent.keyDown(document.activeElement || document.body, { key: 'Escape' });
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    expect(document.activeElement).not.toBe(screen.getByRole('button', { name: 'opener' }));
+  });
+
   it('BOOKING_CHANGED → "reload" calls onReload', async () => {
     authFetchMock.mockResolvedValue(reply(409, { ok: false, code: 'BOOKING_CHANGED' }));
     const { onReload } = renderModal({ kind: 'member' });
