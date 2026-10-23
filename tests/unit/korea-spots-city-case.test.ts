@@ -121,14 +121,17 @@ const placesOfCity = (cityKey: string) => raw.filter((g) => groupToUiCityKey(g) 
   .flatMap((g) => (g.places || []).filter((p) => p.nameEn || p.name));
 
 describe('getExactCitySpotCandidates — food/cafe places excluded', () => {
-  it.each(['seoul', 'busan'])('%s: no food/cafe candidates, and the filter actually removed some', (cityKey) => {
+  it.each([['seoul', 335, 132], ['busan', 66, 20]] as const)('%s: no food/cafe candidates, and the filter actually removed some', (cityKey, allCount, foodCount) => {
     const all = placesOfCity(cityKey);
     const food = all.filter((p) => isFoodCategory(p.category));
-    expect(food.length).toBeGreaterThan(0);
+    expect(all).toHaveLength(allCount);
+    expect(food).toHaveLength(foodCount);
     const candidates = getExactCitySpotCandidates(cityKey);
     expect(candidates.filter((c) => isFoodCategory(c.category))).toEqual([]);
-    expect(candidates).toHaveLength(all.length - food.length);
-    expect(getExactCitySpotsContext({ cityKey }).candidates.filter((c) => isFoodCategory(c.category))).toEqual([]);
+    expect(candidates).toHaveLength(allCount - foodCount); // seoul 203 · busan 46
+    const ctx = getExactCitySpotsContext({ cityKey }).candidates;
+    expect(ctx).toHaveLength(6);
+    expect(ctx.filter((c) => isFoodCategory(c.category))).toEqual([]);
   });
 
   it('a compound category with a food token (e.g. "activity|cafe") is excluded; non-food compounds stay', () => {
@@ -144,7 +147,9 @@ describe('getExactCitySpotCandidates — food/cafe places excluded', () => {
     const plan = buildMockPlan({ userText: 'X\n' + json + '\n=== VARIATION ===' });
     const stops = plan.days.flatMap((d: { stops: { name: string; category: string }[] }) => d.stops);
     const nonFood = stops.filter((s: { category: string }) => s.category !== 'food');
-    expect(nonFood.length).toBeGreaterThan(0);
+    // 공허 통과 방지 — 숙소·공항·합성 Landmark 만이 아니라 실제 korea_spots 후보 이름의 culture stop 이 있어야 한다.
+    const spotNames = new Set(getExactCitySpotCandidates('seoul').flatMap((c) => [c.name.en, c.name.ko]));
+    expect(nonFood.filter((s: { name: string; category: string }) => s.category === 'culture' && spotNames.has(s.name)).length).toBeGreaterThan(0);
     for (const s of nonFood) expect(foodSpotNames.has(s.name), `${s.category}: ${s.name}`).toBe(false);
   });
 });
