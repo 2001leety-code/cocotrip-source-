@@ -137,7 +137,10 @@ export default function BookingManagePage() {
     setDateChangeOpen(false);
     setConflictNotice(false);
     const dc = t.bookingDateChange;
-    setDateNotice((result.emailSent ? dc.bdcSavedGuestMailSent : dc.bdcSavedGuestMailFailed).replace('{date}', result.tourDate));
+    // recovered = 서버 복구 응답(앞선 요청이 이미 반영) — 메일 결과를 모르므로 성공/실패 어느 쪽도 단정하지 않는다.
+    const msg = result.recovered ? dc.bdcSavedRecovered
+      : (result.emailSent ? dc.bdcSavedGuestMailSent : dc.bdcSavedGuestMailFailed);
+    setDateNotice(msg.replace('{date}', result.tourDate));
     // 새 토큰으로 교체 → 위 effect 가 같은 토큰으로 다시 조회한다. 토큰이 없으면(이론상 없음) 현재 토큰으로 재조회.
     if (result.manageToken && result.manageToken !== manageToken) setManageToken(result.manageToken);
     else void refreshBooking();

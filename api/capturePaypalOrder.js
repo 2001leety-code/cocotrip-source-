@@ -681,6 +681,8 @@ export default async function handler(req, res) {
       //   { agreed, policyVersion, tolerancePct, agreedAtServer }. 확정가 상품은 null.
       estimateConsent: _snapEstimateConsent || null,
       airport: airport || null,
+      // 2026-10-23 (②b): 손님 UI 언어 — 날짜 변경 확인 메일 등 후속 안내 언어의 근거(지원 4개 언어만, 그 외 null).
+      language: ['ko', 'en', 'ja', 'zh'].includes(language) ? language : null,
       amountUSD: amount,
       amountKRW,
       capturedExchangeRate: usdToKrw,

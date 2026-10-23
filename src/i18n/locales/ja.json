@@ -2644,6 +2644,7 @@
     "bdcSavedGuestMailFailed": "日程を{date}に変更しました。メールの送信に失敗しました — この画面で引き続き管理でき、担当者がリンクを再送します。",
     "bdcSavedMemberMailSent": "日程を{date}に変更しました。変更後のバウチャー付きの確認メールをお送りしました。",
     "bdcSavedMemberMailFailed": "日程を{date}に変更しました。確認メールを送信できませんでした — ご予約内容はこの画面でご確認ください。",
-    "bdcIgnored": "反映されなかった項目: {fields}"
+    "bdcIgnored": "反映されなかった項目: {fields}",
+    "bdcSavedRecovered": "{date}への日程変更を確認しました。この画面で引き続きご予約を管理できます。"
   }
 }

@@ -56,6 +56,9 @@ const _err = (error, code = 'UNKNOWN_ERROR') => ({ ok: false, error, code });
 // 무료 업그레이드(1인 결제→7인 변경 등)가 가능했음 → 차등 청구 도입 전까지 제외.
 // tourDate 는 가격이 날짜 무관(pricing.js)이라 같은 상품·슬롯·인원 조건으로 허용(②b).
 const ALLOWED_FIELDS = ['memo', 'airport', 'tourDate'];
+const META_FIELDS = ['memo', 'airport']; // 메모·공항 분기가 쓸 수 있는 유일한 키
+// 변경 확인 메일 언어 — 요청 본문(손님이 보고 있는 화면 언어)을 우선한다.
+const MAIL_LANGS = ['ko', 'en', 'ja', 'zh'];
 
 // 날짜 변경 요청 ID — 클라이언트가 모달을 열 때 만든 UUID v4. 응답 유실 뒤 재시도·복구의 열쇠.
 const REQUEST_ID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -203,7 +206,10 @@ export default async function handler(req, res) {
       if (ALLOWED_FIELDS.includes(k)) cleanChanges[k] = changes[k];
       else ignored.push(k);
     }
-    const newDate = cleanChanges.tourDate === undefined ? '' : String(cleanChanges.tourDate);
+    // 날짜 변경 여부는 **키 존재**로 판정한다 — 값이 '' · [] · 숫자여도 메모 분기로 새지 않고 아래 INVALID_DATE 로 거부.
+    //   (값으로 판정하면 tourDate:'' 가 메모 분기의 패치에 실려 좌석은 옛 날짜에 둔 채 예약 날짜만 지워진다.)
+    const hasDate = Object.prototype.hasOwnProperty.call(cleanChanges, 'tourDate');
+    const newDate = hasDate && typeof cleanChanges.tourDate === 'string' ? cleanChanges.tourDate : '';
 
     const db = getDb();
     const ref = db.collection('bookings').doc(bookingID);
@@ -214,7 +220,7 @@ export default async function handler(req, res) {
       loadBooking: async () => { const snap = await ref.get(); return snap.exists ? snap.data() : null; },
     });
     if (!access.ok) {
-      if (access.status === 401 && newDate) {
+      if (access.status === 401 && hasDate && newDate) {
         const recovered = await tryRecoverChangeRequest({ req, body, bookingID, ref, newDate, ignored });
         if (recovered) return send(res, recovered.status, recovered.payload, JSON_NO_STORE);
       }
@@ -273,9 +279,16 @@ export default async function handler(req, res) {
       to: cleanChanges[k],
     }]));
 
+    // 날짜 값 검증 — 메모 분기 진입 전(문자열이 아니거나 실제 달력 날짜가 아니면 쓰기 0).
+    if (hasDate && !isCalendarDate(newDate)) {
+      return send(res, 400, _err('tourDate must be a real YYYY-MM-DD date', 'INVALID_DATE'));
+    }
+
     // ── 메모·공항만 ──
-    if (!newDate) {
-      const modEntry = { at: nowIso, changes: fieldChanges(Object.keys(cleanChanges)), requestedBy };
+    if (!hasDate) {
+      // 패치는 메타 필드만 — tourDate 키 자체가 이 분기 패치에 들어갈 수 없게 명시 필터.
+      const metaChanges = Object.fromEntries(Object.entries(cleanChanges).filter(([k]) => META_FIELDS.includes(k)));
+      const modEntry = { at: nowIso, changes: fieldChanges(Object.keys(metaChanges)), requestedBy };
       try {
         await db.runTransaction(async (tx) => {
           const freshSnap = await tx.get(ref);
@@ -283,7 +296,7 @@ export default async function handler(req, res) {
           if (!verifyBooking(fresh, Date.now(), null)) throw changedError('BOOKING_CHANGED');
           // status 를 'MODIFIED' 로 덮지 않음 — CONFIRMED 유지(cancel/재수정 게이트 보존). 이력은 modifications.
           tx.update(ref, {
-            ...cleanChanges,
+            ...metaChanges,
             modifications: FieldValue.arrayUnion(modEntry),
             lastModifiedAt: FieldValue.serverTimestamp(),
             updatedAt: FieldValue.serverTimestamp(),
@@ -297,11 +310,11 @@ export default async function handler(req, res) {
       }
 
       // Telegram 알림 — 공항 객체는 요약에서 제외하고 별도 섹션에 표시
-      const summary = Object.entries(cleanChanges)
+      const summary = Object.entries(metaChanges)
         .filter(([k]) => k !== 'airport')
         .map(([k, v]) => `${k}: ${booking[k]}→${v}`)
         .join(', ');
-      const mergedAirport = cleanChanges.airport === undefined ? booking.airport : cleanChanges.airport;
+      const mergedAirport = metaChanges.airport === undefined ? booking.airport : metaChanges.airport;
       notifyTelegram(
         `🟡 [예약 변경]\n${booking.bookingRef || bookingID}\n고객: ${requestedBy}\n변경: ${summary || '(공항 정보만)'}` +
         airportPlainLine(mergedAirport)
@@ -310,7 +323,7 @@ export default async function handler(req, res) {
       return send(res, 200, _ok({
         bookingID,
         status: booking.status, // CONFIRMED 유지 (cancel/재수정 가능하게)
-        applied: cleanChanges,
+        applied: metaChanges,
         ignored,
         hoursUntilTour: policy.hoursUntilTour,
       }));
@@ -321,7 +334,6 @@ export default async function handler(req, res) {
     if (!REQUEST_ID_RE.test(requestId)) {
       return send(res, 400, _err('requestId (UUID v4) required for a date change', 'MISSING_REQUEST_ID'));
     }
-    if (!isCalendarDate(newDate)) return send(res, 400, _err('tourDate must be a real YYYY-MM-DD date', 'INVALID_DATE'));
     if (newDate === booking.tourDate) return send(res, 400, _err('New date is the same as the current date', 'SAME_DATE'));
     const newPolicy = evaluateRefundPolicy({ tourDate: newDate, tourTime: booking.tourTime || undefined });
     if (!newPolicy.canModify) {
@@ -361,7 +373,7 @@ export default async function handler(req, res) {
       }
     }
 
-    const otherKeys = Object.keys(cleanChanges).filter((k) => k !== 'tourDate');
+    const otherKeys = Object.keys(cleanChanges).filter((k) => META_FIELDS.includes(k));
     const otherChanges = Object.fromEntries(otherKeys.map((k) => [k, cleanChanges[k]]));
     const bookingPatch = {
       ...otherChanges,
@@ -433,6 +445,10 @@ export default async function handler(req, res) {
     );
 
     const manageUrl = isGuest ? `${publicSiteOrigin()}/booking/manage#t=${newToken}` : null;
+    // 메일 언어 = 요청 본문(지금 화면 언어) → 예약 저장 언어 → en. 예약 문서엔 language 가 없던 기간이 있다.
+    const mailLanguage = typeof body.language === 'string' && MAIL_LANGS.includes(body.language)
+      ? body.language
+      : (booking.language || 'en');
     const mail = await sendBookingChangeEmail({
       booking: { ...booking, tourDate: newDate },
       bookingID,
@@ -441,6 +457,7 @@ export default async function handler(req, res) {
       newDate,
       manageUrl,
       myPageUrl: isGuest ? null : `${publicSiteOrigin()}/mypage`,
+      language: mailLanguage,
     });
     if (isGuest) {
       if (mail.sent) {

@@ -136,7 +136,7 @@ export function buildChangeVoucherInput(booking, bookingID, newDate) {
  * @returns {Promise<{ sent: boolean, voucherAttached: boolean, error?: string }>} — throw 하지 않는다.
  */
 export async function sendBookingChangeEmail({
-  booking, bookingID, label, oldDate, newDate, manageUrl = null, myPageUrl = null,
+  booking, bookingID, label, oldDate, newDate, manageUrl = null, myPageUrl = null, language,
 }) {
   const b = booking || {};
   const to = b.userEmail || b.payerEmail;
@@ -152,7 +152,8 @@ export async function sendBookingChangeEmail({
   }
   const voucherAttached = Boolean(pdf);
   const { subject, html, text } = buildBookingChangeEmail({
-    language: b.language,
+    // 명시 언어 우선(호출자가 요청 언어를 넘긴다) — 없으면 저장된 예약 언어, 그것도 없으면 en(pickLang).
+    language: language || b.language,
     bookingRef: b.bookingRef || bookingID,
     label,
     oldDate,

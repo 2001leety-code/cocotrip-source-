@@ -164,6 +164,20 @@ describe('pre-guards (read stage) — zero writes', () => {
     });
   }
 
+  // Astra r1 P1 — 값이 비었거나 문자열이 아닌 tourDate 가 메모 분기로 새어 tourDate:'' 를 저장하던 회귀.
+  for (const bad of ['', [], 123, '2026-02-30', {}, '2099-1-5'] as unknown[]) {
+    it(`tourDate ${JSON.stringify(bad)} → 400 INVALID_DATE, booking untouched, memo branch not entered`, async () => {
+      db = createFakeFirestore(tourDocs(member()));
+      const before = JSON.stringify(db.__dump());
+      const r = await call({ bookingID: ID, changes: { tourDate: bad, memo: 'also' }, requestId: RID }, BEARER);
+      expect(r.statusCode).toBe(400);
+      expect(r.json.code).toBe('INVALID_DATE');
+      expect(JSON.stringify(db.__dump())).toBe(before);
+      expect(db.__stats.transactions).toBe(0);
+      expect(mailSpy).not.toHaveBeenCalled();
+    });
+  }
+
   it('guest pre-guard (status) also writes nothing', async () => {
     db.__patch(PATH, { status: 'REFUND_UNKNOWN' });
     const before = JSON.stringify(db.__dump());
@@ -243,6 +257,24 @@ describe('date change — tour seat transfer', () => {
     expect(doc).not.toHaveProperty('manageTokenVersion');
     expect(doc).not.toHaveProperty('manageLinkPending');
     expect(mailSpy.mock.calls[0][0]).toMatchObject({ manageUrl: null, myPageUrl: 'https://cocotripkr.com/mypage' });
+  });
+
+  it('mail language: body.language (ko/en/ja/zh) → booking.language → en', async () => {
+    db = createFakeFirestore(tourDocs(member({ language: 'ja' })));
+    await call(memberChange({ language: 'zh' }), BEARER);
+    expect(mailSpy.mock.calls[0][0].language).toBe('zh');
+
+    db = createFakeFirestore(tourDocs(member({ language: 'ja' })));
+    mailSpy.mockClear();
+    await call(memberChange({ language: 'xx' }), BEARER);
+    expect(mailSpy.mock.calls[0][0].language).toBe('ja');
+
+    const noLang: Record<string, any> = member();
+    delete noLang.language;
+    db = createFakeFirestore(tourDocs(noLang));
+    mailSpy.mockClear();
+    await call(memberChange({ language: 42 }), BEARER);
+    expect(mailSpy.mock.calls[0][0].language).toBe('en');
   });
 
   it('mail failure → pending kept (this version) + admin alert keyed by booking & version; response says emailSent:false', async () => {

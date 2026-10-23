@@ -387,7 +387,10 @@ export function MyBookingsTab({ userEmail, tier = 'Bronze', language = 'en' }: P
           onSaved={async (result) => {
             const dc = translations[language].bookingDateChange;
             setDateChangeTarget(null);
-            toast.success((result.emailSent ? dc.bdcSavedMemberMailSent : dc.bdcSavedMemberMailFailed).replace('{date}', result.tourDate));
+            // recovered = 앞선 요청이 이미 반영(응답만 유실) — 메일 결과를 모르므로 "실패" 라고 하지 않는다.
+            const msg = result.recovered ? dc.bdcSavedRecovered
+              : (result.emailSent ? dc.bdcSavedMemberMailSent : dc.bdcSavedMemberMailFailed);
+            toast.success(msg.replace('{date}', result.tourDate));
             await load();
           }}
         />

@@ -140,6 +140,76 @@ describe('BookingDateChangeModal', () => {
     expect(onSaved).not.toHaveBeenCalled();
   });
 
+  it('sends the screen language in the body (server uses it for the confirmation mail)', async () => {
+    authFetchMock.mockResolvedValue(reply(200, { ok: true, data: { tourDate: NEW } }));
+    const { onSaved } = renderModal({ kind: 'member' });
+    fireEvent.change(dateInput(), { target: { value: NEW } });
+    fireEvent.click(submitBtn());
+    await waitFor(() => expect(onSaved).toHaveBeenCalled());
+    expect(JSON.parse(authFetchMock.mock.calls[0][1].body).language).toBe('en');
+  });
+
+  // Astra r1 P2 — 회원은 어느 제출에서든 SAME_DATE = 이미 반영(응답만 유실).
+  it('member: 200 with an unreadable body → error → manual resubmit → SAME_DATE → saved (same requestId)', async () => {
+    authFetchMock
+      .mockResolvedValueOnce({ ok: true, status: 200, json: async () => { throw new SyntaxError('cut'); } })
+      .mockResolvedValueOnce(reply(400, { ok: false, code: 'SAME_DATE' }));
+    const { onSaved } = renderModal({ kind: 'member' });
+    fireEvent.change(dateInput(), { target: { value: NEW } });
+    fireEvent.click(submitBtn());
+    await screen.findByRole('alert');
+    expect(onSaved).not.toHaveBeenCalled();
+    fireEvent.click(submitBtn());
+    await waitFor(() => expect(onSaved).toHaveBeenCalledWith({ tourDate: NEW, emailSent: false, recovered: true, ignored: [] }));
+    const ids = authFetchMock.mock.calls.map(([, init]) => JSON.parse(init.body).requestId);
+    expect(ids[0]).toBe(ids[1]);
+  });
+
+  it('member: network fails twice → error → manual resubmit → SAME_DATE → saved', async () => {
+    authFetchMock
+      .mockRejectedValueOnce(new TypeError('Failed to fetch'))
+      .mockRejectedValueOnce(new TypeError('Failed to fetch'))
+      .mockResolvedValueOnce(reply(400, { ok: false, code: 'SAME_DATE' }));
+    const { onSaved } = renderModal({ kind: 'member' });
+    fireEvent.change(dateInput(), { target: { value: NEW } });
+    fireEvent.click(submitBtn());
+    await screen.findByRole('alert');
+    fireEvent.click(submitBtn());
+    await waitFor(() => expect(onSaved).toHaveBeenCalledWith(expect.objectContaining({ tourDate: NEW, recovered: true })));
+    expect(authFetchMock).toHaveBeenCalledTimes(3);
+  });
+
+  it('guest: SAME_DATE is NOT treated as success (guests recover through the server)', async () => {
+    manageFetchMock.mockResolvedValue(reply(400, { ok: false, code: 'SAME_DATE' }));
+    const { onSaved } = renderModal({ kind: 'guest', manageToken: 'T' });
+    fireEvent.change(dateInput(), { target: { value: NEW } });
+    fireEvent.click(submitBtn());
+    expect((await screen.findByRole('alert')).textContent).toContain(copy.bdcSameDate);
+    expect(onSaved).not.toHaveBeenCalled();
+  });
+
+  // Astra r1 P2 — Radix Dialog: 초점 이동·제한, 제출 중 닫기 무시.
+  it('focus moves into the dialog on open', async () => {
+    renderModal({ kind: 'member' });
+    const dialog = await screen.findByRole('dialog');
+    await waitFor(() => expect(dialog.contains(document.activeElement)).toBe(true));
+  });
+
+  it('Esc is ignored while submitting, and closes once the request has finished', async () => {
+    let resolve: (v: any) => void = () => {};
+    authFetchMock.mockImplementation(() => new Promise((r) => { resolve = r; }));
+    const { onClose } = renderModal({ kind: 'member' });
+    fireEvent.change(dateInput(), { target: { value: NEW } });
+    fireEvent.click(submitBtn());
+    await screen.findByRole('button', { name: copy.bdcSubmitting });
+    fireEvent.keyDown(document.activeElement || document.body, { key: 'Escape' });
+    expect(onClose).not.toHaveBeenCalled();
+    resolve(reply(409, { ok: false, code: 'SLOT_FULL' }));
+    await screen.findByRole('alert');
+    fireEvent.keyDown(document.activeElement || document.body, { key: 'Escape' });
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
   it('BOOKING_CHANGED → "reload" calls onReload', async () => {
     authFetchMock.mockResolvedValue(reply(409, { ok: false, code: 'BOOKING_CHANGED' }));
     const { onReload } = renderModal({ kind: 'member' });

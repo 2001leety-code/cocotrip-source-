@@ -2644,6 +2644,7 @@
     "bdcSavedGuestMailFailed": "Date changed to {date}. The email could not be sent — you can keep managing your booking on this page, and our team will resend the link.",
     "bdcSavedMemberMailSent": "Date changed to {date}. A confirmation email with the updated voucher has been sent.",
     "bdcSavedMemberMailFailed": "Date changed to {date}. The confirmation email could not be sent — please check this page for your booking details.",
-    "bdcIgnored": "Not applied: {fields}"
+    "bdcIgnored": "Not applied: {fields}",
+    "bdcSavedRecovered": "Your date change to {date} is confirmed. You can keep managing your booking on this page."
   }
 }

@@ -2644,6 +2644,7 @@
     "bdcSavedGuestMailFailed": "日期已更改为{date}。邮件发送失败——您可以继续在此页面管理预订，我们的团队会重新发送链接。",
     "bdcSavedMemberMailSent": "日期已更改为{date}。附有更新凭证的确认邮件已发送。",
     "bdcSavedMemberMailFailed": "日期已更改为{date}。确认邮件未能发送——请在此页面查看预订信息。",
-    "bdcIgnored": "未应用的项目：{fields}"
+    "bdcIgnored": "未应用的项目：{fields}",
+    "bdcSavedRecovered": "已确认将日期更改为{date}。您可以继续在此页面管理预订。"
   }
 }

@@ -372,6 +372,13 @@ describe('🔴 capturePaypalOrder — 위조된 capture body 는 슬롯 확정�
     expect(store.get(`pending_processor_retries/${ORDER_ID}`)).toBeTruthy();
     expect(store.get(`used_paypal_orders/${ORDER_ID}`)).toMatchObject({ finalized: true, bookingDurable: true, stages: { slot: { state: 'completed' } } });
   });
+
+  it('②b: 예약 문서에 손님 UI 언어를 남긴다(지원 4개 언어만, 그 외 null) — 날짜 변경 메일 언어의 근거', async () => {
+    await runCapture({ ...forgedBody, language: 'ja' }, snapshotDoc({ slotBooking: PAID_SLOT }));
+    expect((dbHolder.db as ReturnType<typeof captureDb>)._store.get(`bookings/${ORDER_ID}`)).toMatchObject({ language: 'ja' });
+    await runCapture({ ...forgedBody, language: 'xx' }, snapshotDoc({ slotBooking: PAID_SLOT }));
+    expect((dbHolder.db as ReturnType<typeof captureDb>)._store.get(`bookings/${ORDER_ID}`)).toMatchObject({ language: null });
+  });
 });
 
 // ═══════════ capture — 바인딩 없음 = fail-closed (알림) ═══════════

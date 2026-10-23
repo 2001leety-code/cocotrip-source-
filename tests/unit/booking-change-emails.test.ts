@@ -101,6 +101,16 @@ describe('sendBookingChangeEmail', () => {
     expect(mail.html).toContain(MANAGE);
   });
 
+  it('explicit language wins — stored booking without a language field still gets Japanese', async () => {
+    const stored: Record<string, any> = { ...STORED };
+    delete stored.language; // capturePaypalOrder bookingDocPayload 에 language 가 없던 기간의 예약
+    await sendBookingChangeEmail({ booking: stored, bookingID: 'ORD-77', label: 'x', oldDate: 'a', newDate: 'b', manageUrl: MANAGE, language: 'ja' });
+    expect(sendEmailSpy.mock.calls[0][0].subject).toContain('ご予約日を変更しました');
+    sendEmailSpy.mockClear();
+    await sendBookingChangeEmail({ booking: stored, bookingID: 'ORD-77', label: 'x', oldDate: 'a', newDate: 'b', manageUrl: MANAGE });
+    expect(sendEmailSpy.mock.calls[0][0].subject).toContain('Booking date changed'); // 명시·저장 언어 둘 다 없으면 en
+  });
+
   it('member recipient = userEmail', async () => {
     await sendBookingChangeEmail({ booking: { ...STORED, userEmail: 'member@example.com', uid: 'u1' }, bookingID: 'ORD-77', label: 'x', oldDate: 'a', newDate: 'b', myPageUrl: 'https://cocotripkr.com/mypage' });
     expect(sendEmailSpy.mock.calls[0][0].to).toBe('member@example.com');

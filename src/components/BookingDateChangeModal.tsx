@@ -6,6 +6,7 @@
  *   - requestId 는 모달이 열릴 때 한 번 만들고 재시도에도 같은 값을 보낸다 — 응답이 유실돼도 서버가
  *     같은 요청임을 알아보고(게스트) 새 관리 토큰만 다시 준다. 네트워크 오류면 자동 1회 재시도.
  *   - 선택 범위 = KST 내일 ~ +365일. 실제 가능 여부(24h·만석·휴무)는 서버가 판정하고 코드로 돌려준다.
+ *   - Radix Dialog(ui/dialog.tsx, z-[150]) — 초점 이동·제한·복귀, 헤더(z-[100]) 위. 제출 중엔 닫기 무시.
  */
 import { useState } from 'react';
 import { CalendarDays, X } from 'lucide-react';
@@ -13,6 +14,9 @@ import { translations, type Language, type Translations } from '@/i18n';
 import { authFetch } from '@/lib/authFetch';
 import { manageFetch } from '@/lib/manageFetch';
 import { kstDatePlusDays, newRequestId } from '@/lib/bookingDateChange';
+import {
+  Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
+} from '@/components/ui/dialog';
 
 export type DateChangeAuth = { kind: 'member' } | { kind: 'guest'; manageToken: string };
 
@@ -68,7 +72,8 @@ export function BookingDateChangeModal({
   const unchanged = !date || date === currentDate;
 
   function post(): Promise<Response> {
-    const body = { bookingID, changes: { tourDate: date }, requestId };
+    // language = 지금 화면 언어(손님이 읽는 언어) — 서버가 변경 확인 메일 언어로 쓴다.
+    const body = { bookingID, changes: { tourDate: date }, requestId, language };
     if (auth.kind === 'member') {
       return authFetch('/api/modifyBooking', {
         method: 'POST',
@@ -83,14 +88,12 @@ export function BookingDateChangeModal({
     if (unchanged || submitting) return;
     setSubmitting(true);
     setErrorCode('');
-    let retried = false;
     try {
       let res: Response;
       try {
         res = await post();
       } catch {
         // 응답 유실 — 같은 requestId·같은 날짜로 1회 재시도(서버가 이미 반영했으면 복구 응답).
-        retried = true;
         res = await post();
       }
       const json = await res.json().catch(() => null);
@@ -106,8 +109,9 @@ export function BookingDateChangeModal({
         });
         return;
       }
-      // 회원 재시도에서 SAME_DATE = 첫 요청이 이미 반영됐다(응답만 유실).
-      if (retried && auth.kind === 'member' && code === 'SAME_DATE') {
+      // 회원: 어느 제출에서든 SAME_DATE = 서버의 현재 날짜가 이미 손님이 고른 날짜(앞선 요청이 반영되고 응답만 유실).
+      //   → 성공으로 닫고 부모가 재조회한다. 게스트는 옛 토큰 → 401 → 서버 복구 경로라 여기서 성공 처리하지 않는다.
+      if (auth.kind === 'member' && code === 'SAME_DATE') {
         await onSaved({ tourDate: date, emailSent: false, recovered: true, ignored: [] });
         return;
       }
@@ -119,25 +123,27 @@ export function BookingDateChangeModal({
     }
   }
 
+  // 제출 중엔 바깥 클릭·Esc·닫기 버튼 모두 무시 — 요청이 끝나기 전에 모달이 사라지면 결과를 못 본다.
+  const blockWhileSubmitting = (e: Event) => { if (submitting) e.preventDefault(); };
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm" onClick={onClose}>
-      <div
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="bdc-title"
-        className="w-full max-w-md bg-[#0f1628] rounded-2xl border border-[#7C5CFC]/30 overflow-hidden customer-booking-date-change-modal"
-        onClick={(e) => e.stopPropagation()}
+    <Dialog open onOpenChange={(o) => { if (!o && !submitting) onClose(); }}>
+      <DialogContent
+        showCloseButton={false}
+        onInteractOutside={blockWhileSubmitting}
+        onEscapeKeyDown={blockWhileSubmitting}
+        className="customer-booking-date-change-modal max-w-md gap-0 p-0 overflow-hidden rounded-2xl border-[#7C5CFC]/30 bg-[#0f1628] text-white"
       >
-        <div className="flex items-center justify-between px-5 py-4 border-b border-white/5">
-          <h3 id="bdc-title" className="text-white font-bold flex items-center gap-2">
+        <DialogHeader className="flex-row items-center justify-between gap-2 px-5 py-4 border-b border-white/5 text-left">
+          <DialogTitle className="text-white font-bold text-base flex items-center gap-2">
             <CalendarDays size={16} aria-hidden /> {copy.bdcTitle} · {bookingRef}
-          </h3>
-          <button type="button" onClick={onClose} aria-label={copy.bdcClose} className="text-white/55 hover:text-white"><X size={18} /></button>
-        </div>
+          </DialogTitle>
+          <button type="button" onClick={onClose} disabled={submitting} aria-label={copy.bdcClose} className="text-white/55 hover:text-white disabled:opacity-40"><X size={18} /></button>
+        </DialogHeader>
         <div className="p-5 space-y-3 text-sm">
-          <p className="text-white/70">
+          <DialogDescription className="text-white/70 text-sm">
             {copy.bdcCurrent}: <span className="text-white font-semibold">{[currentDate, tourTime].filter(Boolean).join(' ')}</span>
-          </p>
+          </DialogDescription>
           <label className="block">
             <span className="block text-[10px] uppercase tracking-wider text-white/55 mb-1 font-semibold">{copy.bdcNew}</span>
             <input
@@ -166,8 +172,8 @@ export function BookingDateChangeModal({
             </div>
           )}
         </div>
-        <div className="px-5 py-4 border-t border-white/5 flex gap-2">
-          <button type="button" onClick={onClose} className="flex-1 py-2.5 rounded-xl border border-white/10 text-white/60 text-sm">{copy.bdcClose}</button>
+        <DialogFooter className="px-5 py-4 border-t border-white/5 flex-row gap-2">
+          <button type="button" onClick={onClose} disabled={submitting} className="flex-1 py-2.5 rounded-xl border border-white/10 text-white/60 text-sm disabled:opacity-40">{copy.bdcClose}</button>
           <button
             type="button"
             onClick={() => { void submit(); }}
@@ -177,8 +183,8 @@ export function BookingDateChangeModal({
           >
             {submitting ? copy.bdcSubmitting : copy.bdcSubmit}
           </button>
-        </div>
-      </div>
-    </div>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
