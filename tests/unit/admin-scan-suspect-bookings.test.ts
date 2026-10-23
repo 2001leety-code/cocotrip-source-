@@ -18,6 +18,8 @@ let fresh: Record<string, Doc>;
 let retries: Record<string, Doc>;
 const updates: Array<{ id: string; patch: Doc }> = [];
 const retryUpdates: Array<{ id: string; patch: Doc }> = [];
+/** true = 재시도 문서 조회가 throw(호출자는 retryDoc=null 로 계속 진행). */
+let retryReadFails = false;
 const fetchMock = vi.fn();
 
 vi.mock('../../api/_shared/admin-auth.js', () => ({ verifyAdminToken: async () => ({ ok: true, uid: 'admin1', email: 'admin@x' }) }));
@@ -39,9 +41,13 @@ function makeDb() {
   return {
     collection: (name: string) => (name === 'pending_processor_retries' ? {
       doc: (id: string) => ({
-        get: async () => snapOf(id, retries),
+        get: async () => { if (retryReadFails) throw new Error('14 UNAVAILABLE: retry lookup'); return snapOf(id, retries); },
         update: async (patch: Doc) => { retryUpdates.push({ id, patch }); retries[id] = { ...retries[id], ...patch }; },
-        set: async (data: Doc) => { retryUpdates.push({ id, patch: { created: true, ...data } }); retries[id] = { ...data }; },
+        // 실제 Firestore 와 같이 이미 있으면 ALREADY_EXISTS(6).
+        create: async (data: Doc) => {
+          if (retries[id]) throw Object.assign(new Error('6 ALREADY_EXISTS: Document already exists'), { code: 6 });
+          retryUpdates.push({ id, patch: { created: true, ...data } }); retries[id] = { ...data };
+        },
       }),
     } : {
       ...query,
@@ -83,6 +89,7 @@ beforeEach(() => {
   retries = {};
   updates.length = 0;
   retryUpdates.length = 0;
+  retryReadFails = false;
   fetchMock.mockReset();
   fetchMock.mockImplementation(async () => processorDone());
   vi.stubGlobal('fetch', fetchMock);
@@ -285,6 +292,41 @@ describe('admin-replay-booking-notifications — single replay', () => {
       orderID: 'ORD-NEW-FAIL', retryDocId: 'ORD-NEW-FAIL', status: 'manual-intervention', outcome: 'manual_intervention',
       stepStatus: { email: 'outcome_unknown' }, attempts: 0, source: 'admin-replay', payload: expect.objectContaining({ orderID: 'ORD-NEW-FAIL' }),
     });
+  });
+
+  // Astra 코드 리뷰 r3 P2 — 조회 실패로 retryDoc=null 이 왔지만 문서는 실제로 있다 → 덮어쓰지 않는다.
+  const existingRetry = () => ({
+    status: 'pending', outcome: 'retryable', stepStatus: { email: 'retryable' },
+    payload: { orderID: 'ORD-FAIL', original: true }, attempts: 4, firstFailureAt: 'T0', source: 'capture',
+  });
+  const incomplete = () => ({ ok: true, status: 200, json: async () => ({ ok: false, data: { outcome: 'manual_intervention', stepStatus: { email: 'outcome_unknown' } } }) });
+
+  it('single: retry lookup throws but the doc exists → incomplete replay keeps payload/attempts, updates status/outcome/stepStatus only', async () => {
+    store['ORD-FAIL'] = failedDoc;
+    retries['ORD-FAIL'] = existingRetry();
+    retryReadFails = true;
+    fetchMock.mockImplementation(async () => incomplete());
+    await call(replayHandler, 'POST', { bookingId: 'ORD-FAIL' });
+    expect(retries['ORD-FAIL']).toMatchObject({
+      payload: { orderID: 'ORD-FAIL', original: true }, attempts: 4, firstFailureAt: 'T0', source: 'capture',
+      status: 'manual-intervention', outcome: 'manual_intervention', stepStatus: { email: 'outcome_unknown' },
+    });
+    expect(retryUpdates.some((u) => u.patch.created)).toBe(false);
+  });
+
+  it('batch: retry lookup throws but the doc exists → same preservation after an incomplete replay', async () => {
+    store['ORD-FAIL'] = failedDoc;
+    retries['ORD-FAIL'] = existingRetry();
+    retryReadFails = true;
+    fetchMock.mockImplementation(async () => incomplete());
+    const r = await call(scanHandler, 'POST', { dryRun: false });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(r.json.data).toMatchObject({ replayed: 0, failed: 1 });
+    expect(retries['ORD-FAIL']).toMatchObject({
+      payload: { orderID: 'ORD-FAIL', original: true }, attempts: 4,
+      status: 'manual-intervention', outcome: 'manual_intervention', stepStatus: { email: 'outcome_unknown' },
+    });
+    expect(retryUpdates.some((u) => u.patch.created)).toBe(false);
   });
 
   it('no retry doc + completed replay → nothing written to the retry queue', async () => {

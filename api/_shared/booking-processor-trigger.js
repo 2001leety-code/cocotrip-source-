@@ -299,8 +299,12 @@ export async function recordReplayOutcome({ db, retryDocId, retryDoc, outcome, s
     };
     if (retryDoc) {
       await ref.update(failure);
-    } else {
-      await ref.set({
+      return true;
+    }
+    // 문서가 없다고 **본** 경우만 만든다 — create 는 이미 있으면 실패한다. 호출자의 조회가 실패해 retryDoc 이
+    //   null 로 왔을 뿐 실제로는 있는 경우, 덮어쓰면 payload 가 바뀌고 attempts 가 0 이 된다 → update 로 폴백.
+    try {
+      await ref.create({
         orderID: retryDocId,
         retryDocId,
         payload: payload || null,
@@ -308,7 +312,10 @@ export async function recordReplayOutcome({ db, retryDocId, retryDoc, outcome, s
         firstFailureAt: FieldValue.serverTimestamp(),
         attempts: 0,
         ...failure,
-      }, { merge: false });
+      });
+    } catch (e) {
+      if (!(e && (e.code === 6 || /already exists/i.test(String(e.message))))) throw e;
+      await ref.update(failure);
     }
     return true;
   } catch (e) {
