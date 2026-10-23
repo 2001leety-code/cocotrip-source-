@@ -6,38 +6,17 @@
  * CHAT_SESSION_SIGNING_SECRET은 선택 환경변수이며, 없으면 이미 배선된 Firebase
  * 서버 자격증명으로 서명한다. 값을 로그나 응답에 노출하지 않는다.
  */
-import {
-  createHash,
-  createHmac,
-  randomBytes,
-  timingSafeEqual,
-} from 'node:crypto';
+import { createHash, randomBytes } from 'node:crypto';
 import { verifyFirebaseIdentityToken } from './user-auth.js';
+import { createSignedToken, verifySignedToken } from './hmac-sign.js';
 
 export const CHAT_SESSION_COOKIE = 'ct_chat_session_v1';
 export const CHAT_SESSION_MAX_AGE_SEC = 7 * 24 * 60 * 60;
 
 const SESSION_ID_RE = /^sess_[A-Za-z0-9_-]{24,120}$/;
 
-function signingSecret() {
-  const secret = process.env.CHAT_SESSION_SIGNING_SECRET
-    || process.env.GOOGLE_SERVICE_ACCOUNT_KEY
-    || process.env.FIREBASE_PRIVATE_KEY
-    || '';
-  if (secret.length < 32) throw new Error('chat session signing secret unavailable');
-  return secret;
-}
-
-function sign(encodedPayload) {
-  return createHmac('sha256', signingSecret()).update(encodedPayload, 'utf8').digest('base64url');
-}
-
-function safeEqual(left, right) {
-  const a = Buffer.from(String(left || ''), 'utf8');
-  const b = Buffer.from(String(right || ''), 'utf8');
-  if (a.length !== b.length) return false;
-  return timingSafeEqual(a, b);
-}
+// 2026-10-23: 서명·비밀 폴백·timingSafe 비교는 공용 hmac-sign.js 로 추출. 쿠키 형식·검증 순서(서명 → 파싱 → 필드) 불변.
+const SIGN_OPTS = { secretEnv: 'CHAT_SESSION_SIGNING_SECRET', label: 'chat session signing' };
 
 function createSessionId() {
   return `sess_${randomBytes(24).toString('base64url')}`;
@@ -63,8 +42,7 @@ export function createChatSessionToken({
     iat: nowMs,
     exp: expiresAtMs,
   };
-  const encoded = Buffer.from(JSON.stringify(payload), 'utf8').toString('base64url');
-  return { token: `${encoded}.${sign(encoded)}`, sessionId: sid, expiresAtMs };
+  return { token: createSignedToken(payload, SIGN_OPTS), sessionId: sid, expiresAtMs };
 }
 
 /**
@@ -72,9 +50,9 @@ export function createChatSessionToken({
  */
 export function parseChatSessionToken(token, nowMs = Date.now()) {
   try {
-    const parts = String(token || '').split('.');
-    if (parts.length !== 2 || !safeEqual(sign(parts[0]), parts[1])) return { ok: false };
-    const data = JSON.parse(Buffer.from(parts[0], 'base64url').toString('utf8'));
+    const verified = verifySignedToken(token, SIGN_OPTS);
+    if (!verified.ok) return { ok: false };
+    const data = verified.payload;
     if (data.v !== 1 || !SESSION_ID_RE.test(String(data.sid || ''))) return { ok: false };
     if (!['user', 'guest'].includes(data.typ) || typeof data.sub !== 'string' || !data.sub) return { ok: false };
     if (!Number.isFinite(data.exp) || data.exp <= nowMs) return { ok: false };

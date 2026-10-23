@@ -2585,5 +2585,37 @@
   "adminPaceTarget": {
     "label": "ペース目標 (任意)",
     "hint": "運営者の推奨値 — ユーザーレベル表記に使用。空欄ならユーザー本人のペースで適用。"
+  },
+  "bookingManage": {
+    "bmTitle": "ご予約の管理",
+    "bmLoading": "ご予約を読み込んでいます…",
+    "bmInvalid": "このリンクは無効か期限切れです。最新の確認メールのリンクをご利用いただくか、お問い合わせください。",
+    "bmBookingRef": "予約番号",
+    "bmTour": "商品",
+    "bmDate": "日程",
+    "bmPax": "人数",
+    "bmPickup": "お迎え",
+    "bmVehicle": "車両",
+    "bmAmount": "お支払い額",
+    "bmStatus": "ステータス",
+    "bmEmail": "メール",
+    "bmStatusConfirmed": "確定",
+    "bmStatusCanceled": "キャンセル済み",
+    "bmStatusProcessing": "処理中",
+    "bmCancelCta": "予約をキャンセル",
+    "bmNoRefund": "このご予約はオンラインでキャンセルできません。お問い合わせください。",
+    "bmConfirmTitle": "このご予約をキャンセルしますか？",
+    "bmConfirmBody": "お支払い方法に{percent}%返金されます。",
+    "bmPolicy": "ツアー開始（韓国時間）の24時間前までのキャンセル：100%返金。開始24時間以内または不参加：返金なし。",
+    "bmReasonLabel": "キャンセル理由（任意）",
+    "bmBack": "予約を維持",
+    "bmConfirmCta": "キャンセルを確定",
+    "bmCanceling": "キャンセル中…",
+    "bmResultCanceled": "ご予約をキャンセルしました。返金のご案内をメールでお送りします。",
+    "bmResultPending": "返金を確認しています。担当者よりご連絡いたします。",
+    "bmResultError": "問題が発生しました。しばらくしてから再度お試しいただくか、お問い合わせください。",
+    "bmContact": "お困りですか？ cocotripkr@gmail.com",
+    "bmCancelConflict": "このご予約はすでに処理済みか、キャンセル可能な時間を過ぎています。最新の状態を再読み込みしました。",
+    "bmRetryLookup": "再読み込み"
   }
 }

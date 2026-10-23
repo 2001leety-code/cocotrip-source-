@@ -50,4 +50,13 @@ export function internalMoneyApiBase() {
   return url ? `https://${url}` : null;
 }
 
+/**
+ * 고객에게 보내는 링크의 사이트 주소(2026-10-23, ②a 확인 메일 "예약 관리" 링크).
+ * 운영 = 운영 도메인, 프리뷰 = 그 배포 URL(프리뷰 토큰이 운영 페이지로 가지 않게), 그 외 = 운영 도메인.
+ */
+export function publicSiteOrigin() {
+  if (process.env.VERCEL_ENV === 'production') return PROD_ORIGIN;
+  return process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : PROD_ORIGIN;
+}
+
 export default internalApiBase;

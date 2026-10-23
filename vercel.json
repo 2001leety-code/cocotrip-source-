@@ -222,6 +222,19 @@
       ]
     },
     {
+      "source": "/booking/manage",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "no-store"
+        },
+        {
+          "key": "Referrer-Policy",
+          "value": "no-referrer"
+        }
+      ]
+    },
+    {
       "source": "/(mypage|my-plans|mood|admin|map|assistant|s|cart|charter-new|charter-legacy|booking|preview|dev|community|links|whatsapp-support|account-deletion)(/.*)?",
       "headers": [
         {
@@ -266,6 +279,7 @@
       "source": "/(tours|region|guide|s|my-plans|community|mood|admin|preview|dev)(/.*)?",
       "destination": "/index.html"
     },
+    { "source": "/booking/manage", "destination": "/index.html" },
     { "source": "/((?!api/).*)", "destination": "/api/not-found" }
   ]
 }

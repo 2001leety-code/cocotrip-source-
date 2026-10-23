@@ -34,7 +34,7 @@ vi.mock('../../api/_send-email.js', () => ({ sendEmail: vi.fn(async () => undefi
 vi.mock('../../api/_shared/manual-payment-emails.js', () => ({ buildManualPaymentEmail: () => ({ subject: '', html: '', text: '' }) }));
 vi.mock('../../api/_shared/pricing.js', () => ({ productDisplayLabel: (x: string) => x }));
 vi.mock('../../api/_shared/sentry.js', () => ({ captureError: vi.fn() }));
-vi.mock('firebase-admin/firestore', () => ({ FieldValue: { serverTimestamp: () => 'TS', delete: () => 'DEL' } }));
+vi.mock('firebase-admin/firestore', () => ({ FieldValue: { serverTimestamp: () => 'TS', delete: () => 'DEL', increment: (n: number) => ({ inc: n }) } }));
 
 function makeDb() {
   const bookingsDoc = {
@@ -63,7 +63,7 @@ function mockRes() {
 }
 async function cancel() {
   const res = mockRes();
-  await handler({ method: 'POST', url: '/api/cancelBooking', headers: { host: 'unit.test' }, body: { bookingID: 'CT-1', reason: 'change of plans' } } as any, res as any);
+  await handler({ method: 'POST', url: '/api/cancelBooking', headers: { host: 'unit.test', authorization: 'Bearer t' }, body: { bookingID: 'CT-1', reason: 'change of plans' } } as any, res as any);
   return { ...res.out, json: res.out.body ? JSON.parse(res.out.body) : null };
 }
 

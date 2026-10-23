@@ -45,7 +45,9 @@ import {
   bookingStepGuards, BOOKING_STEP_MARKERS, stepStateField,
   claimStepSafe, finalizeStep, completeStep, markOutcomeUnknown, CLAIM,
 } from './_shared/booking-idempotency.js';
-import { internalMoneyApiBase, vercelBypassHeaders } from './_shared/internal-base-url.js';
+import { internalMoneyApiBase, vercelBypassHeaders, publicSiteOrigin } from './_shared/internal-base-url.js';
+import { isGuestManagedBooking } from './_shared/booking-access.js';
+import { createBookingManageToken } from './_shared/booking-manage-token.js';
 import {
   STEP, overallOutcome, stepFromClaimReason, stepFromFinalize,
   stepFromLedgerReason, stepFromLoyaltyHttp, isAmbiguousSendError,
@@ -615,7 +617,25 @@ const originalHandler = async (event) => {
         emailContent = buildDefaultConfirmationEmail(booking, walletUrl, itineraryData, language);
       }
 
-      await sendBookingConfirmation(payerEmail, emailContent, voucherText, pdfBuffer, walletUrl);
+      // 게스트 예약 관리(취소) 링크 (2026-10-23, ②a) — Firestore 원본(storedBooking)으로만 판정·발급.
+      //   발급 실패는 링크 없이 발송(확인 메일이 우선).
+      let manage = null;
+      if (storedBooking && isGuestManagedBooking(storedBooking)) {
+        try {
+          const { token } = createBookingManageToken({
+            orderID,
+            version: Number(storedBooking.manageTokenVersion) || 0,
+            paypalEnvironment: storedBooking.paypalEnvironment === 'sandbox' ? 'sandbox' : 'live',
+            deployment: process.env.VERCEL_ENV || 'development',
+            tourDate: storedBooking.tourDate,
+          });
+          manage = { url: `${publicSiteOrigin()}/booking/manage#t=${token}`, language };
+        } catch (tokenErr) {
+          console.warn('[booking-processor] manage link skipped:', tokenErr.message);
+        }
+      }
+
+      await sendBookingConfirmation(payerEmail, emailContent, voucherText, pdfBuffer, walletUrl, manage);
       results.steps.email = 'ok';
       voucherEmailOk = true;
       // 🔴 실제 발송이 끝난 뒤에만 completed. 이 기록이 실패하면 completeBookingStep 이

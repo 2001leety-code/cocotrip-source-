@@ -31,8 +31,9 @@ vi.mock('../../api/_shared/admin-auth.js', () => ({
 // my-bookings / cancelBooking / modifyBooking → initAdminDb('tag')
 // voucher → initAdminDb()
 // reviews → dynamic import('firebase-admin/app')+('firebase-admin/firestore')
+type DocData = Record<string, unknown>;
 type FakeTransaction = {
-  get: () => Promise<{ exists: boolean; data: () => Record<string, never> }>;
+  get: () => Promise<{ exists: boolean; data: () => DocData }>;
   set: () => void;
   update: () => void;
 };
@@ -43,26 +44,37 @@ type FakeDb = {
   orderBy: () => FakeDb;
   limit: () => FakeDb;
   startAfter: () => FakeDb;
-  get: () => Promise<{ exists: boolean; empty: boolean; docs: never[]; data: () => Record<string, never> }>;
+  get: () => Promise<{ exists: boolean; empty: boolean; docs: never[]; data: () => DocData }>;
+  set: () => Promise<void>;
+  update: () => Promise<void>;
   runTransaction: <T>(fn: (tx: FakeTransaction) => Promise<T>) => Promise<T>;
 };
+
+// 2026-10-23 (②a): 문서 1건을 심어 소유자 거부 경로를 태울 수 있게. 기본 = 문서 없음.
+const dbState: { doc: DocData | null; writes: number } = { doc: null, writes: 0 };
+const refundMock = vi.fn();
+vi.mock('../../api/_shared/paypal-refund.js', () => ({ refundPaypalCapture: refundMock }));
 
 function fakeDb(): FakeDb {
   // Return an object that satisfies the surface used after the auth gate.
   // Tests intentionally short-circuit at the auth check, so collection() etc.
   // never actually executes when the gate fires.
   const fake = {} as FakeDb;
+  const snap = () => ({ exists: Boolean(dbState.doc), data: () => dbState.doc || {} });
+  const write = () => { dbState.writes += 1; };
   fake.collection = () => fake;
   fake.doc = () => fake;
   fake.where = () => fake;
   fake.orderBy = () => fake;
   fake.limit = () => fake;
   fake.startAfter = () => fake;
-  fake.get = async () => ({ exists: false, empty: true, docs: [], data: () => ({}) });
+  fake.get = async () => ({ ...snap(), empty: true, docs: [] });
+  fake.set = async () => write();
+  fake.update = async () => write();
   fake.runTransaction = async (fn) => fn({
-    get: async () => ({ exists: false, data: () => ({}) }),
-    set: () => undefined,
-    update: () => undefined,
+    get: async () => snap(),
+    set: write,
+    update: write,
   });
   return fake;
 }
@@ -80,7 +92,7 @@ vi.mock('firebase-admin/app', () => ({
 }));
 vi.mock('firebase-admin/firestore', () => ({
   getFirestore: () => fakeDb(),
-  FieldValue: { serverTimestamp: () => 'TS', arrayUnion: (x: unknown) => ({ arrayUnion: x }) },
+  FieldValue: { serverTimestamp: () => 'TS', arrayUnion: (x: unknown) => ({ arrayUnion: x }), increment: (n: number) => ({ inc: n }) },
 }));
 vi.mock('../../api/_shared/sentry.js', () => ({
   captureError: vi.fn(),
@@ -135,6 +147,9 @@ describe('PR #418 — Auth IDOR fix regression slot', () => {
   beforeEach(() => {
     verifyUserTokenMock.mockReset();
     verifyAdminTokenMock.mockReset();
+    refundMock.mockReset();
+    dbState.doc = null;
+    dbState.writes = 0;
   });
 
   describe('my-bookings', () => {
@@ -179,6 +194,30 @@ describe('PR #418 — Auth IDOR fix regression slot', () => {
       const body = JSON.parse(res.body);
       expect(body).toMatchObject({ ok: false, code: 'AUTH_REQUIRED' });
     });
+
+    it('rejects another member\'s booking — 403, 0 writes, 0 refunds', async () => {
+      dbState.doc = { status: 'CONFIRMED', userEmail: 'owner@x.com', uid: 'owner', captureID: 'CAP-1', tourDate: '2099-01-01' };
+      verifyUserTokenMock.mockResolvedValueOnce({ ok: true, email: 'attacker@x.com', uid: 'attacker' });
+      const handler: TestHandler = (await import('../../api/cancelBooking.js')).default;
+      const res = makeRes();
+      await handler(req('POST', { body: { bookingID: 'COCO-1' }, auth: 'Bearer t' }), res);
+      expect(res.statusCode).toBe(403);
+      expect(JSON.parse(res.body)).toMatchObject({ ok: false, code: 'FORBIDDEN' });
+      expect(dbState.writes).toBe(0);
+      expect(refundMock).not.toHaveBeenCalled();
+    });
+
+    it('invalid Bearer + manageToken → 401, no guest fallback, 0 writes/refunds', async () => {
+      dbState.doc = { status: 'CONFIRMED', userEmail: '', payerEmail: 'g@x.com', captureID: 'CAP-1', tourDate: '2099-01-01' };
+      verifyUserTokenMock.mockResolvedValueOnce({ ok: false, status: 401, error: 'Invalid token' });
+      const handler: TestHandler = (await import('../../api/cancelBooking.js')).default;
+      const res = makeRes();
+      await handler(req('POST', { body: { bookingID: 'COCO-1', manageToken: 'x'.repeat(40) + '.' + 'y'.repeat(43) }, auth: 'Bearer bad' }), res);
+      expect(res.statusCode).toBe(401);
+      expect(JSON.parse(res.body)).toMatchObject({ ok: false, code: 'AUTH_REQUIRED' });
+      expect(dbState.writes).toBe(0);
+      expect(refundMock).not.toHaveBeenCalled();
+    });
   });
 
   describe('modifyBooking', () => {
@@ -190,6 +229,16 @@ describe('PR #418 — Auth IDOR fix regression slot', () => {
       expect(res.statusCode).toBe(401);
       const body = JSON.parse(res.body);
       expect(body).toMatchObject({ ok: false, code: 'AUTH_REQUIRED' });
+    });
+
+    it('rejects another member\'s booking — 403, 0 writes', async () => {
+      dbState.doc = { status: 'CONFIRMED', userEmail: 'owner@x.com', tourDate: '2099-01-01' };
+      verifyUserTokenMock.mockResolvedValueOnce({ ok: true, email: 'attacker@x.com', uid: 'attacker' });
+      const handler: TestHandler = (await import('../../api/modifyBooking.js')).default;
+      const res = makeRes();
+      await handler(req('POST', { body: { bookingID: 'COCO-1', changes: { memo: 'x' } }, auth: 'Bearer t' }), res);
+      expect(res.statusCode).toBe(403);
+      expect(dbState.writes).toBe(0);
     });
   });
 

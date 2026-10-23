@@ -10,6 +10,45 @@ import * as Sentry from '@sentry/react';
 let sentryInitializationAttempted = false;
 let sentryInitialized = false;
 
+/**
+ * 게스트 예약 관리 토큰 제거 (2026-10-23, ②a) — `/booking/manage#t=<token>` 프래그먼트와
+ * 요청 본문의 `manageToken` 값이 Sentry 이벤트·breadcrumb 에 남지 않게 한다.
+ */
+export function scrubManageToken(value: string): string {
+  return value
+    .replace(/([#&]t=)[^&#\s"']+/g, '$1[redacted]')
+    .replace(/("?manageToken"?\s*[:=]\s*"?)[^"&,}\s]+/g, '$1[redacted]');
+}
+
+function scrubUnknown(value: unknown): unknown {
+  if (typeof value === 'string') return scrubManageToken(value);
+  if (Array.isArray(value)) return value.map(scrubUnknown);
+  if (value && typeof value === 'object') {
+    const out: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
+      out[k] = k === 'manageToken' ? '[redacted]' : scrubUnknown(v);
+    }
+    return out;
+  }
+  return value;
+}
+
+function scrubBreadcrumb<T extends { message?: string; data?: Record<string, unknown> }>(crumb: T): T {
+  if (crumb.message) crumb.message = scrubManageToken(crumb.message);
+  if (crumb.data) crumb.data = scrubUnknown(crumb.data) as Record<string, unknown>;
+  return crumb;
+}
+
+function scrubEvent<T extends { request?: { url?: string; query_string?: unknown; data?: unknown }; breadcrumbs?: { message?: string; data?: Record<string, unknown> }[] }>(event: T): T {
+  if (event.request) {
+    if (event.request.url) event.request.url = scrubManageToken(event.request.url);
+    if (event.request.query_string !== undefined) event.request.query_string = scrubUnknown(event.request.query_string);
+    if (event.request.data !== undefined) event.request.data = scrubUnknown(event.request.data);
+  }
+  if (event.breadcrumbs) event.breadcrumbs.forEach(scrubBreadcrumb);
+  return event;
+}
+
 export function initSentry() {
   const dsn = import.meta.env.VITE_SENTRY_DSN;
   if (!import.meta.env.PROD || !dsn) return;
@@ -37,7 +76,13 @@ export function initSentry() {
           delete event.user.email;
           delete event.user.ip_address;
         }
-        return event;
+        return scrubEvent(event);
+      },
+      beforeSendTransaction(event) {
+        return scrubEvent(event);
+      },
+      beforeBreadcrumb(crumb) {
+        return scrubBreadcrumb(crumb);
       },
     });
     sentryInitialized = true;

@@ -100,8 +100,9 @@ export async function sendEmail({ to, subject, html, text, attachments = [] }) {
  * @param {string} voucherText - 바우처 텍스트 (fallback 첨부)
  * @param {Buffer|null} pdfBuffer - PDF 바우처 버퍼 (우선)
  * @param {string|null} walletUrl - Google Wallet 저장 링크
+ * @param {{url: string, language?: string}|null} manage - 게스트 예약 관리(취소) 링크 (2026-10-23, ②a)
  */
-export async function sendBookingConfirmation(toEmail, emailContent, voucherText, pdfBuffer = null, walletUrl = null) {
+export async function sendBookingConfirmation(toEmail, emailContent, voucherText, pdfBuffer = null, walletUrl = null, manage = null) {
   const attachments = [];
 
   if (pdfBuffer) {
@@ -136,14 +137,41 @@ export async function sendBookingConfirmation(toEmail, emailContent, voucherText
     finalHtml = finalHtml.replace('</body>', `${walletBtn}</body>`);
   }
 
+  // 게스트 예약 관리 링크 — HTML 과 텍스트 본문 둘 다. 토큰은 #t= 프래그먼트라 서버 로그에 남지 않는다.
+  let finalText = emailContent.text;
+  if (manage && manage.url) {
+    const label = MANAGE_LINK_LABELS[String(manage.language || '').slice(0, 2).toLowerCase()] || MANAGE_LINK_LABELS.en;
+    if (finalHtml) {
+      const manageBtn = `
+    <div style="text-align:center;margin:24px 0;">
+      <a href="${escapeAttr(manage.url)}" target="_blank" rel="noopener noreferrer"
+         style="display:inline-block;background:#ffffff;color:#1a1a2e;text-decoration:none;
+                font-weight:bold;font-size:14px;padding:12px 24px;border-radius:10px;border:1px solid #1a1a2e;">
+        ${escapeAttr(label)}
+      </a>
+    </div>`;
+      finalHtml = finalHtml.includes('</body>')
+        ? finalHtml.replace('</body>', `${manageBtn}</body>`)
+        : `${finalHtml}${manageBtn}`;
+    }
+    finalText = `${finalText || ''}\n\n${label}: ${manage.url}\n`;
+  }
+
   return sendEmail({
     to:          toEmail,
     subject:     emailContent.subject,
     html:        finalHtml || emailContent.html,
-    text:        emailContent.text,
+    text:        finalText,
     attachments,
   });
 }
+
+const MANAGE_LINK_LABELS = {
+  ko: '예약 관리(취소)',
+  en: 'Manage booking (cancel)',
+  ja: '予約管理（キャンセル）',
+  zh: '管理预订（取消）',
+};
 
 /**
  * 후기 요청 이메일 발송 (투어 완료 24시간 후)

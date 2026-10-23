@@ -29,6 +29,7 @@ const About = lazy(() => import('@/pages/About'));
 const Terms = lazy(() => import('@/pages/Terms'));
 const Privacy = lazy(() => import('@/pages/Privacy'));
 const AccountDeletion = lazy(() => import('@/pages/AccountDeletion'));
+const BookingManagePage = lazy(() => import('@/pages/BookingManagePage'));
 const TravelTerms = lazy(() => import('@/pages/TravelTerms'));
 const NotFoundPage = lazy(() => import('@/pages/NotFoundPage'));
 const Admin = lazy(() => import('@/pages/Admin'));
@@ -289,6 +290,8 @@ function AnimatedRoutes() {
           <Route path="/" element={<HomePage />} />
           <Route path="/region/:regionId" element={<Suspense fallback={LEGACY_ROUTE_FALLBACK}><RegionDetail /></Suspense>} />
           <Route path="/booking" element={<Navigate to="/tours" replace />} />
+          {/* 게스트 예약 관리(취소) — 확인 메일 링크 #t=<token>, 로그인 불필요 (2026-10-23) */}
+          <Route path="/booking/manage" element={<Suspense fallback={ROUTE_FALLBACK}><BookingManagePage /></Suspense>} />
           {/* 경로 지도 — 내 플랜 day 별 동선 (비로그인/플랜없음 빈 상태 포함, 게스트 접근 허용) */}
           <Route path="/map" element={<Suspense fallback={ROUTE_FALLBACK}><MapPage /></Suspense>} />
           {/* AI 어시스턴트 전면 화면 — 비로그인은 페이지 내 로그인 게이트 (위젯과 동일 정책) */}

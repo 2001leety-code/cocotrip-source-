@@ -2585,5 +2585,37 @@
   "adminPaceTarget": {
     "label": "Pace Target (optional)",
     "hint": "Operator-suggested values for level labeling. Leave blank to use the runner's own pace."
+  },
+  "bookingManage": {
+    "bmTitle": "Manage your booking",
+    "bmLoading": "Loading your booking…",
+    "bmInvalid": "This link is invalid or has expired. Please use the latest confirmation email, or contact us.",
+    "bmBookingRef": "Booking no.",
+    "bmTour": "Product",
+    "bmDate": "Date",
+    "bmPax": "Guests",
+    "bmPickup": "Pickup",
+    "bmVehicle": "Vehicle",
+    "bmAmount": "Paid",
+    "bmStatus": "Status",
+    "bmEmail": "Email",
+    "bmStatusConfirmed": "Confirmed",
+    "bmStatusCanceled": "Canceled",
+    "bmStatusProcessing": "Processing",
+    "bmCancelCta": "Cancel booking",
+    "bmNoRefund": "Online cancellation is not available for this booking. Please contact us.",
+    "bmConfirmTitle": "Cancel this booking?",
+    "bmConfirmBody": "You will receive a {percent}% refund to your original payment method.",
+    "bmPolicy": "Cancel 24+ hours before the tour start (KST): 100% refund. Within 24 hours of the tour start, or no-show: no refund.",
+    "bmReasonLabel": "Reason (optional)",
+    "bmBack": "Keep booking",
+    "bmConfirmCta": "Confirm cancellation",
+    "bmCanceling": "Canceling…",
+    "bmResultCanceled": "Your booking has been canceled. A refund notice will be sent to your email.",
+    "bmResultPending": "We are confirming your refund. Our team will contact you soon.",
+    "bmResultError": "Something went wrong. Please try again later or contact us.",
+    "bmContact": "Need help? Email cocotripkr@gmail.com",
+    "bmCancelConflict": "This booking was already processed or the cancellation window has passed. We have reloaded the latest status.",
+    "bmRetryLookup": "Check again"
   }
 }

@@ -156,6 +156,7 @@ describe('refund-booking — success', () => {
     expect(saved).toMatchObject({ status: 'CANCELED', cancelCategory: 'customer_request', cancelFault: 'customer', refundID: 'RF-1', refundPercent: 100, refundSource: 'paypal-api', canceledByUid: 'admin1' });
     expect(saved.fullRefundProof).toMatchObject({ source: 'admin-api', environment: 'live', refundIDs: ['RF-1'], amountMinor: 10000 });
     expect(fullRefundProofMatchesCapture(saved.fullRefundProof, { environment: 'live', captureVerified: { captureID: 'CAP-1', currency: 'USD', amountMinor: 10000 } })).toBe(true);
+    expect(saved.manageTokenVersion).toBe(1); // ②a: guest manage links invalidated
     expect(auditEntries()[0]).toMatchObject({ adminUid: 'admin1', bookingRef: REF, action: 'refund-booking', previousStatus: 'CONFIRMED', target: 'bookings' });
     expect(releaseSpy).toHaveBeenCalledTimes(1);
     expect(sendEmailSpy).toHaveBeenCalledTimes(1);
@@ -174,6 +175,21 @@ describe('refund-booking — success', () => {
     expect(saved.refundedBySource).toBe('webhook');
     expect(saved).not.toHaveProperty('refundSource');
     expect(saved.fullRefundProof).toMatchObject({ source: 'admin-api', refundIDs: ['RF-1'] });
+    expect(saved.manageTokenVersion).toBe(1); // ②a: proof-only branch still invalidates guest links
+  });
+
+  it('proof-only branch without a full proof still bumps manageTokenVersion', async () => {
+    db.__patch(PATH, { manageTokenVersion: 2 });
+    refundSpy.mockImplementation(async () => {
+      db.__patch(PATH, { status: 'REFUNDED', refundedBySource: 'webhook' });
+      return receipt('100.00', 'PENDING');
+    });
+    const r = await call();
+    expect(r.statusCode).toBe(200);
+    const saved = db.__get(PATH)!;
+    expect(saved.status).toBe('REFUNDED');
+    expect(saved).not.toHaveProperty('fullRefundProof');
+    expect(saved.manageTokenVersion).toBe(3);
   });
 
   it('PENDING refund → CANCELED, no seat release, no customer mail', async () => {
