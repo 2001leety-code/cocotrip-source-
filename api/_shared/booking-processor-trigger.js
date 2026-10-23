@@ -258,24 +258,61 @@ export async function triggerBookingProcessor({
 export const PENDING_PROCESSOR_RETRIES_COLLECTION = RETRY_COLLECTION;
 
 /**
- * 관리자 재처리(admin-scan / admin-replay)가 **의미상 완료**로 끝났을 때 열린 재시도 문서를 닫는다 (2026-10-23, PR-4).
- * processor-retry-sweep 의 성공 기록과 같은 모양. 남겨 두면 옛 stepStatus(예: AI 혜택 retryable)가 판정을 흐린다.
- * 문서가 없거나 이미 done 이면 아무것도 하지 않는다(새 문서를 만들지 않는다). 실패는 로그만 — 재처리는 이미 끝났다.
+ * 관리자 재처리(admin-scan / admin-replay) 결과를 재시도 문서에 남긴다 (2026-10-23, PR-4).
+ *
+ * 처리기 응답의 **최신** outcome·stepStatus 를 저장해야 다음 판정(booking-notification-state.js)이 맞다.
+ *   예: failed_permanent 였던 예약을 데이터 수정 뒤 재처리 → 적립은 완료, AI 구매 혜택만 실패(loyalty='retryable').
+ *   이걸 저장하지 않으면 완료 마커 + 옛 기록만 남아 complete 로 보이고, 단건 복구도 자동 재시도 큐도 못 잡는다.
+ *
+ *   - 완료(outcome completed): 열린 문서를 done 으로 닫는다(processor-retry-sweep 성공 기록과 같은 모양). 문서가 없으면 그대로.
+ *   - 미완료: status = retryDocStatusFor(outcome)(pending / manual-intervention / permanent-failure) + outcome·stepStatus·
+ *     lastFailureReason·resolvedBy. 기존 문서는 update 만(payload·attempts 보존).
+ *     문서가 없으면 triggerBookingProcessor 의 실패 기록과 같은 모양으로 만든다 — 기록이 없으면 다음 판정이 미완료를 못 본다.
+ * 실패는 로그만 — 재처리 자체는 이미 끝났다.
+ *
+ * @returns {Promise<boolean>} 무언가 썼으면 true
  */
-export async function closeRetryDocAfterReplay({ db, retryDocId, retryDoc, stepStatus, by }) {
-  if (!db || !retryDocId || !retryDoc || retryDoc.status === RETRY_DOC_STATUS.DONE) return false;
+export async function recordReplayOutcome({ db, retryDocId, retryDoc, outcome, stepStatus, reason, payload, by }) {
+  if (!db || !retryDocId) return false;
+  const done = isSemanticallyDone(outcome);
+  if (done && (!retryDoc || retryDoc.status === RETRY_DOC_STATUS.DONE)) return false;
   try {
     const { FieldValue } = await import('firebase-admin/firestore');
-    await db.collection(RETRY_COLLECTION).doc(retryDocId).update({
-      status: RETRY_DOC_STATUS.DONE,
-      outcome: OUTCOME.COMPLETED,
+    const ref = db.collection(RETRY_COLLECTION).doc(retryDocId);
+    if (done) {
+      await ref.update({
+        status: RETRY_DOC_STATUS.DONE,
+        outcome: OUTCOME.COMPLETED,
+        stepStatus: stepStatus || null,
+        resolvedBy: by || 'admin',
+        sweptAt: FieldValue.serverTimestamp(),
+      });
+      return true;
+    }
+    const failure = {
+      status: retryDocStatusFor(outcome),
+      outcome: outcome || OUTCOME.RETRYABLE,
       stepStatus: stepStatus || null,
+      lastFailureAt: FieldValue.serverTimestamp(),
+      lastFailureReason: String(reason || `admin replay: ${outcome || 'retryable'}`).slice(0, 300),
       resolvedBy: by || 'admin',
-      sweptAt: FieldValue.serverTimestamp(),
-    });
+    };
+    if (retryDoc) {
+      await ref.update(failure);
+    } else {
+      await ref.set({
+        orderID: retryDocId,
+        retryDocId,
+        payload: payload || null,
+        source: by || 'admin',
+        firstFailureAt: FieldValue.serverTimestamp(),
+        attempts: 0,
+        ...failure,
+      }, { merge: false });
+    }
     return true;
   } catch (e) {
-    console.warn('[booking-processor-trigger] retry doc close failed (replay already done):', retryDocId, e.message);
+    console.warn('[booking-processor-trigger] replay outcome record failed (replay already ran):', retryDocId, e.message);
     return false;
   }
 }

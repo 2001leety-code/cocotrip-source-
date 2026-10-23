@@ -41,6 +41,7 @@ function makeDb() {
       doc: (id: string) => ({
         get: async () => snapOf(id, retries),
         update: async (patch: Doc) => { retryUpdates.push({ id, patch }); retries[id] = { ...retries[id], ...patch }; },
+        set: async (data: Doc) => { retryUpdates.push({ id, patch: { created: true, ...data } }); retries[id] = { ...data }; },
       }),
     } : {
       ...query,
@@ -245,11 +246,50 @@ describe('admin-replay-booking-notifications — single replay', () => {
     expect(retryUpdates.map((u) => [u.id, u.patch.status, u.patch.resolvedBy])).toEqual([['ORD-AI', 'done', 'admin-replay']]);
   });
 
-  it('single replay that does not finish leaves the retry doc open', async () => {
+  it('single replay that does not finish keeps the retry doc open (pending) with the latest result, payload/attempts preserved', async () => {
     store['ORD-AI'] = { ...normal(32), productType: 'ai_planner_full', uid: 'u1', loyaltyEarnedAt: 1, loyaltyEarnedAtState: 'completed' };
-    retries['ORD-AI'] = { status: 'pending', stepStatus: { loyalty: 'retryable' } };
-    fetchMock.mockImplementation(async () => ({ ok: true, status: 200, json: async () => ({ ok: false, data: { outcome: 'retryable' } }) }));
+    retries['ORD-AI'] = { status: 'pending', stepStatus: { loyalty: 'retryable' }, payload: { orderID: 'ORD-AI' }, attempts: 3 };
+    fetchMock.mockImplementation(async () => ({ ok: true, status: 200, json: async () => ({ ok: false, data: { outcome: 'retryable', stepStatus: { loyalty: 'retryable' } } }) }));
     await call(replayHandler, 'POST', { bookingId: 'ORD-AI' });
+    expect(retries['ORD-AI']).toMatchObject({ status: 'pending', outcome: 'retryable', stepStatus: { loyalty: 'retryable' }, payload: { orderID: 'ORD-AI' }, attempts: 3, resolvedBy: 'admin-replay' });
+  });
+
+  // Astra 코드 리뷰 r2 P1 — 재처리 중 새로 생긴 AI 혜택 실패가 저장되지 않으면 다음 판정이 complete 로 숨긴다.
+  it('permanent-failure retry doc → replay completes loyalty but the AI benefit fails → latest retryable saved → next scan failed → second single replay calls the processor', async () => {
+    const id = 'ORD-AI-PERM';
+    store[id] = { ...normal(40), productType: 'ai_planner_full', uid: 'u1' }; // 적립 마커 없음(이전 실패)
+    retries[id] = { status: 'permanent-failure', outcome: 'failed_permanent', stepStatus: { sheets: 'completed', email: 'completed', loyalty: 'failed_permanent' }, payload: { orderID: id }, attempts: 2 };
+    // 데이터 수정 뒤 재처리: 처리기가 적립은 완료(마커)했지만 AI 구매 혜택은 실패 → loyalty retryable
+    fetchMock.mockImplementation(async () => {
+      store[id] = { ...store[id], loyaltyEarnedAt: 1, loyaltyEarnedAtState: 'completed' };
+      return { ok: true, status: 200, json: async () => ({ ok: false, outcome: 'retryable', data: { outcome: 'retryable', stepStatus: { sheets: 'completed', email: 'completed', loyalty: 'retryable' } } }) };
+    });
+    const first = await call(replayHandler, 'POST', { bookingId: id });
+    expect(first.json.data).toMatchObject({ state: 'unknown', replayed: false, outcome: 'retryable' });
+    expect(retries[id]).toMatchObject({ status: 'pending', outcome: 'retryable', stepStatus: { loyalty: 'retryable' }, payload: { orderID: id }, attempts: 2 });
+
+    const scan = await call(scanHandler, 'GET');
+    expect(scan.json.data.candidates.find((c: any) => c.bookingId === id)).toMatchObject({ state: 'failed', lastFailureReason: 'ai_benefit_retryable' });
+
+    fetchMock.mockClear();
+    const second = await call(replayHandler, 'POST', { bookingId: id });
+    expect(second.json.data.state).toBe('failed'); // ALREADY_COMPLETE 로 막히지 않는다
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('no retry doc + incomplete replay → creates one in the trigger failure shape (manual outcome → manual-intervention)', async () => {
+    store['ORD-NEW-FAIL'] = failedDoc;
+    fetchMock.mockImplementation(async () => ({ ok: true, status: 200, json: async () => ({ ok: false, data: { outcome: 'manual_intervention', stepStatus: { email: 'outcome_unknown' } } }) }));
+    await call(replayHandler, 'POST', { bookingId: 'ORD-NEW-FAIL' });
+    expect(retries['ORD-NEW-FAIL']).toMatchObject({
+      orderID: 'ORD-NEW-FAIL', retryDocId: 'ORD-NEW-FAIL', status: 'manual-intervention', outcome: 'manual_intervention',
+      stepStatus: { email: 'outcome_unknown' }, attempts: 0, source: 'admin-replay', payload: expect.objectContaining({ orderID: 'ORD-NEW-FAIL' }),
+    });
+  });
+
+  it('no retry doc + completed replay → nothing written to the retry queue', async () => {
+    store['ORD-FAIL'] = failedDoc;
+    await call(replayHandler, 'POST', { bookingId: 'ORD-FAIL' });
     expect(retryUpdates).toEqual([]);
   });
 

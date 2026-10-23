@@ -41,7 +41,7 @@ import { productDisplayLabel, isCustomEstimateProduct } from './_shared/pricing.
 import { captureError } from './_shared/sentry.js';
 import { buildAdminCors, buildAdminJsonCors } from './_shared/cors.js';
 import { classifyBookingNotificationState } from './_shared/booking-notification-state.js';
-import { PENDING_PROCESSOR_RETRIES_COLLECTION, closeRetryDocAfterReplay } from './_shared/booking-processor-trigger.js';
+import { PENDING_PROCESSOR_RETRIES_COLLECTION, recordReplayOutcome } from './_shared/booking-processor-trigger.js';
 
 export const maxDuration = 60;
 
@@ -249,9 +249,14 @@ export default async function handler(req, res) {
             replayedBy: tokenAuth.email || 'admin',
             replayOutcome: outcome,
           });
-          // 열린 재시도 문서도 닫는다 — retry sweep 의 성공 처리와 같은 기록(남겨 두면 옛 stepStatus 가 판정을 흐린다).
-          await closeRetryDocAfterReplay({ db, retryDocId: c.bookingId, retryDoc: freshRetry, stepStatus: procJson?.data?.stepStatus, by: 'admin-scan' });
         }
+        // 최신 결과를 재시도 문서에 남긴다 — 완료면 닫고, 미완료(예: 새 AI 혜택 실패)면 그 상태로 갱신·생성.
+        await recordReplayOutcome({
+          db, retryDocId: c.bookingId, retryDoc: freshRetry, outcome,
+          stepStatus: procJson?.data?.stepStatus,
+          reason: procRes.ok ? `admin scan replay: ${outcome}` : `admin scan replay: HTTP ${procRes.status}`,
+          payload, by: 'admin-scan',
+        });
         results.push({
           bookingId: c.bookingId,
           ok: done,
