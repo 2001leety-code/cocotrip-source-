@@ -2,157 +2,82 @@
  * P43 (lint-mistake-patterns) 파일 단위 검사 — 순수 함수라 단위 테스트가 git 샌드박스 없이 부른다.
  * 규칙 설명은 scripts/lint-mistake-patterns.mjs 의 P43_authIdorBodyTrusted 주석.
  */
+import ts from 'typescript';
+
 export const P43_PROTECTED = /\/api\/(my-bookings|voucher|cancelBooking|modifyBooking|reviews)\b/;
 export const P43_MANAGE_FETCH_PATHS = new Set(['/api/booking-manage', '/api/cancelBooking', '/api/modifyBooking']);
 
-// 이 문자 뒤(또는 줄 시작)의 `/` 는 나눗셈이 아니라 정규식 리터럴의 시작으로 본다(단순 휴리스틱).
-const REGEX_PRECEDERS = new Set(['(', ',', '=', ':', '[', '!', '&', '|', '?', '{', '}', ';']);
-// 직전 토큰이 이 키워드이거나 `=>` 여도 정규식 시작이다(`return /[/*]/`·`=> /x/`). 식별자·숫자·`)`·`]` 뒤는 나눗셈.
-// 단 `.` 바로 뒤(공백·주석 건너뜀)의 키워드는 속성 이름이다(`obj. return / 2` 는 나눗셈).
-const REGEX_KEYWORDS = new Set(['return', 'typeof', 'case', 'do', 'else', 'in', 'instanceof', 'new', 'delete', 'void', 'throw', 'yield', 'await']);
-const IDENT_CHAR = /[\w$]/;
+/** 파일 확장자 → 파서 종류. 모르는 확장자는 TSX(가장 너그러운 쪽 — JSX·타입 둘 다). */
+function scriptKindFor(file) {
+  const f = String(file || '').toLowerCase();
+  if (f.endsWith('.tsx')) return ts.ScriptKind.TSX;
+  if (f.endsWith('.ts') || f.endsWith('.mts') || f.endsWith('.cts')) return ts.ScriptKind.TS;
+  if (f.endsWith('.jsx')) return ts.ScriptKind.JSX;
+  if (f.endsWith('.js') || f.endsWith('.mjs') || f.endsWith('.cjs')) return ts.ScriptKind.JS;
+  return ts.ScriptKind.TSX;
+}
+
+/** 파싱 실패 — p43FileViolations 가 위반으로 보고한다(조용히 통과 금지). */
+export class P43ParseError extends Error {}
 
 /**
- * 주석 제거(줄 수 유지) — 문자 스캐너. 작은/큰따옴표·백틱 문자열(이스케이프 포함)과 정규식 리터럴 안의
- * `//`·`/*` 는 주석이 아니다. 문자열 밖의 `//…` 는 지우고, `/* … *\/`(여러 줄 포함)는 **공백 1개**로 바꾼다
- * (줄바꿈 유지 — `await/* x *\/manageFetch(` 가 `awaitmanageFetch(` 로 붙어 검사를 빠져나가지 않게).
- * 백틱의 `${ … }` 실행식 안은 코드로 다시 스캔한다(중첩 `{}`·문자열·백틱 재귀).
- * 주석 속 "Authorization: Bearer" 로 룰 1 을 통과하지 못하게 하는 것이 목적.
- * `://`(JSX 텍스트의 URL)는 예전처럼 주석으로 보지 않는다.
+ * 주석 범위 — 설치된 TypeScript 파서로 문법을 분석해 **실제 주석만** 찾는다(2026-10-23).
+ * 이전 문자 스캐너는 `/` 가 나눗셈인지 정규식인지를 직전 토큰으로 추정했다(REGEX_PRECEDERS/REGEX_KEYWORDS) —
+ * 리뷰 5회차까지 반례가 계속 나왔다. 이제 파서가 정규식·문자열·템플릿(`${}` 중첩)·JSX 텍스트를 토큰으로 가르고,
+ * 주석은 토큰 사이 trivia 에만 있으므로 각 토큰 앞 trivia 의 주석 범위를 모은다(JSX 주석 `{/* … *\/}` 포함).
+ * JSX 텍스트(`<p>see // here</p>`)는 trivia 가 아니라 토큰 내용이라 건드리지 않는다.
+ * @throws {P43ParseError} 문법 오류가 있으면
  */
-export function p43StripComments(content) {
+function commentRanges(content, file) {
+  const sf = ts.createSourceFile(
+    String(file || 'probe.tsx'),
+    content,
+    { languageVersion: ts.ScriptTarget.ES2022, jsDocParsingMode: ts.JSDocParsingMode.ParseNone },
+    true,
+    scriptKindFor(file),
+  );
+  if (sf.parseDiagnostics && sf.parseDiagnostics.length > 0) {
+    const d = sf.parseDiagnostics[0];
+    throw new P43ParseError(`${ts.flattenDiagnosticMessageText(d.messageText, ' ')} @${d.start}`);
+  }
+  const ranges = [];
+  const seen = new Set();
+  const visit = (node) => {
+    const kids = node.getChildren(sf);
+    if (kids.length > 0) { for (const k of kids) visit(k); return; }
+    if (node.kind === ts.SyntaxKind.JsxText || seen.has(node.pos)) return; // JSX 텍스트는 trivia 가 없다
+    seen.add(node.pos);
+    // trivia 앞부분의 같은 줄 주석은 TS 가 "trailing"(앞 토큰 소속), 줄바꿈 뒤는 "leading" 으로 나눈다 — 둘 다 모은다.
+    for (const r of ts.getTrailingCommentRanges(content, node.pos) || []) ranges.push(r);
+    for (const r of ts.getLeadingCommentRanges(content, node.pos) || []) ranges.push(r);
+  };
+  visit(sf);
+  return ranges.sort((a, b) => a.pos - b.pos);
+}
+
+/**
+ * 주석 제거 — 줄 수·열 위치 유지. 주석의 각 문자를 공백으로 바꾸고 줄바꿈(\r·\n)만 남긴다.
+ * (공백이라 `await/* x *\/manageFetch(` 가 `awaitmanageFetch(` 로 붙어 검사를 빠져나가지 않는다.)
+ * 문자열·템플릿·정규식 리터럴·JSX 텍스트 안의 `//`·`/*`·`://` 는 그대로다.
+ * 주석 속 "Authorization: Bearer" 로 룰 1 을 통과하지 못하게 하는 것이 목적.
+ * 해시뱅(`#!…` 첫 줄)도 주석처럼 비운다 — TS 의 주석 범위 API 는 해시뱅을 범위에 넣지 않아,
+ *   `#!/usr/bin/env node // Authorization: Bearer` 가 가짜 근거로 남았다(Astra P43 리뷰 r1).
+ * @param {string} content
+ * @param {string} [file] 확장자로 TS/TSX/JS/JSX 파서를 고른다(기본 TSX)
+ * @returns {string[]} 줄 배열
+ * @throws {P43ParseError} 파싱 실패
+ */
+export function p43StripComments(content, file) {
   const src = String(content || '');
-  let out = '';
-  let i = 0;
-
-  /** 따옴표 문자열 하나를 그대로 복사. 닫히지 않으면 줄 끝에서 끝낸다. */
-  function quoted(q) {
-    out += q;
-    i += 1;
-    while (i < src.length) {
-      const c = src[i];
-      out += c;
-      i += 1;
-      if (c === '\\' && i < src.length) { out += src[i]; i += 1; continue; }
-      if (c === q || c === '\n') return;
-    }
+  const shebang = ts.getShebang(src) || '';
+  let out = shebang.replace(/[^\r\n]/g, ' ');
+  let last = shebang.length;
+  for (const r of commentRanges(src, file)) {
+    if (r.pos < last) continue;
+    out += src.slice(last, r.pos) + src.slice(r.pos, r.end).replace(/[^\r\n]/g, ' ');
+    last = r.end;
   }
-
-  /** 백틱 템플릿 하나를 복사하되 `${ … }` 안은 code(true) 로 스캔한다. */
-  function template() {
-    out += '`';
-    i += 1;
-    while (i < src.length) {
-      const c = src[i];
-      if (c === '\\') { out += c; i += 1; if (i < src.length) { out += src[i]; i += 1; } continue; }
-      if (c === '`') { out += c; i += 1; return; }
-      if (c === '$' && src[i + 1] === '{') {
-        out += '${';
-        i += 2;
-        code(true);
-        if (i < src.length) { out += '}'; i += 1; }
-        continue;
-      }
-      out += c;
-      i += 1;
-    }
-  }
-
-  /**
-   * 코드 모드. inInterpolation 이면 짝 없는 `}`(보간 끝) 앞에서 멈춘다(소비하지 않음).
-   * 직전 토큰은 고정 길이 되돌아보기 없이 토큰 단위로 추적한다 — 공백·줄바꿈·주석은 토큰이 아니다.
-   */
-  function code(inInterpolation) {
-    let prev = '';            // 마지막 의미 문자. '' = 줄 시작(줄 시작의 `/` 는 정규식으로 본다).
-    let lastSig = '';         // 마지막 의미 문자(줄바꿈으로 초기화하지 않음) — 속성 접근 `.` 판정용.
-    let word = '';            // 직전 토큰이 식별자/숫자면 그 텍스트, 아니면 ''.
-    let wordAfterDot = false; // 그 식별자 앞의 의미 토큰이 `.`(= 속성 이름).
-    let wordOpen = false;     // 바로 앞 문자가 식별자 문자(같은 토큰이 이어지는 중).
-    let arrow = false;        // 직전 토큰이 `=>`.
-    let lastCode = '';        // 바로 앞에 내보낸 코드 문자(공백 포함) — `=>`·`...` 인접 판정.
-    let dotRun = 0;           // 직전 토큰이 `.` 이면 붙어 있는 `.` 개수(1 = 속성 접근, 3 = 펼침 `...`).
-    let depth = 0;
-
-    const gap = () => { wordOpen = false; lastCode = ' '; };
-    const otherToken = (c, prevValue = c) => {
-      word = ''; wordOpen = false; arrow = false; dotRun = 0;
-      prev = prevValue; lastSig = c; lastCode = c;
-    };
-    const regexStarts = () => prev === '' || REGEX_PRECEDERS.has(prev) || arrow
-      || (prev === '.' && dotRun === 3)
-      || (word !== '' && !wordAfterDot && REGEX_KEYWORDS.has(word));
-
-    while (i < src.length) {
-      const ch = src[i];
-      const next = src[i + 1];
-      if (ch === '/' && next === '/' && prev !== ':') {
-        while (i < src.length && src[i] !== '\n') i += 1;
-        gap();
-        continue;
-      }
-      if (ch === '/' && next === '*') {
-        out += ' ';
-        i += 2;
-        while (i < src.length && !(src[i] === '*' && src[i + 1] === '/')) {
-          if (src[i] === '\n') out += '\n';
-          i += 1;
-        }
-        i += 2;
-        gap();
-        continue;
-      }
-      if (ch === '/' && next !== '>' && regexStarts()) {
-        out += ch;
-        i += 1;
-        let inClass = false;
-        while (i < src.length && src[i] !== '\n') {
-          const c = src[i];
-          out += c;
-          i += 1;
-          if (c === '\\') { if (i < src.length && src[i] !== '\n') { out += src[i]; i += 1; } continue; }
-          if (c === '[') inClass = true;
-          else if (c === ']') inClass = false;
-          else if (c === '/' && !inClass) break;
-        }
-        otherToken('/');
-        continue;
-      }
-      if (ch === "'" || ch === '"') {
-        quoted(ch);
-        otherToken(ch, out.endsWith('\n') ? '' : ch);
-        continue;
-      }
-      if (ch === '`') {
-        template();
-        otherToken('`');
-        continue;
-      }
-      if (inInterpolation && ch === '{') depth += 1;
-      if (inInterpolation && ch === '}') {
-        if (depth === 0) return;
-        depth -= 1;
-      }
-      out += ch;
-      i += 1;
-      if (ch === '\n') { prev = ''; gap(); continue; }
-      if (/\s/.test(ch)) { gap(); continue; }
-      if (IDENT_CHAR.test(ch)) {
-        if (wordOpen) word += ch;
-        // 속성 이름 = 단일 `.`(또는 `?.`) 바로 뒤. 펼침 `...` 뒤는 식(키워드면 정규식을 앞세울 수 있다).
-        else { word = ch; wordAfterDot = lastSig === '.' && dotRun === 1; }
-        wordOpen = true; arrow = false;
-        prev = ch; lastSig = ch; lastCode = ch;
-        continue;
-      }
-      const isArrow = ch === '>' && lastCode === '=';
-      const run = ch !== '.' ? 0 : (lastCode === '.' ? dotRun + 1 : 1);
-      otherToken(ch);
-      arrow = isArrow;
-      dotRun = run;
-    }
-  }
-
-  code(false);
+  out += src.slice(last);
   return out.split(/\r?\n/);
 }
 
@@ -193,9 +118,15 @@ function manageFetchViolations(text) {
 export function p43FileViolations(file, content) {
   const out = [];
   if (!content) return out;
-  if (!P43_PROTECTED.test(content) && !/\bmanageFetch\s*\(/.test(content)) return out;
 
-  const lines = p43StripComments(content);
+  // 파싱이 먼저다 — 파싱 실패를 통과로 처리하지 않는다(보호 경로가 안 보여도: 주석 범위를 모르면 검사도 믿을 수 없다).
+  let lines;
+  try {
+    lines = p43StripComments(content, file);
+  } catch (e) {
+    return [`P43: cannot parse ${file} — fix syntax or exclude (${(e && e.message) || 'parse error'})`];
+  }
+  if (!P43_PROTECTED.test(content) && !/\bmanageFetch\s*\(/.test(content)) return out;
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
     // Rule 1: raw fetch( against protected endpoint

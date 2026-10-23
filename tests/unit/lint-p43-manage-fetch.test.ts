@@ -4,9 +4,9 @@
  * 허용 = authFetch / 실제 Bearer 헤더 / manageFetch('/api/booking-manage' | '/api/cancelBooking').
  */
 import { describe, it, expect } from 'vitest';
-import { readFileSync } from 'node:fs';
-import { resolve } from 'node:path';
-import { p43FileViolations } from '../../scripts/lib/p43-protected-calls.mjs';
+import { readFileSync, readdirSync, statSync } from 'node:fs';
+import { join, resolve } from 'node:path';
+import { p43FileViolations, p43StripComments } from '../../scripts/lib/p43-protected-calls.mjs';
 
 const F = 'src/pages/P43Probe.tsx';
 const check = (src: string) => p43FileViolations(F, src);
@@ -73,7 +73,7 @@ describe('lint wiring', () => {
   it('P43 delegates to the shared helper and keeps the self-test cases', () => {
     expect(lint).toMatch(/import \{ p43FileViolations \} from '\.\/lib\/p43-protected-calls\.mjs'/);
     expect(lint).toMatch(/p43FileViolations\(file, getChangedFileContent\(file\)\)/);
-    expect((lint.match(/expectRule: 'P43_authIdorBodyTrusted'/g) || []).length).toBe(24);
+    expect((lint.match(/expectRule: 'P43_authIdorBodyTrusted'/g) || []).length).toBe(33);
   });
 });
 
@@ -183,6 +183,92 @@ describe('P43 — review round 3 (regex start after keywords / =>)', () => {
   it('a property named like a keyword is not a regex lead (obj.return / 2)', () => {
     expect(check("const r = obj.return / 2; /* Authorization: Bearer */ fetch('/api/voucher');\n")).toHaveLength(1);
   });
+});
+
+// 2026-10-23: 문자 스캐너의 "/ 가 나눗셈인가 정규식인가" 추정을 설치된 TypeScript 파서로 대체.
+/**
+ * 정상 입력이 파싱 오류로 잘못 처리돼도 "위반 1건" 은 똑같이 나온다 — 그래서 위반이 **raw fetch** 이고
+ * 파싱 실패가 아님을 함께 단언한다(Astra P43 리뷰 r1 P2).
+ */
+function expectRawFetchOnly(v: string[], line?: number) {
+  expect(v).toHaveLength(1);
+  expect(v[0]).toContain('raw fetch()');
+  expect(v[0]).not.toContain('cannot parse');
+  if (line) expect(v[0]).toContain(`:L${line}:`);
+}
+
+describe('P43 — TypeScript parser decides what a comment is', () => {
+  it('division vs regex: `a / b / c`, `x = /\\/api\\/voucher/`, `return /x/`, `obj.return / 2`', () => {
+    expectRawFetchOnly(check("const r = a / b / c; /* Authorization: Bearer */ fetch('/api/voucher');\n"));
+    expectRawFetchOnly(check(String.raw`const x = /\/api\/voucher/; /* Authorization: Bearer */ fetch('/api/voucher');` + '\n'));
+    expectRawFetchOnly(check("function f() { return /x/; } /* Authorization: Bearer */ fetch('/api/voucher');\n"));
+    expectRawFetchOnly(check("const r = obj.return / 2; /* Authorization: Bearer */ fetch('/api/voucher');\n"));
+  });
+
+  it('"//" and "/*" in JSX attributes and text are text, not comments', () => {
+    expectRawFetchOnly(check("export const el = <a href=\"https://x.com/a//b\" title='/* t */'>see // here /* also */</a>;\nfetch('/api/voucher');\n"), 2);
+    // JSX 텍스트의 Bearer 문구는 주석이 아니므로 그대로 남는다(실제 헤더처럼 보이면 예외가 된다 — 기존 동작과 같음).
+    const stripped = p43StripComments("export const el = <p>see // here /* also */</p>;\n", F).join('\n');
+    expect(stripped).toContain('see // here /* also */');
+  });
+
+  it('a JSX comment {/* … */} is a comment — "Authorization: Bearer" in it is no exemption', () => {
+    expectRawFetchOnly(check("export const el = <div>{/* Authorization: Bearer x */}</div>;\nfetch('/api/voucher');\n"), 2);
+  });
+
+  it('nested templates `${ `${ … }` }` and strings inside them stay code/strings', () => {
+    expectRawFetchOnly(check("const s = `${ `${ '/api/voucher' }` }`; fetch('/api/my-bookings');\n"));
+    expect(p43StripComments("const s = `${ `${ '// x' }` }`; // gone\n", F)[0]).toBe("const s = `${ `${ '// x' }` }`;        ");
+  });
+
+  it('CRLF files: comments stripped, line numbers kept', () => {
+    expectRawFetchOnly(check("// Authorization: Bearer\r\n/* a\r\n b */\r\nexport const c = () => fetch('/api/voucher');\r\n"), 4);
+  });
+
+  it('a shebang line is blanked too — "#!… // Authorization: Bearer" is no exemption', () => {
+    expectRawFetchOnly(check("#!/usr/bin/env node // Authorization: Bearer\nfetch('/api/voucher');\n"), 2);
+    expect(p43StripComments('#!/usr/bin/env node\r\nconst a = 1;\r\n', 'x.js')).toEqual(['                   ', 'const a = 1;', '']);
+  });
+
+  it('comments become spaces of the same length — columns kept, tokens never glued', () => {
+    expect(p43StripComments('f(a/* x */,b) // y\nc', 'x.ts')).toEqual(['f(a       ,b)     ', 'c']);
+    expect(p43StripComments('await/* x */manageFetch(p)', 'x.ts')[0]).toBe('await       manageFetch(p)');
+  });
+
+  it('a file that does not parse is a violation, never a silent pass', () => {
+    const v = check("export const c = () => authFetch('/api/voucher' ;\n");
+    expect(v).toHaveLength(1);
+    expect(v[0]).toMatch(/^P43: cannot parse src\/pages\/P43Probe\.tsx — fix syntax or exclude/);
+    // 보호 경로도 manageFetch 도 없는 파일도 파싱이 먼저다 — 파싱 실패는 그 자체로 위반(Astra P43 리뷰 r1 P1).
+    const plain = check('export const = ;\n');
+    expect(plain).toHaveLength(1);
+    expect(plain[0]).toMatch(/^P43: cannot parse src\/pages\/P43Probe\.tsx — fix syntax or exclude/);
+    // 정상 파일이면서 보호 경로가 없으면 여전히 위반 0.
+    expect(check('export const ok = 1;\n')).toEqual([]);
+  });
+
+  it('parser kind follows the extension (.ts type assertions, .js JSX)', () => {
+    expect(() => p43StripComments('const a = <string>b;\n', 'x.ts')).not.toThrow();
+    expect(() => p43StripComments('export const el = <div>hi</div>;\n', 'x.js')).not.toThrow();
+  });
+
+  it('every real source file parses with the new scanner (src/** and scripts/**)', () => {
+    const files: string[] = [];
+    const walk = (d: string) => {
+      for (const e of readdirSync(d)) {
+        const p = join(d, e);
+        if (statSync(p).isDirectory()) { if (e !== 'node_modules') walk(p); } else if (/\.(tsx?|jsx?|mjs|cjs)$/.test(e)) files.push(p);
+      }
+    };
+    walk(resolve(process.cwd(), 'src'));
+    walk(resolve(process.cwd(), 'scripts'));
+    expect(files.length).toBeGreaterThan(100);
+    const failed: string[] = [];
+    for (const f of files) {
+      try { p43StripComments(readFileSync(f, 'utf8'), f); } catch (e) { failed.push(`${f}: ${(e as Error).message}`); }
+    }
+    expect(failed).toEqual([]);
+  }, 60_000);
 });
 
 describe('P43 — review round 2 (comments glued to code, template interpolation)', () => {
