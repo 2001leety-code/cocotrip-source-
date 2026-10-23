@@ -257,4 +257,27 @@ export async function triggerBookingProcessor({
 
 export const PENDING_PROCESSOR_RETRIES_COLLECTION = RETRY_COLLECTION;
 
+/**
+ * 관리자 재처리(admin-scan / admin-replay)가 **의미상 완료**로 끝났을 때 열린 재시도 문서를 닫는다 (2026-10-23, PR-4).
+ * processor-retry-sweep 의 성공 기록과 같은 모양. 남겨 두면 옛 stepStatus(예: AI 혜택 retryable)가 판정을 흐린다.
+ * 문서가 없거나 이미 done 이면 아무것도 하지 않는다(새 문서를 만들지 않는다). 실패는 로그만 — 재처리는 이미 끝났다.
+ */
+export async function closeRetryDocAfterReplay({ db, retryDocId, retryDoc, stepStatus, by }) {
+  if (!db || !retryDocId || !retryDoc || retryDoc.status === RETRY_DOC_STATUS.DONE) return false;
+  try {
+    const { FieldValue } = await import('firebase-admin/firestore');
+    await db.collection(RETRY_COLLECTION).doc(retryDocId).update({
+      status: RETRY_DOC_STATUS.DONE,
+      outcome: OUTCOME.COMPLETED,
+      stepStatus: stepStatus || null,
+      resolvedBy: by || 'admin',
+      sweptAt: FieldValue.serverTimestamp(),
+    });
+    return true;
+  } catch (e) {
+    console.warn('[booking-processor-trigger] retry doc close failed (replay already done):', retryDocId, e.message);
+    return false;
+  }
+}
+
 export default triggerBookingProcessor;

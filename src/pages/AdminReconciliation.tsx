@@ -161,10 +161,11 @@ export default function AdminReconciliation() {
       });
       const json = await res.json();
       if (!json.ok) throw new Error(json.error || 'Replay failed');
-      const { replayed, failed } = json.data as { replayed: number; failed: number };
-      // 🔴 0건 재전송을 "성공" 으로 보이지 않는다.
+      const { replayed, failed, skipped } = json.data as { replayed: number; failed: number; skipped?: number };
+      // 🔴 0건 재전송을 "성공" 으로 보이지 않는다. skipped = 실행 직전 상태가 바뀌어 보내지 않은 건(실패 아님).
       if (replayed > 0) toast.success(`${replayed}건 재전송 완료${failed > 0 ? ` · ${failed}건 미완료` : ''}`);
       else if (failed > 0) toast.error(`재전송 ${failed}건 모두 미완료 — 단계 상태를 확인하세요`);
+      else if (skipped) toast.info(`재전송 대상 0건 — 실행 직전 상태가 바뀐 ${skipped}건은 건너뜀`);
       else toast.info('재전송 대상 0건');
       // 재스캔 — 완료로 판정된 booking 은 후보에서 빠진다
       void fetchCandidates();
@@ -175,8 +176,16 @@ export default function AdminReconciliation() {
     }
   };
 
-  const handleReplayOne = async (bookingId: string) => {
+  const handleReplayOne = async (b: SuspectBooking) => {
+    const { bookingId } = b;
     if (!user) return;
+    // 결과 미상 = 보냈는지 모르거나 기록이 아예 없다. 격리 마커가 있는 단계만 처리기가 막고,
+    //   기록이 없는 단계는 실제로 발송된다 → 고객 수신 여부를 확인한 뒤에만.
+    if (b.state === 'unknown' && !confirm(
+      `${b.bookingRef || bookingId} 고객 수신 여부를 확인했나요?\n\n• 결과 미상 격리 단계는 다시 보내지 않습니다\n• 기록이 없는 단계(확인메일 등)는 실제로 발송되어 중복될 수 있습니다\n\n진행할까요?`,
+    )) {
+      return;
+    }
     try {
       const idToken = await user.getIdToken();
       const res = await fetch('/api/admin-replay-booking-notifications', {
@@ -331,7 +340,7 @@ export default function AdminReconciliation() {
                       <td className="px-5 py-3 text-center">
                         <button
                           type="button"
-                          onClick={() => handleReplayOne(b.bookingId)}
+                          onClick={() => handleReplayOne(b)}
                           className="text-xs text-[#7C5CFC] hover:underline inline-flex items-center gap-1"
                         >
                           <ExternalLink className="w-3 h-3" /> 알림 재전송
@@ -372,7 +381,7 @@ export default function AdminReconciliation() {
           <p className="font-bold">사용 방법</p>
           <ul className="list-disc pl-5 space-y-0.5">
             <li>"미완료 단계 재처리" — <b>실패</b> 후보만 재처리(이미 완료된 단계는 처리기가 건너뜀, 1초 간격 rate-limit). 실행 직전 최신 상태로 다시 확인</li>
-            <li>"결과 미상" — 보냈는지 알 수 없거나 근거가 없는 단계가 있어 자동 대상에서 제외. <b>고객 수신 확인 필요</b> — 단건 재처리도 미상 단계는 다시 보내지 않음</li>
+            <li>"결과 미상" — 보냈는지 알 수 없거나 기록이 없는 단계가 있어 자동 대상에서 제외. <b>고객 수신 확인 필요</b> — 단건 재처리에서 <b>격리 마커가 있는 단계만</b> 재발송이 막히고, <b>기록이 없는 단계는 실제로 발송될 수 있음</b>(중복 주의, 실행 전 확인창)</li>
             <li>"알림 재전송" — 단건 복구. 이미 완료된 예약은 재처리하지 않음. 처리기가 완료를 돌려준 booking 만 replayedAt 으로 표시되어 다음 스캔에서 제외</li>
             <li>"정산 필요" 배지 — charter_custom_estimate (추정가) booking. 운행 후 실 거리 ±10% 이상 차이 시 admin 수동 정산</li>
             <li>스캔 범위는 PR #221~#223 사이 (~24시간) 의심 구간. 필요 시 endpoint POST body 의 since/until 로 조정 가능</li>

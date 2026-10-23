@@ -21,7 +21,7 @@
 import { verifyAdminToken } from './_shared/admin-auth.js';
 import { initAdminDb } from './_shared/firebase-admin.js';
 import { productDisplayLabel, isCustomEstimateProduct } from './_shared/pricing.js';
-import { PENDING_PROCESSOR_RETRIES_COLLECTION } from './_shared/booking-processor-trigger.js';
+import { PENDING_PROCESSOR_RETRIES_COLLECTION, closeRetryDocAfterReplay } from './_shared/booking-processor-trigger.js';
 import { captureError } from './_shared/sentry.js';
 import { buildAdminCors, buildAdminJsonCors } from './_shared/cors.js';
 import { internalApiBase, vercelBypassHeaders } from './_shared/internal-base-url.js';
@@ -143,6 +143,10 @@ export default async function handler(req, res) {
     // 🔴 2026-07-29 (의미상 성공 계약): HTTP 200 ≠ 재처리 완료.
     //   운영자가 "재처리됨" 을 보고 손을 떼면 시트도 메일도 적립도 없는 예약이 그대로 남는다.
     const outcome = procRes.ok ? outcomeFromResponseBody(procJson) : OUTCOME.RETRYABLE;
+    // 의미상 완료면 열린 재시도 문서도 닫는다(남은 옛 stepStatus 가 다음 스캔 판정을 흐리지 않게).
+    if (isSemanticallyDone(outcome)) {
+      await closeRetryDocAfterReplay({ db, retryDocId: bookingId, retryDoc, stepStatus: procJson && procJson.data && procJson.data.stepStatus, by: 'admin-replay' });
+    }
     return json(req, res, 200, _ok({
       bookingId,
       bookingRef: booking.bookingRef,

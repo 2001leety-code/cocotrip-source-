@@ -41,7 +41,7 @@ import { productDisplayLabel, isCustomEstimateProduct } from './_shared/pricing.
 import { captureError } from './_shared/sentry.js';
 import { buildAdminCors, buildAdminJsonCors } from './_shared/cors.js';
 import { classifyBookingNotificationState } from './_shared/booking-notification-state.js';
-import { PENDING_PROCESSOR_RETRIES_COLLECTION } from './_shared/booking-processor-trigger.js';
+import { PENDING_PROCESSOR_RETRIES_COLLECTION, closeRetryDocAfterReplay } from './_shared/booking-processor-trigger.js';
 
 export const maxDuration = 60;
 
@@ -179,15 +179,22 @@ export default async function handler(req, res) {
     //   unknown 은 다시 보내면 손님에게 두 번 갈 수 있다 → 건너뛰고 목록만 돌려준다.
     const siteUrl = internalApiBase();
     const results = [];
+    const skippedUnknown = unknownCandidates.map((c) => c.bookingId); // + 실행 직전 unknown 으로 바뀐 건
     for (const [i, c] of failedCandidates.entries()) {
       const docRef = db.collection('bookings').doc(c.bookingId);
       const fresh = await docRef.get();
       if (!fresh.exists) { results.push({ bookingId: c.bookingId, ok: false, error: 'NOT_FOUND' }); continue; }
       const b = fresh.data();
-      if (b.replayedAt) { results.push({ bookingId: c.bookingId, ok: false, error: 'ALREADY_REPLAYED' }); continue; }
+      if (b.replayedAt) { results.push({ bookingId: c.bookingId, ok: false, skipped: 'ALREADY_REPLAYED' }); continue; }
       // 스캔 뒤 다른 실행(재시도 큐 등)이 처리했을 수 있다 — 최신 예약·재시도 문서로 다시 판정.
-      const freshState = classifyBookingNotificationState(b, Date.now(), c.bookingId, await readRetryDoc(db, c.bookingId)).state;
-      if (freshState !== 'failed') { results.push({ bookingId: c.bookingId, ok: false, error: `STATE_${freshState.toUpperCase()}` }); continue; }
+      //   failed 가 아니면 보내지 않는다. 실패로 세지 않고 skipped 로 남긴다(unknown 은 skippedUnknown 에도 합친다).
+      const freshRetry = await readRetryDoc(db, c.bookingId);
+      const freshState = classifyBookingNotificationState(b, Date.now(), c.bookingId, freshRetry).state;
+      if (freshState !== 'failed') {
+        results.push({ bookingId: c.bookingId, ok: false, skipped: `STATE_${freshState.toUpperCase()}` });
+        if (freshState === 'unknown') skippedUnknown.push(c.bookingId);
+        continue;
+      }
 
       const payload = {
       // 🔴 2026-07-29 (영구 주문 ID): 이전엔 `booking.captureID || <doc id>` 였다.
@@ -242,6 +249,8 @@ export default async function handler(req, res) {
             replayedBy: tokenAuth.email || 'admin',
             replayOutcome: outcome,
           });
+          // 열린 재시도 문서도 닫는다 — retry sweep 의 성공 처리와 같은 기록(남겨 두면 옛 stepStatus 가 판정을 흐린다).
+          await closeRetryDocAfterReplay({ db, retryDocId: c.bookingId, retryDoc: freshRetry, stepStatus: procJson?.data?.stepStatus, by: 'admin-scan' });
         }
         results.push({
           bookingId: c.bookingId,
@@ -263,9 +272,10 @@ export default async function handler(req, res) {
       mode: 'replay',
       ...summary,
       replayed: results.filter((r) => r.ok).length,
-      failed:   results.filter((r) => !r.ok).length,
+      failed:   results.filter((r) => !r.ok && !r.skipped).length,
+      skipped:  results.filter((r) => r.skipped).length,
       results,
-      skippedUnknown: unknownCandidates.map((c) => c.bookingId),
+      skippedUnknown,
     }));
   } catch (err) {
     console.error('[admin-scan-suspect-bookings]', err);

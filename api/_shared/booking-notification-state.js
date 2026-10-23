@@ -12,7 +12,8 @@
  * 필수 단계 = processor-outcome.js REQUIRED_STEPS(sheets·email·loyalty). email 은 voucher 발송과 같은 단계·같은 마커다.
  *   텔레그램은 부가 기능 — `telegram` 으로 따로 보여 줄 뿐 판정에 넣지 않는다(마커가 생기기 전 예약은 기록이 없다).
  *
- * 단계별 근거 — **현재 완료 증거가 먼저**다(뒤에 성공해도 과거 voucherFailedAt 은 남는다):
+ * 단계별 근거 — **현재 완료 증거가 먼저**다(뒤에 성공해도 과거 voucherFailedAt 은 남는다).
+ *   예외 하나: 유료 AI 상품은 적립 마커가 완료여도 열린 재시도 문서의 loyalty='retryable' = AI 구매 혜택 미종결 → failed.
  *   complete  마커 완료 · 재시도 문서가 completed/skipped(정상 생략) · 재시도 문서 done · 적립 대상 아님(게스트·서버 근거 무료)
  *   unknown   outcome_unknown · 만료된 메일 선점(quarantine — 보냈을 수 있다) · 재시도 문서 outcome_unknown/failed_permanent
  *   inflight  STEP_CLAIM_STALE_MS 안의 선점 = 지금 다른 실행이 처리 중
@@ -81,11 +82,24 @@ function loyaltyNotApplicable(b) {
   return b.paymentVerified === true && Boolean(b.captureID) && Number.isFinite(amountUSD) && amountUSD > 0 && !b.uid;
 }
 
+/**
+ * 유료 AI 상품 — 처리기가 적립 **뒤에** AI 구매 혜택(원장·쿠폰)을 처리하고, 그게 실패하면 적립 마커는 완료인 채로
+ * stepStatus.loyalty='retryable' 을 남긴다(booking-processor.js ensurePaidAiBenefits). 같은 기준(검증된 원장 + ai_planner*).
+ */
+function isPaidAiPlanner(b) {
+  return /^ai_planner/.test(String(b.productType || '')) && !loyaltyNotApplicable(b);
+}
+
 function requiredStepStatus(name, b, retry, nowMs) {
   const m = markerStatus(b, REQUIRED_STEP_FIELDS[name], nowMs);
-  if (m.status !== 'absent') return m; // 현재 마커가 먼저
+  const retryOpen = Boolean(retry) && retry.status !== RETRY_DOC_STATUS.DONE;
+  const rs = retryOpen && retry.stepStatus ? retry.stepStatus[name] : undefined;
+  // 적립 마커가 완료여도 AI 혜택이 미종결이면 끝난 게 아니다 — 재처리해도 원장·쿠폰은 orderID 멱등이라 안전.
+  if (name === 'loyalty' && m.status === 'complete' && rs === STEP.RETRYABLE && isPaidAiPlanner(b)) {
+    return { status: 'failed', reason: 'ai_benefit_retryable' };
+  }
+  if (m.status !== 'absent') return m; // 그 밖엔 현재 마커가 먼저
   if (retry && retry.status === RETRY_DOC_STATUS.DONE) return { status: 'complete' };
-  const rs = retry && retry.stepStatus ? retry.stepStatus[name] : undefined;
   if (rs === STEP.COMPLETED || rs === STEP.SKIPPED) return { status: 'complete' };
   if (rs === STEP.OUTCOME_UNKNOWN) return { status: 'unknown', reason: 'retry_outcome_unknown' };
   if (rs === STEP.FAILED_PERMANENT) return { status: 'unknown', reason: 'failed_permanent' };

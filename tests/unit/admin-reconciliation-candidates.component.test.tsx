@@ -111,6 +111,36 @@ describe('AdminReconciliation — candidates', () => {
     expect(toastSpy.success).not.toHaveBeenCalled();
   });
 
+  it('Astra r1 P2 — single replay of an UNKNOWN row asks for receipt confirmation; cancel → no POST', async () => {
+    await renderPage();
+    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(false);
+    fireEvent.click((await screen.findAllByRole('button', { name: /알림 재전송/ }))[1]); // ORD-UNK
+    expect(confirmSpy).toHaveBeenCalledTimes(1);
+    expect(String(confirmSpy.mock.calls[0][0])).toMatch(/수신 여부를 확인했나요[\s\S]*중복될 수 있습니다/);
+    await Promise.resolve();
+    expect(fetchMock).toHaveBeenCalledTimes(1); // 첫 스캔뿐 — 단건 POST 없음
+  });
+
+  it('single replay of a FAILED row does not need the receipt confirmation', async () => {
+    await renderPage();
+    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(false);
+    fetchMock.mockResolvedValueOnce(json({ ok: true, data: { bookingId: 'ORD-FAIL', replayed: true, outcome: 'completed', state: 'failed' } }));
+    fetchMock.mockResolvedValueOnce(json(SCAN));
+    fireEvent.click((await screen.findAllByRole('button', { name: /알림 재전송/ }))[0]); // ORD-FAIL
+    await waitFor(() => expect(toastSpy.success).toHaveBeenCalled());
+    expect(confirmSpy).not.toHaveBeenCalled();
+  });
+
+  it('batch: replayed 0 / failed 0 but some skipped right before sending → info that mentions the skip', async () => {
+    await renderPage();
+    fetchMock.mockResolvedValueOnce(json({ ok: true, data: { mode: 'replay', replayed: 0, failed: 0, skipped: 1, results: [{ ok: false, skipped: 'STATE_UNKNOWN' }], skippedUnknown: ['ORD-UNK', 'ORD-FAIL'] } }));
+    fetchMock.mockResolvedValueOnce(json(SCAN));
+    fireEvent.click(await screen.findByRole('button', { name: BATCH }));
+    await waitFor(() => expect(toastSpy.info).toHaveBeenCalledWith('재전송 대상 0건 — 실행 직전 상태가 바뀐 1건은 건너뜀'));
+    expect(toastSpy.success).not.toHaveBeenCalled();
+    expect(toastSpy.error).not.toHaveBeenCalled();
+  });
+
   it('single replay of an already-complete booking (replayed:false, ALREADY_COMPLETE) → info, not success', async () => {
     await renderPage();
     fetchMock.mockResolvedValueOnce(json({ ok: true, data: { bookingId: 'ORD-FAIL', replayed: false, state: 'complete', reason: 'ALREADY_COMPLETE' } }));

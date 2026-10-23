@@ -17,6 +17,7 @@ let fresh: Record<string, Doc>;
 /** pending_processor_retries/{id} — 처리기 재시도 문서(정상 생략·결과 미상 근거). */
 let retries: Record<string, Doc>;
 const updates: Array<{ id: string; patch: Doc }> = [];
+const retryUpdates: Array<{ id: string; patch: Doc }> = [];
 const fetchMock = vi.fn();
 
 vi.mock('../../api/_shared/admin-auth.js', () => ({ verifyAdminToken: async () => ({ ok: true, uid: 'admin1', email: 'admin@x' }) }));
@@ -37,7 +38,10 @@ function makeDb() {
   };
   return {
     collection: (name: string) => (name === 'pending_processor_retries' ? {
-      doc: (id: string) => ({ get: async () => snapOf(id, retries) }),
+      doc: (id: string) => ({
+        get: async () => snapOf(id, retries),
+        update: async (patch: Doc) => { retryUpdates.push({ id, patch }); retries[id] = { ...retries[id], ...patch }; },
+      }),
     } : {
       ...query,
       doc: (id: string) => ({
@@ -77,6 +81,7 @@ beforeEach(() => {
   fresh = {};
   retries = {};
   updates.length = 0;
+  retryUpdates.length = 0;
   fetchMock.mockReset();
   fetchMock.mockImplementation(async () => processorDone());
   vi.stubGlobal('fetch', fetchMock);
@@ -183,12 +188,34 @@ describe('admin-scan-suspect-bookings — batch replay', () => {
     expect(r.json.data.skippedUnknown).toEqual(['ORD-FAIL']);
   });
 
-  it('re-judges the latest document right before replaying (completed meanwhile → not sent)', async () => {
+  it('re-judges the latest document right before replaying (completed meanwhile → not sent, skipped not failed)', async () => {
     store['ORD-FAIL'] = failedDoc;
-    fresh['ORD-FAIL'] = normal(900); // 스캔 뒤 재시도 큐가 메일을 보냈다
+    fresh['ORD-FAIL'] = normal(900); // 같은 POST 안 — 스캔 조회 뒤, 실행 직전 조회 전에 재시도 큐가 메일을 보냈다
     const r = await call(scanHandler, 'POST', { dryRun: false });
     expect(fetchMock).not.toHaveBeenCalled();
-    expect(r.json.data.results[0]).toMatchObject({ bookingId: 'ORD-FAIL', ok: false, error: 'STATE_COMPLETE' });
+    expect(r.json.data.results[0]).toMatchObject({ bookingId: 'ORD-FAIL', ok: false, skipped: 'STATE_COMPLETE' });
+    expect(r.json.data).toMatchObject({ replayed: 0, failed: 0, skipped: 1 });
+  });
+
+  it('Astra r1 P2 — turns unknown between the two reads of the same POST → skippedUnknown, not counted as failed', async () => {
+    store['ORD-FAIL'] = failedDoc;      // 스캔 조회(쿼리)는 실패로 본다
+    fresh['ORD-FAIL'] = unknownDoc;     // 실행 직전 단건 조회는 결과 미상
+    const r = await call(scanHandler, 'POST', { dryRun: false });
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(r.json.data).toMatchObject({ replayed: 0, failed: 0, skipped: 1, skippedUnknown: ['ORD-FAIL'] });
+    expect(r.json.data.results).toEqual([{ bookingId: 'ORD-FAIL', ok: false, skipped: 'STATE_UNKNOWN' }]);
+  });
+
+  it('Astra r1 P1 — paid AI benefit retryable after the loyalty marker: candidate, replayed, retry doc closed', async () => {
+    store['ORD-AI'] = { ...normal(30), productType: 'ai_planner_full', uid: 'u1', loyaltyEarnedAt: 1, loyaltyEarnedAtState: 'completed' };
+    retries['ORD-AI'] = { status: 'pending', stepStatus: { sheets: 'completed', email: 'completed', loyalty: 'retryable' } };
+    const scan = await call(scanHandler, 'GET');
+    expect(scan.json.data.candidates[0]).toMatchObject({ bookingId: 'ORD-AI', state: 'failed', missingSteps: ['loyalty'], lastFailureReason: 'ai_benefit_retryable' });
+
+    fetchMock.mockImplementation(async () => ({ ok: true, status: 200, json: async () => ({ ok: true, data: { outcome: 'completed', stepStatus: { sheets: 'completed', email: 'completed', loyalty: 'completed' } } }) }));
+    const r = await call(scanHandler, 'POST', { dryRun: false });
+    expect(r.json.data).toMatchObject({ replayed: 1, failed: 0 });
+    expect(retryUpdates).toEqual([{ id: 'ORD-AI', patch: expect.objectContaining({ status: 'done', outcome: 'completed', stepStatus: { sheets: 'completed', email: 'completed', loyalty: 'completed' }, resolvedBy: 'admin-scan' }) }]);
   });
 });
 
@@ -207,6 +234,23 @@ describe('admin-replay-booking-notifications — single replay', () => {
     const r = await call(replayHandler, 'POST', { bookingId: 'ORD-OK' });
     expect(r.json.data).toMatchObject({ bookingId: 'ORD-OK', state: 'complete', replayed: false, reason: 'ALREADY_COMPLETE' });
     expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('Astra r1 P1 — paid AI benefit retryable: single replay calls the processor (not ALREADY_COMPLETE) and closes the retry doc', async () => {
+    store['ORD-AI'] = { ...normal(31), productType: 'ai_planner_full', uid: 'u1', loyaltyEarnedAt: 1, loyaltyEarnedAtState: 'completed' };
+    retries['ORD-AI'] = { status: 'pending', stepStatus: { loyalty: 'retryable' } };
+    const r = await call(replayHandler, 'POST', { bookingId: 'ORD-AI' });
+    expect(r.json.data).toMatchObject({ state: 'failed', replayed: true });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(retryUpdates.map((u) => [u.id, u.patch.status, u.patch.resolvedBy])).toEqual([['ORD-AI', 'done', 'admin-replay']]);
+  });
+
+  it('single replay that does not finish leaves the retry doc open', async () => {
+    store['ORD-AI'] = { ...normal(32), productType: 'ai_planner_full', uid: 'u1', loyaltyEarnedAt: 1, loyaltyEarnedAtState: 'completed' };
+    retries['ORD-AI'] = { status: 'pending', stepStatus: { loyalty: 'retryable' } };
+    fetchMock.mockImplementation(async () => ({ ok: true, status: 200, json: async () => ({ ok: false, data: { outcome: 'retryable' } }) }));
+    await call(replayHandler, 'POST', { bookingId: 'ORD-AI' });
+    expect(retryUpdates).toEqual([]);
   });
 
   it('passes requiresReconciliation to the processor like the batch path', async () => {

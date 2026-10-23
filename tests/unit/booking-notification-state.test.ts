@@ -82,6 +82,25 @@ describe('classifyBookingNotificationState — table', () => {
     });
   }
 
+  // Astra 코드 리뷰 r1 P1 — 유료 AI 상품: 적립 마커 완료 뒤 AI 구매 혜택 실패 → 처리기가 loyalty='retryable' 로 남긴다.
+  describe('paid AI planner: benefit failure after the loyalty marker', () => {
+    const ai = (over: Record<string, unknown> = {}) => member({ productType: 'ai_planner_full', ...SHEETS, ...EMAIL, ...LOYALTY, ...over });
+    const openRetry = { status: 'pending', stepStatus: { sheets: 'completed', email: 'completed', loyalty: 'retryable' } };
+
+    it('three markers completed + open retry doc loyalty retryable → failed (ai_benefit_retryable)', () => {
+      expect(classify(ai(), openRetry)).toMatchObject({ state: 'failed', missingSteps: ['loyalty'], lastFailureReason: 'ai_benefit_retryable' });
+    });
+    it('retry doc closed (done) → complete', () => {
+      expect(classify(ai(), { ...openRetry, status: 'done' }).state).toBe('complete');
+    });
+    it('non-AI product with the same retry doc → the completed loyalty marker still wins', () => {
+      expect(classify(ai({ productType: 'tour_gyeongbok' }), openRetry).state).toBe('complete');
+    });
+    it('free AI coupon (no benefit to grant) → complete', () => {
+      expect(classify(ai({ isFreeCoupon: true }), openRetry).state).toBe('complete');
+    });
+  });
+
   it('ADMIN-BYPASS- / TEST- document id → test', () => {
     expect(classify(guest({}), null, 'ADMIN-BYPASS-123').state).toBe('test');
     expect(classify(guest({}), null, 'TEST-9').state).toBe('test');
