@@ -69,7 +69,7 @@ describe('lint wiring', () => {
   it('P43 delegates to the shared helper and keeps the self-test cases', () => {
     expect(lint).toMatch(/import \{ p43FileViolations \} from '\.\/lib\/p43-protected-calls\.mjs'/);
     expect(lint).toMatch(/p43FileViolations\(file, getChangedFileContent\(file\)\)/);
-    expect((lint.match(/expectRule: 'P43_authIdorBodyTrusted'/g) || []).length).toBe(18);
+    expect((lint.match(/expectRule: 'P43_authIdorBodyTrusted'/g) || []).length).toBe(21);
   });
 });
 
@@ -122,6 +122,25 @@ describe('P43 — manageFetch first argument must be exactly one allowed literal
     expect(check(String.raw`manageFetch('/api/\booking-manage', { manageToken: t });` + '\n')).toHaveLength(1);
     expect(check(String.raw`manageFetch('/api/cancel\Booking', { manageToken: t });` + '\n')).toHaveLength(1);
     expect(check("manageFetch('/api/booking-manage', { manageToken: t });\n")).toEqual([]);
+  });
+});
+
+describe('P43 — review round 4 (token-based lookback, keyword-named properties)', () => {
+  it('no fixed-length lookback: `return` + 80 spaces + regex with "/*"', () => {
+    expect(check(`function t(x) { return${' '.repeat(80)}/[/*]/.test(x); }\nfetch('/api/voucher');\n`)).toHaveLength(1);
+    expect(check(`const ok = (x) =>${' '.repeat(200)}/[/*]/.test(x);\nfetch('/api/voucher');\n`)).toHaveLength(1);
+    expect(check("function t(x) { return /* why */\n  /[/*]/.test(x); }\nfetch('/api/voucher');\n")).toHaveLength(1);
+  });
+
+  it('a keyword after `.` (spaces / comments skipped) is a property name → division', () => {
+    expect(check("const r = obj. return / 2; /* Authorization: Bearer */ fetch('/api/voucher');\n")).toHaveLength(1);
+    expect(check("const r = obj./*x*/return / 2; /* Authorization: Bearer */ fetch('/api/voucher');\n")).toHaveLength(1);
+    expect(check("const r = obj\n  .typeof / 2; /* Authorization: Bearer */ fetch('/api/voucher');\n")).toHaveLength(1);
+    expect(check("const r = obj?.in / 2; /* Authorization: Bearer */ fetch('/api/voucher');\n")).toHaveLength(1);
+  });
+
+  it('keywords that merely contain a regex-lead keyword are plain identifiers (returned / x)', () => {
+    expect(check("const r = returned / 2; /* Authorization: Bearer */ fetch('/api/voucher');\n")).toHaveLength(1);
   });
 });
 

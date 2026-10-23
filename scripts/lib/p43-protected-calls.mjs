@@ -8,15 +8,9 @@ export const P43_MANAGE_FETCH_PATHS = new Set(['/api/booking-manage', '/api/canc
 // 이 문자 뒤(또는 줄 시작)의 `/` 는 나눗셈이 아니라 정규식 리터럴의 시작으로 본다(단순 휴리스틱).
 const REGEX_PRECEDERS = new Set(['(', ',', '=', ':', '[', '!', '&', '|', '?', '{', '}', ';']);
 // 직전 토큰이 이 키워드이거나 `=>` 여도 정규식 시작이다(`return /[/*]/`·`=> /x/`). 식별자·숫자·`)`·`]` 뒤는 나눗셈.
+// 단 `.` 바로 뒤(공백·주석 건너뜀)의 키워드는 속성 이름이다(`obj. return / 2` 는 나눗셈).
 const REGEX_KEYWORDS = new Set(['return', 'typeof', 'case', 'do', 'else', 'in', 'instanceof', 'new', 'delete', 'void', 'throw', 'yield', 'await']);
-
-/** 지금까지 내보낸 코드의 끝이 `=>` 또는 정규식을 앞세우는 키워드인가. `obj.return` 같은 속성 이름은 제외. */
-function regexAfterToken(out) {
-  const tail = out.slice(-64);
-  if (/=>\s*$/.test(tail)) return true;
-  const m = /(?:^|[^\w$.])([A-Za-z_$][\w$]*)\s*$/.exec(tail);
-  return Boolean(m && REGEX_KEYWORDS.has(m[1]));
-}
+const IDENT_CHAR = /[\w$]/;
 
 /**
  * 주석 제거(줄 수 유지) — 문자 스캐너. 작은/큰따옴표·백틱 문자열(이스케이프 포함)과 정규식 리터럴 안의
@@ -64,15 +58,34 @@ export function p43StripComments(content) {
     }
   }
 
-  /** 코드 모드. inInterpolation 이면 짝 없는 `}`(보간 끝) 앞에서 멈춘다(소비하지 않음). */
+  /**
+   * 코드 모드. inInterpolation 이면 짝 없는 `}`(보간 끝) 앞에서 멈춘다(소비하지 않음).
+   * 직전 토큰은 고정 길이 되돌아보기 없이 토큰 단위로 추적한다 — 공백·줄바꿈·주석은 토큰이 아니다.
+   */
   function code(inInterpolation) {
-    let prev = ''; // 문자열·주석 밖에서 마지막으로 본 공백 아닌 문자. '' = 줄 시작.
+    let prev = '';            // 마지막 의미 문자. '' = 줄 시작(줄 시작의 `/` 는 정규식으로 본다).
+    let lastSig = '';         // 마지막 의미 문자(줄바꿈으로 초기화하지 않음) — 속성 접근 `.` 판정용.
+    let word = '';            // 직전 토큰이 식별자/숫자면 그 텍스트, 아니면 ''.
+    let wordAfterDot = false; // 그 식별자 앞의 의미 토큰이 `.`(= 속성 이름).
+    let wordOpen = false;     // 바로 앞 문자가 식별자 문자(같은 토큰이 이어지는 중).
+    let arrow = false;        // 직전 토큰이 `=>`.
+    let lastCode = '';        // 바로 앞에 내보낸 코드 문자(공백 포함) — `=>` 인접 판정.
     let depth = 0;
+
+    const gap = () => { wordOpen = false; lastCode = ' '; };
+    const otherToken = (c, prevValue = c) => {
+      word = ''; wordOpen = false; arrow = false;
+      prev = prevValue; lastSig = c; lastCode = c;
+    };
+    const regexStarts = () => prev === '' || REGEX_PRECEDERS.has(prev) || arrow
+      || (word !== '' && !wordAfterDot && REGEX_KEYWORDS.has(word));
+
     while (i < src.length) {
       const ch = src[i];
       const next = src[i + 1];
       if (ch === '/' && next === '/' && prev !== ':') {
         while (i < src.length && src[i] !== '\n') i += 1;
+        gap();
         continue;
       }
       if (ch === '/' && next === '*') {
@@ -83,9 +96,10 @@ export function p43StripComments(content) {
           i += 1;
         }
         i += 2;
+        gap();
         continue;
       }
-      if (ch === '/' && next !== '>' && (prev === '' || REGEX_PRECEDERS.has(prev) || regexAfterToken(out))) {
+      if (ch === '/' && next !== '>' && regexStarts()) {
         out += ch;
         i += 1;
         let inClass = false;
@@ -98,17 +112,17 @@ export function p43StripComments(content) {
           else if (c === ']') inClass = false;
           else if (c === '/' && !inClass) break;
         }
-        prev = '/';
+        otherToken('/');
         continue;
       }
       if (ch === "'" || ch === '"') {
         quoted(ch);
-        prev = out.endsWith('\n') ? '' : ch;
+        otherToken(ch, out.endsWith('\n') ? '' : ch);
         continue;
       }
       if (ch === '`') {
         template();
-        prev = '`';
+        otherToken('`');
         continue;
       }
       if (inInterpolation && ch === '{') depth += 1;
@@ -117,9 +131,19 @@ export function p43StripComments(content) {
         depth -= 1;
       }
       out += ch;
-      if (ch === '\n') prev = '';
-      else if (!/\s/.test(ch)) prev = ch;
       i += 1;
+      if (ch === '\n') { prev = ''; gap(); continue; }
+      if (/\s/.test(ch)) { gap(); continue; }
+      if (IDENT_CHAR.test(ch)) {
+        if (wordOpen) word += ch;
+        else { word = ch; wordAfterDot = lastSig === '.'; }
+        wordOpen = true; arrow = false;
+        prev = ch; lastSig = ch; lastCode = ch;
+        continue;
+      }
+      const isArrow = ch === '>' && lastCode === '=';
+      otherToken(ch);
+      arrow = isArrow;
     }
   }
 

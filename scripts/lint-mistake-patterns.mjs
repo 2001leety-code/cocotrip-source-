@@ -8017,6 +8017,24 @@ function runSelfTest() {
       expectRule: 'P43_authIdorBodyTrusted',
     },
     {
+      label: 'P43: `return` + 80 spaces + regex with "/*" — no fixed-length lookback, raw fetch after it is caught',
+      base: { 'src/pages/P43Probe.tsx': "export const x = 1;\n" },
+      head: { 'src/pages/P43Probe.tsx': `function t(x) { return${' '.repeat(80)}/[/*]/.test(x); }\nexport const c = () => fetch('/api/voucher');\n` },
+      expectRule: 'P43_authIdorBodyTrusted',
+    },
+    {
+      label: 'P43: `obj. return / 2` is a property + division — the real comment after it is no exemption',
+      base: { 'src/pages/P43Probe.tsx': "export const x = 1;\n" },
+      head: { 'src/pages/P43Probe.tsx': "const r = obj. return / 2; /* Authorization: Bearer */ export const c = () => fetch('/api/voucher');\n" },
+      expectRule: 'P43_authIdorBodyTrusted',
+    },
+    {
+      label: 'P43: `obj./*x*/return / 2` is a property + division — the real comment after it is no exemption',
+      base: { 'src/pages/P43Probe.tsx': "export const x = 1;\n" },
+      head: { 'src/pages/P43Probe.tsx': "const r = obj./*x*/return / 2; /* Authorization: Bearer */ export const c = () => fetch('/api/voucher');\n" },
+      expectRule: 'P43_authIdorBodyTrusted',
+    },
+    {
       label: 'P43 (false positive 차단): multi-line manageFetch with an allowed literal passes',
       base: { 'src/pages/P43Probe.tsx': "export const x = 1;\n" },
       head: { 'src/pages/P43Probe.tsx': "export const c = (t) => manageFetch(\n  '/api/cancelBooking',\n  { manageToken: t },\n);\n" },
