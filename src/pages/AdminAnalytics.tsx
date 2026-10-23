@@ -4,9 +4,13 @@ import { BarChart3, TrendingUp, Users, Calendar, Map as MapIcon, ArrowUpRight, A
 import { Link } from 'react-router-dom';
 import { collection, query, where, getDocs } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
-import { USD_TO_KRW } from '@/lib/exchange-rate';
+import { useAuth } from '@/hooks/useAuth';
 
-// 환율 — booking-processor.js와 동일 기본값. 실시간 환율은 별도 API 호출 비용이 있어 평균값 사용.
+// 원화는 **참고 환산** — 매출 화면과 같은 값(/api/admin-sales 응답 최상위 exchangeRate)만 쓴다(2026-10-23, PR-4).
+//   이전엔 src/lib/exchange-rate.ts 의 USD_TO_KRW(= pricing_spec policy_krw_per_usd || 1350, 고정)를 써서
+//   같은 USD 가 매출 화면과 다른 원화로 보였다. 그 값(getUsdToKrwRaw)은 6시간 캐시·하한 1450·실패 대체값이
+//   적용될 수 있어 "실시간"·"결제와 같은 환율" 이라고 쓰지 않는다. 로딩·실패·비정상 값이면 원화를 지어내지 않고 USD 만.
+//   결제·환불·정산은 이 화면 값을 쓰지 않는다(표시만). 두 화면은 날짜·제외 기준이 달라 총합 자체는 다를 수 있다.
 
 interface BookingDoc {
   tourDate?: string;        // YYYY-MM-DD
@@ -105,9 +109,30 @@ function formatTrend(curr: number, prev: number): { trend: string; isUp: boolean
 }
 
 export default function AdminAnalytics() {
+  const { user } = useAuth();
   const [bookings, setBookings] = useState<BookingDoc[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  // 적용 환율(KRW per USD) — admin-sales 응답의 exchangeRate. null = 아직/실패/비정상 → USD 만 표시.
+  //   통계(Firestore) 조회와 분리 — 환율이 실패해도 통계 오류로 만들지 않는다.
+  const [exchangeRate, setExchangeRate] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (!user) return;
+    let cancelled = false;
+    void (async () => {
+      try {
+        const idToken = await user.getIdToken();
+        const res = await fetch('/api/admin-sales?days=7', { headers: { Authorization: `Bearer ${idToken}` } });
+        const body = res.ok ? await res.json() : null;
+        const rate = Number(body && body.exchangeRate);
+        if (!cancelled && Number.isFinite(rate) && rate > 0) setExchangeRate(rate);
+      } catch (err) {
+        console.warn('[AdminAnalytics] exchange rate unavailable — showing USD only:', err);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [user]);
 
   useEffect(() => {
     const yearStart = `${new Date().getFullYear()}-01-01`;
@@ -163,8 +188,10 @@ export default function AdminAnalytics() {
 
     return [
       {
-        label: `이번 달 총 매출`,
-        value: `₩${Math.round(thisRevUSD * USD_TO_KRW).toLocaleString('ko-KR')}`,
+        label: exchangeRate ? '이번 달 총 매출 (참고 환산)' : '이번 달 총 매출 (USD)',
+        value: exchangeRate
+          ? `₩${Math.round(thisRevUSD * exchangeRate).toLocaleString('ko-KR')}`
+          : `$${thisRevUSD.toFixed(2)}`,
         trend: revTrend.trend,
         isUp: revTrend.isUp,
         icon: TrendingUp,
@@ -199,7 +226,7 @@ export default function AdminAnalytics() {
         bg: 'bg-orange-400/10',
       },
     ];
-  }, [validBookings, thisYM, prevYM]);
+  }, [validBookings, thisYM, prevYM, exchangeRate]);
 
   // ── Top Tours ──────────────────────────────────────────────────────
   const topTours: TourCount[] = useMemo(() => {
@@ -284,7 +311,9 @@ export default function AdminAnalytics() {
               {loading && <Loader2 className="w-4 h-4 animate-spin text-gray-500" />}
             </h1>
             <p className="text-gray-400 text-sm mt-1">
-              {error ? <span className="text-red-400">⚠ {error}</span> : `Firestore 실데이터 · 환율 1 USD = ₩${USD_TO_KRW.toLocaleString()} (고정)`}
+              {error ? <span className="text-red-400">⚠ {error}</span> : exchangeRate
+                ? `Firestore 실데이터 · 참고 환산 · 적용 환율 ${exchangeRate.toLocaleString('ko-KR')}원/USD (매출 화면과 같은 값 · 캐시·정책 하한 적용 가능)`
+                : 'Firestore 실데이터 · 금액은 USD (적용 환율을 받지 못해 원화 환산 생략)'}
             </p>
           </div>
           <div className="flex gap-3">

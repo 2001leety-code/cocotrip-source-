@@ -25,6 +25,12 @@
  * 멱등성 주의: 같은 booking 을 두 번 replay 하면 텔레그램·이메일·Sheets 모두 중복.
  * dryRun=false 신중히 사용. 한 번 replay 한 booking 은 Firestore booking doc 의
  * `replayedAt` 필드로 표시 → 다음 호출 시 자동 skip.
+ *
+ * 2026-10-23 (PR-4): 후보 판정 = booking-notification-state.js(예약 마커 + 재시도 문서 stepStatus).
+ *   이전엔 replayedAt 없는 CONFIRMED 를 **전부** 후보로 잡아 정상 원발송 예약까지 일괄 재전송 대상이었다.
+ *   후보 = failed(확실히 안 끝났고 재실행 안전) + unknown(결과 미상·근거 없음 — 수신 확인 필요).
+ *   일괄 재전송은 failed 만, unknown 은 skippedUnknown 으로 돌려준다. 실제 호출 직전 최신 문서로 다시 판정한다.
+ *   정산 필요(requiresReconciliation·추정가 상품)는 알림 상태와 무관하게 `reconciliation` 으로 따로 돌려준다.
  */
 import { verifyAdminToken } from './_shared/admin-auth.js';
 import { initAdminDb } from './_shared/firebase-admin.js';
@@ -34,8 +40,21 @@ import { FieldValue } from 'firebase-admin/firestore';
 import { productDisplayLabel, isCustomEstimateProduct } from './_shared/pricing.js';
 import { captureError } from './_shared/sentry.js';
 import { buildAdminCors, buildAdminJsonCors } from './_shared/cors.js';
+import { classifyBookingNotificationState } from './_shared/booking-notification-state.js';
+import { PENDING_PROCESSOR_RETRIES_COLLECTION } from './_shared/booking-processor-trigger.js';
 
 export const maxDuration = 60;
+
+/** 재시도 문서(정상 생략·결과 미상 근거). 조회 실패 = 근거 없음(null) — 그 자체로 실패로 보지 않는다. */
+async function readRetryDoc(db, bookingId) {
+  try {
+    const snap = await db.collection(PENDING_PROCESSOR_RETRIES_COLLECTION).doc(bookingId).get();
+    return snap.exists ? (snap.data() || null) : null;
+  } catch (e) {
+    console.warn('[admin-scan-suspect-bookings] retry doc lookup failed (treated as no evidence):', bookingId, e.message);
+    return null;
+  }
+}
 export const config = { runtime: 'nodejs' };
 
 // PR #437 (W-H11): origin allowlist via buildAdminCors — was wildcard '*'.
@@ -86,8 +105,8 @@ export default async function handler(req, res) {
       return json(req, res, 500, _err('Firestore unavailable — check FIREBASE_* env vars', 'DB_UNAVAILABLE'));
     }
 
-    // 후보 booking: createdAt in [since, until] + status=CONFIRMED + (provider 일치 시).
-    // 이미 replay 된 건 (replayedAt 존재) 제외.
+    // 조회: createdAt in [since, until] + status=CONFIRMED + (provider 일치 시).
+    // 후보 판정은 classifyBookingNotificationState — 정상 완료·24h 이내 처리 중·테스트·replayedAt 은 제외.
     let query = db.collection('bookings')
       .where('createdAt', '>=', since)
       .where('createdAt', '<=', until)
@@ -100,12 +119,21 @@ export default async function handler(req, res) {
     }
 
     const snap = await query.get();
+    const docs = [];
+    snap.forEach((doc) => docs.push({ id: doc.id, data: doc.data() || {} }));
+    const retryDocs = await Promise.all(docs.map((x) => readRetryDoc(db, x.id)));
+    const nowMs = Date.now();
     const candidates = [];
-    snap.forEach((doc) => {
-      const d = doc.data();
-      if (d.replayedAt) return;  // 이미 복구됨 — skip
-      candidates.push({
-        bookingId: doc.id,
+    const reconciliation = [];
+    const excluded = { complete: 0, pending: 0, test: 0 };
+    docs.forEach(({ id, data: d }, idx) => {
+      const verdict = classifyBookingNotificationState(d, nowMs, id, retryDocs[idx]);
+      const row = {
+        state: verdict.state,
+        missingSteps: verdict.missingSteps,
+        lastFailureReason: verdict.lastFailureReason,
+        telegram: verdict.telegram,
+        bookingId: id,
         bookingRef: d.bookingRef || null,
         productType: d.productType || null,
         productLabel: productDisplayLabel(d.productType),
@@ -117,32 +145,49 @@ export default async function handler(req, res) {
         captureID: d.captureID || null,
         createdAt: d.createdAt?.toDate?.()?.toISOString?.() || null,
         requiresReconciliation: !!d.requiresReconciliation || isCustomEstimateProduct(d.productType),
-      });
+      };
+      // 정산 필요 여부는 알림 상태와 독립 — 알림이 정상이어도 정산 목록에서 빠지면 안 된다(테스트 결제만 제외).
+      if (row.requiresReconciliation && verdict.state !== 'test') reconciliation.push(row);
+      if (verdict.state !== 'failed' && verdict.state !== 'unknown') { excluded[verdict.state] += 1; return; }
+      candidates.push(row);
     });
 
-    if (dryRun || candidates.length === 0) {
-      return json(req, res, 200, _ok({
-        mode: 'dryRun',
-        scanned: snap.size,
-        candidatesCount: candidates.length,
-        candidates,
-        rangeSince: since.toISOString(),
-        rangeUntil: until.toISOString(),
-        hint: candidates.length > 0
-          ? 'Re-call with POST + body { "dryRun": false } to actually replay all candidates.'
-          : 'No suspect bookings in range.',
-      }));
+    const failedCandidates = candidates.filter((c) => c.state === 'failed');
+    const unknownCandidates = candidates.filter((c) => c.state === 'unknown');
+    const summary = {
+      scanned: snap.size,
+      candidatesCount: candidates.length,
+      failedCount: failedCandidates.length,
+      unknownCount: unknownCandidates.length,
+      excludedComplete: excluded.complete,
+      excludedPending: excluded.pending,
+      excludedTest: excluded.test,
+      reconciliation,
+      rangeSince: since.toISOString(),
+      rangeUntil: until.toISOString(),
+    };
+
+    if (dryRun) {
+      // "범위 안 전체 정상" 이라고 단정하지 않는다 — 기간·CONFIRMED·provider 로 최신순 limit 건을 가져온 **뒤** 거른 결과다.
+      const hint = candidates.length > 0
+        ? `조회 ${snap.size}건 중 후보 ${candidates.length}건(실패 ${failedCandidates.length} · 결과 미상 ${unknownCandidates.length}). 일괄 재전송은 실패 건의 미완료 단계 재처리만 — POST { "dryRun": false }. 결과 미상은 고객 수신 확인 필요.`
+        : `조회 ${snap.size}건 중 재전송 후보 0건${snap.size >= limit ? ` — 조회 한도 ${limit}건에 닿았습니다. since/until 로 기간을 나눠 다시 확인하세요.` : ''}`;
+      return json(req, res, 200, _ok({ mode: 'dryRun', ...summary, candidates, hint }));
     }
 
-    // 실제 replay — booking-processor 를 sequence 로 호출 (Telegram rate limit 회피).
+    // 실제 replay — failed 만, booking-processor 를 sequence 로 호출 (Telegram rate limit 회피).
+    //   unknown 은 다시 보내면 손님에게 두 번 갈 수 있다 → 건너뛰고 목록만 돌려준다.
     const siteUrl = internalApiBase();
     const results = [];
-    for (const c of candidates) {
+    for (const [i, c] of failedCandidates.entries()) {
       const docRef = db.collection('bookings').doc(c.bookingId);
       const fresh = await docRef.get();
       if (!fresh.exists) { results.push({ bookingId: c.bookingId, ok: false, error: 'NOT_FOUND' }); continue; }
       const b = fresh.data();
       if (b.replayedAt) { results.push({ bookingId: c.bookingId, ok: false, error: 'ALREADY_REPLAYED' }); continue; }
+      // 스캔 뒤 다른 실행(재시도 큐 등)이 처리했을 수 있다 — 최신 예약·재시도 문서로 다시 판정.
+      const freshState = classifyBookingNotificationState(b, Date.now(), c.bookingId, await readRetryDoc(db, c.bookingId)).state;
+      if (freshState !== 'failed') { results.push({ bookingId: c.bookingId, ok: false, error: `STATE_${freshState.toUpperCase()}` }); continue; }
 
       const payload = {
       // 🔴 2026-07-29 (영구 주문 ID): 이전엔 `booking.captureID || <doc id>` 였다.
@@ -210,19 +255,17 @@ export default async function handler(req, res) {
         results.push({ bookingId: c.bookingId, ok: false, error: err.message });
       }
 
-      // Telegram bot rate limit (~30 msg/sec) + Sheets API 안정 — 1초 간격
-      await new Promise((r) => setTimeout(r, 1000));
+      // Telegram bot rate limit (~30 msg/sec) + Sheets API 안정 — 1초 간격(마지막 건 뒤엔 기다리지 않는다)
+      if (i < failedCandidates.length - 1) await new Promise((r) => setTimeout(r, 1000));
     }
 
     return json(req, res, 200, _ok({
       mode: 'replay',
-      scanned: snap.size,
-      candidatesCount: candidates.length,
+      ...summary,
       replayed: results.filter((r) => r.ok).length,
       failed:   results.filter((r) => !r.ok).length,
       results,
-      rangeSince: since.toISOString(),
-      rangeUntil: until.toISOString(),
+      skippedUnknown: unknownCandidates.map((c) => c.bookingId),
     }));
   } catch (err) {
     console.error('[admin-scan-suspect-bookings]', err);

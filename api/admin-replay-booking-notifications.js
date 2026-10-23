@@ -20,11 +20,13 @@
  */
 import { verifyAdminToken } from './_shared/admin-auth.js';
 import { initAdminDb } from './_shared/firebase-admin.js';
-import { productDisplayLabel } from './_shared/pricing.js';
+import { productDisplayLabel, isCustomEstimateProduct } from './_shared/pricing.js';
+import { PENDING_PROCESSOR_RETRIES_COLLECTION } from './_shared/booking-processor-trigger.js';
 import { captureError } from './_shared/sentry.js';
 import { buildAdminCors, buildAdminJsonCors } from './_shared/cors.js';
 import { internalApiBase, vercelBypassHeaders } from './_shared/internal-base-url.js';
 import { outcomeFromResponseBody, isSemanticallyDone, OUTCOME } from './_shared/processor-outcome.js';
+import { classifyBookingNotificationState } from './_shared/booking-notification-state.js';
 
 export const maxDuration = 30;
 export const config = { runtime: 'nodejs' };
@@ -71,6 +73,26 @@ export default async function handler(req, res) {
       return json(req, res, 404, _err(`Booking not found: ${bookingId}`, 'NOT_FOUND'));
     }
     const booking = doc.data();
+    // 2026-10-23 (PR-4): 재처리 **전** 상태(스캔과 같은 판정, 재시도 문서 포함).
+    //   complete = 이미 끝났다 → 처리기를 부르지 않는다(replayed:false). 그 밖엔 운영자 명시 동작이라 실행한다 —
+    //   결과 미상 단계는 처리기의 선점 정책이 그대로 막는다(여기서 미상 마커를 풀지 않는다 = 수신 확인 필요).
+    let retryDoc = null;
+    try {
+      const retrySnap = await db.collection(PENDING_PROCESSOR_RETRIES_COLLECTION).doc(bookingId).get();
+      retryDoc = retrySnap.exists ? (retrySnap.data() || null) : null;
+    } catch (e) {
+      console.warn('[admin-replay-booking-notifications] retry doc lookup failed (treated as no evidence):', e.message);
+    }
+    const { state } = classifyBookingNotificationState(booking, Date.now(), bookingId, retryDoc);
+    if (state === 'complete') {
+      return json(req, res, 200, _ok({
+        bookingId,
+        bookingRef: booking.bookingRef,
+        replayed: false,
+        state,
+        reason: 'ALREADY_COMPLETE',
+      }));
+    }
 
     // booking-processor 가 기대하는 페이로드 형태로 재구성
     // (capturePaypalOrder 의 fetch body 와 동일 키)
@@ -101,6 +123,8 @@ export default async function handler(req, res) {
       airport: booking.airport || null,
       userEmail: booking.userEmail || '',
       bookingRef: booking.bookingRef || undefined,
+      // 일괄 재처리(admin-scan-suspect-bookings)와 같은 정산 표시 — 빠지면 추정가 예약의 정산 안내가 사라진다.
+      requiresReconciliation: !!booking.requiresReconciliation || isCustomEstimateProduct(booking.productType),
     };
 
     const siteUrl = internalApiBase();
@@ -126,6 +150,7 @@ export default async function handler(req, res) {
       amountUSD: payload.amount,
       replayed: isSemanticallyDone(outcome),
       outcome,
+      state,
       stepStatus: (procJson && procJson.data && procJson.data.stepStatus) || null,
       processorStatus: procRes.status,
       processorResult: procJson,
