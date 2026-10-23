@@ -53,7 +53,8 @@ jobs:
        github.event.deployment_status.state == 'success' &&
        github.event.deployment.environment == 'Preview' &&
        github.event.deployment.creator.login == 'vercel[bot]')
-    runs-on: ubuntu-latest
+    # 2026-10-23: ubuntu-latest(=26.04 전환) 에서 chromium 설치가 7분 타임아웃·exit 100 으로 실패(#1448) — #1447 과 같은 이유로 고정.
+    runs-on: ubuntu-24.04
     # 2026-08-19: 10 → 18 분 상향. 배경: pr-i18n-smoke 의 자매 job(`smoke`)이
     # 같은 원인(Playwright CDN/apt 지연으로 cache-miss install 이 job timeout 을
     # 넘김)으로 4연속 cancelled 됐고(PR #1323), 이 `visual` job 도 "Install

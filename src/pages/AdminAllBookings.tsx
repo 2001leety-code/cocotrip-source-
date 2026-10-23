@@ -199,10 +199,11 @@ export default function AdminAllBookings() {
   const testCount = useMemo(() => (items || []).filter((b) => b.isTest).length, [items]);
 
   // 게스트 관리 링크 재발송 — 저장된 payerEmail 로만, 현재 버전 링크(기존 링크도 유효).
+  //   확인창(ResendLinkConfirmModal) → 요청. 잠금은 화면 전체 하나 — 진행 중엔 모든 행의 재발송이 막힌다.
+  const [resendTarget, setResendTarget] = useState<BookingItem | null>(null);
   const [resendingId, setResendingId] = useState<string | null>(null);
   const resendManageLink = async (b: BookingItem) => {
-    if (!user) return;
-    if (!window.confirm(`${b.bookingRef} 게스트에게 예약 관리 링크를 다시 보낼까요?\n\n• 저장된 결제자 이메일로만 발송\n• 기존 링크도 계속 유효(버전 유지)`)) return;
+    if (!user || resendingId !== null) return;
     setResendingId(b.id);
     try {
       // 이 화면의 기존 관례(DispatchCancelModal 과 같은 Bearer 첨부) — useAuth 의 user 토큰.
@@ -226,6 +227,7 @@ export default function AdminAllBookings() {
       toast.error(e instanceof Error ? e.message : '재발송 실패');
     } finally {
       setResendingId(null);
+      setResendTarget(null);
     }
   };
 
@@ -410,8 +412,8 @@ export default function AdminAllBookings() {
                           </span>
                         )}
                         <button
-                          onClick={() => { void resendManageLink(b); }}
-                          disabled={resendingId === b.id}
+                          onClick={() => setResendTarget(b)}
+                          disabled={resendingId !== null}
                           className="px-2.5 py-1.5 rounded-lg text-[11px] font-semibold border border-sky-500/40 bg-sky-500/10 text-sky-300 hover:bg-sky-500/20 transition-colors min-h-[36px] disabled:opacity-50"
                         >
                           {resendingId === b.id ? '보내는 중…' : '관리 링크 재발송'}
@@ -434,6 +436,67 @@ export default function AdminAllBookings() {
           getIdToken={() => user!.getIdToken()}
         />
       )}
+
+      {resendTarget && (
+        <ResendLinkConfirmModal
+          booking={resendTarget}
+          busy={resendingId !== null}
+          onClose={() => { if (resendingId === null) setResendTarget(null); }}
+          onConfirm={() => { void resendManageLink(resendTarget); }}
+        />
+      )}
+    </div>
+  );
+}
+
+/**
+ * 관리 링크 재발송 확인창 (2026-10-23, PR-3) — 환불 모달과 같은 화면 내 확인 단계.
+ * 요청 중에는 확인·닫기 모두 비활성(재제출 금지). 결과는 토스트로 알리고 창은 닫힌다.
+ */
+function ResendLinkConfirmModal({
+  booking, busy, onClose, onConfirm,
+}: {
+  booking: BookingItem;
+  busy: boolean;
+  onClose: () => void;
+  onConfirm: () => void;
+}) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.7)' }}>
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="resend-link-title"
+        className="w-full max-w-md rounded-2xl border border-white/[0.10] p-4 sm:p-5 space-y-3.5"
+        style={{ background: '#0c1220' }}
+      >
+        <div>
+          <h2 id="resend-link-title" className="text-white font-bold text-[15px]">관리 링크 재발송</h2>
+          <p className="text-[11px] text-white/45 mt-1">{booking.label} · {booking.bookingRef}</p>
+        </div>
+
+        <div className="rounded-xl border border-sky-500/30 bg-sky-500/10 px-3 py-2.5 text-[12px] text-sky-100 space-y-1">
+          <p>예약에 <b>저장된 결제자 이메일로만</b> 보냅니다(다른 주소로 보낼 수 없음). 보낸 주소는 마스킹해서 알려드립니다.</p>
+          <p>이전 메일의 링크도 계속 유효합니다(버전 유지).</p>
+        </div>
+
+        <div className="flex gap-2 pt-1">
+          <button
+            onClick={onClose}
+            disabled={busy}
+            className="flex-1 px-3 py-2.5 rounded-xl text-[13px] font-semibold border border-white/[0.10] text-white/60 hover:text-white min-h-[44px] disabled:opacity-50"
+          >
+            닫기
+          </button>
+          <button
+            onClick={onConfirm}
+            disabled={busy}
+            className="flex-1 px-3 py-2.5 rounded-xl text-[13px] font-bold border border-sky-500/50 bg-sky-500/20 text-sky-100 hover:bg-sky-500/30 min-h-[44px] disabled:opacity-40"
+          >
+            {busy ? '보내는 중…' : '확인'}
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
