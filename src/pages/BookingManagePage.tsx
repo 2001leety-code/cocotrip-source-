@@ -82,6 +82,10 @@ export default function BookingManagePage() {
   const [dateNotice, setDateNotice] = useState('');
   // 날짜 변경 모달이 닫힌 뒤 초점을 돌려줄 버튼(DialogTrigger 없이 열기 때문에 Radix 기본 복귀가 없다).
   const dateChangeBtnRef = useRef<HTMLButtonElement>(null);
+  // 저장·다시 불러오기 뒤엔 재조회 동안 버튼이 사라진다 → 재조회가 끝난 뒤(아래 effect) 버튼에, 없으면 안내 문구·예약 영역에 복귀.
+  const pendingFocusRef = useRef(false);
+  const dateNoticeRef = useRef<HTMLParagraphElement>(null);
+  const bookingAreaRef = useRef<HTMLDivElement>(null);
 
   usePageMeta({ title: copy.bmTitle, description: copy.bmTitle, robots: 'noindex, nofollow' });
 
@@ -98,6 +102,13 @@ export default function BookingManagePage() {
     });
     return () => { cancelled = true; };
   }, [manageToken]);
+
+  useEffect(() => {
+    if (phase === 'loading' || !pendingFocusRef.current) return;
+    pendingFocusRef.current = false;
+    const target = (phase === 'ready' && dateChangeBtnRef.current) || dateNoticeRef.current || bookingAreaRef.current;
+    if (target) target.focus();
+  }, [phase]);
 
   async function refreshBooking() {
     setPhase('loading');
@@ -136,8 +147,10 @@ export default function BookingManagePage() {
   }
 
   function onDateChanged(result: DateChangeResult) {
+    pendingFocusRef.current = true;
     setDateChangeOpen(false);
     setConflictNotice(false);
+    setPhase('loading'); // 재조회가 끝날 때까지(토큰 교체 경로 포함) — 끝나면 초점 effect 가 복귀시킨다.
     const dc = t.bookingDateChange;
     // recovered = 서버 복구 응답(앞선 요청이 이미 반영) — 메일 결과를 모르므로 성공/실패 어느 쪽도 단정하지 않는다.
     const msg = result.recovered ? dc.bdcSavedRecovered
@@ -180,7 +193,7 @@ export default function BookingManagePage() {
 
         <section className="border-b border-ec-line bg-ec-sunken">
           <div className="ec-container-wide py-10 md:py-14">
-            <div className="max-w-2xl rounded-ec-md border border-ec-line-2 bg-ec-raised p-5 md:p-7" aria-live="polite">
+            <div ref={bookingAreaRef} tabIndex={-1} className="max-w-2xl rounded-ec-md border border-ec-line-2 bg-ec-raised p-5 md:p-7 focus:outline-none" aria-live="polite">
               {phase === 'loading' && <p className="ec-body">{copy.bmLoading}</p>}
               {phase === 'invalid' && <p className="ec-body">{copy.bmInvalid}</p>}
               {phase === 'error' && (
@@ -200,7 +213,7 @@ export default function BookingManagePage() {
                 <p className="ec-body-sm mb-4 text-ec-ink-2" role="status">{copy.bmCancelConflict}</p>
               )}
               {phase === 'ready' && dateNotice && (
-                <p className="ec-body-sm mb-4 text-ec-ink-2" role="status">{dateNotice}</p>
+                <p ref={dateNoticeRef} tabIndex={-1} className="ec-body-sm mb-4 text-ec-ink-2 focus:outline-none" role="status">{dateNotice}</p>
               )}
               {phase === 'canceled' && <p className="ec-body">{copy.bmResultCanceled}</p>}
               {phase === 'pending' && <p className="ec-body">{copy.bmResultPending}</p>}
@@ -289,7 +302,7 @@ export default function BookingManagePage() {
           returnFocusTo={() => dateChangeBtnRef.current}
           onClose={() => setDateChangeOpen(false)}
           onSaved={onDateChanged}
-          onReload={() => { setDateChangeOpen(false); void refreshBooking(); }}
+          onReload={() => { pendingFocusRef.current = true; setDateChangeOpen(false); void refreshBooking(); }}
         />
       )}
 

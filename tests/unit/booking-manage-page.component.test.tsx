@@ -149,6 +149,41 @@ describe('/booking/manage — date change (②b)', () => {
     await waitFor(() => expect(document.activeElement).toBe(screen.getByRole('button', { name: dc.bdcButton })));
   });
 
+  // Astra r3 — 저장 뒤 재조회 동안 버튼이 사라진다 → 재조회가 끝난 뒤 복귀(모달 언마운트 시점이 아니라).
+  async function saveWithSlowRefetch(refetchBody: Record<string, any>) {
+    const NEW = kstDatePlusDays(40);
+    let release: () => void = () => {};
+    const slow = new Promise<any>((r) => { release = () => r(lookupOk({ tourDate: NEW, ...refetchBody })); });
+    manageFetchMock
+      .mockResolvedValueOnce(lookupOk({ canModify: true }))
+      .mockResolvedValueOnce(reply(200, { ok: true, data: { tourDate: NEW, manageToken: 'TOKEN-2', emailSent: true } }))
+      .mockImplementationOnce(() => slow);
+    renderPage();
+    fireEvent.click(await screen.findByRole('button', { name: dc.bdcButton }));
+    const dialog = await screen.findByRole('dialog');
+    fireEvent.change(within(dialog).getByLabelText(dc.bdcNew), { target: { value: NEW } });
+    fireEvent.click(within(dialog).getByRole('button', { name: dc.bdcSubmit }));
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    await waitFor(() => expect(calls('/api/booking-manage')).toHaveLength(2));
+    // 재조회 중 — 버튼 없음
+    expect(screen.queryByRole('button', { name: dc.bdcButton })).toBeNull();
+    release();
+    return NEW;
+  }
+
+  it('after save, focus lands on "Change date" once the re-fetch has finished', async () => {
+    await saveWithSlowRefetch({ canModify: true });
+    const btn = await screen.findByRole('button', { name: dc.bdcButton });
+    await waitFor(() => expect(document.activeElement).toBe(btn));
+  });
+
+  it('after save, if the re-fetched booking can no longer be changed, focus falls back to the status notice', async () => {
+    const NEW = await saveWithSlowRefetch({ canModify: false });
+    const notice = await screen.findByText(dc.bdcSavedGuestMailSent.replace('{date}', NEW));
+    await waitFor(() => expect(document.activeElement).toBe(notice));
+    expect(screen.queryByRole('button', { name: dc.bdcButton })).toBeNull();
+  });
+
   it('no button when canModify is false', async () => {
     manageFetchMock.mockResolvedValueOnce(lookupOk({ canModify: false }));
     renderPage();
