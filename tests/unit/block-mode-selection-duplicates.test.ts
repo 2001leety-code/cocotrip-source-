@@ -187,7 +187,16 @@ describe('block-mode repair — overlapping places across different blocks', () 
     expectSingleGeminiCallAndMetadata(selected);
     expect(ids(selected)).toEqual([dmzOdusan.id, jongno.id]);
     expect(selected.day_selections[1].tweak_notes).toBe(''); // 옛 DMZ 설명이 새 장소에 붙지 않게
-    expect(runDuplicateStopGate(expandBlocksToItinerary(selected, blocks, input)).ok).toBe(true);
+    const itinerary = expandBlocksToItinerary(selected, blocks, input);
+    expect(runDuplicateStopGate(itinerary).ok).toBe(true);
+    // 출처 추적도 교체 결과를 따라야 한다 — 날짜별 source_block_id, 2일차 블록 유래 stop 전부 종로.
+    expect(itinerary.days.map((d: { source_block_id: string }) => d.source_block_id)).toEqual([dmzOdusan.id, jongno.id]);
+    const day2Sources = itinerary.days[1].stops
+      .map((s: { source_block_id?: string }) => s.source_block_id)
+      .filter((id: string | undefined) => id !== undefined);
+    expect(day2Sources.length).toBeGreaterThan(0);
+    expect(new Set(day2Sources)).toEqual(new Set([jongno.id]));
+    expect(itinerary.days[1].stops.map((s: { name?: string }) => s.name)).not.toContain('임진각 평화누리공원');
   });
 
   it('same name with different spaces / case overlaps', async () => {
@@ -309,7 +318,10 @@ describe('block-mode repair — mock provider end to end', () => {
     const five = { ...input, durationDays: 5 };
     const cityPerDay = ['seoul', 'seoul', 'seoul', 'busan', 'busan'];
     const selected = await runWithLlmContext({ provider: 'mock' }, () => selectBlocksMultiCity(cityBlocksList, five, { apiKey: 'test' }, cityPerDay));
-    expect(selected.day_selections.slice(0, 3).map((d) => d.block_id)).not.toEqual([dmzOdusan.id, dmzTour.id, jongno.id]);
+    // mock 원래 선택 = 오두산·DMZ 투어·종로·남포·해운대 → 2일차만 명동으로(서울 풀 안).
+    expect(selected.day_selections.map((d) => [d.city, d.block_id])).toEqual([
+      ['seoul', dmzOdusan.id], ['seoul', myeongdong.id], ['seoul', jongno.id], ['busan', nampo.id], ['busan', haeundae.id],
+    ]);
     const itinerary = expandBlocksToItineraryMultiCity(selected, cityBlocksList, five);
     expect(runDuplicateStopGate(itinerary)).toMatchObject({ ok: true, duplicates: [] });
   });
