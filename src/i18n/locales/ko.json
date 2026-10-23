@@ -2585,5 +2585,37 @@
   "adminPaceTarget": {
     "label": "페이스 목표 (선택)",
     "hint": "운영자 권장치 — 사용자 수준 표기에 사용. 비워두면 사용자 본인 페이스 적용."
+  },
+  "bookingManage": {
+    "bmTitle": "예약 관리",
+    "bmLoading": "예약 정보를 불러오는 중…",
+    "bmInvalid": "링크가 유효하지 않거나 만료되었습니다. 최신 확인 메일의 링크를 사용하거나 문의해 주세요.",
+    "bmBookingRef": "예약 번호",
+    "bmTour": "상품",
+    "bmDate": "일정",
+    "bmPax": "인원",
+    "bmPickup": "픽업",
+    "bmVehicle": "차량",
+    "bmAmount": "결제 금액",
+    "bmStatus": "상태",
+    "bmEmail": "이메일",
+    "bmStatusConfirmed": "확정",
+    "bmStatusCanceled": "취소됨",
+    "bmStatusProcessing": "처리 중",
+    "bmCancelCta": "예약 취소",
+    "bmNoRefund": "이 예약은 온라인 취소가 불가합니다. 문의해 주세요.",
+    "bmConfirmTitle": "이 예약을 취소할까요?",
+    "bmConfirmBody": "결제 수단으로 {percent}% 환불됩니다.",
+    "bmPolicy": "투어 시작(한국 시간) 24시간 전까지 취소: 100% 환불. 시작 24시간 이내 또는 노쇼: 환불 불가.",
+    "bmReasonLabel": "취소 사유 (선택)",
+    "bmBack": "예약 유지",
+    "bmConfirmCta": "취소 확정",
+    "bmCanceling": "취소 중…",
+    "bmResultCanceled": "예약이 취소되었습니다. 환불 안내가 이메일로 발송됩니다.",
+    "bmResultPending": "환불 처리를 확인 중입니다. 곧 연락드리겠습니다.",
+    "bmResultError": "문제가 발생했습니다. 잠시 후 다시 시도하거나 문의해 주세요.",
+    "bmContact": "도움이 필요하신가요? cocotripkr@gmail.com",
+    "bmCancelConflict": "이미 처리되었거나 취소 가능 시간이 지났습니다. 최신 상태를 다시 불러왔습니다.",
+    "bmRetryLookup": "다시 조회"
   }
 }

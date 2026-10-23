@@ -31,6 +31,7 @@ import {
 } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
+import { p43FileViolations } from './lib/p43-protected-calls.mjs';
 
 // ----------------------------------------------------------------------------
 // 인자 + 헬퍼
@@ -740,8 +741,13 @@ function P34_priceUsdConsistency({ changed }) {
  *
  * 룰:
  *   1. client 가 위 5개 endpoint 에 raw `fetch(...)` 사용 — `authFetch` 써야 함.
+ *      (수동 `Authorization: Bearer` 헤더는 허용하되 **주석은 근거로 치지 않는다** — 2026-10-23.)
  *   2. client body 또는 query 에 `userEmail: ` / `userId: ` 직접 전달 — 서버는
  *      verified auth.email / auth.uid 만 사용해야 함.
+ *   3. (2026-10-23, 후속 ②a) 게스트 예약 관리 토큰 호출은 `manageFetch('/api/booking-manage' |
+ *      '/api/cancelBooking', …)` 리터럴 경로만 허용 — 첫 인자 **전체**가 그 리터럴 하나여야 한다(여러 줄 호출 OK,
+ *      연결식·변수·템플릿 리터럴·다른 경로는 fail). 주석 제거는 문자 스캐너(문자열 안 `//`·`/*` 는 주석 아님).
+ *      manageFetch 가 있는 파일이라도 raw fetch 는 룰 1 그대로 적용된다(파일 단위 면제 없음).
  *
  * 트리거: 변경된 .ts/.tsx/.js/.jsx 파일.
  * 위반 시 fail.
@@ -752,45 +758,14 @@ function P43_authIdorBodyTrusted({ changed }) {
     !c.file.startsWith('api/') &&  // server-side files use verifyUserToken directly
     !c.file.startsWith('scripts/') &&
     !c.file.startsWith('tests/') &&
-    !c.file.endsWith('authFetch.ts'),  // the helper itself
+    !c.file.endsWith('authFetch.ts') &&  // the helper itself
+    !c.file.endsWith('manageFetch.ts'),  // the guest-token helper itself (allowlist lives there)
   );
   if (targets.length === 0) return { skipped: true };
 
-  const PROTECTED = /\/api\/(my-bookings|voucher|cancelBooking|modifyBooking|reviews)\b/;
   const localViolations = [];
-
   for (const { file } of targets) {
-    const content = getChangedFileContent(file);
-    if (!content) continue;
-    if (!PROTECTED.test(content)) continue;
-
-    const lines = content.split(/\r?\n/);
-    for (let i = 0; i < lines.length; i++) {
-      const line = lines[i];
-      // Rule 1: raw fetch( against protected endpoint
-      if (/\bfetch\s*\(\s*['"`]\/api\/(my-bookings|voucher|cancelBooking|modifyBooking|reviews)/.test(line)) {
-        // window check ±15 lines for 'Authorization' header — admin pages already
-        // attach it manually; only flag if Authorization NOT in window.
-        const win = lines.slice(Math.max(0, i - 2), Math.min(lines.length, i + 15)).join('\n');
-        if (!/Authorization\s*:\s*['"`]?Bearer/i.test(win)) {
-          localViolations.push(`${file}:L${i + 1}: raw fetch() against protected endpoint — use authFetch from @/lib/authFetch`);
-        }
-      }
-      // Rule 2: body/query carrying userEmail or userId to protected endpoint
-      // Heuristic — line contains `userEmail:` or `userId:` AND the file
-      // touches a protected endpoint. False-positive risk acceptable; remove
-      // the property if not actually targeting these endpoints.
-      const isCalloutLine =
-        /\buserEmail\s*:\s*(user\??\.email|email|userEmail)\b/.test(line) ||
-        /\buserId\s*:\s*(user\??\.uid|uid|userId)\b/.test(line);
-      if (isCalloutLine) {
-        // Check ±10 lines window to confirm protected endpoint context
-        const window = lines.slice(Math.max(0, i - 10), Math.min(lines.length, i + 4)).join('\n');
-        if (PROTECTED.test(window)) {
-          localViolations.push(`${file}:L${i + 1}: body/query carries userEmail/userId to protected endpoint — server uses verified auth.email / auth.uid`);
-        }
-      }
-    }
+    localViolations.push(...p43FileViolations(file, getChangedFileContent(file)));
   }
 
   if (localViolations.length > 0) {
@@ -7921,6 +7896,161 @@ function runSelfTest() {
           + "import { render } from '@testing-library/react';\nimport { TourBookingDialog } from '../../src/components/tours/TourBookingDialog';\n",
       },
       expectRule: 'R_Phase1_testNoFirebaseClientImport',
+      expectClean: true,
+    },
+    {
+      label: 'P43: unauthenticated raw fetch to a protected endpoint',
+      base: { 'src/pages/P43Probe.tsx': "export const x = 1;\n" },
+      head: { 'src/pages/P43Probe.tsx': "export const load = () => fetch('/api/my-bookings', { method: 'GET' });\n" },
+      expectRule: 'P43_authIdorBodyTrusted',
+    },
+    {
+      label: 'P43: raw fetch carrying only userEmail',
+      base: { 'src/pages/P43Probe.tsx': "export const x = 1;\n" },
+      head: {
+        'src/pages/P43Probe.tsx':
+          "export const cancel = (user) => fetch('/api/cancelBooking', {\n  method: 'POST',\n  body: JSON.stringify({ bookingID: 'b1', userEmail: user.email }),\n});\n",
+      },
+      expectRule: 'P43_authIdorBodyTrusted',
+    },
+    {
+      label: 'P43: a comment mentioning "Authorization: Bearer" does not excuse a raw fetch',
+      base: { 'src/pages/P43Probe.tsx': "export const x = 1;\n" },
+      head: {
+        'src/pages/P43Probe.tsx':
+          "// Authorization: Bearer is attached by the proxy\nexport const cancel = () => fetch('/api/cancelBooking', { method: 'POST' });\n",
+      },
+      expectRule: 'P43_authIdorBodyTrusted',
+    },
+    {
+      label: 'P43: manageFetch to a path outside the allowlist (modifyBooking)',
+      base: { 'src/pages/P43Probe.tsx': "export const x = 1;\n" },
+      head: {
+        'src/pages/P43Probe.tsx':
+          "import { manageFetch } from '@/lib/manageFetch';\nexport const edit = (t) => manageFetch('/api/modifyBooking', { manageToken: t });\n",
+      },
+      expectRule: 'P43_authIdorBodyTrusted',
+    },
+    {
+      label: 'P43: a file that uses manageFetch still fails on its raw fetch',
+      base: { 'src/pages/P43Probe.tsx': "export const x = 1;\n" },
+      head: {
+        'src/pages/P43Probe.tsx':
+          "import { manageFetch } from '@/lib/manageFetch';\nexport const ok = (t) => manageFetch('/api/cancelBooking', { manageToken: t });\nexport const bad = () => fetch('/api/my-bookings');\n",
+      },
+      expectRule: 'P43_authIdorBodyTrusted',
+    },
+    {
+      label: 'P43 (false positive 차단): manageFetch to /api/cancelBooking passes',
+      base: { 'src/pages/P43Probe.tsx': "export const x = 1;\n" },
+      head: {
+        'src/pages/P43Probe.tsx':
+          "import { manageFetch } from '@/lib/manageFetch';\nexport const cancel = (t, id) => manageFetch('/api/cancelBooking', { manageToken: t, body: { bookingID: id } });\n",
+      },
+      expectRule: 'P43_authIdorBodyTrusted',
+      expectClean: true,
+    },
+    {
+      label: 'P43: "//" inside a string literal does not hide the raw fetch after it',
+      base: { 'src/pages/P43Probe.tsx': "export const x = 1;\n" },
+      head: { 'src/pages/P43Probe.tsx': "const label = 'a // b'; export const c = () => fetch('/api/my-bookings');\n" },
+      expectRule: 'P43_authIdorBodyTrusted',
+    },
+    {
+      label: 'P43: "/*" inside a string literal does not hide the raw fetch after it',
+      base: { 'src/pages/P43Probe.tsx': "export const x = 1;\n" },
+      head: { 'src/pages/P43Probe.tsx': "const label = \"a /* b\"; export const c = () => fetch('/api/my-bookings');\n" },
+      expectRule: 'P43_authIdorBodyTrusted',
+    },
+    {
+      label: 'P43: a block comment with "Authorization: Bearer" still does not excuse a raw fetch',
+      base: { 'src/pages/P43Probe.tsx': "export const x = 1;\n" },
+      head: { 'src/pages/P43Probe.tsx': "/* headers: { Authorization: 'Bearer x' } */\nexport const c = () => fetch('/api/voucher');\n" },
+      expectRule: 'P43_authIdorBodyTrusted',
+    },
+    {
+      label: 'P43: manageFetch with a concatenated path is rejected',
+      base: { 'src/pages/P43Probe.tsx': "export const x = 1;\n" },
+      head: { 'src/pages/P43Probe.tsx': "export const c = (t, s) => manageFetch('/api/cancelBooking' + s, { manageToken: t });\n" },
+      expectRule: 'P43_authIdorBodyTrusted',
+    },
+    {
+      label: 'P43: manageFetch with a template-literal path is rejected',
+      base: { 'src/pages/P43Probe.tsx': "export const x = 1;\n" },
+      head: { 'src/pages/P43Probe.tsx': "export const c = (t) => manageFetch(`/api/cancelBooking`, { manageToken: t });\n" },
+      expectRule: 'P43_authIdorBodyTrusted',
+    },
+    {
+      label: 'P43: a block comment glued between await and manageFetch does not hide a variable path',
+      base: { 'src/pages/P43Probe.tsx': "export const x = 1;\n" },
+      head: { 'src/pages/P43Probe.tsx': "export const c = async (path) => await/* note */manageFetch(path);\n" },
+      expectRule: 'P43_authIdorBodyTrusted',
+    },
+    {
+      label: 'P43: a comment inside a template ${ } with "Authorization: Bearer" does not excuse a raw fetch',
+      base: { 'src/pages/P43Probe.tsx': "export const x = 1;\n" },
+      head: { 'src/pages/P43Probe.tsx': "const label = `${ /* Authorization: Bearer x */ 'label' }`; export const c = () => fetch('/api/voucher');\n" },
+      expectRule: 'P43_authIdorBodyTrusted',
+    },
+    {
+      label: 'P43: a backslash in the manageFetch literal is rejected (no escape decoding)',
+      base: { 'src/pages/P43Probe.tsx': "export const x = 1;\n" },
+      head: { 'src/pages/P43Probe.tsx': "export const c = (t) => manageFetch('/api/\\booking-manage', { manageToken: t });\n" },
+      expectRule: 'P43_authIdorBodyTrusted',
+    },
+    {
+      label: 'P43: a regex after `return` containing "/*" is not a block comment (raw fetch after it is caught)',
+      base: { 'src/pages/P43Probe.tsx': "export const x = 1;\n" },
+      head: { 'src/pages/P43Probe.tsx': "const s = `${(() => { return /[/*]/.test(input); })()}`; export const c = () => fetch('/api/voucher');\n" },
+      expectRule: 'P43_authIdorBodyTrusted',
+    },
+    {
+      label: 'P43: a regex after `=>` containing "/*" is not a block comment (raw fetch after it is caught)',
+      base: { 'src/pages/P43Probe.tsx': "export const x = 1;\n" },
+      head: { 'src/pages/P43Probe.tsx': "const ok = (input) => /[/*]/.test(input); export const c = () => fetch('/api/my-bookings');\n" },
+      expectRule: 'P43_authIdorBodyTrusted',
+    },
+    {
+      label: 'P43: division is still division — a real comment after it with "Authorization: Bearer" is no exemption',
+      base: { 'src/pages/P43Probe.tsx': "export const x = 1;\n" },
+      head: { 'src/pages/P43Probe.tsx': "const r = a / b; /* real comment with Authorization: Bearer */ export const c = () => fetch('/api/voucher');\n" },
+      expectRule: 'P43_authIdorBodyTrusted',
+    },
+    {
+      label: 'P43: `return` + 80 spaces + regex with "/*" — no fixed-length lookback, raw fetch after it is caught',
+      base: { 'src/pages/P43Probe.tsx': "export const x = 1;\n" },
+      head: { 'src/pages/P43Probe.tsx': `function t(x) { return${' '.repeat(80)}/[/*]/.test(x); }\nexport const c = () => fetch('/api/voucher');\n` },
+      expectRule: 'P43_authIdorBodyTrusted',
+    },
+    {
+      label: 'P43: `obj. return / 2` is a property + division — the real comment after it is no exemption',
+      base: { 'src/pages/P43Probe.tsx': "export const x = 1;\n" },
+      head: { 'src/pages/P43Probe.tsx': "const r = obj. return / 2; /* Authorization: Bearer */ export const c = () => fetch('/api/voucher');\n" },
+      expectRule: 'P43_authIdorBodyTrusted',
+    },
+    {
+      label: 'P43: `obj./*x*/return / 2` is a property + division — the real comment after it is no exemption',
+      base: { 'src/pages/P43Probe.tsx': "export const x = 1;\n" },
+      head: { 'src/pages/P43Probe.tsx': "const r = obj./*x*/return / 2; /* Authorization: Bearer */ export const c = () => fetch('/api/voucher');\n" },
+      expectRule: 'P43_authIdorBodyTrusted',
+    },
+    {
+      label: 'P43: spread `...` is not property access — `[... typeof /[/*]/]` regex keeps the raw fetch after it visible',
+      base: { 'src/pages/P43Probe.tsx': "export const x = 1;\n" },
+      head: { 'src/pages/P43Probe.tsx': "const r = [... typeof /[/*]/]; export const c = () => fetch('/api/voucher');\n" },
+      expectRule: 'P43_authIdorBodyTrusted',
+    },
+    {
+      label: 'P43: `obj.typeof / 2` stays a property + division — the real comment after it is no exemption',
+      base: { 'src/pages/P43Probe.tsx': "export const x = 1;\n" },
+      head: { 'src/pages/P43Probe.tsx': "const r = obj.typeof / 2; /* Authorization: Bearer */ export const c = () => fetch('/api/voucher');\n" },
+      expectRule: 'P43_authIdorBodyTrusted',
+    },
+    {
+      label: 'P43 (false positive 차단): multi-line manageFetch with an allowed literal passes',
+      base: { 'src/pages/P43Probe.tsx': "export const x = 1;\n" },
+      head: { 'src/pages/P43Probe.tsx': "export const c = (t) => manageFetch(\n  '/api/cancelBooking',\n  { manageToken: t },\n);\n" },
+      expectRule: 'P43_authIdorBodyTrusted',
       expectClean: true,
     },
     {

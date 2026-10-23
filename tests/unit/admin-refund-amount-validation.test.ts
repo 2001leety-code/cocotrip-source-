@@ -26,7 +26,7 @@ vi.mock('../../api/_send-email.js', () => ({ sendEmail: vi.fn(async () => undefi
 vi.mock('../../api/_shared/manual-payment-emails.js', () => ({ buildManualPaymentEmail: () => ({ subject: '', html: '', text: '' }) }));
 vi.mock('../../api/_shared/booking-confirm.js', () => ({ confirmBookingAsPaid: vi.fn(async () => ({ ok: true, bookingId: 'b1' })) }));
 vi.mock('../../api/_shared/cors.js', () => ({ buildAdminJsonCors: () => ({}) }));
-vi.mock('firebase-admin/firestore', () => ({ FieldValue: { serverTimestamp: () => 'TS', delete: () => 'DEL' } }));
+vi.mock('firebase-admin/firestore', () => ({ FieldValue: { serverTimestamp: () => 'TS', delete: () => 'DEL', increment: (n: number) => ({ inc: n }) } }));
 
 // pending_bookings/{ref} = CONFIRMED 원결제 ₩1,000,000 / $714.29. 테스트가 holder 로 오버라이드.
 const pendingHolder: { d: Record<string, unknown> } = { d: {} };

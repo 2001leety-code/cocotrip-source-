@@ -26,7 +26,7 @@ import { notifyOperator } from './_shared/operator-alerts.js';
 import { productDisplayLabel } from './_shared/pricing.js';
 import { buildManualPaymentEmail } from './_shared/manual-payment-emails.js';
 import { sendEmail } from './_send-email.js';
-import { verifyUserToken } from './_shared/user-auth.js';
+import { resolveBookingAccess, isGuestManagedBooking } from './_shared/booking-access.js';
 import { refundPaypalCapture } from './_shared/paypal-refund.js';
 import { resolveIsSandbox } from './_shared/paypal.js';
 import { releaseSlotForCanceledOrder } from './_shared/slot-capacity.js';
@@ -175,15 +175,6 @@ export default async function handler(req, res) {
   }
 
   try {
-    // PR #418 (Audit W-C4): require Authorization: Bearer <ID-token>.
-    // body.userEmail 무시 — verified auth.email 만 사용.
-    const auth = await verifyUserToken(req);
-    if (!auth.ok) {
-      res.writeHead(auth.status, JSON_CORS);
-      return res.end(JSON.stringify(_err(auth.error, 'AUTH_REQUIRED')));
-    }
-    const userEmail = auth.email;
-
     let body = req.body;
     if (typeof body === 'string') { try { body = JSON.parse(body); } catch { body = {}; } }
     body = body || {};
@@ -201,18 +192,22 @@ export default async function handler(req, res) {
     void TEST_ACCOUNTS;
     const db = getDb();
 
-    // 1. 예약 조회 + 소유자 검증
+    // 1. 예약 조회 + 접근 검사 (2026-10-23, 후속 ②a).
+    //   PR #418 (Audit W-C4): 회원 = Authorization: Bearer <ID-token> + verified auth.email 소유자 일치.
+    //   body.userEmail 무시. 게스트 = 확인 메일의 예약 관리 토큰(body.manageToken) — booking-access.js.
+    //   인증 실패는 형식·서명·만료·대상 불일치·예약 없음 모두 같은 401 AUTH_REQUIRED.
     const ref = db.collection('bookings').doc(bookingID);
-    const doc = await ref.get();
-    if (!doc.exists) {
-      res.writeHead(404, JSON_CORS);
-      return res.end(JSON.stringify(_err('Booking not found', 'NOT_FOUND')));
+    const access = await resolveBookingAccess({
+      req, body, bookingID,
+      loadBooking: async () => { const snap = await ref.get(); return snap.exists ? snap.data() : null; },
+    });
+    if (!access.ok) {
+      res.writeHead(access.status, JSON_CORS);
+      return res.end(JSON.stringify(_err(access.error, access.code)));
     }
-    const booking = doc.data();
-    if ((booking.userEmail || '').toLowerCase() !== userEmail.toLowerCase()) {
-      res.writeHead(403, JSON_CORS);
-      return res.end(JSON.stringify(_err('Not your booking', 'FORBIDDEN')));
-    }
+    const auth = access.actor;               // { type:'member', email, uid } | { type:'guest', email, tokenVersion }
+    const userEmail = auth.email;            // 게스트 = 결제자 이메일(환불 안내 수신자)
+    const booking = access.booking;
     // 환경 대조 (2026-10-23) — 예약 결제 환경(필드 없음 = legacy live)과 이 배포의 PayPal 환경이 다르면
     //   다른 환경의 capture 를 환불하게 된다 → 선점·환불 없이 거부.
     const bookingEnv = booking.paypalEnvironment === 'sandbox' ? 'sandbox' : 'live';
@@ -257,13 +252,16 @@ export default async function handler(req, res) {
     // SAFETY (PR #418 패턴 확장): tier 도 body 신뢰 종료. 클라가 tier:'Platinum' 위조 시
     // 0% 환불 창에서 100% 환불받는 IDOR(직접 자금 손실). 인증 uid 의 서버 저장 tier
     // (users/{uid}.tier — loyalty.js 가 totalSpent/bookings 로 계산) 만 사용. 조회 실패=Bronze(최소권한).
+    // 게스트(회원 계정 없음)는 Bronze 고정 — users 조회 생략.
     let tier = 'Bronze';
-    try {
-      const uSnap = await db.collection('users').doc(auth.uid).get();
-      const serverTier = uSnap.exists ? (uSnap.data() || {}).tier : null;
-      if (typeof serverTier === 'string' && serverTier) tier = serverTier;
-    } catch (tierErr) {
-      console.warn('[cancelBooking] tier lookup failed → Bronze:', tierErr.message);
+    if (auth.type === 'member') {
+      try {
+        const uSnap = await db.collection('users').doc(auth.uid).get();
+        const serverTier = uSnap.exists ? (uSnap.data() || {}).tier : null;
+        if (typeof serverTier === 'string' && serverTier) tier = serverTier;
+      } catch (tierErr) {
+        console.warn('[cancelBooking] tier lookup failed → Bronze:', tierErr.message);
+      }
     }
 
     // 2. 환불 정책 평가
@@ -305,6 +303,11 @@ export default async function handler(req, res) {
         const f = fresh.exists ? fresh.data() : null;
         if (!f || f.status !== 'CONFIRMED') {
           throw new Error('ALREADY_CLAIMED'); // 동시/중복 취소 — 다른 요청이 이미 선점
+        }
+        // 게스트(②a): 검증 시점 이후 회원 귀속·토큰 버전이 바뀌었으면 같은 409 — 환불·쓰기 0.
+        if (auth.type === 'guest'
+          && (!isGuestManagedBooking(f) || Number(f.manageTokenVersion || 0) !== auth.tokenVersion)) {
+          throw new Error('ALREADY_CLAIMED');
         }
         tx.update(ref, { status: 'CANCELING', cancelClaimedAt: FieldValue.serverTimestamp() });
       });
@@ -426,6 +429,7 @@ export default async function handler(req, res) {
       refundPercent: policy.refundPercent,
       refundStatus: refundData.status,
       updatedAt: FieldValue.serverTimestamp(),
+      manageTokenVersion: FieldValue.increment(1), // 게스트 관리 링크 전부 무효(②a)
       ...(fullProof ? { fullRefundProof: mergeFullRefundProof(booking.fullRefundProof, fullProof) } : {}),
     });
 

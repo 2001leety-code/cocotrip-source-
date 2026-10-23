@@ -2585,5 +2585,37 @@
   "adminPaceTarget": {
     "label": "配速目标 (可选)",
     "hint": "运营者推荐值 — 用于跑者水平标注。留空则使用用户自身配速。"
+  },
+  "bookingManage": {
+    "bmTitle": "管理预订",
+    "bmLoading": "正在加载预订信息…",
+    "bmInvalid": "此链接无效或已过期。请使用最新确认邮件中的链接，或联系我们。",
+    "bmBookingRef": "预订编号",
+    "bmTour": "产品",
+    "bmDate": "日期",
+    "bmPax": "人数",
+    "bmPickup": "接送",
+    "bmVehicle": "车辆",
+    "bmAmount": "支付金额",
+    "bmStatus": "状态",
+    "bmEmail": "邮箱",
+    "bmStatusConfirmed": "已确认",
+    "bmStatusCanceled": "已取消",
+    "bmStatusProcessing": "处理中",
+    "bmCancelCta": "取消预订",
+    "bmNoRefund": "此预订无法在线取消，请联系我们。",
+    "bmConfirmTitle": "确定取消此预订？",
+    "bmConfirmBody": "将退款{percent}%至原支付方式。",
+    "bmPolicy": "在行程开始（韩国时间）24小时前取消：全额退款。开始前24小时内或未到场：不予退款。",
+    "bmReasonLabel": "取消原因（选填）",
+    "bmBack": "保留预订",
+    "bmConfirmCta": "确认取消",
+    "bmCanceling": "正在取消…",
+    "bmResultCanceled": "您的预订已取消。退款通知将发送至您的邮箱。",
+    "bmResultPending": "正在确认退款，我们的团队会尽快与您联系。",
+    "bmResultError": "出现问题，请稍后重试或联系我们。",
+    "bmContact": "需要帮助？cocotripkr@gmail.com",
+    "bmCancelConflict": "此预订已处理或已超过可取消时间。已重新加载最新状态。",
+    "bmRetryLookup": "重新查询"
   }
 }

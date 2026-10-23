@@ -347,12 +347,19 @@ async function handleRefundBooking({ res, JSON_HEADERS, adminDb, adminUid, admin
         refundPercent: 100,
         refundSource: 'paypal-api',
         updatedAt: FieldValue.serverTimestamp(),
+        manageTokenVersion: FieldValue.increment(1), // 게스트 관리 링크 무효(②a)
         ...(fullProof ? { fullRefundProof: mergeFullRefundProof(latest.fullRefundProof, fullProof) } : {}),
       });
       return;
     }
     console.warn('[admin-booking-action] refund-booking: status changed meanwhile — keeping it, proof merge only:', bookingRef, latest.status);
-    if (fullProof) tx.update(ref, { fullRefundProof: mergeFullRefundProof(latest.fullRefundProof, fullProof) });
+    // 환불은 이미 나갔다 → 상태와 무관하게 게스트 관리 링크는 무효화(②a).
+    if (latestSnap.exists) {
+      tx.update(ref, {
+        manageTokenVersion: FieldValue.increment(1),
+        ...(fullProof ? { fullRefundProof: mergeFullRefundProof(latest.fullRefundProof, fullProof) } : {}),
+      });
+    }
   });
 
   await releaseSeatsAfterRefund({ adminDb, bookingRef, bookingId: bookingRef, bookingData: booking, action, refundFinal });

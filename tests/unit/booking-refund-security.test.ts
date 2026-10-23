@@ -56,7 +56,7 @@ function makeRes(): any {
   const res: any = { statusCode: undefined, body: '', writeHead(s: number) { res.statusCode = s; return res; }, end(s?: string) { if (s != null) res.body = s; return res; } };
   return res;
 }
-function req(body: object) { return { method: 'POST', url: '/api/modifyBooking', headers: { host: 'unit.test' }, body }; }
+function req(body: object) { return { method: 'POST', url: '/api/modifyBooking', headers: { host: 'unit.test', authorization: 'Bearer t' }, body }; }
 
 describe('modifyBooking — 행동 (가격필드 거부 / 상태 유지)', () => {
   beforeEach(() => {

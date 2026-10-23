@@ -23,7 +23,7 @@ vi.mock('../../api/_shared/manual-payment-emails.js', () => ({ buildManualPaymen
 vi.mock('../../api/_shared/pricing.js', () => ({ productDisplayLabel: (x: string) => x }));
 vi.mock('../../api/_shared/sentry.js', () => ({ captureError: vi.fn() }));
 vi.mock('../../api/_shared/slot-capacity.js', () => ({ releaseSlotForCanceledOrder: vi.fn(async () => ({ ok: true, released: false, reason: 'NO_SNAPSHOT_BINDING' })) }));
-vi.mock('firebase-admin/firestore', () => ({ FieldValue: { serverTimestamp: () => 'TS', delete: () => 'DEL' } }));
+vi.mock('firebase-admin/firestore', () => ({ FieldValue: { serverTimestamp: () => 'TS', delete: () => 'DEL', increment: (n: number) => ({ inc: n }) } }));
 
 function makeDb() {
   const bookingsDoc = {
@@ -49,7 +49,7 @@ const { default: handler } = await import('../../api/cancelBooking.js');
 async function cancel() {
   const out = { statusCode: 0, body: '' };
   const res = { writeHead(c: number) { out.statusCode = c; }, end(b?: string) { out.body = b || ''; } };
-  await handler({ method: 'POST', url: '/api/cancelBooking', headers: { host: 'unit.test' }, body: { bookingID: 'CT-ENV-1', reason: 'plans changed' } } as any, res as any);
+  await handler({ method: 'POST', url: '/api/cancelBooking', headers: { host: 'unit.test', authorization: 'Bearer t' }, body: { bookingID: 'CT-ENV-1', reason: 'plans changed' } } as any, res as any);
   return { ...out, json: out.body ? JSON.parse(out.body) : null };
 }
 

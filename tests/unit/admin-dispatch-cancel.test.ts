@@ -32,7 +32,7 @@ vi.mock('../../api/_shared/manual-payment-emails.js', () => ({
 }));
 vi.mock('../../api/_shared/booking-confirm.js', () => ({ confirmBookingAsPaid: vi.fn(async () => ({ ok: true, bookingId: 'b1' })) }));
 vi.mock('../../api/_shared/cors.js', () => ({ buildAdminJsonCors: () => ({}) }));
-vi.mock('firebase-admin/firestore', () => ({ FieldValue: { serverTimestamp: () => 'TS', delete: () => 'DEL' } }));
+vi.mock('firebase-admin/firestore', () => ({ FieldValue: { serverTimestamp: () => 'TS', delete: () => 'DEL', increment: (n: number) => ({ inc: n }) } }));
 
 const pendingHolder: { d: any } = { d: {} };
 const bookingHolder: { d: any } = { d: {} };

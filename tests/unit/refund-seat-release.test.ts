@@ -271,7 +271,7 @@ vi.mock('../../api/_shared/pricing.js', () => ({ productDisplayLabel: (x: string
 vi.mock('../../api/_shared/sentry.js', () => ({ captureError: vi.fn() }));
 vi.mock('../../api/_shared/booking-confirm.js', () => ({ confirmBookingAsPaid: vi.fn(async () => ({ ok: true, bookingId: 'b1' })) }));
 vi.mock('../../api/_shared/cors.js', () => ({ buildAdminJsonCors: () => ({}) }));
-vi.mock('firebase-admin/firestore', () => ({ FieldValue: { serverTimestamp: () => 'TS', delete: () => 'DEL' } }));
+vi.mock('firebase-admin/firestore', () => ({ FieldValue: { serverTimestamp: () => 'TS', delete: () => 'DEL', increment: (n: number) => ({ inc: n }) } }));
 
 // @ts-expect-error — JS 핸들러 (타입 선언 없음)
 const { default: cancelHandler } = await import('../../api/cancelBooking.js');
@@ -306,7 +306,7 @@ const CONFIRMED_BOOKING = {
 async function cancel(bookingID = ORDER_ID) {
   const res = mockRes();
   await cancelHandler(
-    { method: 'POST', url: '/api/cancelBooking', headers: { host: 'unit.test' }, body: { bookingID, reason: 'change of plans' } } as any,
+    { method: 'POST', url: '/api/cancelBooking', headers: { host: 'unit.test', authorization: 'Bearer t' }, body: { bookingID, reason: 'change of plans' } } as any,
     res as any,
   );
   return { ...res.out, json: res.out.body ? JSON.parse(res.out.body) : null };
