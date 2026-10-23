@@ -268,20 +268,23 @@ export async function tryInitStreamingSkeleton({
  *   2. tryInitBlockModeForInngest() 실패 → return null.
  *   3. dispatchOrInline... 실패 → { streamingPlanId, streamingPlanUrl, dispatched: false }
  *      → handlerCore 의 inline path 가 같은 planId 재사용 (skeleton merge).
- *   4. dispatch 성공 → sendEarlyResponse → { dispatched: true } → handlerCore return.
+ *   4. dispatch 성공 → onDispatched(인계 기록) → sendEarlyResponse → { dispatched: true } → handlerCore return.
  *
  * 반환값:
  *   - null: 본 path 미진입 (handlerCore inline 진행).
  *   - { dispatched: true, streamingPlanId, streamingPlanUrl }: dispatched + response sent (handler return).
  *   - { dispatched: false, streamingPlanId, streamingPlanUrl }: skeleton 만 저장 → handlerCore inline fallback (planId 재사용).
  *
- * @param {object} args - handlerCore scope + { adminDb, dispatchFn, sendEarlyResponse, buildDebug, isInngestEnabled }
+ * @param {object} args - handlerCore scope + { adminDb, dispatchFn, sendEarlyResponse, buildDebug, isInngestEnabled, onDispatched }
  */
 export async function tryBlockModeInngestPath({
   adminDb, isInngestEnabled, blockModeUsed, itinerary, uid, email, area, startDate, guestName, pax,
   language, vehicle, durationDays, body, dispatchFn, sendEarlyResponse, buildDebug, handlerStart,
   // P0 (2026-07-15): claim 예약 planId. null = 기존 randomUUID 동작.
   reservedPlanId = null,
+  // 2026-10-23: dispatch 성공 직후·응답 전에 부른다(handlerCore = issuance.handOff). buildDebug/sendEarlyResponse 가
+  //   던져도 worker 는 이미 플랜을 만들고 있다 — 인계 기록이 응답 뒤면 catch 가 쿠폰 복구·발급권 해제를 해버린다.
+  onDispatched = null,
 }) {
   if (!blockModeUsed || !itinerary || !isInngestEnabled) return null;
   const sk = await tryInitBlockModeForInngest({ adminDb, uid, email, area, startDate, guestName, pax, language, vehicle, durationDays, body, itinerary, reservedPlanId });
@@ -289,6 +292,7 @@ export async function tryBlockModeInngestPath({
   // P231: sk.skeletonCtx → dispatchFn 에 전달 → worker Step 0 가 full skeleton 저장.
   const dispatched = await dispatchFn({ streamingPlanId: sk.planId, streamingPlanUrl: sk.planUrl, skeletonCtx: sk.skeletonCtx || null });
   if (dispatched) {
+    if (onDispatched) onDispatched();
     sendEarlyResponse({ planId: sk.planId, planUrl: sk.planUrl, debug: buildDebug() });
     console.log('[planner P230] block-mode + Inngest dispatched. Response sent, worker handles enrichment.');
     if (handlerStart) console.log('[planner] === TOTAL:', Date.now() - handlerStart, 'ms (P230 dispatched) ===');

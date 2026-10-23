@@ -75,4 +75,32 @@ describe('PlanDetailPage auth and route request lifecycle', () => {
     second.resolve(response(404));
     expect(await screen.findByTestId('plan-detail-not-found')).toBeInTheDocument();
   });
+
+  it("handler catch 가 error 로 마감한 문서(status 'error' + _streaming_error_code) → 기존 풀페이지 ErrorState", async () => {
+    authLoading = false;
+    fetchMock.mockImplementation(async (url: string) => (String(url).startsWith('/api/get-plan')
+      ? {
+          ok: true,
+          status: 200,
+          json: async () => ({
+            ok: true,
+            plan: {
+              planId: 'closed-plan', uid: null, accessToken: 'guest-token', status: 'error',
+              _streaming_in_progress: false, _streaming_error: 'handler_catch',
+              _streaming_error_code: 'DUPLICATE_STOP_VIOLATION', _streaming_failed_stage: 'finalGate',
+              input: { area: 'seoul', language: 'en' },
+            },
+          }),
+        }
+      : response(500)));
+    vi.stubGlobal('fetch', fetchMock);
+
+    const router = createMemoryRouter([
+      { path: '/my-plans/:planId', element: <PlanDetailPage /> },
+    ], { initialEntries: ['/my-plans/closed-plan?token=guest-token'] });
+    render(<RouterProvider router={router} />);
+
+    expect(await screen.findByTestId('plan-error-state')).toBeInTheDocument();
+    expect(screen.queryByTestId('plan-detail-loading')).not.toBeInTheDocument();
+  });
 });

@@ -1,7 +1,7 @@
 /**
  * AI 플래너 처리 실패 텔레그램 알림 — 오류 메시지 HTML escape (2026-10-23).
  * 잠그는 것: 메시지에 `<`·`>`·`&` 가 있으면 escape 되어 전달(텔레그램 "can't parse entities" 로 알림이 사라지던 회귀),
- *   handlerCore catch 가 이 빌더를 쓴다(원문 error.message 직접 삽입 금지).
+ *   handler catch 본문(planCloseout.js)이 이 빌더를 쓴다(원문 error.message 직접 삽입 금지).
  */
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
@@ -36,9 +36,13 @@ describe('plannerFailureAlertMessage', () => {
     expect(plannerFailureAlertMessage(undefined, '3pass')).toContain('알 수 없는 오류');
   });
 
-  it('handlerCore uses the builder instead of interpolating error.message', () => {
-    const src = readFileSync(resolve(process.cwd(), 'api/_ai_core/handlerCore.js'), 'utf8');
-    expect(src).toMatch(/message:\s*plannerFailureAlertMessage\(error\.message,\s*resolvedPlannerMode\)/);
-    expect(src).not.toMatch(/AI 플래너 처리 실패<\/b>\\n\\n\$\{error\.message/);
+  // 2026-10-23 plan-error-closeout: catch 본문은 planCloseout.js(runHandlerFailureCleanup)로 옮겨졌다.
+  it('planCloseout (handler catch body) uses the builder; handlerCore has no raw alert template', () => {
+    const closeout = readFileSync(resolve(process.cwd(), 'api/_ai_core/planCloseout.js'), 'utf8');
+    const core = readFileSync(resolve(process.cwd(), 'api/_ai_core/handlerCore.js'), 'utf8');
+    expect(closeout).toMatch(/import\s+\{\s*plannerFailureAlertMessage\s*\}\s+from\s+['"]\.\/plannerFailureAlert\.js['"]/);
+    expect(closeout).toMatch(/message:\s*plannerFailureAlertMessage\(error\.message,\s*plannerMode\)/);
+    expect(core).not.toContain('AI 플래너 처리 실패');
+    for (const src of [closeout, core]) expect(src).not.toContain('${error.message');
   });
 });

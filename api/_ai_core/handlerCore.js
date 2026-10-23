@@ -6,10 +6,9 @@
  * try/catch/finally + step instrumentation (P96).
  * Flow: CORS/method gate → verifyAuth → paymentGate → shapeRequest → decidePlannerMode → buildUserMessage →
  * avoidClause/revisionInstruction → block-mode | gemini → routeEnrich → backfills/recommended_restaurants/pricing →
- * persistPlan → respond 200 (non-blocking email/sheets/telegram/push) → catch: respond 500 first, then telegram+sentry → finally: clearTimeout.
+ * persistPlan → respond 200 (non-blocking email/sheets/telegram/push) → catch: planCloseout.runHandlerFailureCleanup (respond → coupon → streaming 문서 마감 → 발급권 해제 → telegram+sentry) → finally: clearTimeout.
  * SAFETY-CRITICAL (CLAUDE.md J): dietary 흐름 100% 유지 — block-mode + legacy 양쪽 모두 dietPrefs forward + validateResponse + halal/vegan critical violation throw.
  */
-import { captureError } from '../_shared/sentry.js';
 import { resolveLlmApiKey, adoptLlmMock, enterLlmMockContext } from '../_shared/llm/index.js';
 import { verifyUserToken, resolveGuestAnonOwner, isGuestCheckoutAllowed } from '../_shared/user-auth.js';
 import { getSpotContext } from '../_spots_helper.js';
@@ -19,13 +18,13 @@ import { getAttractionsContext } from '../_attractions_helper.js';
 import { getMountainContextForPrompt } from '../_mountain_helper.js'; // P191 SAFETY: Trekking/Hallasan
 import { getRunningContextForPrompt } from '../_running_helper.js'; // P237: Running 코스 16개 DB
 import { throttledTelegramAlert } from '../_shared/telegram-throttle.js';
-import { plannerFailureAlertMessage } from './plannerFailureAlert.js';
 import { CORS } from './constants.js';
 import { buildSystemPrompt, logPromptMetrics, buildRevisionInstruction } from './buildPrompt.js';
 import { loadFoodIndex, runGeminiPipeline } from './geminiPipeline.js';
 import { initAdminDb } from './firestoreAdmin.js';
-import { enforcePaymentAndRevision, restoreAiPlanCoupon } from './paymentGate.js';
+import { enforcePaymentAndRevision } from './paymentGate.js';
 import { createIssuanceContext } from '../_shared/plan-issuance.js';
+import { runHandlerFailureCleanup } from './planCloseout.js';
 import { checkStartDateTooSoon } from './validateStartDate.js';
 import { VEHICLE_LABELS } from './vehicleAndPrice.js';
 import { buildAvoidContext } from './avoidListQuery.js';
@@ -83,6 +82,7 @@ export default async function handler(req, res) {
   let planPersisted = false;     // 버그헌트 A: plan 저장 성공 여부 — 성공 후엔 정당 소비라 롤백 X
   // P0 원자 발급 (2026-07-15): 유료 PayPal 발급권 배관. 상세 = _shared/plan-issuance.js.
   const issuance = createIssuanceContext();
+  let streamingPlanId = null;    // streaming skeleton planId — catch 가 실패 시 이 문서를 error 로 마감(planCloseout.js)
   async function withStep(label, fn) {
     currentStep = label;
     currentStepStart = Date.now();
@@ -302,7 +302,6 @@ export default async function handler(req, res) {
     // ── P169: Streaming 모드 — planId 먼저 + skeleton 저장. block-mode/3-pass 는 useStreaming=false.
     //   PLANNER_STREAMING_ENABLED + legacy 1-pass 만 활성. [P170] 세부 로직은 backgroundPipelines.js. P231: sk.skeletonCtx 반환.
     const useStreaming = shouldUseStreaming({ itinerary, plannerMode: PLANNER_MODE });
-    let streamingPlanId = null;
     let streamingPlanUrl = null;
     let streamingResponseSent = false;
     let skeletonCtx = null; // P231: worker Step 0 에 전달할 full skeleton 파라미터 (ENV off 시 null)
@@ -367,10 +366,11 @@ export default async function handler(req, res) {
           }),
           sendEarlyResponse: ({ planId, planUrl, debug }) => sendStreamingEarlyResponse({ res, CORS, planId, planUrl, debug }),
           buildDebug: () => buildAdminDebug({ gate, plannerMode: PLANNER_MODE, abDecision, identifierForBucketing, blockModeUsed, blocksUsed, useStreaming, itinerary }),
+          // P0: dispatch 성공 = 소유권 worker 이관 → handler release·쿠폰 복구 금지. 응답 전송 **전에** 기록(응답이 던져도 인계는 유효).
+          onDispatched: () => issuance.handOff(),
         })
       : null;
-    // P0: dispatch 성공 = 소유권 worker 이관 → handler release 금지(worker/onFailure 가 처리).
-    if (blkInn && blkInn.dispatched) { issuance.handOff(); streamingResponseSent = true; return; }
+    if (blkInn && blkInn.dispatched) { streamingResponseSent = true; return; }
     // dispatch 실패 → inline fallback. 같은 claim 을 계속 쓴다(새로 선점하지 않는다).
     if (blkInn) { streamingPlanId = blkInn.streamingPlanId; streamingPlanUrl = blkInn.streamingPlanUrl; skeletonCtx = blkInn.skeletonCtx || null; }
 
@@ -390,7 +390,7 @@ export default async function handler(req, res) {
 
     // ── Must-visit 맛집 추천 ──────────────────────────────────────────────
     // 저장 전 마지막 식이/식사 게이트; avoidStopNames 는 재생성에만 적용한다.
-    const foodIndexForQuality = await applyRecommendedRestaurants(itinerary, { area, dietPrefs: dietaryAll, regions, blockModeUsed, language, styles, avoidStopNames });
+    const foodIndexForQuality = await withStep('finalGate', () => applyRecommendedRestaurants(itinerary, { area, dietPrefs: dietaryAll, regions, blockModeUsed, language, styles, avoidStopNames }));
 
     // ── 예상 여행비 (판매가 아님) — 화면·PDF 표시용. 결제/적립/환불에 절대 넘기지 말 것.
     //    원장은 결제 검증된 booking.amountUSD 만 본다(booking-processor readVerifiedLedgerBasis).
@@ -443,53 +443,10 @@ export default async function handler(req, res) {
     sendPlanReadyNotifications({ adminDb, email, guestName, itinerary, area, styles, pax, durationDays, uid, planId, planUrl, language, orderId: body.paypalOrderId });
 
   } catch (error) {
-    console.error('[ai-planner-full] UNHANDLED ERROR:', error.message, error.stack);
-
-    // batch 9 fix (PR-N): 응답 먼저 보내고 부수작업은 fire-and-forget (이전: await captureError throw 시 catch abort → res.end 못 보냄).
-    if (!res.headersSent) {
-      const statusCode = error.statusCode || 500;
-      const code = error.code || 'INTERNAL_ERROR';
-      res.writeHead(statusCode, { ...CORS, 'Content-Type': 'application/json' });
-      res.end(JSON.stringify(_err('Planner failed', code, {
-        details: error.message || 'Unknown error',
-        // batch 9 fix (PR-N): root cause 진단 위해 prod 에서도 stack head 일부 노출.
-        // 운영자 본인 + Test Mode 케이스라 사용자에게 stack 노출 위험 낮음. 진단
-        // 완료 후 dev only 로 좁힐 것.
-        stackHead: (error.stack || '').slice(0, 500),
-      })));
-    }
-    // 버그헌트 A fix (2026-06-27): 무료 쿠폰으로 시작했는데 plan 저장 전 실패 → 쿠폰 롤백(재시도 가능하게).
-    //   저장 성공(planPersisted) 후엔 정당 소비라 롤백 X. fire-and-forget(응답 후) — 롤백 실패해도
-    //   사용자 응답엔 영향 없음.
-    if (consumedCouponInfo && !planPersisted) {
-      restoreAiPlanCoupon(adminDb, consumedCouponInfo.uid, consumedCouponInfo.code)
-        .catch((e) => console.warn('[ai-planner-full] coupon rollback failed:', e.message));
-    }
-    // 🔴 P0: 발급권 해제(plan 미저장 + worker 미이관일 때만). await 필수 — freeze 유실 방지.
-    await issuance.releaseIfUnused(adminDb, planPersisted, 'handler-catch');
-    // K Tier 2-E (PR #266) — throttled. 동일 unhandled 패턴 5분 윈도우 내 dedup.
-    // catch 블록 첫 응답 전에 await 하면 telemetry throw 시 응답 못 감 → 분리.
-    Promise.resolve().then(async () => {
-      try {
-        await throttledTelegramAlert({
-          key: 'ai-planner-unhandled',
-          channel: 'error',
-          message: plannerFailureAlertMessage(error.message, resolvedPlannerMode),
-          severity: 'high',
-          context: { errorMessage: (error.message || '').slice(0, 200), stack: (error.stack || '').slice(0, 500) },
-        });
-      } catch (e) {
-        console.warn('[ai-planner-full] telegram alert failed:', e.message);
-      }
-      try {
-        await captureError(error, {
-          route: '/api/ai-planner-full',
-          method: req.method,
-          planner_mode: resolvedPlannerMode,
-        });
-      } catch (e) {
-        console.warn('[ai-planner-full] sentry capture failed:', e.message);
-      }
+    // 응답 → 쿠폰 복구 → streaming 문서 마감 → 발급권 해제 → 알림. 순서·조건 = planCloseout.js.
+    await runHandlerFailureCleanup({
+      req, res, adminDb, error, issuance, consumedCouponInfo, planPersisted, streamingPlanId,
+      stage: currentStep, plannerMode: resolvedPlannerMode,
     });
   } finally {
     // P96: 정상 완료 + error path 모두에서 4분30초 hang alert timer 해제.
