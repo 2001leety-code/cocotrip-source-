@@ -12,12 +12,15 @@
  * 전액 환불로 취소한다(POST /api/admin-booking-action, action=dispatch-cancel).
  * 2026-10-23: PayPal 직접 결제 예약(bookings, kind='paypal')도 목록에 포함 — "취소 + 전액 환불 (PayPal)"
  * 버튼(action=refund-booking). 환불할 수 없는 행(refundable=false)은 버튼 대신 이유를 보여준다.
+ * 2026-10-23 (PR-3): 게스트 PayPal 예약에 "관리 링크 재발송"(action=resend-manage-link) — 저장된 결제자
+ * 이메일로만 보내고, 응답엔 마스킹된 주소만 온다(토큰·링크는 이 화면에 오지 않는다).
  * 그 외에는 여전히 읽기 전용.
  */
 import { useEffect, useState, useCallback, useMemo } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { Link } from 'react-router-dom';
 import { ArrowLeft, RefreshCw, Calendar, Loader2 } from 'lucide-react';
+import { Toaster, toast } from 'sonner';
 import { usePageMeta } from '@/hooks/usePageMeta';
 
 type Source = 'cocotrip' | 'mood';
@@ -43,6 +46,11 @@ interface BookingItem {
   parentOrderID?: string | null;
   refundable?: boolean;
   linkLookupFailed?: boolean;
+  /** 게스트 관리 대상(회원·cart 자식 아님) — 관리 링크 재발송 버튼 노출 조건. */
+  guestManaged?: boolean;
+  /** 날짜 변경 뒤 새 관리 링크 메일 실패(또는 pending 삭제 실패) — 전달 여부 확인 필요. */
+  manageLinkPending?: boolean;
+  manageLinkResentAt?: number | null;
 }
 
 interface Counts { cocotrip: number; mood: number; paypal?: number }
@@ -190,8 +198,40 @@ export default function AdminAllBookings() {
 
   const testCount = useMemo(() => (items || []).filter((b) => b.isTest).length, [items]);
 
+  // 게스트 관리 링크 재발송 — 저장된 payerEmail 로만, 현재 버전 링크(기존 링크도 유효).
+  const [resendingId, setResendingId] = useState<string | null>(null);
+  const resendManageLink = async (b: BookingItem) => {
+    if (!user) return;
+    if (!window.confirm(`${b.bookingRef} 게스트에게 예약 관리 링크를 다시 보낼까요?\n\n• 저장된 결제자 이메일로만 발송\n• 기존 링크도 계속 유효(버전 유지)`)) return;
+    setResendingId(b.id);
+    try {
+      // 이 화면의 기존 관례(DispatchCancelModal 과 같은 Bearer 첨부) — useAuth 의 user 토큰.
+      const idToken = await user.getIdToken();
+      const res = await fetch('/api/admin-booking-action', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${idToken}` },
+        body: JSON.stringify({ bookingRef: b.bookingRef, action: 'resend-manage-link' }),
+      });
+      const json = await res.json().catch(() => null);
+      if (res.ok && json?.ok) {
+        toast.success(`${json.data.recipientMasked} 로 관리 링크를 보냈습니다`);
+        void reload();
+      } else if (res.status === 429) {
+        toast.error('방금 재발송했습니다 — 1분 뒤 다시 시도하세요');
+      } else {
+        // 502 MAIL_FAILED(미발송) / MAIL_RESULT_UNKNOWN(수동 확인) · 409 만료·환경 — 서버 문구 그대로.
+        toast.error(json?.error || `재발송 실패 (HTTP ${res.status})`);
+      }
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : '재발송 실패');
+    } finally {
+      setResendingId(null);
+    }
+  };
+
   return (
     <div className="min-h-screen overflow-x-hidden" style={{ background: '#080b14' }}>
+      <Toaster position="top-center" richColors />
       {/* Header */}
       <div className="border-b border-white/[0.06] bg-[#0c1220]/95 backdrop-blur sticky top-0 z-10">
         <div className="max-w-5xl mx-auto px-3 sm:px-5 py-3 sm:py-4 flex flex-wrap items-center justify-between gap-2 sm:gap-4">
@@ -361,6 +401,23 @@ export default function AdminAllBookings() {
                       </button>
                     )}
                     {blockReason && <span className="text-[10px] text-white/40">{blockReason}</span>}
+                    {/* 게스트 예약 — 관리 링크 재발송. pending = 날짜 변경 뒤 새 링크 메일 실패(또는 삭제 실패)로 남은 표시. */}
+                    {b.guestManaged && b.status === 'CONFIRMED' && (
+                      <>
+                        {b.manageLinkPending && (
+                          <span className="inline-block px-2 py-0.5 rounded-md text-[10px] font-semibold border bg-amber-500/15 text-amber-300 border-amber-500/40">
+                            링크 전달 확인 필요
+                          </span>
+                        )}
+                        <button
+                          onClick={() => { void resendManageLink(b); }}
+                          disabled={resendingId === b.id}
+                          className="px-2.5 py-1.5 rounded-lg text-[11px] font-semibold border border-sky-500/40 bg-sky-500/10 text-sky-300 hover:bg-sky-500/20 transition-colors min-h-[36px] disabled:opacity-50"
+                        >
+                          {resendingId === b.id ? '보내는 중…' : '관리 링크 재발송'}
+                        </button>
+                      </>
+                    )}
                   </div>
                 </article>
               );

@@ -605,7 +605,8 @@ function slotError(code, message) {
  * @param {object} args.bookingRef    bookings/{id} 문서 ref
  * @param {object} args.snapshotRef   paypal_order_snapshots/{orderId} 문서 ref
  * @param {object} args.bookingPatch  예약 문서 tx.update 패치
- * @param {(booking: object, nowMs: number) => boolean} args.verifyBooking  재시도마다 호출되는 예약 재검증
+ * @param {(booking: object, nowMs: number, tx: object) => boolean|Promise<boolean>} args.verifyBooking  재시도마다 호출되는 예약 재검증.
+ *   같은 tx 로 문서를 더 **읽을** 수 있다(쓰기 전 단계에서 호출된다 — modifyBooking 의 cart_orders 재확인).
  * @param {Date} [args.now]
  * @returns {Promise<{ok:true, capacity:number, remaining:number, priceModifierKrw:number}>}
  * @throws Error{code: 'BOOKING_CHANGED'|'SLOT_BINDING_MISMATCH'|'DATE_UNAVAILABLE'|'SLOT_FULL'|SLOT_* 상품 코드}
@@ -630,7 +631,8 @@ export async function transferConfirmedSlot({
     const toSnap = await tx.get(toRef);
 
     const booking = bookingSnap.exists ? (bookingSnap.data() || {}) : null;
-    if (!booking || !verifyBooking(booking, nowMs)) throw slotError('BOOKING_CHANGED', 'Booking changed meanwhile');
+    // 읽기 6번째(있으면): verifyBooking 이 tx 로 추가 문서를 읽는다 — 아래 쓰기보다 반드시 앞.
+    if (!booking || !(await verifyBooking(booking, nowMs, tx))) throw slotError('BOOKING_CHANGED', 'Booking changed meanwhile');
 
     const bound = readSlotFields((snapshotSnap.exists ? (snapshotSnap.data() || {}) : {}).slotBooking);
     if (!bound || bound.tourId !== tourId || bound.slotId !== slotId || bound.date !== fromDate || bound.pax !== pax) {
