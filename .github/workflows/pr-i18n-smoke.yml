@@ -66,7 +66,8 @@ jobs:
        github.event.deployment_status.state == 'success' &&
        github.event.deployment.environment == 'Preview' &&
        github.event.deployment.creator.login == 'vercel[bot]')
-    runs-on: ubuntu-latest
+    # 2026-10-23: ubuntu-latest 가 2026-10-12 부터 26.04 — 캐시된 Playwright webkit 이 libicu74(24.04)를 요구해 실패. 버전 고정.
+    runs-on: ubuntu-24.04
     # 2026-05-13 PR #402: 10 → 15 분 상향. 배경: PR #397 + #401 두 차례 10m15s
     # timeout. Playwright 4-lang × 3-viewport (~12 browser run) + Vercel preview
     # 초기 cold start + 가격 환산 PR 등의 i18n locale 로드 증가로 한도 초과.
@@ -118,9 +119,9 @@ jobs:
         id: playwright-cache
         with:
           path: ~/.cache/ms-playwright
-          key: ${{ runner.os }}-playwright-${{ hashFiles('**/package-lock.json') }}
+          key: ${{ runner.os }}-ubuntu-24.04-playwright-chromium-webkit-${{ hashFiles('**/package-lock.json') }}
           restore-keys: |
-            ${{ runner.os }}-playwright-
+            ${{ runner.os }}-ubuntu-24.04-playwright-chromium-webkit-
 
       - name: Install Playwright browsers (cache miss)
         if: github.event_name == 'deployment_status' && steps.playwright-cache.outputs.cache-hit != 'true'

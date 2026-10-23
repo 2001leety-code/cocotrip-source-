@@ -6,6 +6,9 @@
 import { describe, it, expect } from 'vitest';
 import { buildMockPlan, buildMockBlockSelection } from '../../api/_shared/llm/mock.js';
 import { validatePatternStructure, validateResponse, hasCriticalDietaryViolation } from '../../api/_ai_core/responseValidator.js';
+import { runDuplicateStopGate, runFinalItineraryValidation } from '../../api/_ai_core/finalItineraryGate.js';
+import { arrivalReadyHHMM } from '../../api/_ai_core/constants.js';
+import { getExactCityTrustedDietaryCandidates } from '../../api/_food_helper.js';
 import { loadFoodIndex } from '../../api/_ai_core/geminiPipeline.js';
 
 const FUTURE = new Date(Date.now() + 14 * 86400000).toISOString().slice(0, 10);
@@ -45,15 +48,120 @@ describe('buildMockPlan', () => {
       expect(errors).toEqual([]);
       const issues = validateResponse(plan, { dietary: s.dietPrefs, language: s.language, area: s.area, regions: [s.area] }, await loadFoodIndex());
       expect(hasCriticalDietaryViolation(issues)).toBe(false);
-      for (const d of plan.days) {
-        expect(d.stops.filter((x: { category?: string }) => x.category === 'food').length).toBeGreaterThanOrEqual(2);
-      }
+      // 2026-10-23: 끼니 수는 B-MEAL(위 validatePatternStructure)이 판정한다 — "매일 2끼" 고정은 trusted 풀이
+      //   작은 도시에서 같은 식당 반복을 강요했다(종단 중복 게이트 422). 대신 중복 0 을 단언한다.
+      expect(runDuplicateStopGate(plan)).toMatchObject({ ok: true, duplicates: [] });
     });
   }
 
   it('falls back to a 1-day seoul plan when the text has no user JSON', () => {
     const plan = buildMockPlan({ userText: 'garbage' });
     expect(plan.days).toHaveLength(1);
+  });
+});
+
+// 2026-10-23: daily-health 의 실제 validate 입력(도착 14:00 · 출국 10:00 포함)으로 **종단 게이트**를 그대로 돌린다.
+//   매일 13:02 3종 알림(AI 플래너 실패 / Daily Health 실패 / sweep stuck)의 원인 = mock 플랜의 같은 stop 반복 →
+//   finalItineraryGate 중복 게이트 422 → plan 'streaming' 고착. 이 테스트가 그 회귀를 잠근다.
+type HealthScenario = {
+  id: string; area: string; durationDays: number; pax: number; dietPrefs: string[]; language: string; styles?: string[];
+  arrivalTime?: string; departureTime?: string; arrival_airport?: string; departure_airport?: string;
+};
+// scripts/validate-planner.cjs · llm-compare-providers.mjs 와 같은 입력(도착 14:00 · 출국 10:00 · pax · language).
+const SHORTAGE: Array<HealthScenario & { trusted: number }> = [
+  { id: 'busan-halal', area: 'busan', durationDays: 3, pax: 4, dietPrefs: ['Halal'], language: 'en', arrivalTime: '14:00', departureTime: '10:00', arrival_airport: 'ICN_T1', departure_airport: 'ICN_T1', trusted: 3 },
+  { id: 'jeju-vegan', area: 'jeju', durationDays: 2, pax: 2, dietPrefs: ['Vegan'], language: 'en', arrivalTime: '14:00', departureTime: '10:00', arrival_airport: 'CJU', departure_airport: 'CJU', trusted: 1 },
+];
+const NON_DIET: HealthScenario[] = [
+  { id: 'seoul-meat', area: 'seoul', durationDays: 2, pax: 2, dietPrefs: ['Meat'], language: 'ko', arrivalTime: '14:00', departureTime: '10:00', arrival_airport: 'ICN_T1', departure_airport: 'ICN_T1' },
+  { id: 'seoul-food-photo-1d', area: 'seoul', durationDays: 1, pax: 2, dietPrefs: [], language: 'en', styles: ['Food', 'Photo'] },
+];
+
+function healthUserText(s: HealthScenario) {
+  // userMessageBuilder 와 같은 userInput 필드 — arrival_ready_time 도 같은 함수(arrivalReadyHHMM)로 계산.
+  const json = JSON.stringify({
+    guest_name: 'Validate-Test', guest_count: s.pax, date: FUTURE, duration_days: s.durationDays,
+    styles: s.styles || ['culture', 'food'], area: s.area, regions: [s.area],
+    arrival_airport: s.arrival_airport, departure_airport: s.departure_airport,
+    arrival_time: s.arrivalTime, departure_time: s.departureTime,
+    arrival_ready_time: s.arrivalTime ? arrivalReadyHHMM(s.arrivalTime, s.arrival_airport, s.area) : undefined,
+    diet_preferences: s.dietPrefs.filter((d) => /halal|vegan|vegetarian/i.test(d)),
+    tour_start_time: '09:00',
+  });
+  return 'SPOT CONTEXT...\n' + json + '\n=== VARIATION ===';
+}
+
+/** 구조 검증에 넘기는 요청 body — 실제 요청 시각을 실어 B-LATE-ARRIVAL / B-EARLY-DEPARTURE 가 돈다. */
+function healthBody(s: HealthScenario) {
+  return {
+    durationDays: s.durationDays, regions: [s.area], area: s.area, pax: s.pax, language: s.language, dietPrefs: s.dietPrefs,
+    arrival_airport: s.arrival_airport, departure_airport: s.departure_airport,
+    arrival_time: s.arrivalTime, departure_time: s.departureTime,
+  };
+}
+
+const SAFETY = /halal|vegan|vegetarian/i;
+const trustedPool = (s: HealthScenario) => {
+  const diets = s.dietPrefs.filter((d) => SAFETY.test(d)).map((d) => d.toLowerCase());
+  return new Set(getExactCityTrustedDietaryCandidates(s.area, diets, 40).map((c: { row: { name: string } }) => c.row.name));
+};
+type Stop = { category?: string; name: string };
+const foodsOf = (plan: { days: Array<{ stops: Stop[] }> }) => plan.days.flatMap((d) => d.stops.filter((x) => x.category === 'food'));
+
+async function hardGates(plan: object, s: HealthScenario) {
+  const foodIndex = await loadFoodIndex();
+  const dup = runDuplicateStopGate(plan);
+  expect(dup.duplicates).toEqual([]);
+  expect(dup.ok).toBe(true);
+  const final = runFinalItineraryValidation(plan, { dietary: s.dietPrefs, language: s.language, foodIndex });
+  expect(final.ok).toBe(true);
+  expect(hasCriticalDietaryViolation(validateResponse(plan, { dietary: s.dietPrefs, language: s.language }, foodIndex))).toBe(false);
+}
+
+describe('buildMockPlan — daily-health 식이 시나리오: 후보 부족은 부족으로 남긴다(성공으로 꾸미지 않음)', () => {
+  for (const s of SHORTAGE) {
+    it(`${s.id}: 후보 부족(trusted ${s.trusted}곳) — 반복·지어내기 0, 출국일 조식 B-MEAL 부족 1건만 남음`, async () => {
+      const plan = buildMockPlan({ userText: healthUserText(s) });
+      expect(plan.days).toHaveLength(s.durationDays);
+      await hardGates(plan, s);
+
+      // 실측 데이터 한계를 고정한다 — 풀이 바뀌면 이 테스트를 다시 본다.
+      const pool = trustedPool(s);
+      expect(pool.size).toBe(s.trusted);
+      const foods = foodsOf(plan);
+      expect(foods.length).toBe(s.trusted); // 풀 전부 쓰고, 그 이상은 지어내지 않는다
+      for (const f of foods) expect(pool.has(f.name)).toBe(true);
+
+      // 필수 끼니(도착일 1 + 중간일 2 + 출국 10:00 조식 1) > trusted 수 → 출국일 조식 한 끼만 빈다. 그 외 이슈 0.
+      const pattern = validatePatternStructure(plan, healthBody(s));
+      expect(pattern).toHaveLength(1);
+      expect(pattern[0]).toMatch(new RegExp(`^Day ${s.durationDays} \\(출국일\\): departure_time=10:00 이른 출국 — 조식\\(06-10시\\) 누락 \\(B-MEAL, P137\\)$`));
+    });
+  }
+});
+
+describe('buildMockPlan — daily-health 비식이 시나리오: 실제 요청 시각으로 구조 검증 이슈 0', () => {
+  for (const s of NON_DIET) {
+    it(`${s.id}: zero duplicates, zero dietary critical, zero structural issues`, async () => {
+      const plan = buildMockPlan({ userText: healthUserText(s) });
+      expect(plan.days).toHaveLength(s.durationDays);
+      await hardGates(plan, s);
+      expect(validatePatternStructure(plan, healthBody(s))).toEqual([]);
+    });
+  }
+  // block 경로(buildMockBlockSelection → 블록 펼치기 → 게이트)는 오프라인 공용 헬퍼가 없어 여기 포함하지 않는다.
+  it('B-MEAL passes in full whenever the trusted pool covers the required meals (seoul vegetarian 3 days, 14:00 / 10:00)', () => {
+    const s: HealthScenario = { id: 'seoul-veg-3d', area: 'seoul', durationDays: 3, pax: 2, dietPrefs: ['Vegetarian'], language: 'ja', arrivalTime: '14:00', departureTime: '10:00', arrival_airport: 'ICN_T1', departure_airport: 'ICN_T1' };
+    const plan = buildMockPlan({ userText: healthUserText(s) });
+    expect(validatePatternStructure(plan, healthBody(s))).toEqual([]);
+    expect(runDuplicateStopGate(plan).ok).toBe(true);
+  });
+
+  it('no spot pool → unique synthesized landmarks (never "Busan Landmark" ×N)', () => {
+    const plan = buildMockPlan({ userText: healthUserText({ id: 'b', area: 'busan', durationDays: 3, pax: 2, dietPrefs: ['Meat'], language: 'en' }) });
+    const spots = plan.days.flatMap((d: { stops: Array<{ category?: string; name: string }> }) => d.stops.filter((x) => x.category === 'culture').map((x) => x.name));
+    expect(spots.length).toBeGreaterThan(0);
+    expect(new Set(spots.map((n: string) => n.toLowerCase())).size).toBe(spots.length);
   });
 });
 

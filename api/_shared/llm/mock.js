@@ -35,11 +35,41 @@ function addDays(iso, n) {
 const CITY_NAME = { seoul: 'Seoul', busan: 'Busan', jeju: 'Jeju', incheon: 'Incheon', gyeongju: 'Gyeongju', daegu: 'Daegu', gangneung: 'Gangneung', suwon: 'Suwon' };
 const AIRPORT_NAME = { ICN: 'Incheon International Airport', GMP: 'Gimpo International Airport', PUS: 'Gimhae International Airport', CJU: 'Jeju International Airport' };
 
+// 2026-10-23: 플랜 전체에서 lodging 외 stop 이름은 **유일**해야 한다(종단 중복 게이트
+//   finalItineraryGate.runDuplicateStopGate — 키 = name 소문자 trim). 예전엔 풀을 순환해 같은 이름이
+//   반복됐다(부산 스팟 풀 0 → "Busan Landmark"×4, 부산 할랄 trusted 3 → 6끼 중 반복) → daily-health 의
+//   validate 실행이 매일 422 + plan 'streaming' 고착 + sweep 알림.
+//   식당 규칙: 식이(halal/vegan/vegetarian) 손님은 trusted DB 행만 쓴다 — 풀이 바닥나면 **지어내지도
+//   반복하지도 않고 그 끼니를 뺀다**(dietary-safety.md "완화 금지"; 빠진 필수 끼니는 B-MEAL 경고로 남는다).
+//   식이 요구가 없으면 general 풀 → 유일 합성 이름(unverified, 비-critical) 순.
+const SAFETY_DIETS = ['halal', 'vegan', 'vegetarian'];
+
+function hhmmToMin(s) {
+  const m = /^(\d{1,2}):(\d{2})$/.exec(String(s || ''));
+  if (!m) return null;
+  const h = Number(m[1]); const mi = Number(m[2]);
+  return h <= 23 && mi <= 59 ? h * 60 + mi : null;
+}
+
+function minToHhmm(min) {
+  const v = Math.max(0, Math.min(23 * 60 + 59, Math.round(min)));
+  return `${String(Math.floor(v / 60)).padStart(2, '0')}:${String(v % 60).padStart(2, '0')}`;
+}
+
+const nameKey = (s) => String(s || '').trim().toLowerCase();
+
+/** 식당 후보 — 식이 손님은 trusted 행만(이름 중복 제거), 아니면 general 행. */
 function foodRows(city, diets) {
-  const trusted = diets.length ? getExactCityTrustedDietaryCandidates(city, diets, 12).map((c) => c.row) : [];
-  const general = diets.length ? [] : getExactCityGeneralFoodCandidates(city, 12);
-  const rows = trusted.length ? trusted : general;
-  return rows.length ? rows : [{ name: `${CITY_NAME[city] || city} Local Restaurant`, address: `${CITY_NAME[city] || city}` }];
+  const rows = diets.length
+    ? getExactCityTrustedDietaryCandidates(city, diets, 40).map((c) => c.row)
+    : getExactCityGeneralFoodCandidates(city, 40);
+  const seen = new Set();
+  return rows.filter((r) => {
+    const k = nameKey(r && r.name);
+    if (!k || seen.has(k)) return false;
+    seen.add(k);
+    return true;
+  });
 }
 
 function foodStop(row, time, order) {
@@ -51,6 +81,69 @@ function foodStop(row, time, order) {
 }
 
 /**
+ * 하루 뼈대 — 실제 검증기의 시각 규칙을 따른다(B-MEAL / B-LATE-ARRIVAL / B-EARLY-DEPARTURE / B-10 / B-12).
+ *   meal.required = 그 날 B-MEAL 이 요구하는 끼니. 선택 끼니는 풀이 남을 때만 채운다.
+ * @returns {Array<{kind:'lodging'|'spot'|'meal'|'airport', min:number, stay?:number, required?:boolean}>}
+ */
+function daySkeleton({ isSingle, isFirst, isLast, startMin, depMin }) {
+  const full = (lunchRequired, dinnerRequired, endKind) => [
+    { kind: 'lodging', min: 8 * 60 + 30 },
+    { kind: 'spot', min: 10 * 60, stay: 90 },
+    { kind: 'meal', min: 12 * 60, required: lunchRequired },
+    { kind: 'spot', min: 14 * 60 + 30, stay: 90 },
+    { kind: 'meal', min: 18 * 60, required: dinnerRequired },
+    endKind === 'airport' ? { kind: 'airport', min: 20 * 60 } : { kind: 'lodging', min: 20 * 60 + 30 },
+  ];
+  if (isSingle) return full(true, true, 'lodging');
+  if (isFirst) {
+    // 도착일 — 활동은 max(tour_start_time, arrival_ready_time) 이후, 끼니 1회 필수(B-MEAL 도착일).
+    if (startMin <= 10 * 60) return full(false, true, 'lodging');
+    const t = Math.ceil(startMin / 30) * 30;
+    if (t > 21 * 60) return [{ kind: 'lodging', min: Math.min(t, 23 * 60) }, { kind: 'lodging', min: Math.min(t + 30, 23 * 60 + 30) }];
+    const out = [{ kind: 'lodging', min: t }];
+    let cursor = t;
+    if (t <= 16 * 60) { out.push({ kind: 'spot', min: t + 30, stay: 60 }); cursor = t + 30 + 90; }
+    const dinner = Math.max(18 * 60, cursor);
+    out.push({ kind: 'meal', min: dinner, required: true });
+    out.push({ kind: 'lodging', min: dinner + 75 });
+    return out;
+  }
+  if (!isLast) return full(true, true, 'lodging');
+  // 출국일
+  if (depMin === null) return full(false, false, 'airport'); // 공항 stop 이 있으면 끼니 면제
+  const maxAct = depMin - 180; // 출국 3시간 전 이후 활동 금지
+  if (depMin < 9 * 60) {
+    // red-eye — 체크아웃 + 공항 2 stop 만, 조식 면제
+    return [{ kind: 'lodging', min: Math.max(0, depMin - 210) }, { kind: 'airport', min: Math.max(0, maxAct) }];
+  }
+  if (depMin < 11 * 60) {
+    const breakfast = Math.max(6 * 60, maxAct - 30);
+    return [
+      { kind: 'lodging', min: breakfast - 30 },
+      { kind: 'meal', min: breakfast, required: true },
+      { kind: 'airport', min: maxAct },
+    ];
+  }
+  if (depMin < 17 * 60) {
+    const meal = maxAct - 30;
+    const out = [{ kind: 'lodging', min: Math.min(7 * 60, meal - 30) }];
+    if (meal - 120 >= 9 * 60) out.push({ kind: 'spot', min: meal - 120, stay: 90 });
+    out.push({ kind: 'meal', min: meal, required: true });
+    out.push({ kind: 'airport', min: maxAct });
+    return out;
+  }
+  const out = [
+    { kind: 'lodging', min: 7 * 60 },
+    { kind: 'meal', min: 8 * 60, required: true },
+    { kind: 'spot', min: 10 * 60, stay: 90 },
+    { kind: 'meal', min: 12 * 60, required: true },
+  ];
+  if (14 * 60 + 30 <= maxAct) out.push({ kind: 'spot', min: 14 * 60 + 30, stay: 90 });
+  out.push({ kind: 'airport', min: maxAct });
+  return out;
+}
+
+/**
  * @param {{userText:string}} p user 메시지(끝에 userInput JSON) → 검증기 통과형 플랜.
  */
 export function buildMockPlan({ userText }) {
@@ -58,7 +151,7 @@ export function buildMockPlan({ userText }) {
   const days = Math.max(1, Math.min(14, Number(u.duration_days) || 1));
   const city = String((Array.isArray(u.regions) && u.regions[0]) || u.area || 'seoul').toLowerCase();
   const cityName = CITY_NAME[city] || city;
-  const diets = (Array.isArray(u.diet_preferences) ? u.diet_preferences : []).map((d) => String(d).toLowerCase()).filter((d) => ['halal', 'vegan', 'vegetarian'].includes(d));
+  const diets = (Array.isArray(u.diet_preferences) ? u.diet_preferences : []).map((d) => String(d).toLowerCase()).filter((d) => SAFETY_DIETS.includes(d));
   const foods = foodRows(city, diets);
   const spots = getExactCitySpotCandidates(city);
   const arrCode = String(u.arrival_airport || 'ICN').split('_')[0];
@@ -67,13 +160,54 @@ export function buildMockPlan({ userText }) {
   const depName = AIRPORT_NAME[depCode] || `${depCode} Airport`;
   const lodging = { name: `${cityName} Mock Hotel`, category: 'lodging', address: `${cityName}`, stay_min: 0 };
 
-  let fi = 0; let si = 0;
-  const nextFood = () => foods[fi++ % foods.length];
+  // 활동 시작 = max(tour_start_time, arrival_ready_time) — userMessageBuilder 가 넘긴 값(검증기와 같은 기준).
+  const tourStartMin = hhmmToMin(u.tour_start_time) === null ? 9 * 60 : hhmmToMin(u.tour_start_time);
+  const arrMin = hhmmToMin(u.arrival_time);
+  let readyMin = hhmmToMin(u.arrival_ready_time);
+  if (readyMin !== null && arrMin !== null && readyMin < arrMin) readyMin += 24 * 60; // 자정 넘김(wrap) = 사실상 휴식일
+  const startMin = Math.max(tourStartMin, readyMin === null ? 0 : readyMin);
+  const depMin = hhmmToMin(u.departure_time);
+
+  // 이름 유일성 — 스팟·식당·공항 공통(lodging 제외). 게이트와 같은 키(소문자 trim).
+  const used = new Set();
+  const claim = (name) => { used.add(nameKey(name)); return name; };
+  let si = 0; let landmarkN = 0;
   const nextSpot = () => {
-    const s = spots[si++ % Math.max(1, spots.length)];
-    return s ? { name: s.name.en || s.name.ko, display_name: s.name.en || s.name.ko, address: s.address, category: 'culture' }
-      : { name: `${cityName} Landmark`, category: 'culture', address: cityName };
+    while (si < spots.length) {
+      const s = spots[si++];
+      const n = s.name.en || s.name.ko;
+      if (n && !used.has(nameKey(n))) return { name: claim(n), display_name: n, address: s.address, category: 'culture' };
+    }
+    let n;
+    do { landmarkN += 1; n = `${cityName} Landmark ${landmarkN}`; } while (used.has(nameKey(n)));
+    return { name: claim(n), display_name: n, category: 'culture', address: cityName };
   };
+  let fi = 0; let restaurantN = 0;
+  const nextFoodRow = () => {
+    while (fi < foods.length) {
+      const r = foods[fi++];
+      if (!used.has(nameKey(r.name))) { claim(r.name); return r; }
+    }
+    if (diets.length) return null; // 식이 손님 — trusted 소진 시 지어내지 않는다(빈 끼니).
+    let n;
+    do { restaurantN += 1; n = `${cityName} Local Restaurant ${restaurantN}`; } while (used.has(nameKey(n)));
+    return { name: claim(n), address: cityName };
+  };
+
+  // 끼니 배정: 필수 끼니 먼저(전 일정), 남으면 선택 끼니. 못 채운 끼니는 뺀다.
+  const skeletons = [];
+  for (let d = 1; d <= days; d++) {
+    skeletons.push(daySkeleton({ isSingle: days === 1, isFirst: d === 1 && days > 1, isLast: d === days && days > 1, startMin, depMin }));
+  }
+  if (days > 1) claim(depName); // 공항 stop 은 출국일 1회 — 유일성 집합에 먼저 올린다.
+  const mealRows = new Map();
+  for (const wantRequired of [true, false]) {
+    skeletons.forEach((sk, di) => sk.forEach((slot, si2) => {
+      if (slot.kind !== 'meal' || Boolean(slot.required) !== wantRequired) return;
+      const row = nextFoodRow();
+      if (row) mealRows.set(`${di}:${si2}`, row);
+    }));
+  }
 
   const out = {
     tour_title: `${cityName} ${days}-Day Mock Plan`,
@@ -86,17 +220,18 @@ export function buildMockPlan({ userText }) {
     t_money_recommended_load: 20000,
   };
   for (let d = 1; d <= days; d++) {
-    const isLast = d === days;
-    const stops = [
-      { ...lodging, order: 1, start_time: '08:30' },
-      { ...nextSpot(), order: 2, start_time: '10:00', stay_min: 90 },
-      foodStop(nextFood(), '12:00', 3),
-      { ...nextSpot(), order: 4, start_time: '14:30', stay_min: 90 },
-      foodStop(nextFood(), '18:00', 5),
-      isLast && days > 1
-        ? { order: 6, start_time: '20:00', name: depName, category: 'airport', address: depName, stay_min: 0 }
-        : { ...lodging, order: 6, start_time: '20:30' },
-    ];
+    const stops = [];
+    skeletons[d - 1].forEach((slot, si2) => {
+      const time = minToHhmm(slot.min);
+      if (slot.kind === 'lodging') stops.push({ ...lodging, start_time: time });
+      else if (slot.kind === 'airport') stops.push({ start_time: time, name: depName, category: 'airport', address: depName, stay_min: 0 });
+      else if (slot.kind === 'spot') stops.push({ ...nextSpot(), start_time: time, stay_min: slot.stay || 90 });
+      else {
+        const row = mealRows.get(`${d - 1}:${si2}`);
+        if (row) stops.push(foodStop(row, time));
+      }
+    });
+    stops.forEach((s, i) => { s.order = i + 1; });
     out.days.push({ day: d, date: addDays(u.date, d - 1), city: cityName, theme: `Mock day ${d}`, stops });
     out.daily_budget_summary.push({ day: d, food_krw: 40000, transport_krw: 10000, admission_krw: 10000, total_krw: 60000 });
   }

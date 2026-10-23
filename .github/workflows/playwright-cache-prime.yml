@@ -26,7 +26,8 @@ permissions:
 
 jobs:
   prime:
-    runs-on: ubuntu-latest
+    # 2026-10-23: ubuntu-latest 가 2026-10-12 부터 26.04 — 캐시된 Playwright webkit 이 libicu74(24.04)를 요구해 실패. 버전 고정.
+    runs-on: ubuntu-24.04
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
@@ -45,9 +46,9 @@ jobs:
         id: playwright-cache
         with:
           path: ~/.cache/ms-playwright
-          key: ${{ runner.os }}-playwright-${{ hashFiles('**/package-lock.json') }}
+          key: ${{ runner.os }}-ubuntu-24.04-playwright-chromium-webkit-${{ hashFiles('**/package-lock.json') }}
           restore-keys: |
-            ${{ runner.os }}-playwright-
+            ${{ runner.os }}-ubuntu-24.04-playwright-chromium-webkit-
 
       - name: Install Playwright browsers (prime)
         if: steps.playwright-cache.outputs.cache-hit != 'true'

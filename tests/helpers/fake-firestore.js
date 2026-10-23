@@ -15,7 +15,7 @@
  * 실제 경쟁을 결정적으로 재현할 수 있다(무작위 타이밍에 기대지 않는다).
  *
  * 지원 범위는 이 레포가 실제로 쓰는 것만:
- *   collection().doc().get/set/update/delete, collection().where().get(),
+ *   collection().doc().get/set/update/delete, collection().where().limit().startAfter().get(),
  *   runTransaction(tx.get/set/update/delete), FieldValue.serverTimestamp/increment/delete/arrayUnion
  *   진짜 firebase-admin FieldValue 변환 객체도 methodName 으로 인식(2026-10-23; arrayUnion 은 ②b)
  */
@@ -189,7 +189,8 @@ export function createFakeFirestore(seed = {}, options = {}) {
     async delete() { commitWrite(path, { kind: 'delete' }); },
   });
 
-  const collectionApi = (col, filters = [], order = null, max = null) => ({
+  // after = startAfter 커서(문서 경로). 정렬(이름순 또는 orderBy) 뒤 그 문서 다음부터 돌려준다(2026-10-23, 페이지 처리 테스트).
+  const collectionApi = (col, filters = [], order = null, max = null, after = null) => ({
     // 실제 Firestore 처럼 인자 없는 doc() 은 새 id 를 미리 발급한다 (mood-book 이 이렇게 쓴다).
     doc: (id) => docApi(`${col}/${id === undefined ? `auto-${(autoId += 1)}` : id}`),
     async add(data) {
@@ -199,10 +200,11 @@ export function createFakeFirestore(seed = {}, options = {}) {
     },
     where: (field, op, value) => {
       if (op !== '==') throw new Error(`fake-firestore: unsupported operator ${op}`);
-      return collectionApi(col, [...filters, { field, value }], order, max);
+      return collectionApi(col, [...filters, { field, value }], order, max, after);
     },
-    orderBy: (field, direction = 'asc') => collectionApi(col, filters, { field, direction }, max),
-    limit: (n) => collectionApi(col, filters, order, n),
+    orderBy: (field, direction = 'asc') => collectionApi(col, filters, { field, direction }, max, after),
+    limit: (n) => collectionApi(col, filters, order, n, after),
+    startAfter: (cursor) => collectionApi(col, filters, order, max, (cursor && (cursor.ref ? cursor.ref.path : cursor.path)) || null),
     async get() {
       stats.reads += 1;
       let entries = [...store.entries()]
@@ -217,6 +219,10 @@ export function createFakeFirestore(seed = {}, options = {}) {
           const r = b.data?.[order.field];
           return l < r ? -sign : l > r ? sign : 0;
         });
+      }
+      if (after) {
+        const idx = entries.findIndex(([p]) => p === after);
+        entries = idx >= 0 ? entries.slice(idx + 1) : entries.filter(([p]) => p > after);
       }
       const docs = (max === null ? entries : entries.slice(0, max)).map(([p]) => snapshotOf(p));
       return { empty: docs.length === 0, size: docs.length, docs, forEach: (fn) => docs.forEach(fn) };
