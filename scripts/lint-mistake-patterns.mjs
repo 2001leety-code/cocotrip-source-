@@ -746,7 +746,8 @@ function P34_priceUsdConsistency({ changed }) {
  *      verified auth.email / auth.uid 만 사용해야 함.
  *   3. (2026-10-23, 후속 ②a·②b) 게스트 예약 관리 토큰 호출은 `manageFetch('/api/booking-manage' |
  *      '/api/cancelBooking' | '/api/modifyBooking', …)` 리터럴 경로만 허용 — 첫 인자 **전체**가 그 리터럴 하나여야 한다(여러 줄 호출 OK,
- *      연결식·변수·템플릿 리터럴·다른 경로는 fail). 주석 제거는 문자 스캐너(문자열 안 `//`·`/*` 는 주석 아님).
+ *      연결식·변수·템플릿 리터럴·다른 경로는 fail). 주석 범위는 설치된 TypeScript 파서로 판정한다
+ *      (문자열·템플릿·정규식·JSX 텍스트 안 `//`·`/*` 는 주석 아님, 해시뱅 줄도 비운다). 파싱 실패 파일은 그 자체로 fail.
  *      manageFetch 가 있는 파일이라도 raw fetch 는 룰 1 그대로 적용된다(파일 단위 면제 없음).
  *
  * 트리거: 변경된 .ts/.tsx/.js/.jsx 파일.
@@ -8059,6 +8060,61 @@ function runSelfTest() {
       head: { 'src/pages/P43Probe.tsx': "export const c = (t) => manageFetch(\n  '/api/cancelBooking',\n  { manageToken: t },\n);\n" },
       expectRule: 'P43_authIdorBodyTrusted',
       expectClean: true,
+    },
+    // ── 2026-10-23: 주석 범위를 TypeScript 파서로 판정(p43-protected-calls.mjs) ──
+    {
+      label: 'P43 (TS parser): `a / b / c` is division — the comment after it is stripped, no Bearer exemption',
+      base: { 'src/pages/P43Probe.tsx': "export const x = 1;\n" },
+      head: { 'src/pages/P43Probe.tsx': "const r = a / b / c; /* Authorization: Bearer */ export const c = () => fetch('/api/voucher');\n" },
+      expectRule: 'P43_authIdorBodyTrusted',
+    },
+    {
+      label: 'P43 (TS parser): a regex literal `/\\/api\\/voucher/` is not a comment — the raw fetch after it is caught',
+      base: { 'src/pages/P43Probe.tsx': "export const x = 1;\n" },
+      head: { 'src/pages/P43Probe.tsx': "const re = /\\/api\\/voucher/; /* Authorization: Bearer */ export const c = () => fetch('/api/voucher');\n" },
+      expectRule: 'P43_authIdorBodyTrusted',
+    },
+    {
+      label: 'P43 (TS parser): "//" and "/*" in JSX attributes and text are not comments',
+      base: { 'src/pages/P43Probe.tsx': "export const x = 1;\n" },
+      head: { 'src/pages/P43Probe.tsx': "export const el = <a href=\"https://x.com/a//b\" title='/* t */'>see // here /* also */</a>;\nexport const c = () => fetch('/api/voucher');\n" },
+      expectRule: 'P43_authIdorBodyTrusted',
+    },
+    {
+      label: 'P43 (TS parser): a JSX comment {/* Authorization: Bearer */} is a comment — no exemption',
+      base: { 'src/pages/P43Probe.tsx': "export const x = 1;\n" },
+      head: { 'src/pages/P43Probe.tsx': "export const el = <div>{/* Authorization: Bearer x */}</div>;\nexport const c = () => fetch('/api/voucher');\n" },
+      expectRule: 'P43_authIdorBodyTrusted',
+    },
+    {
+      label: 'P43 (TS parser): nested templates `${ `${ ... }` }` keep the scan right',
+      base: { 'src/pages/P43Probe.tsx': "export const x = 1;\n" },
+      head: { 'src/pages/P43Probe.tsx': "const s = `${ `${ '/api/voucher' }` }`; export const c = () => fetch('/api/my-bookings');\n" },
+      expectRule: 'P43_authIdorBodyTrusted',
+    },
+    {
+      label: 'P43 (TS parser): CRLF file — a comment "Authorization: Bearer" is no exemption',
+      base: { 'src/pages/P43Probe.tsx': "export const x = 1;\n" },
+      head: { 'src/pages/P43Probe.tsx': "// Authorization: Bearer\r\nexport const c = () => fetch('/api/voucher');\r\n" },
+      expectRule: 'P43_authIdorBodyTrusted',
+    },
+    {
+      label: 'P43 (TS parser): a shebang line "#!… // Authorization: Bearer" is no exemption',
+      base: { 'src/pages/P43Probe.tsx': "export const x = 1;\n" },
+      head: { 'src/pages/P43Probe.tsx': "#!/usr/bin/env node // Authorization: Bearer\nexport const c = () => fetch('/api/voucher');\n" },
+      expectRule: 'P43_authIdorBodyTrusted',
+    },
+    {
+      label: 'P43 (TS parser): an unparsable file without any protected path is still a violation',
+      base: { 'src/pages/P43Probe.tsx': "export const x = 1;\n" },
+      head: { 'src/pages/P43Probe.tsx': "export const = ;\n" },
+      expectRule: 'P43_authIdorBodyTrusted',
+    },
+    {
+      label: 'P43 (TS parser): a file that does not parse is a violation, never a silent pass',
+      base: { 'src/pages/P43Probe.tsx': "export const x = 1;\n" },
+      head: { 'src/pages/P43Probe.tsx': "export const c = () => authFetch('/api/voucher' ;\n" },
+      expectRule: 'P43_authIdorBodyTrusted',
     },
     {
       label: 'P32: useQuoteCalculator licensed_guide push 가 sprinter dedup 없이 호출',

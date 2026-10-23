@@ -37,6 +37,12 @@ jobs:
         with:
           node-version: '22'
 
+      - name: Install typescript only (P43 comment parser)
+        # 전체 npm ci 대신 typescript 하나 — scripts/lib/p43-protected-calls.mjs 가 파서로 쓴다. 버전은 package.json devDependencies 에서 파생.
+        run: |
+          TS_VER=$(node -p "require('./package.json').devDependencies.typescript")
+          npm install --no-save --ignore-scripts "typescript@${TS_VER}"
+
       - name: Ensure origin/main is reachable
         run: |
           git fetch --no-tags --depth=1 origin main:refs/remotes/origin/main || true
