@@ -68,7 +68,7 @@ function KpiCard({ title, bucket, rate }: { title: string; bucket: Bucket; rate:
       <p className="text-[11px] font-semibold text-white/50 mb-2 uppercase tracking-wider">{title}</p>
       <p className="text-[24px] font-black text-white tabular-nums">{fmtUSD(bucket.usd)}</p>
       <p className="text-[12px] text-white/50 tabular-nums mt-1">
-        {fmtKRW(bucket.usd * rate)} · {fmtCount(bucket.count)}건
+        참고 {fmtKRW(bucket.usd * rate)} · {fmtCount(bucket.count)}건
       </p>
     </div>
   );
@@ -363,7 +363,9 @@ export default function AdminSales() {
             <RecentBookingsTable recent={data.recent} />
 
             <p className="text-[11px] text-white/55 text-center mt-6">
-              전체 예약(취소 포함): {data.totalBookings.toLocaleString()}건 · 환율: ₩{data.exchangeRate.toLocaleString()}/USD (실시간)
+              {/* 2026-10-23 (PR-4): 통계 대시보드와 같은 표기 — 원화는 참고 환산(결제·정산 금액 아님).
+                  getUsdToKrwRaw 는 6시간 캐시·하한 1450·실패 대체값이 적용될 수 있어 "실시간" 이라고 쓰지 않는다. */}
+              전체 예약(취소 포함): {data.totalBookings.toLocaleString()}건 · 참고 환산 · 적용 환율 {data.exchangeRate.toLocaleString('ko-KR')}원/USD (캐시·정책 하한 적용 가능)
             </p>
           </>
         ) : null}

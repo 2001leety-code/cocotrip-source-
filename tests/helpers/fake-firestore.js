@@ -185,6 +185,11 @@ export function createFakeFirestore(seed = {}, options = {}) {
     collection: (name) => collectionApi(`${path}/${name}`),
     async get() { stats.reads += 1; return snapshotOf(path); },
     async set(data, opts) { commitWrite(path, { kind: 'set', data, merge: Boolean(opts?.merge) }); },
+    // 실제 Firestore 처럼 이미 있으면 ALREADY_EXISTS(gRPC 6) 로 실패한다.
+    async create(data) {
+      if (store.has(path)) throw Object.assign(new Error(`6 ALREADY_EXISTS: Document already exists: ${path}`), { code: 6 });
+      commitWrite(path, { kind: 'set', data, merge: false });
+    },
     async update(data) { commitWrite(path, { kind: 'update', data }); },
     async delete() { commitWrite(path, { kind: 'delete' }); },
   });
