@@ -43,7 +43,7 @@ export const UNPROCESSED_RECENT_DAYS = 30;
 // (e) CONFIRMED 예약 스캔 — 페이지 크기·최대 건수. orderBy 없이 startAfter(마지막 문서)로 넘긴다(복합 인덱스 회피).
 const UNPROCESSED_PAGE_SIZE = 200;
 const UNPROCESSED_MAX_SCAN = 1000;
-// 오래된(30일+) 실제 미처리 건의 식별자 보존 상한 — 텔레그램엔 건수만, ID 는 dryRun 응답·실행 로그의 staleItems 로.
+// 오래된(30일+) 실제 미처리 건의 식별자 보존 상한 — 텔레그램엔 건수만, ID 는 dryRun 응답·일반 실행 응답의 staleItems 로.
 const STALE_ITEMS_MAX = 50;
 
 function todayKSTLabel() {
