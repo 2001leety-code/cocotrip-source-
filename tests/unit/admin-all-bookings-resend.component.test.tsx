@@ -2,10 +2,12 @@
 /**
  * /admin/all-bookings — 게스트 "관리 링크 재발송" 버튼 (2026-10-23, PR-3).
  * 잠그는 것: 노출 조건(게스트 PayPal + CONFIRMED 만, pending 배지) · 화면 내 확인창(닫기 = 요청 0, 요청 중 재제출 금지) ·
+ *   초점(열면 창 안 · Tab 이 창 밖으로 안 나감 · 발송 중 Esc 무시 · 닫히면 그 행의 재발송 버튼) ·
  *   POST 본문 · 성공 토스트(마스킹 주소)+목록 갱신 · 잠금은 화면 전체 하나(A 발송 중 B 도 비활성) · 429 문구 · 502 서버 문구.
  */
 import React from 'react';
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -45,8 +47,9 @@ const RESEND = '관리 링크 재발송';
 function articleOf(label: string) {
   return screen.getByText(label).closest('article') as HTMLElement;
 }
-const rowButton = (label: string) => within(articleOf(label)).getByRole('button', { name: /관리 링크 재발송|보내는 중…/ });
-const dialog = () => screen.getByRole('dialog', { name: RESEND });
+// 확인창이 열려 있으면 Radix 가 뒤 목록을 aria-hidden 처리한다 → 행 버튼은 hidden 포함으로 찾는다.
+const rowButton = (label: string) => within(articleOf(label)).getByRole('button', { name: /관리 링크 재발송|보내는 중…/, hidden: true });
+const dialog = () => screen.getByRole('alertdialog', { name: RESEND });
 const postCalls = () => fetchMock.mock.calls.filter(([url]) => url === '/api/admin-booking-action');
 
 /** 행 버튼 → 화면 내 확인창 → 확인. */
@@ -86,7 +89,25 @@ describe('AdminAllBookings — resend manage link', () => {
     expect(within(d).getByText(/G-1/)).toBeInTheDocument();
     expect(within(d).getByText(/저장된 결제자 이메일로만/)).toBeInTheDocument();
     fireEvent.click(within(d).getByRole('button', { name: '닫기' }));
-    expect(screen.queryByRole('dialog')).toBeNull();
+    await waitFor(() => expect(screen.queryByRole('alertdialog')).toBeNull());
+    expect(postCalls()).toHaveLength(0);
+  });
+
+  it('focus: opens inside the dialog (닫기), Tab never leaves it, and returns to that row\'s resend button on close', async () => {
+    await renderList();
+    const user = userEvent.setup();
+    fireEvent.click(rowButton('두번째 게스트'));
+    const d = dialog();
+    await waitFor(() => expect(document.activeElement).toBe(within(d).getByRole('button', { name: '닫기' })));
+    for (let i = 0; i < 4; i += 1) {
+      await user.tab();
+      expect(d.contains(document.activeElement)).toBe(true); // 뒤의 다른 행 재발송·환불 버튼에 닿지 않는다
+    }
+    await user.tab({ shift: true });
+    expect(d.contains(document.activeElement)).toBe(true);
+    fireEvent.keyDown(document.activeElement || document.body, { key: 'Escape' });
+    await waitFor(() => expect(screen.queryByRole('alertdialog')).toBeNull());
+    await waitFor(() => expect(document.activeElement).toBe(rowButton('두번째 게스트')));
     expect(postCalls()).toHaveLength(0);
   });
 
@@ -103,7 +124,8 @@ describe('AdminAllBookings — resend manage link', () => {
     expect(init.method).toBe('POST');
     expect(init.headers.Authorization).toBe('Bearer synthetic-token');
     expect(JSON.parse(init.body)).toEqual({ bookingRef: 'G-1', action: 'resend-manage-link' });
-    expect(screen.queryByRole('dialog')).toBeNull();
+    await waitFor(() => expect(screen.queryByRole('alertdialog')).toBeNull());
+    await waitFor(() => expect(document.activeElement).toBe(rowButton('게스트 예약'))); // 완료 뒤에도 연 행으로 복귀
   });
 
   it('while sending: dialog buttons disabled (no re-submit) and EVERY row button is locked; after completion all unlock, one request', async () => {
@@ -116,6 +138,8 @@ describe('AdminAllBookings — resend manage link', () => {
     expect(busyConfirm).toBeDisabled();
     expect(within(dialog()).getByRole('button', { name: '닫기' })).toBeDisabled();
     fireEvent.click(busyConfirm); // 재제출 시도
+    fireEvent.keyDown(document.activeElement || document.body, { key: 'Escape' }); // 발송 중 Esc 무시
+    expect(dialog()).toBeInTheDocument();
     expect(rowButton('게스트 예약')).toBeDisabled();
     expect(rowButton('게스트 예약')).toHaveTextContent('보내는 중…');
     expect(rowButton('두번째 게스트')).toBeDisabled(); // 다른 행도 잠긴다(행 단위 잠금이면 여기서 풀렸다)

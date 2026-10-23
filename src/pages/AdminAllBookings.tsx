@@ -16,12 +16,15 @@
  * 이메일로만 보내고, 응답엔 마스킹된 주소만 온다(토큰·링크는 이 화면에 오지 않는다).
  * 그 외에는 여전히 읽기 전용.
  */
-import { useEffect, useState, useCallback, useMemo } from 'react';
+import { useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { Link } from 'react-router-dom';
 import { ArrowLeft, RefreshCw, Calendar, Loader2 } from 'lucide-react';
 import { Toaster, toast } from 'sonner';
 import { usePageMeta } from '@/hooks/usePageMeta';
+import {
+  AlertDialog, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogHeader, AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 
 type Source = 'cocotrip' | 'mood';
 type SourceFilter = Source | 'all';
@@ -202,6 +205,8 @@ export default function AdminAllBookings() {
   //   확인창(ResendLinkConfirmModal) → 요청. 잠금은 화면 전체 하나 — 진행 중엔 모든 행의 재발송이 막힌다.
   const [resendTarget, setResendTarget] = useState<BookingItem | null>(null);
   const [resendingId, setResendingId] = useState<string | null>(null);
+  // 확인창이 닫히면 초점을 그 행의 재발송 버튼으로 돌려준다(트리거 없이 여므로 Radix 기본 복귀가 없다).
+  const resendBtnRefs = useRef(new Map<string, HTMLButtonElement>());
   const resendManageLink = async (b: BookingItem) => {
     if (!user || resendingId !== null) return;
     setResendingId(b.id);
@@ -412,6 +417,7 @@ export default function AdminAllBookings() {
                           </span>
                         )}
                         <button
+                          ref={(el) => { if (el) resendBtnRefs.current.set(b.id, el); else resendBtnRefs.current.delete(b.id); }}
                           onClick={() => setResendTarget(b)}
                           disabled={resendingId !== null}
                           className="px-2.5 py-1.5 rounded-lg text-[11px] font-semibold border border-sky-500/40 bg-sky-500/10 text-sky-300 hover:bg-sky-500/20 transition-colors min-h-[36px] disabled:opacity-50"
@@ -443,6 +449,7 @@ export default function AdminAllBookings() {
           busy={resendingId !== null}
           onClose={() => { if (resendingId === null) setResendTarget(null); }}
           onConfirm={() => { void resendManageLink(resendTarget); }}
+          returnFocusTo={() => resendBtnRefs.current.get(resendTarget.id)}
         />
       )}
     </div>
@@ -450,30 +457,36 @@ export default function AdminAllBookings() {
 }
 
 /**
- * 관리 링크 재발송 확인창 (2026-10-23, PR-3) — 환불 모달과 같은 화면 내 확인 단계.
- * 요청 중에는 확인·닫기 모두 비활성(재제출 금지). 결과는 토스트로 알리고 창은 닫힌다.
+ * 관리 링크 재발송 확인창 (2026-10-23, PR-3) — Radix AlertDialog(ui/alert-dialog.tsx).
+ * 초점: 열리면 창 안(닫기 버튼), Tab 은 창 안에서만 돈다, 닫히면 그 행의 재발송 버튼으로 복귀(returnFocusTo).
+ * 요청 중에는 확인·닫기 비활성 + Esc 무시(바깥 클릭은 AlertDialog 가 원래 막는다). 결과는 토스트로 알리고 창은 닫힌다.
  */
 function ResendLinkConfirmModal({
-  booking, busy, onClose, onConfirm,
+  booking, busy, onClose, onConfirm, returnFocusTo,
 }: {
   booking: BookingItem;
   busy: boolean;
   onClose: () => void;
   onConfirm: () => void;
+  returnFocusTo: () => HTMLElement | null | undefined;
 }) {
+  const blockWhileBusy = (e: Event) => { if (busy) e.preventDefault(); };
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.7)' }}>
-      <div
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="resend-link-title"
-        className="w-full max-w-md rounded-2xl border border-white/[0.10] p-4 sm:p-5 space-y-3.5"
-        style={{ background: '#0c1220' }}
+    <AlertDialog open onOpenChange={(o) => { if (!o && !busy) onClose(); }}>
+      <AlertDialogContent
+        onEscapeKeyDown={blockWhileBusy}
+        onCloseAutoFocus={(e) => {
+          // 닫힘·언마운트 때 FocusScope 가 부른다 — Radix 의 triggerRef(없음) 복귀 대신 연 행의 버튼으로.
+          e.preventDefault();
+          const el = returnFocusTo();
+          if (el) el.focus();
+        }}
+        className="max-w-md gap-3.5 rounded-2xl border-white/[0.10] bg-[#0c1220] p-4 sm:p-5 text-white"
       >
-        <div>
-          <h2 id="resend-link-title" className="text-white font-bold text-[15px]">관리 링크 재발송</h2>
-          <p className="text-[11px] text-white/45 mt-1">{booking.label} · {booking.bookingRef}</p>
-        </div>
+        <AlertDialogHeader className="gap-1 text-left">
+          <AlertDialogTitle className="text-white font-bold text-[15px]">관리 링크 재발송</AlertDialogTitle>
+          <AlertDialogDescription className="text-[11px] text-white/45">{booking.label} · {booking.bookingRef}</AlertDialogDescription>
+        </AlertDialogHeader>
 
         <div className="rounded-xl border border-sky-500/30 bg-sky-500/10 px-3 py-2.5 text-[12px] text-sky-100 space-y-1">
           <p>예약에 <b>저장된 결제자 이메일로만</b> 보냅니다(다른 주소로 보낼 수 없음). 보낸 주소는 마스킹해서 알려드립니다.</p>
@@ -481,14 +494,14 @@ function ResendLinkConfirmModal({
         </div>
 
         <div className="flex gap-2 pt-1">
-          <button
-            onClick={onClose}
+          <AlertDialogCancel
             disabled={busy}
-            className="flex-1 px-3 py-2.5 rounded-xl text-[13px] font-semibold border border-white/[0.10] text-white/60 hover:text-white min-h-[44px] disabled:opacity-50"
+            className="flex-1 h-auto px-3 py-2.5 rounded-xl text-[13px] font-semibold border border-white/[0.10] bg-transparent text-white/60 hover:bg-transparent hover:text-white min-h-[44px] disabled:opacity-50"
           >
             닫기
-          </button>
+          </AlertDialogCancel>
           <button
+            type="button"
             onClick={onConfirm}
             disabled={busy}
             className="flex-1 px-3 py-2.5 rounded-xl text-[13px] font-bold border border-sky-500/50 bg-sky-500/20 text-sky-100 hover:bg-sky-500/30 min-h-[44px] disabled:opacity-40"
@@ -496,8 +509,8 @@ function ResendLinkConfirmModal({
             {busy ? '보내는 중…' : '확인'}
           </button>
         </div>
-      </div>
-    </div>
+      </AlertDialogContent>
+    </AlertDialog>
   );
 }
 
