@@ -2617,5 +2617,33 @@
     "bmContact": "Need help? Email cocotripkr@gmail.com",
     "bmCancelConflict": "This booking was already processed or the cancellation window has passed. We have reloaded the latest status.",
     "bmRetryLookup": "Check again"
+  },
+  "bookingDateChange": {
+    "bdcButton": "Change date",
+    "bdcTitle": "Change date",
+    "bdcClose": "Close",
+    "bdcCurrent": "Current date",
+    "bdcNew": "New date",
+    "bdcSameDate": "Pick a date different from the current one.",
+    "bdcNoteSame": "Same product, time slot, party size and price — only the date changes.",
+    "bdcNotePolicy": "Free cancellation will follow the new date (up to 24 hours before the new tour start).",
+    "bdcNoteDeadline": "Date changes are possible until 24 hours before the tour.",
+    "bdcSubmit": "Change date",
+    "bdcSubmitting": "Changing…",
+    "bdcErrSlotFull": "That date is full for your time slot. Please pick another date.",
+    "bdcErrDateUnavailable": "That date is not available. Please pick another date.",
+    "bdcErrTooSoon": "The new date must be more than 24 hours away.",
+    "bdcErrTooFar": "Please pick a date within the next 365 days.",
+    "bdcErrNoSeatRecord": "We cannot move this booking online. Please contact us and we will change it for you.",
+    "bdcErrWindowClosed": "Changes are no longer possible — the tour is less than 24 hours away.",
+    "bdcErrLinkUnavailable": "The date change is temporarily unavailable. Please try again later or contact us.",
+    "bdcErrChanged": "This booking changed in the meantime. Please reload to see the latest status.",
+    "bdcReload": "Reload",
+    "bdcErrGeneric": "Something went wrong. Please try again or contact us.",
+    "bdcSavedGuestMailSent": "Date changed to {date}. We also emailed you the new management link and voucher.",
+    "bdcSavedGuestMailFailed": "Date changed to {date}. The email could not be sent — you can keep managing your booking on this page, and our team will resend the link.",
+    "bdcSavedMemberMailSent": "Date changed to {date}. A confirmation email with the updated voucher has been sent.",
+    "bdcSavedMemberMailFailed": "Date changed to {date}. The confirmation email could not be sent — please check this page for your booking details.",
+    "bdcIgnored": "Not applied: {fields}"
   }
 }

@@ -5,9 +5,10 @@
  * URL 쿼리·헤더에 싣지 않는다. Bearer 를 붙이지 않는다(서버는 Authorization 헤더가 있으면 회원
  * 경로만 타므로, 로그인 상태여도 게스트 토큰 요청은 헤더 없이 가야 한다).
  *
- * 허용 경로는 두 개뿐이다. 다른 보호 엔드포인트(modifyBooking 등)는 throw — lint P43 도 같은 목록을 본다.
+ * 허용 경로는 세 개뿐이다(조회·취소·날짜 변경, 2026-10-23 ②b). 다른 보호 엔드포인트(voucher 등)는 throw —
+ * lint P43 도 같은 목록을 본다.
  */
-const MANAGE_PATHS = new Set(['/api/booking-manage', '/api/cancelBooking']);
+const MANAGE_PATHS = new Set(['/api/booking-manage', '/api/cancelBooking', '/api/modifyBooking']);
 
 export async function manageFetch(
   path: string,

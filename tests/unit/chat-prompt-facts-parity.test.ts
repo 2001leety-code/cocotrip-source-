@@ -79,10 +79,11 @@ describe('chat SYSTEM_PROMPT — 정정된 정책/차량 문구 존재', () => {
     expect(chatSrc).toMatch(/non-refundable/);
   });
 
-  it('변경 마감 12시간 문구가 있다 (SSOT api/_refund-policy.js canModify)', () => {
-    // 단순 toContain('12 hours')는 옛 산수 예시("12 hours, 6 people")와 우연히
-    // 일치해 오탐 통과한다 — 정책 문맥("12 hours before")까지 확인.
-    expect(chatSrc).toContain('12 hours before');
+  it('변경 마감 24시간 문구가 있다 (SSOT api/_refund-policy.js canModify, 2026-10-23 ②b 통일)', () => {
+    // 정책 문맥("24 hours before")까지 확인 — 취소 정책 줄("24+ hours before")과 구분해
+    // 날짜 변경 줄 자체를 고정한다. 옛 12시간 문구는 되살아나면 안 된다.
+    expect(chatSrc).toContain('Free date changes up to 24 hours before');
+    expect(chatSrc).not.toContain('12 hours before');
   });
 
   it('상담 운영시간(평일)이 안내된다', () => {

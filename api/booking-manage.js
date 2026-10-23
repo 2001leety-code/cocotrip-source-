@@ -65,6 +65,11 @@ export default async function handler(req, res) {
       && !productType.startsWith('ai-planner')
       && booking.provider !== 'braintree'
       && Boolean(booking.captureID);
+    // 날짜 변경(②b) — 24h 전까지, 확정 예약만. cart 자식·AI 플래너는 변경 대상이 아니다.
+    const canModify = Boolean(policy.canModify)
+      && booking.status === 'CONFIRMED'
+      && !booking.parentOrderID
+      && !productType.startsWith('ai-planner');
 
     return send(res, 200, {
       ok: true,
@@ -83,7 +88,7 @@ export default async function handler(req, res) {
         currency: booking.currency || 'USD',
         status: booking.status || '',
         canRefund,
-        canModify: false,
+        canModify,
         refundPercent: canRefund ? policy.refundPercent : 0,
         hoursUntilTour: policy.hoursUntilTour,
         maskedEmail: maskEmail(booking.payerEmail),

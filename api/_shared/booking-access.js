@@ -54,10 +54,18 @@ export function verifyGuestManageToken(manageToken, { orderID } = {}) {
 export function matchGuestBooking(booking, payload) {
   if (!booking || !isGuestManagedBooking(booking)) return AUTH_REQUIRED;
   if (payload.ver !== (Number(booking.manageTokenVersion) || 0)) return AUTH_REQUIRED;
-  // 환경 삼자 일치: 토큰 = 예약 결제 환경 = 이 배포의 PayPal 환경.
-  if (payload.env !== bookingEnv(booking) || payload.env !== runtimeEnv()) return AUTH_REQUIRED;
-  if (payload.dep !== currentDeployment()) return AUTH_REQUIRED;
+  if (!matchGuestEnvironment(booking, payload)) return AUTH_REQUIRED;
   return { ok: true };
+}
+
+/**
+ * 환경 삼자 일치(토큰 = 예약 결제 환경 = 이 배포의 PayPal 환경) + 발급 배포 일치.
+ * matchGuestBooking 과 날짜 변경 토큰 복구(modifyBooking)가 같은 기준을 쓴다.
+ */
+export function matchGuestEnvironment(booking, payload) {
+  if (!booking || !payload) return false;
+  if (payload.env !== bookingEnv(booking) || payload.env !== runtimeEnv()) return false;
+  return payload.dep === currentDeployment();
 }
 
 /**

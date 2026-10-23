@@ -16,8 +16,8 @@
  *
  * 지원 범위는 이 레포가 실제로 쓰는 것만:
  *   collection().doc().get/set/update/delete, collection().where().get(),
- *   runTransaction(tx.get/set/update/delete), FieldValue.serverTimestamp/increment/delete
- *   진짜 firebase-admin FieldValue 변환 객체도 methodName 으로 인식(2026-10-23)
+ *   runTransaction(tx.get/set/update/delete), FieldValue.serverTimestamp/increment/delete/arrayUnion
+ *   진짜 firebase-admin FieldValue 변환 객체도 methodName 으로 인식(2026-10-23; arrayUnion 은 ②b)
  */
 
 const SERVER_TIMESTAMP = { __sentinel: 'serverTimestamp' };
@@ -27,7 +27,21 @@ export const FieldValue = {
   serverTimestamp: () => SERVER_TIMESTAMP,
   delete: () => DELETE_SENTINEL,
   increment: (n) => ({ __sentinel: 'increment', by: n }),
+  arrayUnion: (...elements) => ({ __sentinel: 'arrayUnion', elements }),
 };
+
+/** Firestore arrayUnion — 기존 배열에 없는 원소만 뒤에 붙인다(값 동등 비교). 배열이 아니면 새 배열. */
+function applyArrayUnion(current, elements) {
+  const out = Array.isArray(current) ? current.map(clone) : [];
+  const seen = new Set(out.map((v) => JSON.stringify(v)));
+  for (const el of elements || []) {
+    const key = JSON.stringify(el);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(clone(el));
+  }
+  return out;
+}
 
 const isPlainObject = (v) =>
   v !== null && typeof v === 'object' && !Array.isArray(v)
@@ -53,11 +67,16 @@ function mergeInto(target, patch, nowMs) {
       target[k] = (Number(target[k]) || 0) + Number(v.by || 0);
       continue;
     }
+    if (isPlainObject(v) && v.__sentinel === 'arrayUnion') {
+      target[k] = applyArrayUnion(target[k], v.elements);
+      continue;
+    }
     // 진짜 @google-cloud/firestore 변환 객체(동적 import 로 들어온 firebase-admin FieldValue)는 methodName 으로 구분된다.
     const realMethod = v && typeof v === 'object' && typeof v.methodName === 'string' ? v.methodName : '';
     if (realMethod === 'FieldValue.delete') { delete target[k]; continue; }
     if (realMethod === 'FieldValue.serverTimestamp') { target[k] = nowMs; continue; }
     if (realMethod === 'FieldValue.increment') { target[k] = (Number(target[k]) || 0) + Number(v.operand || 0); continue; }
+    if (realMethod === 'FieldValue.arrayUnion') { target[k] = applyArrayUnion(target[k], v.elements); continue; }
     if (isPlainObject(v)) {
       if (!isPlainObject(target[k])) target[k] = {};
       mergeInto(target[k], v, nowMs);

@@ -25,7 +25,7 @@ let initState = 'pending'; // 'pending' | 'active' | 'disabled'
 let SentryRef = null;
 
 /** 본문에 게스트 예약 관리 토큰이 실리는 경로 — http 통합이 본문을 수집하지 않는다. */
-const SENSITIVE_BODY_ROUTES = /\/api\/(booking-manage|cancelBooking)\b/;
+const SENSITIVE_BODY_ROUTES = /\/api\/(booking-manage|cancelBooking|modifyBooking)\b/;
 
 async function ensureInit() {
   if (initState !== 'pending') return SentryRef;
@@ -50,6 +50,7 @@ async function ensureInit() {
       sendDefaultPii: false,
       // 2026-10-23 (②a): 요청 본문을 이벤트에 붙이지 않는다 — 게스트 예약 관리 토큰(body.manageToken)이
       //   오류 이벤트로 새지 않게. 같은 이름의 기본 통합을 이 설정으로 대체한다.
+      //   ②b: 날짜 변경(/api/modifyBooking)도 본문에 관리 토큰이 오고 응답에 새 토큰이 실린다 — 같은 목록.
       integrations: [
         mod.requestDataIntegration({ include: { data: false } }),
         mod.httpIntegration({ ignoreIncomingRequestBody: (url) => SENSITIVE_BODY_ROUTES.test(String(url || '')) }),

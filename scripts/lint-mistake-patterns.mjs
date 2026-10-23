@@ -744,8 +744,8 @@ function P34_priceUsdConsistency({ changed }) {
  *      (수동 `Authorization: Bearer` 헤더는 허용하되 **주석은 근거로 치지 않는다** — 2026-10-23.)
  *   2. client body 또는 query 에 `userEmail: ` / `userId: ` 직접 전달 — 서버는
  *      verified auth.email / auth.uid 만 사용해야 함.
- *   3. (2026-10-23, 후속 ②a) 게스트 예약 관리 토큰 호출은 `manageFetch('/api/booking-manage' |
- *      '/api/cancelBooking', …)` 리터럴 경로만 허용 — 첫 인자 **전체**가 그 리터럴 하나여야 한다(여러 줄 호출 OK,
+ *   3. (2026-10-23, 후속 ②a·②b) 게스트 예약 관리 토큰 호출은 `manageFetch('/api/booking-manage' |
+ *      '/api/cancelBooking' | '/api/modifyBooking', …)` 리터럴 경로만 허용 — 첫 인자 **전체**가 그 리터럴 하나여야 한다(여러 줄 호출 OK,
  *      연결식·변수·템플릿 리터럴·다른 경로는 fail). 주석 제거는 문자 스캐너(문자열 안 `//`·`/*` 는 주석 아님).
  *      manageFetch 가 있는 파일이라도 raw fetch 는 룰 1 그대로 적용된다(파일 단위 면제 없음).
  *
@@ -7923,11 +7923,11 @@ function runSelfTest() {
       expectRule: 'P43_authIdorBodyTrusted',
     },
     {
-      label: 'P43: manageFetch to a path outside the allowlist (modifyBooking)',
+      label: 'P43: manageFetch to a path outside the allowlist (voucher — member Bearer only)',
       base: { 'src/pages/P43Probe.tsx': "export const x = 1;\n" },
       head: {
         'src/pages/P43Probe.tsx':
-          "import { manageFetch } from '@/lib/manageFetch';\nexport const edit = (t) => manageFetch('/api/modifyBooking', { manageToken: t });\n",
+          "import { manageFetch } from '@/lib/manageFetch';\nexport const dl = (t) => manageFetch('/api/voucher', { manageToken: t });\n",
       },
       expectRule: 'P43_authIdorBodyTrusted',
     },
@@ -8045,6 +8045,13 @@ function runSelfTest() {
       base: { 'src/pages/P43Probe.tsx': "export const x = 1;\n" },
       head: { 'src/pages/P43Probe.tsx': "const r = obj.typeof / 2; /* Authorization: Bearer */ export const c = () => fetch('/api/voucher');\n" },
       expectRule: 'P43_authIdorBodyTrusted',
+    },
+    {
+      label: 'P43 (false positive 차단): manageFetch to /api/modifyBooking (guest date change, ②b) passes',
+      base: { 'src/pages/P43Probe.tsx': "export const x = 1;\n" },
+      head: { 'src/pages/P43Probe.tsx': "export const m = (t, id, d) => manageFetch('/api/modifyBooking', { manageToken: t, body: { bookingID: id, changes: { tourDate: d } } });\n" },
+      expectRule: 'P43_authIdorBodyTrusted',
+      expectClean: true,
     },
     {
       label: 'P43 (false positive 차단): multi-line manageFetch with an allowed literal passes',

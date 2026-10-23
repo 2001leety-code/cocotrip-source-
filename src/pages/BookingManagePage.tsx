@@ -4,7 +4,8 @@
  * 확인 메일 링크 `/booking/manage#t=<token>` 로 들어온다. 토큰은 프래그먼트에서 한 번 읽어 state 에만 두고
  * 주소창에서 즉시 지운다(history.replaceState) — 쿼리·로그·Referer·분석에 남기지 않는다.
  * 서버 호출은 manageFetch(Bearer 없음, 본문 manageToken) 만 쓴다 — 로그인 여부와 무관.
- * 날짜 변경 버튼은 없다(②b 범위).
+ * 날짜 변경(②b): canModify 면 BookingDateChangeModal(auth guest). 성공 응답(복구 응답 포함)의 새 manageToken 으로
+ * state 토큰을 교체한다(해시·URL 에는 다시 쓰지 않는다) — 날짜 변경이 버전을 올려 옛 토큰은 더 이상 통하지 않는다.
  */
 import { useEffect, useState } from 'react';
 import { useLanguage } from '@/hooks/useLanguage';
@@ -12,6 +13,7 @@ import { usePageMeta } from '@/hooks/usePageMeta';
 import { Header } from '@/sections/Header';
 import { Footer } from '@/sections/Footer';
 import { manageFetch } from '@/lib/manageFetch';
+import { BookingDateChangeModal, type DateChangeResult } from '@/components/BookingDateChangeModal';
 import {
   AlertDialog,
   AlertDialogCancel,
@@ -35,6 +37,7 @@ type ManagedBooking = {
   currency: string;
   status: string;
   canRefund: boolean;
+  canModify?: boolean;
   refundPercent: number;
   maskedEmail: string;
 };
@@ -67,7 +70,7 @@ export default function BookingManagePage() {
   const { language, t, changeLanguage } = useLanguage();
   const copy = t.bookingManage;
   // 렌더 중 1회 읽기 — 아래 effect 가 해시를 지운 뒤(StrictMode 재실행 포함)에도 state 가 토큰을 들고 있다.
-  const [manageToken] = useState(readHashToken);
+  const [manageToken, setManageToken] = useState(readHashToken);
   const [phase, setPhase] = useState<Phase>(() => (manageToken ? 'loading' : 'invalid'));
   const [booking, setBooking] = useState<ManagedBooking | null>(null);
   const [confirmOpen, setConfirmOpen] = useState(false);
@@ -75,6 +78,8 @@ export default function BookingManagePage() {
   const [submitting, setSubmitting] = useState(false);
   // 취소가 업무 사유(이미 처리됨·취소 가능 시간 경과 등)로 거부돼 최신 상태를 다시 불러왔다는 안내.
   const [conflictNotice, setConflictNotice] = useState(false);
+  const [dateChangeOpen, setDateChangeOpen] = useState(false);
+  const [dateNotice, setDateNotice] = useState('');
 
   usePageMeta({ title: copy.bmTitle, description: copy.bmTitle, robots: 'noindex, nofollow' });
 
@@ -128,6 +133,16 @@ export default function BookingManagePage() {
     if (refresh) await refreshBooking();
   }
 
+  function onDateChanged(result: DateChangeResult) {
+    setDateChangeOpen(false);
+    setConflictNotice(false);
+    const dc = t.bookingDateChange;
+    setDateNotice((result.emailSent ? dc.bdcSavedGuestMailSent : dc.bdcSavedGuestMailFailed).replace('{date}', result.tourDate));
+    // 새 토큰으로 교체 → 위 effect 가 같은 토큰으로 다시 조회한다. 토큰이 없으면(이론상 없음) 현재 토큰으로 재조회.
+    if (result.manageToken && result.manageToken !== manageToken) setManageToken(result.manageToken);
+    else void refreshBooking();
+  }
+
   const statusLabel = (status: string) => {
     if (status === 'CONFIRMED') return copy.bmStatusConfirmed;
     if (status === 'CANCELED' || status === 'REFUNDED') return copy.bmStatusCanceled;
@@ -179,6 +194,9 @@ export default function BookingManagePage() {
               {phase === 'ready' && conflictNotice && (
                 <p className="ec-body-sm mb-4 text-ec-ink-2" role="status">{copy.bmCancelConflict}</p>
               )}
+              {phase === 'ready' && dateNotice && (
+                <p className="ec-body-sm mb-4 text-ec-ink-2" role="status">{dateNotice}</p>
+              )}
               {phase === 'canceled' && <p className="ec-body">{copy.bmResultCanceled}</p>}
               {phase === 'pending' && <p className="ec-body">{copy.bmResultPending}</p>}
 
@@ -203,6 +221,15 @@ export default function BookingManagePage() {
                     </button>
                   ) : (
                     booking.status === 'CONFIRMED' && <p className="ec-body-sm mt-6 text-ec-ink-2">{copy.bmNoRefund}</p>
+                  )}
+                  {booking.canModify && (
+                    <button
+                      type="button"
+                      className="ec-btn ec-btn-secondary mt-3 ml-0 sm:ml-3 min-h-[44px] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ec-brand"
+                      onClick={() => { setDateNotice(''); setDateChangeOpen(true); }}
+                    >
+                      {t.bookingDateChange.bdcButton}
+                    </button>
                   )}
                 </>
               )}
@@ -244,6 +271,20 @@ export default function BookingManagePage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {dateChangeOpen && booking && (
+        <BookingDateChangeModal
+          bookingID={booking.bookingID}
+          bookingRef={booking.bookingRef}
+          currentDate={booking.tourDate}
+          tourTime={booking.tourTime}
+          language={language}
+          auth={{ kind: 'guest', manageToken }}
+          onClose={() => setDateChangeOpen(false)}
+          onSaved={onDateChanged}
+          onReload={() => { setDateChangeOpen(false); void refreshBooking(); }}
+        />
+      )}
 
       <Footer t={t} />
     </div>

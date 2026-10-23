@@ -27,8 +27,9 @@ describe('P43 — must fail', () => {
     expect(check("/* headers: { Authorization: 'Bearer x' } */\nexport const c = () => fetch('/api/voucher');\n")).toHaveLength(1);
   });
 
-  it("manageFetch('/api/modifyBooking') — outside the allowlist", () => {
-    expect(check("export const e = (t) => manageFetch('/api/modifyBooking', { manageToken: t });\n")).toHaveLength(1);
+  it("manageFetch('/api/voucher') — outside the allowlist (voucher is member-Bearer only)", () => {
+    expect(check("export const d = (t) => manageFetch('/api/voucher', { manageToken: t });\n")).toHaveLength(1);
+    expect(check("export const r = (t) => manageFetch('/api/my-bookings', { manageToken: t });\n")).toHaveLength(1);
   });
 
   it('a raw fetch in a file that also uses manageFetch', () => {
@@ -43,9 +44,10 @@ describe('P43 — must fail', () => {
 });
 
 describe('P43 — must pass', () => {
-  it("manageFetch('/api/cancelBooking') and manageFetch('/api/booking-manage')", () => {
+  it("manageFetch('/api/cancelBooking'), ('/api/booking-manage') and ('/api/modifyBooking', ②b)", () => {
     expect(check("export const c = (t, id) => manageFetch('/api/cancelBooking', { manageToken: t, body: { bookingID: id } });\n")).toEqual([]);
     expect(check("export const g = (t) => manageFetch('/api/booking-manage', { manageToken: t });\n")).toEqual([]);
+    expect(check("export const m = (t, id, d) => manageFetch('/api/modifyBooking', { manageToken: t, body: { bookingID: id, changes: { tourDate: d } } });\n")).toEqual([]);
   });
 
   it('authFetch and a real Bearer header are unchanged', () => {
@@ -61,6 +63,8 @@ describe('P43 — must pass', () => {
   it('the real page and helper pass', () => {
     const page = readFileSync(resolve(process.cwd(), 'src/pages/BookingManagePage.tsx'), 'utf8');
     expect(p43FileViolations('src/pages/BookingManagePage.tsx', page)).toEqual([]);
+    const modal = readFileSync(resolve(process.cwd(), 'src/components/BookingDateChangeModal.tsx'), 'utf8');
+    expect(p43FileViolations('src/components/BookingDateChangeModal.tsx', modal)).toEqual([]);
   });
 });
 
@@ -69,7 +73,7 @@ describe('lint wiring', () => {
   it('P43 delegates to the shared helper and keeps the self-test cases', () => {
     expect(lint).toMatch(/import \{ p43FileViolations \} from '\.\/lib\/p43-protected-calls\.mjs'/);
     expect(lint).toMatch(/p43FileViolations\(file, getChangedFileContent\(file\)\)/);
-    expect((lint.match(/expectRule: 'P43_authIdorBodyTrusted'/g) || []).length).toBe(23);
+    expect((lint.match(/expectRule: 'P43_authIdorBodyTrusted'/g) || []).length).toBe(24);
   });
 });
 
@@ -109,7 +113,7 @@ describe('P43 — manageFetch first argument must be exactly one allowed literal
 
   it('multi-line call with an allowed literal passes; line number points at the call', () => {
     expect(check("export const c = (t) => manageFetch(\n  '/api/cancelBooking',\n  { manageToken: t },\n);\n")).toEqual([]);
-    expect(check("const a = 1;\nexport const c = (t) => manageFetch(\n  '/api/modifyBooking',\n  {},\n);\n")[0]).toMatch(/L2:/);
+    expect(check("const a = 1;\nexport const c = (t) => manageFetch(\n  '/api/voucher',\n  {},\n);\n")[0]).toMatch(/L2:/);
   });
 
   it('double quotes and a single-argument call are fine', () => {

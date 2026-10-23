@@ -2617,5 +2617,33 @@
     "bmContact": "お困りですか？ cocotripkr@gmail.com",
     "bmCancelConflict": "このご予約はすでに処理済みか、キャンセル可能な時間を過ぎています。最新の状態を再読み込みしました。",
     "bmRetryLookup": "再読み込み"
+  },
+  "bookingDateChange": {
+    "bdcButton": "日程変更",
+    "bdcTitle": "日程変更",
+    "bdcClose": "閉じる",
+    "bdcCurrent": "現在の日程",
+    "bdcNew": "新しい日程",
+    "bdcSameDate": "現在と異なる日付を選んでください。",
+    "bdcNoteSame": "同じ商品・時間帯・人数・料金のまま、日付のみ変更します。",
+    "bdcNotePolicy": "無料キャンセルの期限は新しい日程が基準になります（新しいツアー開始の24時間前まで）。",
+    "bdcNoteDeadline": "日程変更はツアーの24時間前まで可能です。",
+    "bdcSubmit": "日程を変更",
+    "bdcSubmitting": "変更中…",
+    "bdcErrSlotFull": "その日はこの時間帯が満席です。別の日付を選んでください。",
+    "bdcErrDateUnavailable": "その日はご予約いただけません。別の日付を選んでください。",
+    "bdcErrTooSoon": "新しい日程は現在から24時間以上先である必要があります。",
+    "bdcErrTooFar": "365日以内の日付を選んでください。",
+    "bdcErrNoSeatRecord": "このご予約はオンラインで日程を変更できません。お問い合わせいただければ変更いたします。",
+    "bdcErrWindowClosed": "ツアー開始まで24時間を切っているため、変更できません。",
+    "bdcErrLinkUnavailable": "日程変更は一時的にご利用いただけません。しばらくしてから再度お試しいただくか、お問い合わせください。",
+    "bdcErrChanged": "その間にご予約内容が変わりました。再読み込みして最新の状態をご確認ください。",
+    "bdcReload": "再読み込み",
+    "bdcErrGeneric": "問題が発生しました。再度お試しいただくか、お問い合わせください。",
+    "bdcSavedGuestMailSent": "日程を{date}に変更しました。新しい管理リンクとバウチャーをメールでもお送りしました。",
+    "bdcSavedGuestMailFailed": "日程を{date}に変更しました。メールの送信に失敗しました — この画面で引き続き管理でき、担当者がリンクを再送します。",
+    "bdcSavedMemberMailSent": "日程を{date}に変更しました。変更後のバウチャー付きの確認メールをお送りしました。",
+    "bdcSavedMemberMailFailed": "日程を{date}に変更しました。確認メールを送信できませんでした — ご予約内容はこの画面でご確認ください。",
+    "bdcIgnored": "反映されなかった項目: {fields}"
   }
 }

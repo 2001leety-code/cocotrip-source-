@@ -10,6 +10,7 @@ import { fillPrice } from '@/lib/aiPlannerPrice';
 import { translations, type Language } from '@/i18n';
 import { authFetch, authDownload } from '@/lib/authFetch';
 import { toast } from 'sonner';
+import { BookingDateChangeModal } from '@/components/BookingDateChangeModal';
 
 interface Booking {
   id: string;
@@ -105,6 +106,7 @@ export function MyBookingsTab({ userEmail, tier = 'Bronze', language = 'en' }: P
   const [error, setError]       = useState<string | null>(null);
   const [cancelingId, setCancelingId] = useState<string | null>(null);
   const [modifyTarget, setModifyTarget] = useState<Booking | null>(null);
+  const [dateChangeTarget, setDateChangeTarget] = useState<Booking | null>(null);
   const [reviewTarget, setReviewTarget] = useState<Booking | null>(null);
   // 2026-05-04 P0 fix: 예약 카드 클릭 시 상세 모달 표시. 이전엔 카드 클릭 시 아무 동작도 없어
   // 사용자가 PNR/세부 정보를 볼 수 없었음 (사용자 신고: "들어가볼 수도 없음").
@@ -368,6 +370,26 @@ export function MyBookingsTab({ userEmail, tier = 'Bronze', language = 'en' }: P
           language={language}
           onClose={() => setModifyTarget(null)}
           onSaved={async () => { setModifyTarget(null); await load(); }}
+          onChangeDate={() => { setDateChangeTarget(modifyTarget); setModifyTarget(null); }}
+        />
+      )}
+
+      {/* 2026-10-23 (②b): 날짜 변경 — 같은 상품·슬롯·인원·가격, 24h 전까지. 회원 = Bearer(authFetch). */}
+      {dateChangeTarget && (
+        <BookingDateChangeModal
+          bookingID={dateChangeTarget.id}
+          bookingRef={dateChangeTarget.bookingRef}
+          currentDate={dateChangeTarget.tourDate}
+          language={language}
+          auth={{ kind: 'member' }}
+          onClose={() => setDateChangeTarget(null)}
+          onReload={() => { setDateChangeTarget(null); void load(); }}
+          onSaved={async (result) => {
+            const dc = translations[language].bookingDateChange;
+            setDateChangeTarget(null);
+            toast.success((result.emailSent ? dc.bdcSavedMemberMailSent : dc.bdcSavedMemberMailFailed).replace('{date}', result.tourDate));
+            await load();
+          }}
         />
       )}
 
@@ -429,16 +451,17 @@ export function MyBookingsTab({ userEmail, tier = 'Bronze', language = 'en' }: P
   );
 }
 
-function ModifyModal({ booking, tier, language, onClose, onSaved }: {
+// 2026-10-23 (②b): 메모·공항(편명·터미널)만 바꾼다. 날짜는 별도 "날짜 변경"(BookingDateChangeModal —
+//   좌석 이전·새 바우처). 인원·픽업은 가격 영향이라 자가 변경 불가(서버도 ignored 로 돌려준다) — 입력을 두면
+//   손님은 바뀐 줄 안다(②b 이전 버그).
+function ModifyModal({ booking, tier, language, onClose, onSaved, onChangeDate }: {
   booking: Booking; tier: string; language: 'ko'|'en'|'ja'|'zh';
-  onClose: () => void; onSaved: () => void | Promise<void>;
+  onClose: () => void; onSaved: () => void | Promise<void>; onChangeDate: () => void;
 }) {
   const i18n = getWizardI18n(language);
-  const [tourDate, setTourDate] = useState(booking.tourDate);
-  const [paxCount, setPaxCount] = useState(booking.paxCount);
-  const [pickupLocation, setPickupLocation] = useState(booking.pickupLocation);
-  const [terminal, setTerminal] = useState<'T1' | 'T2' | ''>(booking.airport?.terminal ?? '');
-  const [flightNumber, setFlightNumber] = useState(booking.airport?.flightNumber ?? '');
+  const dc = translations[language].bookingDateChange;
+  const [terminal, setTerminal] = useState<'T1' | 'T2' | ''>((booking.airport && booking.airport.terminal) || '');
+  const [flightNumber, setFlightNumber] = useState((booking.airport && booking.airport.flightNumber) || '');
   const [memo, setMemo] = useState('');
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState<string | null>(null);
@@ -448,9 +471,6 @@ function ModifyModal({ booking, tier, language, onClose, onSaved }: {
   const handleSave = async () => {
     setSaving(true); setErr(null);
     const changes: Record<string, unknown> = {};
-    if (tourDate !== booking.tourDate) changes.tourDate = tourDate;
-    if (paxCount !== booking.paxCount) changes.paxCount = paxCount;
-    if (pickupLocation !== booking.pickupLocation) changes.pickupLocation = pickupLocation;
     if (memo) changes.memo = memo;
     if (hasAirport && (terminal !== booking.airport?.terminal || flightNumber !== booking.airport?.flightNumber)) {
       changes.airport = { ...booking.airport, terminal: terminal || undefined, flightNumber: flightNumber || undefined };
@@ -464,8 +484,11 @@ function ModifyModal({ booking, tier, language, onClose, onSaved }: {
         body: JSON.stringify({ bookingID: booking.id, tier, changes }),
       });
       const json = await res.json();
-      if (json.ok) await onSaved();
-      else setErr(json.error || i18n.modifyNetworkError);
+      if (json.ok) {
+        const ignored: string[] = Array.isArray(json.data && json.data.ignored) ? json.data.ignored : [];
+        if (ignored.length > 0) toast(dc.bdcIgnored.replace('{fields}', ignored.join(', ')));
+        await onSaved();
+      } else setErr(json.error || i18n.modifyNetworkError);
     } catch (e) {
       setErr(e instanceof Error ? e.message : i18n.modifyNetworkError);
     } finally {
@@ -482,13 +505,13 @@ function ModifyModal({ booking, tier, language, onClose, onSaved }: {
         </div>
         <div className="p-5 space-y-3 text-sm">
           <Field label={i18n.modifyFieldDate}>
-            <input type="date" value={tourDate} onChange={e => setTourDate(e.target.value)} className={modalInput} min={new Date().toISOString().slice(0,10)} />
-          </Field>
-          <Field label={i18n.modifyFieldPax}>
-            <input type="number" min={1} max={30} value={paxCount} onChange={e => setPaxCount(parseInt(e.target.value, 10) || 1)} className={modalInput} />
-          </Field>
-          <Field label={i18n.modifyFieldPickup}>
-            <input type="text" value={pickupLocation} onChange={e => setPickupLocation(e.target.value)} className={modalInput} />
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-white/85">{booking.tourDate}</span>
+              <button type="button" onClick={onChangeDate}
+                className="px-3 py-1.5 rounded-lg text-xs font-bold border border-[#B668FC]/50 text-white hover:bg-[#B668FC]/15">
+                {dc.bdcButton}
+              </button>
+            </div>
           </Field>
           {hasAirport && (
             <>
