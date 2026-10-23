@@ -122,8 +122,9 @@ export function getSpotContext(destination, maxLocations = 3) {
 // ── Strict exact-city candidates (2026-08-24, planner-trust-course #8) ────
 // getSpotContext() above relaxes to a Seoul fallback when nothing matched —
 // unusable for the quick preview's zero-cross-city-substitution rule. This
-// reader is the opposite: NO relaxation, and never matches on the bare
-// `city` field — _korea_spots.json tags Suwon-Hwaseong, Incheon Songdo, Nami
+// reader is the opposite: NO relaxation, and never matches on a non-UI
+// `city` field (2026-10-24: a city that IS a UI key — seoul/busan/… — is used,
+// see groupToUiCityKey) — _korea_spots.json tags Suwon-Hwaseong, Incheon Songdo, Nami
 // Island, DMZ/Paju, and Gapyeong all under city:"gyeonggi", so matching that
 // field alone would blur five unrelated places together. Each group's
 // `district` text (e.g. "Suwon-si", "Incheon") is the real signal, resolved
@@ -133,6 +134,20 @@ export function getSpotContext(destination, maxLocations = 3) {
 function districtToUiCityKey(district) {
   const cleaned = String(district || '').trim().replace(/-(si|gun|gu)$/i, '');
   return resolveUiCityKey(cleaned);
+}
+
+/**
+ * 그룹 → UI 도시 키 (2026-10-24). `city` 가 UI 도시로 바로 풀리면 그것을 쓴다 — district 만 보던 때는
+ * {city:"seoul", district:"Mapo-gu"}·{city:"busan", district:"Haeundae-gu"} 처럼 구 이름이 도시 별칭이 아닌
+ * 서울·부산 그룹이 전부 0건이었다. `city` 가 "gyeonggi"·빈값·미지 토큰이면 위 district 판정(뭉개기 방지 의도 유지).
+ * city 와 district 가 **서로 다른** UI 도시로 풀리면 모순 데이터 — 어느 쪽에도 넣지 않는다(null).
+ */
+export function groupToUiCityKey(group) {
+  const fromCity = resolveUiCityKey(group && group.city);
+  const fromDistrict = districtToUiCityKey(group && group.district);
+  if (!fromCity) return fromDistrict;
+  if (fromDistrict && fromDistrict !== fromCity) return null;
+  return fromCity;
 }
 
 /**
@@ -150,7 +165,7 @@ export function getExactCitySpotCandidates(cityKey) {
   const spots = getSpots();
   const out = [];
   for (const group of spots) {
-    if (districtToUiCityKey(group.district) !== cityKey) continue;
+    if (groupToUiCityKey(group) !== cityKey) continue;
     for (const p of group.places || []) {
       if (!p.nameEn && !p.name) continue;
       const slug = String(p.nameEn || p.name).toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '').slice(0, 60);
