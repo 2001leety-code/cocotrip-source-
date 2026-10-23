@@ -13,12 +13,13 @@ import { createFakeFirestore } from '../helpers/fake-firestore.js';
 const DAY = 24 * 60 * 60 * 1000;
 const promo = vi.hoisted(() => ({ endMs: Number.POSITIVE_INFINITY }));
 vi.mock('../../api/onboarding-coupons.js', () => ({ isOnboardingPromoOpen: (now = Date.now()) => now <= promo.endMs }));
-vi.mock('../../api/_shared/firebase-admin.js', () => ({ initAdminDb: () => null }));
+const dbHolder = vi.hoisted(() => ({ db: null as any }));
+vi.mock('../../api/_shared/firebase-admin.js', () => ({ initAdminDb: () => dbHolder.db }));
 vi.mock('../../api/_shared/operator-alerts.js', () => ({ notifyOperatorLong: vi.fn(async () => ({ ok: true })) }));
 vi.mock('../../api/_shared/sentry.js', () => ({ captureError: vi.fn(async () => undefined) }));
 
 const {
-  fetchUnprocessedBookings, fetchUsersMissingOnboardingCoupons, buildMessage, UNPROCESSED_RECENT_DAYS,
+  fetchUnprocessedBookings, fetchUsersMissingOnboardingCoupons, buildMessage, operatorTodoTask, UNPROCESSED_RECENT_DAYS,
 } = await import('../../api/_crons/operator-todo-reminder.js');
 
 const ago = (days: number) => new Date(Date.now() - days * DAY).toISOString();
@@ -79,12 +80,62 @@ describe('(e) buildMessage — stale bookings as one count line', () => {
 
   it('stale only → a message with just that one line', () => {
     const msg = buildMessage({ ...empty, unprocessedStaleCount: 18 });
-    expect(msg).toContain('📄 오래된 미처리(30일+): 18건 — 목록 생략, /admin/reconciliation 에서 정리');
+    expect(msg).toContain('📄 오래된 미처리(30일+): 18건 — 목록 생략');
+    // /admin/reconciliation 은 최신 50건만 봐서 오래된 건을 못 찾는다 → dryRun 응답의 staleItems 로 안내.
+    //   텔레그램 HTML 모드라 URL 의 & 는 &amp; 로 실린다.
+    expect(msg).toContain('→ GET /api/cron-runner?job=operator-todo-reminder&amp;dryRun=1 의 staleItems 에서 ID 확인');
+    expect(msg).not.toContain('/admin/reconciliation');
     expect(msg).not.toContain('booking-processor 처리 누락');
   });
 
   it('nothing at all → no message', () => {
     expect(buildMessage({ ...empty, unprocessedStaleCount: 0 })).toBeNull();
+  });
+});
+
+describe('(e) stale identifiers + scan cap (Astra r1)', () => {
+  const STALE_ID = 'PAYPAL-ORDER-7XK29381ABCDEF0123'; // 16자 넘는 전체 doc.id 가 그대로 보존돼야 한다
+  const processedRecent = (n: number, prefix = 'OK') => {
+    const seed: Record<string, any> = {};
+    for (let i = 0; i < n; i++) seed[`bookings/${prefix}-${String(i).padStart(4, '0')}`] = unprocessed({ createdAt: ago(2), voucherSentAt: ago(2) });
+    return seed;
+  };
+
+  it('50 recent processed + one 31-day-old real miss → not listed, but kept in staleItems with the full doc id', async () => {
+    const db = createFakeFirestore({ ...processedRecent(50), [`bookings/${STALE_ID}`]: unprocessed({ createdAt: ago(31) }) });
+    const r = await fetchUnprocessedBookings(db);
+    expect(r.items).toEqual([]);
+    expect(r.staleCount).toBe(1);
+    expect(r.staleItems).toEqual([expect.objectContaining({ orderID: STALE_ID, userEmail: 'g@example.com', amountUSD: '100.00' })]);
+    expect(r.scanIncomplete).toBe(false);
+  });
+
+  it('1200 CONFIRMED bookings → stops at the 1000 cap with scanIncomplete=true and a warning line', async () => {
+    const r = await fetchUnprocessedBookings(createFakeFirestore(processedRecent(1200)));
+    expect(r.scanIncomplete).toBe(true);
+    const msg = buildMessage({
+      couponWarnings: [], csTickets: [], complaints: [], missingCoupons: [], unprocessedBookings: [], refundRequests: [], charterInquiries: [], collectionMissing: [],
+      unprocessedStaleCount: 0, scanIncomplete: r.scanIncomplete,
+    });
+    expect(msg).toContain('⚠️ 스캔 상한(1000건) 도달 — 이후 건 미확인');
+  });
+
+  it('999 (and exactly 1000) bookings → scanIncomplete=false', async () => {
+    expect((await fetchUnprocessedBookings(createFakeFirestore(processedRecent(999)))).scanIncomplete).toBe(false);
+    expect((await fetchUnprocessedBookings(createFakeFirestore(processedRecent(1000)))).scanIncomplete).toBe(false);
+  });
+
+  it('dryRun response carries staleItems / unprocessedStale / scanIncomplete for the operator', async () => {
+    dbHolder.db = createFakeFirestore({ ...processedRecent(3), [`bookings/${STALE_ID}`]: unprocessed({ createdAt: ago(45) }) });
+    try {
+      const out = await operatorTodoTask(true);
+      expect(out.statusCode).toBe(200);
+      expect(out.body).toMatchObject({ dryRun: true, unprocessedStale: 1, scanIncomplete: false });
+      expect(out.body.staleItems.map((i: any) => i.orderID)).toEqual([STALE_ID]);
+      expect(out.body.message).toContain('의 staleItems 에서 ID 확인');
+    } finally {
+      dbHolder.db = null;
+    }
   });
 });
 

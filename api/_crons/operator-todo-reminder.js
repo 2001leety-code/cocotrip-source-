@@ -43,6 +43,8 @@ export const UNPROCESSED_RECENT_DAYS = 30;
 // (e) CONFIRMED 예약 스캔 — 페이지 크기·최대 건수. orderBy 없이 startAfter(마지막 문서)로 넘긴다(복합 인덱스 회피).
 const UNPROCESSED_PAGE_SIZE = 200;
 const UNPROCESSED_MAX_SCAN = 1000;
+// 오래된(30일+) 실제 미처리 건의 식별자 보존 상한 — 텔레그램엔 건수만, ID 는 dryRun 응답·실행 로그의 staleItems 로.
+const STALE_ITEMS_MAX = 50;
 
 function todayKSTLabel() {
   const kst = new Date(Date.now() + 9 * 60 * 60 * 1000);
@@ -202,8 +204,11 @@ export async function fetchUnprocessedBookings(db) {
     //   명시적 테스트 신호(sandbox·admin-bypass·TEST-/ADMIN-BYPASS-)는 제외. 30일보다 오래된 실제 미처리 건은
     //   숨기지 않고 **건수만**(staleCount) 알린다 — 예전엔 limit(100) 한 페이지만 봐서 오래된 건이 앞을 채우면
     //   최근 실제 누락이 보이지 않았다 → 페이지 처리(최대 UNPROCESSED_MAX_SCAN 건).
+    //   식별자는 staleItems(doc.id 전체, 최대 STALE_ITEMS_MAX)로 남긴다 — /admin/reconciliation 은 최신 50건만 봐서
+    //   오래된 건을 찾을 수 없다. 상한에 걸려 멈추면 scanIncomplete 로 "이후 건 미확인" 을 알린다.
     const recentCutoffMs = Date.now() - UNPROCESSED_RECENT_DAYS * DAY_MS;
     const items = [];
+    const staleItems = [];
     let staleCount = 0;
     let scanned = 0;
     let last = null;
@@ -226,7 +231,18 @@ export async function fetchUnprocessedBookings(db) {
         // bookingRef 가 채워져 있으면 booking-processor 가 돌았다고 간주.
         const hasBookingRef = !!(b.bookingRef && String(b.bookingRef).trim());
         if (hasBookingRef) return;
-        if (createdMs < recentCutoffMs) { staleCount += 1; return; }
+        if (createdMs < recentCutoffMs) {
+          staleCount += 1;
+          if (staleItems.length < STALE_ITEMS_MAX) {
+            staleItems.push({
+              orderID: doc.id,
+              userEmail: b.userEmail || b.payerEmail || '-',
+              amountUSD: b.amountUSD || '-',
+              ageHours: Math.round((Date.now() - createdMs) / HOUR_MS),
+            });
+          }
+          return;
+        }
         items.push({
           orderID: doc.id.slice(0, 16),
           userEmail: b.userEmail || b.payerEmail || '-',
@@ -240,7 +256,17 @@ export async function fetchUnprocessedBookings(db) {
       last = snap.docs[snap.docs.length - 1];
       if (snap.size < UNPROCESSED_PAGE_SIZE) break;
     }
-    return { items, staleCount };
+    // 상한에 걸려 멈췄을 때만 남은 건이 있는지 1건 더 본다(정확히 상한 건수면 미완 아님).
+    let scanIncomplete = false;
+    if (scanned >= UNPROCESSED_MAX_SCAN && last) {
+      const probe = await db.collection('bookings')
+        .where('status', '==', 'CONFIRMED')
+        .startAfter(last)
+        .limit(1)
+        .get();
+      scanIncomplete = !probe.empty;
+    }
+    return { items, staleCount, staleItems, scanIncomplete };
   } catch (err) {
     console.warn('[operator-todo] unprocessed bookings query failed:', err.message);
     return { items: [], error: err.message, skipped: true };
@@ -315,6 +341,7 @@ export function buildMessage({
   couponWarnings, csTickets, complaints, missingCoupons, unprocessedBookings, refundRequests,
   charterInquiries,
   unprocessedStaleCount = 0,
+  scanIncomplete = false,
   collectionMissing,
 }) {
   const totalCount =
@@ -327,7 +354,7 @@ export function buildMessage({
     (refundRequests?.length || 0) +
     (charterInquiries?.length || 0);
 
-  if (totalCount === 0 && (!collectionMissing || collectionMissing.length === 0)) {
+  if (totalCount === 0 && !scanIncomplete && (!collectionMissing || collectionMissing.length === 0)) {
     return null;
   }
 
@@ -388,7 +415,14 @@ export function buildMessage({
   }
 
   if (Number(unprocessedStaleCount) > 0) {
-    lines.push(`📄 오래된 미처리(${UNPROCESSED_RECENT_DAYS}일+): ${unprocessedStaleCount}건 — 목록 생략, /admin/reconciliation 에서 정리`);
+    // 텔레그램 HTML 모드 — URL 의 & 는 &amp; 로(그대로 두면 "can't parse entities" 로 알림 자체가 실패).
+    lines.push(`📄 오래된 미처리(${UNPROCESSED_RECENT_DAYS}일+): ${unprocessedStaleCount}건 — 목록 생략`);
+    lines.push('  → GET /api/cron-runner?job=operator-todo-reminder&amp;dryRun=1 의 staleItems 에서 ID 확인');
+    lines.push('');
+  }
+
+  if (scanIncomplete) {
+    lines.push(`⚠️ 스캔 상한(${UNPROCESSED_MAX_SCAN}건) 도달 — 이후 건 미확인`);
     lines.push('');
   }
 
@@ -415,7 +449,7 @@ export function buildMessage({
 }
 
 // ── 메인 ─────────────────────────────────────────────────────────────
-const operatorTodoTask = async (dryRun = false) => {
+export const operatorTodoTask = async (dryRun = false) => {
   console.log('[operator-todo] 시작 (dryRun=' + dryRun + ')');
 
   const db = initAdminDb('cron/operator-todo-reminder');
@@ -445,7 +479,11 @@ const operatorTodoTask = async (dryRun = false) => {
       const label = labels[i];
       if (r.status === 'fulfilled') {
         data[label] = r.value.items || [];
-        if (label === 'unprocessedBookings') data.unprocessedStaleCount = Number(r.value.staleCount) || 0;
+        if (label === 'unprocessedBookings') {
+          data.unprocessedStaleCount = Number(r.value.staleCount) || 0;
+          data.staleItems = Array.isArray(r.value.staleItems) ? r.value.staleItems : [];
+          data.scanIncomplete = r.value.scanIncomplete === true;
+        }
         if (r.value.skipped) collectionMissing.push(label);
       } else {
         data[label] = [];
@@ -463,6 +501,7 @@ const operatorTodoTask = async (dryRun = false) => {
       refundRequests: data.refundRequests,
       charterInquiries: data.charterInquiries,
       unprocessedStaleCount: data.unprocessedStaleCount || 0,
+      scanIncomplete: data.scanIncomplete === true,
       collectionMissing,
     });
 
@@ -500,7 +539,10 @@ const operatorTodoTask = async (dryRun = false) => {
           unprocessedStale: data.unprocessedStaleCount || 0,
           refundRequests: data.refundRequests?.length || 0,
           charterInquiries: data.charterInquiries?.length || 0,
-        }, collectionMissing },
+        }, collectionMissing,
+        unprocessedStale: data.unprocessedStaleCount || 0,
+        staleItems: data.staleItems || [],
+        scanIncomplete: data.scanIncomplete === true },
       };
     }
 
@@ -517,6 +559,9 @@ const operatorTodoTask = async (dryRun = false) => {
         notified: result.ok,
         notifyError: result.ok ? null : result.error,
         collectionMissing,
+        unprocessedStale: data.unprocessedStaleCount || 0,
+        staleItems: data.staleItems || [],
+        scanIncomplete: data.scanIncomplete === true,
       },
     };
   } catch (err) {
