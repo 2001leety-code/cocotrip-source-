@@ -19,6 +19,7 @@ import { getAttractionsContext } from '../_attractions_helper.js';
 import { getMountainContextForPrompt } from '../_mountain_helper.js'; // P191 SAFETY: Trekking/Hallasan
 import { getRunningContextForPrompt } from '../_running_helper.js'; // P237: Running 코스 16개 DB
 import { throttledTelegramAlert } from '../_shared/telegram-throttle.js';
+import { plannerFailureAlertMessage } from './plannerFailureAlert.js';
 import { CORS } from './constants.js';
 import { buildSystemPrompt, logPromptMetrics, buildRevisionInstruction } from './buildPrompt.js';
 import { loadFoodIndex, runGeminiPipeline } from './geminiPipeline.js';
@@ -473,7 +474,7 @@ export default async function handler(req, res) {
         await throttledTelegramAlert({
           key: 'ai-planner-unhandled',
           channel: 'error',
-          message: `🔴 <b>AI 플래너 처리 실패</b>\n\n${error.message || '알 수 없는 오류'}\n\n경로: /api/ai-planner-full | 모드: ${resolvedPlannerMode}`,
+          message: plannerFailureAlertMessage(error.message, resolvedPlannerMode),
           severity: 'high',
           context: { errorMessage: (error.message || '').slice(0, 200), stack: (error.stack || '').slice(0, 500) },
         });

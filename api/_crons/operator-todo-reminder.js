@@ -30,12 +30,21 @@ import { initAdminDb } from '../_shared/firebase-admin.js';
 import { verifyCronRequest } from '../_shared/cron-auth.js';
 import { notifyOperatorLong } from '../_shared/operator-alerts.js';
 import { captureError } from '../_shared/sentry.js';
+import { hasExplicitTestSignal } from '../_shared/booking-test-flags.js';
+import { isOnboardingPromoOpen } from '../onboarding-coupons.js';
 
 export const maxDuration = 30;
 export const config = { runtime: 'nodejs' };
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const HOUR_MS = 60 * 60 * 1000;
+// (e) 처리 누락 — 이 기간 안의 건만 건별로 나열하고, 더 오래된 건은 건수만 한 줄로 알린다(2026-10-23).
+export const UNPROCESSED_RECENT_DAYS = 30;
+// (e) CONFIRMED 예약 스캔 — 페이지 크기·최대 건수. orderBy 없이 startAfter(마지막 문서)로 넘긴다(복합 인덱스 회피).
+const UNPROCESSED_PAGE_SIZE = 200;
+const UNPROCESSED_MAX_SCAN = 1000;
+// 오래된(30일+) 실제 미처리 건의 식별자 보존 상한 — 텔레그램엔 건수만, ID 는 dryRun 응답·일반 실행 응답의 staleItems 로.
+const STALE_ITEMS_MAX = 50;
 
 function todayKSTLabel() {
   const kst = new Date(Date.now() + 9 * 60 * 60 * 1000);
@@ -138,7 +147,7 @@ async function fetchOverdueComplaints(db) {
 }
 
 // ── (d) 가입 쿠폰 0건 신규 회원 ────────────────────────────────────
-async function fetchUsersMissingOnboardingCoupons(db) {
+export async function fetchUsersMissingOnboardingCoupons(db) {
   try {
     const cutoffMs = Date.now() - HOUR_MS; // 가입 후 1h+
     // 신규 회원 위주로 최근 200명만 스캔 — 가입 시점 ASC 정렬 시 인덱스 필요해서
@@ -153,6 +162,9 @@ async function fetchUsersMissingOnboardingCoupons(db) {
       if (u.onboardingCouponsIssued === true) continue;
       const createdMs = tsToMs(u.createdAt || u.signupAt);
       if (!createdMs || createdMs > cutoffMs) continue; // 가입한 지 1h 미만이면 시간 더 줌
+      // 2026-10-23: 프로모 마감 **뒤** 가입자는 쿠폰 0건이 정상(onboarding-coupons.js 가 발급하지 않는다) → 제외.
+      //   기간 안에 가입했는데 0건이면 진짜 누락이라 계속 보고한다(전역 마감 여부가 아니라 가입 시각 기준).
+      if (!isOnboardingPromoOpen(createdMs)) continue;
 
       // 7일 이상 된 회원은 더 이상 자동 알림 안 함 (큐 누적 방지) — 운영자 backlog
       // 정리는 manually 처리. 최근 7일 내 가입자만 알림 대상.
@@ -185,35 +197,76 @@ async function fetchUsersMissingOnboardingCoupons(db) {
 // PR-L: 1차 시그널은 `voucherSentAt` 빈 booking. PR-L 이전 booking 은 해당 필드
 // 미존재 → `bookingRef` 누락 backward-compat proxy 병행. 둘 중 하나라도 채워져
 // 있으면 정상 처리된 booking 으로 간주 (false positive 방지).
-async function fetchUnprocessedBookings(db) {
+export async function fetchUnprocessedBookings(db) {
   try {
     const cutoffMs = Date.now() - DAY_MS;
-    const snap = await db.collection('bookings')
-      .where('status', '==', 'CONFIRMED')
-      .limit(100)
-      .get();
+    // 2026-10-23: 5월 Braintree 테스트 예약 18건(4100h+, voucherSentAt·bookingRef 없음)이 매일 건별로 재보고됐다.
+    //   명시적 테스트 신호(sandbox·admin-bypass·TEST-/ADMIN-BYPASS-)는 제외. 30일보다 오래된 실제 미처리 건은
+    //   숨기지 않고 **건수만**(staleCount) 알린다 — 예전엔 limit(100) 한 페이지만 봐서 오래된 건이 앞을 채우면
+    //   최근 실제 누락이 보이지 않았다 → 페이지 처리(최대 UNPROCESSED_MAX_SCAN 건).
+    //   식별자는 staleItems(doc.id 전체, 최대 STALE_ITEMS_MAX)로 남긴다 — /admin/reconciliation 은 최신 50건만 봐서
+    //   오래된 건을 찾을 수 없다. 상한에 걸려 멈추면 scanIncomplete 로 "이후 건 미확인" 을 알린다.
+    const recentCutoffMs = Date.now() - UNPROCESSED_RECENT_DAYS * DAY_MS;
     const items = [];
-    snap.forEach((doc) => {
-      const b = doc.data();
-      const createdMs = tsToMs(b.createdAt);
-      if (!createdMs || createdMs > cutoffMs) return;
-      // 1차: voucherSentAt 가 채워져 있으면 정상 처리된 booking
-      const hasVoucherSent = !!b.voucherSentAt;
-      if (hasVoucherSent) return;
-      // 2차 (backward-compat): PR-L 이전 booking 은 voucherSentAt 미존재.
-      // bookingRef 가 채워져 있으면 booking-processor 가 돌았다고 간주.
-      const hasBookingRef = !!(b.bookingRef && String(b.bookingRef).trim());
-      if (hasBookingRef) return;
-      items.push({
-        orderID: doc.id.slice(0, 16),
-        userEmail: b.userEmail || b.payerEmail || '-',
-        amountUSD: b.amountUSD || '-',
-        ageHours: Math.round((Date.now() - createdMs) / HOUR_MS),
-        // 진단용 — 운영자가 voucherFailedAt 조회 시 원인 파악
-        voucherError: b.voucherError ? String(b.voucherError).slice(0, 80) : null,
+    const staleItems = [];
+    let staleCount = 0;
+    let scanned = 0;
+    let last = null;
+    while (scanned < UNPROCESSED_MAX_SCAN) {
+      let query = db.collection('bookings')
+        .where('status', '==', 'CONFIRMED')
+        .limit(UNPROCESSED_PAGE_SIZE);
+      if (last) query = query.startAfter(last);
+      const snap = await query.get();
+      if (snap.empty) break;
+      snap.forEach((doc) => {
+        const b = doc.data();
+        const createdMs = tsToMs(b.createdAt);
+        if (!createdMs || createdMs > cutoffMs) return;
+        if (hasExplicitTestSignal(doc.id, b)) return;
+        // 1차: voucherSentAt 가 채워져 있으면 정상 처리된 booking
+        const hasVoucherSent = !!b.voucherSentAt;
+        if (hasVoucherSent) return;
+        // 2차 (backward-compat): PR-L 이전 booking 은 voucherSentAt 미존재.
+        // bookingRef 가 채워져 있으면 booking-processor 가 돌았다고 간주.
+        const hasBookingRef = !!(b.bookingRef && String(b.bookingRef).trim());
+        if (hasBookingRef) return;
+        if (createdMs < recentCutoffMs) {
+          staleCount += 1;
+          if (staleItems.length < STALE_ITEMS_MAX) {
+            staleItems.push({
+              orderID: doc.id,
+              userEmail: b.userEmail || b.payerEmail || '-',
+              amountUSD: b.amountUSD || '-',
+              ageHours: Math.round((Date.now() - createdMs) / HOUR_MS),
+            });
+          }
+          return;
+        }
+        items.push({
+          orderID: doc.id.slice(0, 16),
+          userEmail: b.userEmail || b.payerEmail || '-',
+          amountUSD: b.amountUSD || '-',
+          ageHours: Math.round((Date.now() - createdMs) / HOUR_MS),
+          // 진단용 — 운영자가 voucherFailedAt 조회 시 원인 파악
+          voucherError: b.voucherError ? String(b.voucherError).slice(0, 80) : null,
+        });
       });
-    });
-    return { items };
+      scanned += snap.size;
+      last = snap.docs[snap.docs.length - 1];
+      if (snap.size < UNPROCESSED_PAGE_SIZE) break;
+    }
+    // 상한에 걸려 멈췄을 때만 남은 건이 있는지 1건 더 본다(정확히 상한 건수면 미완 아님).
+    let scanIncomplete = false;
+    if (scanned >= UNPROCESSED_MAX_SCAN && last) {
+      const probe = await db.collection('bookings')
+        .where('status', '==', 'CONFIRMED')
+        .startAfter(last)
+        .limit(1)
+        .get();
+      scanIncomplete = !probe.empty;
+    }
+    return { items, staleCount, staleItems, scanIncomplete };
   } catch (err) {
     console.warn('[operator-todo] unprocessed bookings query failed:', err.message);
     return { items: [], error: err.message, skipped: true };
@@ -284,12 +337,15 @@ async function fetchOverdueCharterInquiries(db) {
 }
 
 // ── 메시지 빌드 ──────────────────────────────────────────────────────
-function buildMessage({
+export function buildMessage({
   couponWarnings, csTickets, complaints, missingCoupons, unprocessedBookings, refundRequests,
   charterInquiries,
+  unprocessedStaleCount = 0,
+  scanIncomplete = false,
   collectionMissing,
 }) {
   const totalCount =
+    (Number(unprocessedStaleCount) || 0) +
     (couponWarnings?.length || 0) +
     (csTickets?.length || 0) +
     (complaints?.length || 0) +
@@ -298,7 +354,7 @@ function buildMessage({
     (refundRequests?.length || 0) +
     (charterInquiries?.length || 0);
 
-  if (totalCount === 0 && (!collectionMissing || collectionMissing.length === 0)) {
+  if (totalCount === 0 && !scanIncomplete && (!collectionMissing || collectionMissing.length === 0)) {
     return null;
   }
 
@@ -358,6 +414,18 @@ function buildMessage({
     lines.push('');
   }
 
+  if (Number(unprocessedStaleCount) > 0) {
+    // 텔레그램 HTML 모드 — URL 의 & 는 &amp; 로(그대로 두면 "can't parse entities" 로 알림 자체가 실패).
+    lines.push(`📄 오래된 미처리(${UNPROCESSED_RECENT_DAYS}일+): ${unprocessedStaleCount}건 — 목록 생략`);
+    lines.push('  → GET /api/cron-runner?job=operator-todo-reminder&amp;dryRun=1 의 staleItems 에서 ID 확인');
+    lines.push('');
+  }
+
+  if (scanIncomplete) {
+    lines.push(`⚠️ 스캔 상한(${UNPROCESSED_MAX_SCAN}건) 도달 — 이후 건 미확인`);
+    lines.push('');
+  }
+
   if (refundRequests && refundRequests.length > 0) {
     lines.push(`💰 환불 요청 미처리 (24h+): ${refundRequests.length}건`);
     refundRequests.slice(0, 10).forEach((r) => {
@@ -381,7 +449,7 @@ function buildMessage({
 }
 
 // ── 메인 ─────────────────────────────────────────────────────────────
-const operatorTodoTask = async (dryRun = false) => {
+export const operatorTodoTask = async (dryRun = false) => {
   console.log('[operator-todo] 시작 (dryRun=' + dryRun + ')');
 
   const db = initAdminDb('cron/operator-todo-reminder');
@@ -411,6 +479,11 @@ const operatorTodoTask = async (dryRun = false) => {
       const label = labels[i];
       if (r.status === 'fulfilled') {
         data[label] = r.value.items || [];
+        if (label === 'unprocessedBookings') {
+          data.unprocessedStaleCount = Number(r.value.staleCount) || 0;
+          data.staleItems = Array.isArray(r.value.staleItems) ? r.value.staleItems : [];
+          data.scanIncomplete = r.value.scanIncomplete === true;
+        }
         if (r.value.skipped) collectionMissing.push(label);
       } else {
         data[label] = [];
@@ -427,10 +500,13 @@ const operatorTodoTask = async (dryRun = false) => {
       unprocessedBookings: data.unprocessedBookings,
       refundRequests: data.refundRequests,
       charterInquiries: data.charterInquiries,
+      unprocessedStaleCount: data.unprocessedStaleCount || 0,
+      scanIncomplete: data.scanIncomplete === true,
       collectionMissing,
     });
 
     const totalCount =
+      (data.unprocessedStaleCount || 0) +
       (data.couponWarnings?.length || 0) +
       (data.cs_tickets?.length || 0) +
       (data.plan_complaints?.length || 0) +
@@ -460,9 +536,13 @@ const operatorTodoTask = async (dryRun = false) => {
           plan_complaints: data.plan_complaints?.length || 0,
           users: data.users?.length || 0,
           unprocessedBookings: data.unprocessedBookings?.length || 0,
+          unprocessedStale: data.unprocessedStaleCount || 0,
           refundRequests: data.refundRequests?.length || 0,
           charterInquiries: data.charterInquiries?.length || 0,
-        }, collectionMissing },
+        }, collectionMissing,
+        unprocessedStale: data.unprocessedStaleCount || 0,
+        staleItems: data.staleItems || [],
+        scanIncomplete: data.scanIncomplete === true },
       };
     }
 
@@ -479,6 +559,9 @@ const operatorTodoTask = async (dryRun = false) => {
         notified: result.ok,
         notifyError: result.ok ? null : result.error,
         collectionMissing,
+        unprocessedStale: data.unprocessedStaleCount || 0,
+        staleItems: data.staleItems || [],
+        scanIncomplete: data.scanIncomplete === true,
       },
     };
   } catch (err) {
