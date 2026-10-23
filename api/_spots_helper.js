@@ -10,6 +10,13 @@ import { resolveUiCityKey } from './_shared/cityResolver.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
+// 2026-10-24 — 엄격 도시 후보(getExactCitySpotCandidates)에서 뺄 식음료 category 토큰. 실데이터 값은
+// food·cafe·culture·shopping·activity 와 "food|shopping" 같은 복합값뿐 — `|` 로 쪼갠 토큰 중 하나라도 여기 있으면 제외.
+// 소비처(빠른 미리보기·mock)가 후보를 관광지로 취급하므로, 남겨 두면 비검증 식당이 식이 손님 일정에 관광지로 들어간다.
+const FOOD_SPOT_CATEGORIES = new Set(['food', 'cafe']);
+const isFoodSpotCategory = (category) => String(category || '').toLowerCase().split('|')
+  .some((t) => FOOD_SPOT_CATEGORIES.has(t.trim()));
+
 let _spots = null;
 function getSpots() {
   if (!_spots) {
@@ -151,7 +158,8 @@ export function groupToUiCityKey(group) {
 }
 
 /**
- * Exact-city Korea-spots place candidates — for thin cities where the
+ * Exact-city Korea-spots place candidates (attractions only — food/cafe places
+ * are skipped, see FOOD_SPOT_CATEGORIES) — for thin cities where the
  * attraction/food indexes have too few rows (e.g. Suwon: 1 attraction row, 0
  * food rows). Normalized to a minimal, stable shape: only name/nameEn/
  * address/category and a deterministic server-owned key — the source JSON
@@ -168,6 +176,7 @@ export function getExactCitySpotCandidates(cityKey) {
     if (groupToUiCityKey(group) !== cityKey) continue;
     for (const p of group.places || []) {
       if (!p.nameEn && !p.name) continue;
+      if (isFoodSpotCategory(p.category)) continue;
       const slug = String(p.nameEn || p.name).toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '').slice(0, 60);
       out.push({
         key: `spot_${cityKey}_${slug}`,

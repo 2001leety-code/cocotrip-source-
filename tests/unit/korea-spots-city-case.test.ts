@@ -9,7 +9,7 @@ import { describe, expect, it } from 'vitest';
 import { getSpotContext, getExactCitySpotCandidates, getExactCitySpotsContext, groupToUiCityKey } from '../../api/_spots_helper.js';
 import { buildMockPlan } from '../../api/_shared/llm/mock.js';
 
-type Group = { city: string; district: string; dongEn: string; places?: { name?: string; nameEn?: string }[] };
+type Group = { city: string; district: string; dongEn: string; places?: { name?: string; nameEn?: string; category?: string }[] };
 const raw = JSON.parse(readFileSync(resolve(process.cwd(), 'api/_korea_spots.json'), 'utf8')) as Group[];
 
 describe('korea_spots city key casing', () => {
@@ -46,10 +46,11 @@ describe('getExactCitySpotCandidates — group → UI city', () => {
   });
 
   it('seoul includes a Mapo-gu place and busan a Haeundae-gu place (district is not a city alias)', () => {
-    const mapo = raw.find((g) => g.city.toLowerCase() === 'seoul' && g.district === 'Mapo-gu')!;
-    const haeundae = raw.find((g) => g.city.toLowerCase() === 'busan' && g.district === 'Haeundae-gu')!;
-    expect(getExactCitySpotCandidates('seoul').map((c) => c.name.en)).toContain(mapo.places![0].nameEn || mapo.places![0].name);
-    expect(getExactCitySpotCandidates('busan').map((c) => c.name.en)).toContain(haeundae.places![0].nameEn || haeundae.places![0].name);
+    const firstAttraction = (g: Group) => g.places!.find((p) => !isFoodCategory(p.category))!;
+    const mapo = firstAttraction(raw.find((g) => g.city.toLowerCase() === 'seoul' && g.district === 'Mapo-gu')!);
+    const haeundae = firstAttraction(raw.find((g) => g.city.toLowerCase() === 'busan' && g.district === 'Haeundae-gu')!);
+    expect(getExactCitySpotCandidates('seoul').map((c) => c.name.en)).toContain(mapo.nameEn || mapo.name);
+    expect(getExactCitySpotCandidates('busan').map((c) => c.name.en)).toContain(haeundae.nameEn || haeundae.name);
   });
 
   it.each([['suwon', 'Suwon-si'], ['incheon', 'Incheon']])('%s stays split out of the gyeonggi bucket by district', (cityKey, district) => {
@@ -81,6 +82,12 @@ describe('getExactCitySpotCandidates — group → UI city', () => {
     expect(groupToUiCityKey({ city: 'seoul', district: 'Busan' })).toBeNull();
     expect(groupToUiCityKey({ city: 'busan', district: 'Incheon' })).toBeNull();
     expect(groupToUiCityKey({ city: 'seoul', district: 'Seoul' })).toBe('seoul'); // 같은 도시면 모순 아님
+    expect(groupToUiCityKey({ city: 'Seoul ', district: 'Mapo-gu' })).toBe('seoul'); // 공백
+    expect(groupToUiCityKey({ city: '서울', district: 'Jongno-gu' })).toBe('seoul'); // 한글 별칭
+  });
+
+  it('maxItems defaults to 6', () => {
+    expect(getExactCitySpotsContext({ cityKey: 'seoul' }).candidates).toHaveLength(6);
   });
 
   it('output shape and key prefix unchanged; empty / unknown city → nothing', () => {
@@ -100,5 +107,44 @@ describe('getExactCitySpotCandidates — group → UI city', () => {
       const used = plan.days.flatMap((d: { stops: { name: string }[] }) => d.stops).filter((s: { name: string }) => names.has(s.name));
       expect(used.length, area).toBeGreaterThan(0);
     }
+  });
+});
+
+/**
+ * 2026-10-24 — 후보는 빠른 미리보기(관광지 목록에 합침)와 mock(category 'culture' 로 바꿈) 모두 관광지로 쓴다.
+ * _korea_spots.json 의 food/cafe 장소(복합 "activity|cafe" 포함)가 남으면 식이 손님 일정에 비검증 식당이 관광지로 들어간다.
+ */
+const isFoodCategory = (category?: string) => String(category || '').toLowerCase().split('|').some((t) => ['food', 'cafe'].includes(t.trim()));
+const foodSpotNames = new Set(raw.flatMap((g) => (g.places || []).filter((p) => isFoodCategory(p.category))
+  .flatMap((p) => [p.nameEn, p.name].filter(Boolean) as string[])));
+const placesOfCity = (cityKey: string) => raw.filter((g) => groupToUiCityKey(g) === cityKey)
+  .flatMap((g) => (g.places || []).filter((p) => p.nameEn || p.name));
+
+describe('getExactCitySpotCandidates — food/cafe places excluded', () => {
+  it.each(['seoul', 'busan'])('%s: no food/cafe candidates, and the filter actually removed some', (cityKey) => {
+    const all = placesOfCity(cityKey);
+    const food = all.filter((p) => isFoodCategory(p.category));
+    expect(food.length).toBeGreaterThan(0);
+    const candidates = getExactCitySpotCandidates(cityKey);
+    expect(candidates.filter((c) => isFoodCategory(c.category))).toEqual([]);
+    expect(candidates).toHaveLength(all.length - food.length);
+    expect(getExactCitySpotsContext({ cityKey }).candidates.filter((c) => isFoodCategory(c.category))).toEqual([]);
+  });
+
+  it('a compound category with a food token (e.g. "activity|cafe") is excluded; non-food compounds stay', () => {
+    const seoulCats = new Set(getExactCitySpotCandidates('seoul').map((c) => c.category));
+    for (const c of seoulCats) expect(isFoodCategory(c), c).toBe(false);
+    const compoundFood = placesOfCity('seoul').filter((p) => String(p.category).includes('|') && isFoodCategory(p.category));
+    const names = new Set(getExactCitySpotCandidates('seoul').map((c) => c.name.en));
+    for (const p of compoundFood) expect(names.has(String(p.nameEn || p.name)), String(p.category)).toBe(false);
+  });
+
+  it('halal mock plan (seoul, 2 days): no korea_spots food/cafe place sneaks in as a non-food stop', () => {
+    const json = JSON.stringify({ duration_days: 2, area: 'seoul', regions: ['seoul'], diet_preferences: ['Halal'], tour_start_time: '09:00', tour_end_time: '21:00' });
+    const plan = buildMockPlan({ userText: 'X\n' + json + '\n=== VARIATION ===' });
+    const stops = plan.days.flatMap((d: { stops: { name: string; category: string }[] }) => d.stops);
+    const nonFood = stops.filter((s: { category: string }) => s.category !== 'food');
+    expect(nonFood.length).toBeGreaterThan(0);
+    for (const s of nonFood) expect(foodSpotNames.has(s.name), `${s.category}: ${s.name}`).toBe(false);
   });
 });
