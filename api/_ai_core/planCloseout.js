@@ -15,6 +15,7 @@ import { throttledTelegramAlert } from '../_shared/telegram-throttle.js';
 import { PLAN_ISSUANCE_COLLECTION } from '../_shared/plan-issuance.js';
 import { CORS } from './constants.js';
 import { restoreAiPlanCoupon } from './paymentGate.js';
+import { plannerFailureAlertMessage } from './plannerFailureAlert.js';
 
 /**
  * streaming 중인 plan 문서를 error 로 닫는다. **절대 throw 하지 않는다.**
@@ -108,7 +109,7 @@ export async function runHandlerFailureCleanup({
       await throttledTelegramAlert({
         key: 'ai-planner-unhandled',
         channel: 'error',
-        message: `🔴 <b>AI 플래너 처리 실패</b>\n\n${error.message || '알 수 없는 오류'}\n\n경로: /api/ai-planner-full | 모드: ${plannerMode}`,
+        message: plannerFailureAlertMessage(error.message, plannerMode), // HTML escape — 텔레그램 parse 실패 방지
         severity: 'high',
         context: { errorMessage: (error.message || '').slice(0, 200), stack: (error.stack || '').slice(0, 500) },
       });
