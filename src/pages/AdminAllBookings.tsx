@@ -12,13 +12,19 @@
  * 전액 환불로 취소한다(POST /api/admin-booking-action, action=dispatch-cancel).
  * 2026-10-23: PayPal 직접 결제 예약(bookings, kind='paypal')도 목록에 포함 — "취소 + 전액 환불 (PayPal)"
  * 버튼(action=refund-booking). 환불할 수 없는 행(refundable=false)은 버튼 대신 이유를 보여준다.
+ * 2026-10-23 (PR-3): 게스트 PayPal 예약에 "관리 링크 재발송"(action=resend-manage-link) — 저장된 결제자
+ * 이메일로만 보내고, 응답엔 마스킹된 주소만 온다(토큰·링크는 이 화면에 오지 않는다).
  * 그 외에는 여전히 읽기 전용.
  */
-import { useEffect, useState, useCallback, useMemo } from 'react';
+import { useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { Link } from 'react-router-dom';
 import { ArrowLeft, RefreshCw, Calendar, Loader2 } from 'lucide-react';
+import { Toaster, toast } from 'sonner';
 import { usePageMeta } from '@/hooks/usePageMeta';
+import {
+  AlertDialog, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogHeader, AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 
 type Source = 'cocotrip' | 'mood';
 type SourceFilter = Source | 'all';
@@ -43,6 +49,11 @@ interface BookingItem {
   parentOrderID?: string | null;
   refundable?: boolean;
   linkLookupFailed?: boolean;
+  /** 게스트 관리 대상(회원·cart 자식 아님) — 관리 링크 재발송 버튼 노출 조건. */
+  guestManaged?: boolean;
+  /** 날짜 변경 뒤 새 관리 링크 메일 실패(또는 pending 삭제 실패) — 전달 여부 확인 필요. */
+  manageLinkPending?: boolean;
+  manageLinkResentAt?: number | null;
 }
 
 interface Counts { cocotrip: number; mood: number; paypal?: number }
@@ -190,8 +201,44 @@ export default function AdminAllBookings() {
 
   const testCount = useMemo(() => (items || []).filter((b) => b.isTest).length, [items]);
 
+  // 게스트 관리 링크 재발송 — 저장된 payerEmail 로만, 현재 버전 링크(기존 링크도 유효).
+  //   확인창(ResendLinkConfirmModal) → 요청. 잠금은 화면 전체 하나 — 진행 중엔 모든 행의 재발송이 막힌다.
+  const [resendTarget, setResendTarget] = useState<BookingItem | null>(null);
+  const [resendingId, setResendingId] = useState<string | null>(null);
+  // 확인창이 닫히면 초점을 그 행의 재발송 버튼으로 돌려준다(트리거 없이 여므로 Radix 기본 복귀가 없다).
+  const resendBtnRefs = useRef(new Map<string, HTMLButtonElement>());
+  const resendManageLink = async (b: BookingItem) => {
+    if (!user || resendingId !== null) return;
+    setResendingId(b.id);
+    try {
+      // 이 화면의 기존 관례(DispatchCancelModal 과 같은 Bearer 첨부) — useAuth 의 user 토큰.
+      const idToken = await user.getIdToken();
+      const res = await fetch('/api/admin-booking-action', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${idToken}` },
+        body: JSON.stringify({ bookingRef: b.bookingRef, action: 'resend-manage-link' }),
+      });
+      const json = await res.json().catch(() => null);
+      if (res.ok && json?.ok) {
+        toast.success(`${json.data.recipientMasked} 로 관리 링크를 보냈습니다`);
+        void reload();
+      } else if (res.status === 429) {
+        toast.error('방금 재발송했습니다 — 1분 뒤 다시 시도하세요');
+      } else {
+        // 502 MAIL_FAILED(미발송) / MAIL_RESULT_UNKNOWN(수동 확인) · 409 만료·환경 — 서버 문구 그대로.
+        toast.error(json?.error || `재발송 실패 (HTTP ${res.status})`);
+      }
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : '재발송 실패');
+    } finally {
+      setResendingId(null);
+      setResendTarget(null);
+    }
+  };
+
   return (
     <div className="min-h-screen overflow-x-hidden" style={{ background: '#080b14' }}>
+      <Toaster position="top-center" richColors />
       {/* Header */}
       <div className="border-b border-white/[0.06] bg-[#0c1220]/95 backdrop-blur sticky top-0 z-10">
         <div className="max-w-5xl mx-auto px-3 sm:px-5 py-3 sm:py-4 flex flex-wrap items-center justify-between gap-2 sm:gap-4">
@@ -361,6 +408,24 @@ export default function AdminAllBookings() {
                       </button>
                     )}
                     {blockReason && <span className="text-[10px] text-white/40">{blockReason}</span>}
+                    {/* 게스트 예약 — 관리 링크 재발송. pending = 날짜 변경 뒤 새 링크 메일 실패(또는 삭제 실패)로 남은 표시. */}
+                    {b.guestManaged && b.status === 'CONFIRMED' && (
+                      <>
+                        {b.manageLinkPending && (
+                          <span className="inline-block px-2 py-0.5 rounded-md text-[10px] font-semibold border bg-amber-500/15 text-amber-300 border-amber-500/40">
+                            링크 전달 확인 필요
+                          </span>
+                        )}
+                        <button
+                          ref={(el) => { if (el) resendBtnRefs.current.set(b.id, el); else resendBtnRefs.current.delete(b.id); }}
+                          onClick={() => setResendTarget(b)}
+                          disabled={resendingId !== null}
+                          className="px-2.5 py-1.5 rounded-lg text-[11px] font-semibold border border-sky-500/40 bg-sky-500/10 text-sky-300 hover:bg-sky-500/20 transition-colors min-h-[36px] disabled:opacity-50"
+                        >
+                          {resendingId === b.id ? '보내는 중…' : '관리 링크 재발송'}
+                        </button>
+                      </>
+                    )}
                   </div>
                 </article>
               );
@@ -377,7 +442,75 @@ export default function AdminAllBookings() {
           getIdToken={() => user!.getIdToken()}
         />
       )}
+
+      {resendTarget && (
+        <ResendLinkConfirmModal
+          booking={resendTarget}
+          busy={resendingId !== null}
+          onClose={() => { if (resendingId === null) setResendTarget(null); }}
+          onConfirm={() => { void resendManageLink(resendTarget); }}
+          returnFocusTo={() => resendBtnRefs.current.get(resendTarget.id)}
+        />
+      )}
     </div>
+  );
+}
+
+/**
+ * 관리 링크 재발송 확인창 (2026-10-23, PR-3) — Radix AlertDialog(ui/alert-dialog.tsx).
+ * 초점: 열리면 창 안(닫기 버튼), Tab 은 창 안에서만 돈다, 닫히면 그 행의 재발송 버튼으로 복귀(returnFocusTo).
+ * 요청 중에는 확인·닫기 비활성 + Esc 무시(바깥 클릭은 AlertDialog 가 원래 막는다). 결과는 토스트로 알리고 창은 닫힌다.
+ */
+function ResendLinkConfirmModal({
+  booking, busy, onClose, onConfirm, returnFocusTo,
+}: {
+  booking: BookingItem;
+  busy: boolean;
+  onClose: () => void;
+  onConfirm: () => void;
+  returnFocusTo: () => HTMLElement | null | undefined;
+}) {
+  const blockWhileBusy = (e: Event) => { if (busy) e.preventDefault(); };
+  return (
+    <AlertDialog open onOpenChange={(o) => { if (!o && !busy) onClose(); }}>
+      <AlertDialogContent
+        onEscapeKeyDown={blockWhileBusy}
+        onCloseAutoFocus={(e) => {
+          // 닫힘·언마운트 때 FocusScope 가 부른다 — Radix 의 triggerRef(없음) 복귀 대신 연 행의 버튼으로.
+          e.preventDefault();
+          const el = returnFocusTo();
+          if (el) el.focus();
+        }}
+        className="max-w-md gap-3.5 rounded-2xl border-white/[0.10] bg-[#0c1220] p-4 sm:p-5 text-white"
+      >
+        <AlertDialogHeader className="gap-1 text-left">
+          <AlertDialogTitle className="text-white font-bold text-[15px]">관리 링크 재발송</AlertDialogTitle>
+          <AlertDialogDescription className="text-[11px] text-white/45">{booking.label} · {booking.bookingRef}</AlertDialogDescription>
+        </AlertDialogHeader>
+
+        <div className="rounded-xl border border-sky-500/30 bg-sky-500/10 px-3 py-2.5 text-[12px] text-sky-100 space-y-1">
+          <p>예약에 <b>저장된 결제자 이메일로만</b> 보냅니다(다른 주소로 보낼 수 없음). 보낸 주소는 마스킹해서 알려드립니다.</p>
+          <p>이전 메일의 링크도 계속 유효합니다(버전 유지).</p>
+        </div>
+
+        <div className="flex gap-2 pt-1">
+          <AlertDialogCancel
+            disabled={busy}
+            className="flex-1 h-auto px-3 py-2.5 rounded-xl text-[13px] font-semibold border border-white/[0.10] bg-transparent text-white/60 hover:bg-transparent hover:text-white min-h-[44px] disabled:opacity-50"
+          >
+            닫기
+          </AlertDialogCancel>
+          <button
+            type="button"
+            onClick={onConfirm}
+            disabled={busy}
+            className="flex-1 px-3 py-2.5 rounded-xl text-[13px] font-bold border border-sky-500/50 bg-sky-500/20 text-sky-100 hover:bg-sky-500/30 min-h-[44px] disabled:opacity-40"
+          >
+            {busy ? '보내는 중…' : '확인'}
+          </button>
+        </div>
+      </AlertDialogContent>
+    </AlertDialog>
   );
 }
 

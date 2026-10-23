@@ -18,6 +18,10 @@
  *                            → status='CANCELED' + reason
  *                            + 텔레그램 booking #4 "❌ 취소"
  *
+ *   4. 'resend-manage-link' (2026-10-23) — 게스트 PayPal 예약(bookings/{bookingRef})의 관리 링크를
+ *                            저장된 payerEmail 로 재발송. 현재 버전 토큰(버전 안 올림) · 발송 전 트랜잭션 선점(60초).
+ *                            응답·로그에 토큰/링크를 싣지 않는다. body: { bookingRef(bookings 문서 ID), action }.
+ *
  * Auth: Firebase Admin token (verifyAdminToken — ADMIN_EMAIL 매칭).
  *
  * Body:
@@ -35,7 +39,7 @@ import { initAdminDb } from './_shared/firebase-admin.js';
 import { FieldValue } from 'firebase-admin/firestore';
 import { notify } from './_shared/notify.js';
 import { buildManualPaymentEmail } from './_shared/manual-payment-emails.js';
-import { sendEmail } from './_send-email.js';
+import { sendEmail, maskEmailForLog } from './_send-email.js';
 import { confirmBookingAsPaid } from './_shared/booking-confirm.js';
 import { refundPaypalCapture } from './_shared/paypal-refund.js';
 import { releaseSlotForCanceledOrder } from './_shared/slot-capacity.js';
@@ -45,6 +49,11 @@ import { toMinorUnits } from './_shared/paypal-capture-verify.js';
 import { provenFullRefundID, buildFullRefundProof, mergeFullRefundProof } from './_shared/payment-fulfillment-recovery.js';
 import { throttledTelegramAlert } from './_shared/telegram-throttle.js';
 import { isAutoRefundBlocked } from './_shared/booking-test-flags.js';
+import { isGuestManagedBooking, currentDeployment, matchGuestEnvironment } from './_shared/booking-access.js';
+import { createBookingManageToken } from './_shared/booking-manage-token.js';
+import { buildManageLinkEmail } from './_shared/booking-manage-link-emails.js';
+import { publicSiteOrigin } from './_shared/internal-base-url.js';
+import { productDisplayLabel } from './_shared/pricing.js';
 
 /**
  * 취소·환불이 **확정 성공**한 뒤 확정 좌석(slot_bookings)을 해제한다 (2026-08-09).
@@ -129,7 +138,7 @@ export const maxDuration = 30;
 const JSON_HEADERS_STATIC = { 'Cache-Control': 'no-store' };
 const CORS_METHODS = 'POST, OPTIONS';
 
-const VALID_ACTIONS = new Set(['mark-paid', 'mark-refunded', 'mark-canceled', 'dispatch-cancel', 'refund-booking']);
+const VALID_ACTIONS = new Set(['mark-paid', 'mark-refunded', 'mark-canceled', 'dispatch-cancel', 'refund-booking', 'resend-manage-link']);
 
 /**
  * 'dispatch-cancel' — 차량·기사를 못 구해 우리 쪽 사정으로 취소하는 경우 (운영자 2026-07-28).
@@ -402,6 +411,138 @@ async function handleRefundBooking({ res, JSON_HEADERS, adminDb, adminUid, admin
   });
 }
 
+const RESEND_COOLDOWN_MS = 60_000;
+const MAIL_RESULT_UNKNOWN_MSG = '메일 발송 결과를 알 수 없습니다 — 고객 수신 여부를 수동 확인하세요(자동 재시도 안 함)';
+
+/** Firestore Timestamp | epoch ms | Date | ISO → epoch ms (없으면 0). */
+function tsMillis(v) {
+  if (!v) return 0;
+  if (typeof v === 'number') return v;
+  if (typeof v.toMillis === 'function') return v.toMillis();
+  if (v instanceof Date) return v.getTime();
+  const t = Date.parse(String(v));
+  return Number.isFinite(t) ? t : 0;
+}
+
+/** 60초 안에 재발송했거나(manageLinkResentAt) 다른 요청이 발송을 선점했으면(manageLinkResendClaim) true. */
+function resendCoolingDown(b, nowMs) {
+  const claimAt = Number((b.manageLinkResendClaim || {}).at) || 0;
+  const last = Math.max(tsMillis(b.manageLinkResentAt), claimAt);
+  return last > 0 && nowMs - last < RESEND_COOLDOWN_MS;
+}
+
+/**
+ * action='resend-manage-link' — 게스트 예약 관리 링크 재발송 (2026-10-23, PR-3 · Astra 명세 검토 r1 반영).
+ *   1) 대상 = 게스트 관리 예약 + CONFIRMED. 결제 환경이 이 배포와 다르면 링크가 열리지 않는다 → 409 ENV_MISMATCH
+ *      (판정은 관리 페이지 접근과 같은 booking-access.js matchGuestEnvironment).
+ *   2) 토큰 = **현재** manageTokenVersion·저장된 tourDate — 재발송은 버전도 만료 정책도 바꾸지 않는다(이전 메일 링크도 유효).
+ *      이미 만료된 링크면 보내지 않는다 → 409 LINK_EXPIRED.
+ *   3) 발송 **전** 예약별 트랜잭션 선점(manageLinkResendClaim) — 60초 안에 선점·재발송이 있으면 429. SMTP 는 트랜잭션 밖.
+ *   4) 수신자 = 저장된 payerEmail 만. 발송 전 실패(_send-email.js preSend) = 미발송 502 MAIL_FAILED,
+ *      그 뒤 실패 = 결과 미상 502 MAIL_RESULT_UNKNOWN(자동 재시도 금지, 수동 확인).
+ *   5) 성공 기록 = manageLinkResentAt + (최신 manageTokenVersion **과** pending.version 이 발송 버전과 같을 때만) pending 삭제.
+ *      기록 실패도 결과 미상이다(메일은 나갔을 수 있다).
+ * 실패해도 예약 **업무 필드**는 불변 — 선점 기록만 예외.
+ * 🔴 토큰·링크·메일 본문은 응답·로그·감사로그·Sentry 어디에도 없다. 이 분기의 예외는 공통 catch 로 흘리지 않는다
+ *    (공통 catch 는 err.message 를 응답·Sentry 로 보낸다 — SMTP 오류는 메일 본문을 되울릴 수 있다).
+ */
+async function handleResendManageLink({ res, JSON_HEADERS, adminDb, adminUid, adminEmail, bookingRef }) {
+  const send = (status, payload) => { res.writeHead(status, JSON_HEADERS); return res.end(JSON.stringify(payload)); };
+  const action = 'resend-manage-link';
+  try {
+    const ref = adminDb.collection('bookings').doc(bookingRef);
+    const snap = await ref.get();
+    if (!snap.exists) return send(404, _err(`bookings/${bookingRef} not found`, 'NOT_FOUND'));
+    const booking = snap.data() || {};
+
+    if (!isGuestManagedBooking(booking)) {
+      return send(409, _err('Not a guest booking — members use My Page, cart items are handled manually', 'NOT_GUEST_BOOKING'));
+    }
+    if (booking.status !== 'CONFIRMED') return send(409, _err(`Cannot resend — current status: ${booking.status}`, 'INVALID_STATE'));
+
+    const paypalEnvironment = booking.paypalEnvironment === 'sandbox' ? 'sandbox' : 'live';
+    const deployment = currentDeployment();
+    if (!matchGuestEnvironment(booking, { env: paypalEnvironment, dep: deployment })) {
+      return send(409, _err(`Booking payment environment (${paypalEnvironment}) does not match this deployment — the link would not open`, 'ENV_MISMATCH'));
+    }
+    const version = Number(booking.manageTokenVersion) || 0;
+    let minted;
+    try {
+      minted = createBookingManageToken({ orderID: bookingRef, version, paypalEnvironment, deployment, tourDate: booking.tourDate });
+    } catch (e) {
+      console.warn('[admin-booking-action] manage token unavailable — resend refused:', bookingRef, e.message);
+      return send(503, _err('Manage link unavailable (signing secret or tour date) — check before retrying', 'MANAGE_LINK_UNAVAILABLE'));
+    }
+    if (minted.expiresAtMs <= Date.now()) {
+      return send(409, _err('This booking\'s manage link has already expired — not sent', 'LINK_EXPIRED'));
+    }
+
+    // 선점 — 최신 문서로 대상·버전 재확인 + 60초 연타 차단. 동시 요청은 여기서 한 건만 통과한다.
+    const claim = await adminDb.runTransaction(async (tx) => {
+      const curSnap = await tx.get(ref);
+      const cur = curSnap.exists ? (curSnap.data() || {}) : null;
+      if (!cur || !isGuestManagedBooking(cur) || cur.status !== 'CONFIRMED' || (Number(cur.manageTokenVersion) || 0) !== version) {
+        return 'BOOKING_CHANGED';
+      }
+      const nowMs = Date.now();
+      if (resendCoolingDown(cur, nowMs)) return 'RESEND_TOO_SOON';
+      tx.update(ref, { manageLinkResendClaim: { at: nowMs, by: adminEmail || adminUid || 'admin', version } });
+      return 'CLAIMED';
+    });
+    if (claim === 'RESEND_TOO_SOON') return send(429, _err('방금 재발송했습니다 — 1분 뒤 다시 시도하세요', 'RESEND_TOO_SOON'));
+    if (claim !== 'CLAIMED') return send(409, _err('Booking changed meanwhile — reload and try again', 'BOOKING_CHANGED'));
+
+    // 감사 로그 — 발송 시도 전(토큰·링크 없음).
+    await adminDb.collection('admin_actions').add({
+      adminUid, adminEmail, bookingRef, action,
+      previousStatus: booking.status, manageTokenVersion: version, target: 'bookings',
+      at: FieldValue.serverTimestamp(),
+    });
+
+    const recipientMasked = maskEmailForLog(booking.payerEmail);
+    const mail = buildManageLinkEmail({
+      language: booking.language,
+      bookingRef: booking.bookingRef || bookingRef,
+      label: productDisplayLabel(String(booking.productType || '')),
+      tourDate: booking.tourDate,
+      manageUrl: `${publicSiteOrigin()}/booking/manage#t=${minted.token}`,
+    });
+    try {
+      await sendEmail({ to: booking.payerEmail, ...mail });
+    } catch (e) {
+      // 오류 메시지는 싣지 않는다(SMTP 응답이 본문·링크를 되울릴 수 있다) — 코드만.
+      const notSent = Boolean(e && e.preSend);
+      console.error(`[admin-booking-action] manage link mail ${notSent ? 'not sent' : 'result unknown'}:`, bookingRef, recipientMasked, (e && e.code) || 'SEND_FAILED');
+      return notSent
+        ? send(502, _err('메일을 보내지 못했습니다 — 1분 뒤 다시 시도하세요', 'MAIL_FAILED'))
+        : send(502, _err(MAIL_RESULT_UNKNOWN_MSG, 'MAIL_RESULT_UNKNOWN'));
+    }
+
+    try {
+      await adminDb.runTransaction(async (tx) => {
+        const latestSnap = await tx.get(ref);
+        if (!latestSnap.exists) return;
+        const latest = latestSnap.data() || {};
+        const pending = latest.manageLinkPending;
+        // 발송 중 날짜 변경 등으로 버전이 바뀌었으면 새 pending 은 그 변경 것이다 — 지우지 않는다.
+        const clearPending = (Number(latest.manageTokenVersion) || 0) === version && pending && Number(pending.version) === version;
+        tx.update(ref, {
+          manageLinkResentAt: FieldValue.serverTimestamp(),
+          ...(clearPending ? { manageLinkPending: FieldValue.delete() } : {}),
+        });
+      });
+    } catch (e) {
+      console.error('[admin-booking-action] manage link mail sent but not recorded:', bookingRef, (e && e.code) || 'ERROR');
+      return send(502, _err(MAIL_RESULT_UNKNOWN_MSG, 'MAIL_RESULT_UNKNOWN'));
+    }
+    return send(200, { ok: true, data: { recipientMasked } });
+  } catch (e) {
+    // 여기 오는 예외는 전부 발송 전(조회·선점·감사로그·본문 조립) — 메일은 나가지 않았다.
+    console.error('[admin-booking-action] resend-manage-link aborted before sending:', bookingRef, (e && e.code) || 'ERROR');
+    return send(500, _err('Resend failed before sending — nothing was emailed', 'RESEND_FAILED'));
+  }
+}
+
 export default async function handler(req, res) {
   const JSON_HEADERS = { ...JSON_HEADERS_STATIC, ...buildAdminJsonCors(req, { methods: CORS_METHODS }) };
   if (req.method === 'OPTIONS') {
@@ -492,6 +633,9 @@ export default async function handler(req, res) {
     // PayPal 예약(bookings 컬렉션) 관리자 환불 — pending_bookings 조회보다 앞에서 분기.
     if (action === 'refund-booking') {
       return await handleRefundBooking({ res, JSON_HEADERS, adminDb, adminUid, adminEmail, bookingRef, reason, cancelCategory });
+    }
+    if (action === 'resend-manage-link') {
+      return await handleResendManageLink({ res, JSON_HEADERS, adminDb, adminUid, adminEmail, bookingRef });
     }
 
     const pendingRef = adminDb.collection('pending_bookings').doc(bookingRef);

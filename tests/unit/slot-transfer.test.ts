@@ -148,6 +148,9 @@ describe('transferConfirmedSlot — success (4 writes, merge-preserving)', () =>
 describe('transferConfirmedSlot — refusals leave all 5 docs untouched', () => {
   const cases: Array<[string, Record<string, any>, Record<string, any>, string]> = [
     ['verifyBooking false', {}, { verifyBooking: () => false }, 'BOOKING_CHANGED'],
+    // PR-3 (2026-10-23): modifyBooking 의 검사는 비동기(같은 tx 로 cart_orders 를 읽는다) — Promise<false> 도 거부.
+    ['async verifyBooking resolves false', {}, { verifyBooking: async () => false }, 'BOOKING_CHANGED'],
+    ['async verifyBooking throws (cart order found)', {}, { verifyBooking: async () => { throw Object.assign(new Error('CART_ORDER_UNSUPPORTED'), { code: 'CART_ORDER_UNSUPPORTED' }); } }, 'CART_ORDER_UNSUPPORTED'],
     ['to blackout', { [P.to]: { status: 'blackout' } }, {}, 'DATE_UNAVAILABLE'],
     ['to fully_booked', { [P.to]: { status: 'fully_booked' } }, {}, 'DATE_UNAVAILABLE'],
     ['to full counting active pending', { [P.to]: { status: 'available', slot_bookings: { [SLOT]: 5 }, slot_pending: { [SLOT]: { X: { count: 2, expiresAt: FUTURE } } } } }, {}, 'SLOT_FULL'],
@@ -183,6 +186,20 @@ describe('transferConfirmedSlot — refusals leave all 5 docs untouched', () => 
     const seen: any[] = [];
     await run(db, { verifyBooking: (b: any, nowMs: number) => { seen.push([b.tourDate, nowMs]); return true; } });
     expect(seen).toEqual([[FROM, NOW.getTime()]]);
+  });
+
+  it('verifyBooking gets the same transaction: its extra read is version-tracked (a concurrent change → retry)', async () => {
+    const db = createFakeFirestore(seed());
+    let calls = 0;
+    db.__beforeCommit = ({ attempt }: { attempt: number }) => { if (attempt === 1) db.__set('cart_orders/ORD-1', { status: 'captured' }); };
+    await expect(run(db, {
+      verifyBooking: async (_b: any, _nowMs: number, tx: any) => {
+        calls += 1;
+        return !(await tx.get(db.doc('cart_orders/ORD-1'))).exists;
+      },
+    })).rejects.toMatchObject({ code: 'BOOKING_CHANGED' });
+    expect(calls).toBe(2); // 첫 시도는 충돌로 버려지고, 재시도가 새 cart 문서를 본다
+    expect(db.__stats.retries).toBe(1);
   });
 });
 

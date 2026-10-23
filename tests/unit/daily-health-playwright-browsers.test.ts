@@ -99,4 +99,16 @@ describe('daily-health — Playwright 프로젝트 ↔ 브라우저 설치 일�
       expect(text).toMatch(/npx playwright install[^\n]*\bwebkit\b/);
     });
   }
+
+  // 2026-10-23: webkit 을 안 쓰는 워크플로도 ubuntu-latest(26.04) 에서 Playwright chromium 설치가
+  //   7분 타임아웃·exit 100 으로 실패했다(#1448 visual). chromium 전용이라 webkit 설치 단언은 해당 없음.
+  for (const name of ['pr-visual-regression']) {
+    it(`${name}: runs-on ubuntu-24.04 (chromium only)`, () => {
+      const text = readFileSync(resolve(process.cwd(), `.github/workflows/${name}.yml`), 'utf8');
+      const runsOn = [...text.matchAll(/^\s*runs-on:\s*(\S+)/gm)].map((m) => m[1]);
+      expect(runsOn.length).toBeGreaterThan(0);
+      for (const r of runsOn) expect(r).toBe('ubuntu-24.04');
+      expect(text).toMatch(/npx playwright install[^\n]*\bchromium\b/);
+    });
+  }
 });

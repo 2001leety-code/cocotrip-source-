@@ -147,4 +147,17 @@ describe('admin-all-bookings — PayPal bookings', () => {
     expect(data.partialErrors.paypal).toBeTruthy();
     expect(data.items.map((x: any) => x.kind).sort()).toEqual(['mood', 'pending']);
   });
+
+  // PR-3 (2026-10-23): 관리 링크 재발송 버튼 노출용 — 게스트 여부·미전달 pending·마지막 재발송 시각. 토큰은 없다.
+  it('guest manage-link fields: guestManaged / manageLinkPending / manageLinkResentAt (no token on the wire)', async () => {
+    seed['bookings/ORD-1'] = paypal({
+      userEmail: '', uid: null, payerEmail: 'guest@example.com',
+      manageTokenVersion: 2, manageLinkPending: { version: 2, createdAt: '2026-10-23T00:00:00.000Z' }, manageLinkResentAt: 1_800_000_000_000,
+    });
+    seed['bookings/ORD-2'] = paypal({ createdAt: 299 }); // 회원 예약
+    const items = (await list()).items;
+    expect(items.find((x: any) => x.id === 'ORD-1')).toMatchObject({ guestManaged: true, manageLinkPending: true, manageLinkResentAt: 1_800_000_000_000 });
+    expect(items.find((x: any) => x.id === 'ORD-2')).toMatchObject({ guestManaged: false, manageLinkPending: false, manageLinkResentAt: null });
+    expect(JSON.stringify(items)).not.toMatch(/manage#t=|manageToken/);
+  });
 });

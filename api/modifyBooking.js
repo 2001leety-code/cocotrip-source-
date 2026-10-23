@@ -12,6 +12,7 @@
  *   (이전엔 조용히 무시해 회원 UI 가 보낸 날짜·인원 변경이 적용된 줄 알았다.)
  * 변경 가능 시점 = 현재 날짜·새 날짜 **양쪽** 24h 전까지(_refund-policy.js canModify — 무료 취소 기한과 같은 선).
  * 모든 쓰기는 트랜잭션 안에서 예약을 다시 읽어 재검증한 뒤에만 한다(상태·소유자/관리 토큰 버전·24h).
+ * cart 주문(cart_orders/{bookingID} 존재)은 어떤 변경도 하지 않는다 → 409 CART_ORDER_UNSUPPORTED (2026-10-23).
  * 환불·결제 코드는 호출하지 않는다. 변경 뒤 무료 취소 기한은 새 날짜 기준.
  *
  * 게스트 날짜 변경은 관리 토큰 버전을 올린다(옛 링크 무효) — 새 토큰은 커밋 **전에** 만들어 같은 버전으로
@@ -126,6 +127,9 @@ function changedError(code) {
   return e;
 }
 
+// cart 주문(cart_orders/{orderID} 스냅샷이 라인별 금액·좌석 SSOT)은 여기서 바꾸지 않는다 — 운영자 처리.
+const cartUnsupported = () => _err('Cart orders cannot be changed here — please contact support.', 'CART_ORDER_UNSUPPORTED');
+
 /**
  * 게스트 날짜 변경 토큰 복구 — 커밋은 됐는데 응답이 유실되고 메일까지 실패해 손님이 어느 링크도 못 쓰는 경우.
  * 두 진입점이 이 함수 하나를 쓴다: (i) 정상 접근이 401(옛 토큰), (ii) 트랜잭션 재검증 BOOKING_CHANGED(동시 재시도).
@@ -136,7 +140,7 @@ function changedError(code) {
  *
  * @returns {Promise<null | { status: number, payload: object }>} null = 복구 대상 아님(호출자가 원래 거부 유지)
  */
-async function tryRecoverChangeRequest({ req, body, bookingID, ref, newDate, ignored }) {
+async function tryRecoverChangeRequest({ req, body, bookingID, ref, cartRef, newDate, ignored }) {
   if (hasAuthorizationHeader(req)) return null;
   const requestId = body && typeof body.requestId === 'string' ? body.requestId : '';
   if (!REQUEST_ID_RE.test(requestId) || !newDate) return null;
@@ -154,6 +158,8 @@ async function tryRecoverChangeRequest({ req, body, bookingID, ref, newDate, ign
   if (lcr.toVersion !== currentVersion) return null; // 그 뒤 취소·추가 변경이 있었다
   if (!matchGuestEnvironment(booking, token.payload)) return null;
   if (lcr.tourDate !== booking.tourDate || newDate !== booking.tourDate) return null; // 같은 요청(같은 날짜)
+  // cart 주문 — 복구로도 새 토큰을 주지 않는다(정상 경로와 같은 거부). 조회 예외는 호출부 바깥 catch → 500.
+  if ((await cartRef.get()).exists) return { status: 409, payload: cartUnsupported() };
 
   let manageToken;
   try {
@@ -214,6 +220,7 @@ export default async function handler(req, res) {
 
     const db = getDb();
     const ref = db.collection('bookings').doc(bookingID);
+    const cartRef = db.collection('cart_orders').doc(bookingID);
 
     // 1. 접근 — 회원(Bearer + 소유자) 또는 게스트(관리 토큰). 실패는 동일 401(헤더 있으면 예약 조회 0).
     const access = await resolveBookingAccess({
@@ -222,7 +229,7 @@ export default async function handler(req, res) {
     });
     if (!access.ok) {
       if (access.status === 401 && hasDate && newDate) {
-        const recovered = await tryRecoverChangeRequest({ req, body, bookingID, ref, newDate, ignored });
+        const recovered = await tryRecoverChangeRequest({ req, body, bookingID, ref, cartRef, newDate, ignored });
         if (recovered) return send(res, recovered.status, recovered.payload, JSON_NO_STORE);
       }
       return send(res, access.status, _err(access.error, access.code));
@@ -230,6 +237,11 @@ export default async function handler(req, res) {
     const actor = access.actor;
     const booking = access.booking;
     const requestedBy = actor.email || 'guest';
+
+    // cart 주문 차단 — 접근 검사 직후, 모든 수정 분기 전(쓰기 0). 수동 생성 cart 예약은 parentOrderID 가 없어
+    //   아래 CART_CHILD 가드를 지나쳤다. 조회 예외는 잡지 않는다 → 바깥 catch 500(조용히 통과 금지).
+    //   쓰기 트랜잭션 안에서도 verifyBooking 이 같은 tx 로 다시 읽는다(사전 확인과 커밋 사이 경쟁).
+    if ((await cartRef.get()).exists) return send(res, 409, cartUnsupported());
 
     // 날짜 값 검증 — 인증 뒤, NO_CHANGES·사전 가드·메모 분기보다 먼저(문자열·실제 달력 날짜가 아니면 쓰기 0).
     if (hasDate && !isCalendarDate(newDate)) {
@@ -264,7 +276,8 @@ export default async function handler(req, res) {
 
     // 트랜잭션 안 재검증 — 재시도마다 현재 시각·최신 문서로 다시 판정한다. false = BOOKING_CHANGED(쓰기 0).
     //   targetDate 가 있으면(날짜 변경) 새 날짜도 24h 밖이어야 한다.
-    const verifyBooking = (fresh, nowMs, targetDate) => {
+    //   마지막에 **같은 tx** 로 cart_orders 를 다시 읽는다(호출부 3곳 모두 쓰기 전에 부른다) — 존재 = CART_ORDER_UNSUPPORTED throw.
+    const verifyBooking = async (fresh, nowMs, targetDate, tx) => {
       if (!fresh || fresh.status !== 'CONFIRMED') return false;
       if (fresh.tourDate !== booking.tourDate) return false;
       if (fresh.parentOrderID) return false;
@@ -276,6 +289,7 @@ export default async function handler(req, res) {
       const now = new Date(nowMs);
       if (!evaluateRefundPolicy({ tourDate: fresh.tourDate, tourTime: fresh.tourTime || undefined, now }).canModify) return false;
       if (targetDate && !evaluateRefundPolicy({ tourDate: targetDate, tourTime: fresh.tourTime || undefined, now }).canModify) return false;
+      if ((await tx.get(cartRef)).exists) throw changedError('CART_ORDER_UNSUPPORTED');
       return true;
     };
 
@@ -294,7 +308,7 @@ export default async function handler(req, res) {
         await db.runTransaction(async (tx) => {
           const freshSnap = await tx.get(ref);
           const fresh = freshSnap.exists ? (freshSnap.data() || {}) : null;
-          if (!verifyBooking(fresh, Date.now(), null)) throw changedError('BOOKING_CHANGED');
+          if (!(await verifyBooking(fresh, Date.now(), null, tx))) throw changedError('BOOKING_CHANGED');
           // status 를 'MODIFIED' 로 덮지 않음 — CONFIRMED 유지(cancel/재수정 게이트 보존). 이력은 modifications.
           tx.update(ref, {
             ...metaChanges,
@@ -307,6 +321,7 @@ export default async function handler(req, res) {
         if (txErr && txErr.code === 'BOOKING_CHANGED') {
           return send(res, 409, _err('Booking changed meanwhile — please reload', 'BOOKING_CHANGED'));
         }
+        if (txErr && txErr.code === 'CART_ORDER_UNSUPPORTED') return send(res, 409, cartUnsupported());
         throw txErr;
       }
 
@@ -394,7 +409,7 @@ export default async function handler(req, res) {
       } : {}),
       lastChangeRequest: { id: requestId, fromVersion: currentVersion, toVersion: nextVersion, tourDate: newDate, at: nowIso },
     };
-    const verifyForDate = (fresh, nowMs) => verifyBooking(fresh, nowMs, newDate);
+    const verifyForDate = (fresh, nowMs, tx) => verifyBooking(fresh, nowMs, newDate, tx);
 
     let slotTransferred = false;
     try {
@@ -419,7 +434,7 @@ export default async function handler(req, res) {
         await db.runTransaction(async (tx) => {
           const freshSnap = await tx.get(ref);
           const fresh = freshSnap.exists ? (freshSnap.data() || {}) : null;
-          if (!verifyForDate(fresh, Date.now())) throw changedError('BOOKING_CHANGED');
+          if (!(await verifyForDate(fresh, Date.now(), tx))) throw changedError('BOOKING_CHANGED');
           tx.update(ref, bookingPatch);
         });
       }
@@ -427,9 +442,10 @@ export default async function handler(req, res) {
       const code = txErr && txErr.code;
       if (code === 'BOOKING_CHANGED' && isGuest) {
         // (ii) 동시 재시도 — 같은 요청이 먼저 커밋됐으면 쓰기 없이 새 토큰만 돌려준다.
-        const recovered = await tryRecoverChangeRequest({ req, body, bookingID, ref, newDate, ignored });
+        const recovered = await tryRecoverChangeRequest({ req, body, bookingID, ref, cartRef, newDate, ignored });
         if (recovered) return send(res, recovered.status, recovered.payload, JSON_NO_STORE);
       }
+      if (code === 'CART_ORDER_UNSUPPORTED') return send(res, 409, cartUnsupported());
       if (CONFLICT_CODES.has(code)) {
         return send(res, 409, _err(code === 'BOOKING_CHANGED' ? 'Booking changed meanwhile — please reload' : txErr.message, code));
       }

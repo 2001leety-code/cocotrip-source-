@@ -204,6 +204,157 @@ describe('pre-guards (read stage) — zero writes', () => {
   });
 });
 
+// PR-3 (2026-10-23): 수동 생성 cart 예약 — 부모 필드(parentOrderID)가 없어 CART_CHILD 가드를 지나쳤다.
+//   cart_orders/{id} 가 있으면 메모·날짜 모두 쓰기·메일·좌석 이동 0.
+describe('cart orders (cart_orders/{bookingID}) — never modified here', () => {
+  const CART = `cart_orders/${ID}`;
+  const cartDoc = { status: 'captured', lines: [{ lineId: 'L1', productType: 'tour_gyeongbok' }] };
+
+  it.each([
+    ['member memo', () => member(), () => ({ bookingID: ID, changes: { memo: 'late' } }), BEARER],
+    ['member date', () => member(), () => memberChange(), BEARER],
+    ['guest memo', () => guest(), () => ({ bookingID: ID, changes: { memo: 'late' }, manageToken: tokenV() }), {}],
+    ['guest date', () => guest(), () => guestChange(), {}],
+  ] as Array<[string, () => Record<string, any>, () => Record<string, any>, Record<string, string>]>)(
+    '%s → 409 CART_ORDER_UNSUPPORTED, no write/mail/seat move/transaction',
+    async (_label, bookingDoc, body, headers) => {
+      db = createFakeFirestore({ ...tourDocs(bookingDoc()), [CART]: cartDoc });
+      const before = JSON.stringify(db.__dump());
+      const r = await call(body(), headers);
+      expect(r.statusCode).toBe(409);
+      expect(r.json).toMatchObject({ ok: false, code: 'CART_ORDER_UNSUPPORTED' });
+      expect(JSON.stringify(db.__dump())).toBe(before);
+      expect(db.__stats.transactions).toBe(0);
+      expect(mailSpy).not.toHaveBeenCalled();
+    },
+  );
+
+  it('cart lookup throws → 500, nothing written (never silently passes)', async () => {
+    db = createFakeFirestore(tourDocs(member()));
+    const realCollection = db.collection;
+    db.collection = ((name: string) => (name === 'cart_orders'
+      ? { doc: () => ({ get: async () => { throw new Error('14 UNAVAILABLE: cart lookup'); } }) }
+      : realCollection(name))) as typeof db.collection;
+    const before = JSON.stringify(db.__dump());
+    const r = await call(memberChange(), BEARER);
+    expect(r.statusCode).toBe(500);
+    expect(r.json.ok).toBe(false);
+    expect(JSON.stringify(db.__dump())).toBe(before);
+    expect(db.__stats.transactions).toBe(0);
+    expect(mailSpy).not.toHaveBeenCalled();
+  });
+
+  // 쓰기 트랜잭션 3종 — 메모·공항 / 차터 날짜 / 투어 좌석 이전. 각각 verifyBooking 이 같은 tx 로 cart 를 다시 읽는다.
+  const charterDocs = () => ({ [PATH]: member({ productType: 'charter_hourly' }), [SNAP]: { slotBooking: null, amountUSD: '200.00' } });
+  const WRITE_PATHS: Array<[string, () => Record<string, any>, () => Record<string, any>]> = [
+    ['memo', () => tourDocs(member()), () => ({ bookingID: ID, changes: { memo: 'late' } })],
+    ['charter date', charterDocs, () => memberChange()],
+    ['tour date (seat transfer)', () => tourDocs(member()), () => memberChange()],
+  ];
+
+  it.each(WRITE_PATHS)(
+    'cart doc appears between pre-check and commit (%s) → re-read in the write transaction → 409, nothing written',
+    async (_label, docs, body) => {
+      db = createFakeFirestore(docs());
+      const before = db.__dump();
+      let inserted = false;
+      db.__beforeCommit = async () => { if (!inserted) { inserted = true; db.__set(CART, cartDoc); } };
+      const r = await call(body(), BEARER);
+      expect(r.statusCode).toBe(409);
+      expect(r.json.code).toBe('CART_ORDER_UNSUPPORTED');
+      expect(db.__stats.retries).toBeGreaterThan(0); // 첫 시도의 cart 읽기가 충돌로 잡혀 재시도에서 거부됐다
+      const after = db.__dump();
+      delete after[CART];
+      expect(after).toEqual(before);
+      expect(mailSpy).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each(WRITE_PATHS)(
+    'cart re-read inside the write transaction throws (%s) → 500, nothing written',
+    async (_label, docs, body) => {
+      db = createFakeFirestore(docs());
+      const realTx = db.runTransaction;
+      db.runTransaction = ((fn: any, opts: any) => realTx((tx: any) => fn({
+        ...tx,
+        get: (ref: any) => (String(ref.path).startsWith('cart_orders/') ? Promise.reject(new Error('14 UNAVAILABLE: cart')) : tx.get(ref)),
+      }), opts)) as typeof db.runTransaction;
+      const before = JSON.stringify(db.__dump());
+      const r = await call(body(), BEARER);
+      expect(r.statusCode).toBe(500);
+      expect(JSON.stringify(db.__dump())).toBe(before);
+      expect(mailSpy).not.toHaveBeenCalled();
+    },
+  );
+
+  it('recovery entry (i) — old token after a committed change, cart doc now exists → 409, no new token, nothing written', async () => {
+    const oldToken = tokenV(0);
+    expect((await call(guestChange({ manageToken: oldToken }))).statusCode).toBe(200);
+    mailSpy.mockClear();
+    db.__set(CART, cartDoc);
+    const before = JSON.stringify(db.__dump());
+    const r = await call(guestChange({ manageToken: oldToken })); // 정상이면 recovered 200 + 새 토큰
+    expect(r.statusCode).toBe(409);
+    expect(r.json).toMatchObject({ ok: false, code: 'CART_ORDER_UNSUPPORTED' });
+    expect(r.body).not.toContain('manageToken');
+    expect(JSON.stringify(db.__dump())).toBe(before);
+    expect(mailSpy).not.toHaveBeenCalled();
+  });
+
+  it('recovery entry (i) — cart lookup throws → 500, no token', async () => {
+    const oldToken = tokenV(0);
+    expect((await call(guestChange({ manageToken: oldToken }))).statusCode).toBe(200);
+    const realCollection = db.collection;
+    db.collection = ((name: string) => (name === 'cart_orders'
+      ? { doc: () => ({ get: async () => { throw new Error('14 UNAVAILABLE: cart lookup'); } }) }
+      : realCollection(name))) as typeof db.collection;
+    const r = await call(guestChange({ manageToken: oldToken }));
+    expect(r.statusCode).toBe(500);
+    expect(r.body).not.toContain('manageToken');
+  });
+
+  // (ii) = 인증은 통과했는데 트랜잭션 재검증이 BOOKING_CHANGED → 같은 요청이 먼저 커밋됐는지 복구 시도.
+  //   "그 사이 같은 요청이 커밋됨" 을 커밋 직전에 끼워 넣는다. cart 가 없으면 recovered 200(대조군), 있으면 409.
+  const committedMeanwhile = (withCart: boolean) => {
+    let done = false;
+    db.__beforeCommit = async () => {
+      if (done) return;
+      done = true;
+      db.__patch(PATH, {
+        tourDate: TO, manageTokenVersion: 1,
+        lastChangeRequest: { id: RID, fromVersion: 0, toVersion: 1, tourDate: TO, at: 'T1' },
+      });
+      if (withCart) db.__set(CART, cartDoc);
+    };
+  };
+
+  it('recovery entry (ii) control — no cart → recovered 200 with a new token', async () => {
+    committedMeanwhile(false);
+    const r = await call(guestChange({ manageToken: tokenV(0) }));
+    expect(r.statusCode).toBe(200);
+    expect(r.json.data.recovered).toBe(true);
+  });
+
+  it('recovery entry (ii) — cart doc exists → 409 CART_ORDER_UNSUPPORTED, no new token, seats not moved, no mail', async () => {
+    committedMeanwhile(true);
+    const r = await call(guestChange({ manageToken: tokenV(0) }));
+    expect(r.statusCode).toBe(409);
+    expect(r.json.code).toBe('CART_ORDER_UNSUPPORTED');
+    expect(r.body).not.toContain('manageToken');
+    expect(db.__get(AV(FROM))!.slot_bookings[SLOT]).toBe(2);
+    expect(db.__get(AV(TO))).toBeUndefined();
+    expect(mailSpy).not.toHaveBeenCalled();
+  });
+
+  it('ordinary manual booking (no cart_orders doc) still changes normally', async () => {
+    db = createFakeFirestore(tourDocs(member()));
+    expect((await call({ bookingID: ID, changes: { memo: 'ok' } }, BEARER)).statusCode).toBe(200);
+    const r = await call(memberChange(), BEARER);
+    expect(r.statusCode).toBe(200);
+    expect(db.__get(PATH)).toMatchObject({ memo: 'ok', tourDate: TO });
+  });
+});
+
 describe('memo / airport — transactional re-verification', () => {
   it('memo change applies inside a transaction, keeps CONFIRMED, records modifications, no version bump', async () => {
     db = createFakeFirestore(tourDocs(member()));

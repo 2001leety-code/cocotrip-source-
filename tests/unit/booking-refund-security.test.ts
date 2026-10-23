@@ -47,11 +47,15 @@ vi.mock('../../api/_shared/user-auth.js', () => ({ verifyUserToken: verifyUserTo
 const updateMock = vi.fn(async () => undefined);
 let bookingData: any;
 // 2026-10-23 (②b): 메모·공항 변경도 트랜잭션 안 재검증 뒤에만 쓴다 → tx.update 를 같은 updateMock 으로 관찰.
+// 2026-10-23 (PR-3): cart_orders/{id} 존재 확인이 추가됨 → 그 컬렉션만 "없음"(일반 단건 예약).
 vi.mock('../../api/_shared/firebase-admin.js', () => ({
   initAdminDb: () => ({
-    collection: () => ({ doc: () => ({ get: async () => ({ exists: true, data: () => bookingData }), update: (...a: any[]) => updateMock(...a) }) }),
+    collection: (name: string) => ({ doc: () => ({
+      get: async () => (name === 'cart_orders' ? { exists: false, data: () => undefined } : { exists: true, data: () => bookingData }),
+      update: (...a: any[]) => updateMock(...a),
+    }) }),
     runTransaction: async (fn: (tx: any) => Promise<unknown>) => fn({
-      get: async () => ({ exists: true, data: () => bookingData }),
+      get: async (ref: { get: () => Promise<unknown> }) => ref.get(),
       update: (_ref: unknown, payload: any) => updateMock(payload),
     }),
   }),

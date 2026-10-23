@@ -24,6 +24,7 @@ import { initAdminDb } from './_shared/firebase-admin.js';
 import { captureError } from './_shared/sentry.js';
 import { buildAdminCors, buildAdminJsonCors } from './_shared/cors.js';
 import { hasExplicitTestSignal, isAutoRefundBlocked } from './_shared/booking-test-flags.js';
+import { isGuestManagedBooking } from './_shared/booking-access.js';
 
 export const maxDuration = 15;
 export const config = { runtime: 'nodejs' };
@@ -156,6 +157,10 @@ function normalizePaypalBooking(id, b) {
       && b.provider !== 'braintree'
       && !isAutoRefundBlocked(id, b)
       && !hasRefundHistory,
+    // 게스트 관리 링크 재발송(action=resend-manage-link) 대상 표시 — 토큰·링크는 싣지 않는다.
+    guestManaged: isGuestManagedBooking(b),
+    manageLinkPending: Boolean(b.manageLinkPending), // 날짜 변경 뒤 새 링크 메일 실패(또는 삭제 실패) — 전달 확인 필요
+    manageLinkResentAt: toMillis(b.manageLinkResentAt) || null,
   };
 }
 
