@@ -8035,6 +8035,18 @@ function runSelfTest() {
       expectRule: 'P43_authIdorBodyTrusted',
     },
     {
+      label: 'P43: spread `...` is not property access — `[... typeof /[/*]/]` regex keeps the raw fetch after it visible',
+      base: { 'src/pages/P43Probe.tsx': "export const x = 1;\n" },
+      head: { 'src/pages/P43Probe.tsx': "const r = [... typeof /[/*]/]; export const c = () => fetch('/api/voucher');\n" },
+      expectRule: 'P43_authIdorBodyTrusted',
+    },
+    {
+      label: 'P43: `obj.typeof / 2` stays a property + division — the real comment after it is no exemption',
+      base: { 'src/pages/P43Probe.tsx': "export const x = 1;\n" },
+      head: { 'src/pages/P43Probe.tsx': "const r = obj.typeof / 2; /* Authorization: Bearer */ export const c = () => fetch('/api/voucher');\n" },
+      expectRule: 'P43_authIdorBodyTrusted',
+    },
+    {
       label: 'P43 (false positive 차단): multi-line manageFetch with an allowed literal passes',
       base: { 'src/pages/P43Probe.tsx': "export const x = 1;\n" },
       head: { 'src/pages/P43Probe.tsx': "export const c = (t) => manageFetch(\n  '/api/cancelBooking',\n  { manageToken: t },\n);\n" },

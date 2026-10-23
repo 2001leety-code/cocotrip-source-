@@ -69,7 +69,7 @@ describe('lint wiring', () => {
   it('P43 delegates to the shared helper and keeps the self-test cases', () => {
     expect(lint).toMatch(/import \{ p43FileViolations \} from '\.\/lib\/p43-protected-calls\.mjs'/);
     expect(lint).toMatch(/p43FileViolations\(file, getChangedFileContent\(file\)\)/);
-    expect((lint.match(/expectRule: 'P43_authIdorBodyTrusted'/g) || []).length).toBe(21);
+    expect((lint.match(/expectRule: 'P43_authIdorBodyTrusted'/g) || []).length).toBe(23);
   });
 });
 
@@ -122,6 +122,19 @@ describe('P43 — manageFetch first argument must be exactly one allowed literal
     expect(check(String.raw`manageFetch('/api/\booking-manage', { manageToken: t });` + '\n')).toHaveLength(1);
     expect(check(String.raw`manageFetch('/api/cancel\Booking', { manageToken: t });` + '\n')).toHaveLength(1);
     expect(check("manageFetch('/api/booking-manage', { manageToken: t });\n")).toEqual([]);
+  });
+});
+
+describe('P43 — review round 5 (spread `...` is not property access)', () => {
+  it('`[... typeof /[/*]/]` — typeof after spread leads a regex; the raw fetch after it is caught', () => {
+    expect(check("const r = [... typeof /[/*]/]; fetch('/api/voucher');\n")).toHaveLength(1);
+    expect(check("const r = [...typeof /[/*]/]; fetch('/api/voucher');\n")).toHaveLength(1);
+    expect(check("const r = [.../[/*]/.source]; fetch('/api/voucher');\n")).toHaveLength(1);
+  });
+
+  it('single `.` / `?.` keyword names stay properties → division', () => {
+    expect(check("obj.typeof / 2; /* Authorization: Bearer */ fetch('/api/voucher');\n")).toHaveLength(1);
+    expect(check("obj?.typeof / 2; /* Authorization: Bearer */ fetch('/api/voucher');\n")).toHaveLength(1);
   });
 });
 

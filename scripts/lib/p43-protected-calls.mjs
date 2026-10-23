@@ -69,15 +69,17 @@ export function p43StripComments(content) {
     let wordAfterDot = false; // 그 식별자 앞의 의미 토큰이 `.`(= 속성 이름).
     let wordOpen = false;     // 바로 앞 문자가 식별자 문자(같은 토큰이 이어지는 중).
     let arrow = false;        // 직전 토큰이 `=>`.
-    let lastCode = '';        // 바로 앞에 내보낸 코드 문자(공백 포함) — `=>` 인접 판정.
+    let lastCode = '';        // 바로 앞에 내보낸 코드 문자(공백 포함) — `=>`·`...` 인접 판정.
+    let dotRun = 0;           // 직전 토큰이 `.` 이면 붙어 있는 `.` 개수(1 = 속성 접근, 3 = 펼침 `...`).
     let depth = 0;
 
     const gap = () => { wordOpen = false; lastCode = ' '; };
     const otherToken = (c, prevValue = c) => {
-      word = ''; wordOpen = false; arrow = false;
+      word = ''; wordOpen = false; arrow = false; dotRun = 0;
       prev = prevValue; lastSig = c; lastCode = c;
     };
     const regexStarts = () => prev === '' || REGEX_PRECEDERS.has(prev) || arrow
+      || (prev === '.' && dotRun === 3)
       || (word !== '' && !wordAfterDot && REGEX_KEYWORDS.has(word));
 
     while (i < src.length) {
@@ -136,14 +138,17 @@ export function p43StripComments(content) {
       if (/\s/.test(ch)) { gap(); continue; }
       if (IDENT_CHAR.test(ch)) {
         if (wordOpen) word += ch;
-        else { word = ch; wordAfterDot = lastSig === '.'; }
+        // 속성 이름 = 단일 `.`(또는 `?.`) 바로 뒤. 펼침 `...` 뒤는 식(키워드면 정규식을 앞세울 수 있다).
+        else { word = ch; wordAfterDot = lastSig === '.' && dotRun === 1; }
         wordOpen = true; arrow = false;
         prev = ch; lastSig = ch; lastCode = ch;
         continue;
       }
       const isArrow = ch === '>' && lastCode === '=';
+      const run = ch !== '.' ? 0 : (lastCode === '.' ? dotRun + 1 : 1);
       otherToken(ch);
       arrow = isArrow;
+      dotRun = run;
     }
   }
 
