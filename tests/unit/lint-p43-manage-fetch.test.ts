@@ -69,7 +69,7 @@ describe('lint wiring', () => {
   it('P43 delegates to the shared helper and keeps the self-test cases', () => {
     expect(lint).toMatch(/import \{ p43FileViolations \} from '\.\/lib\/p43-protected-calls\.mjs'/);
     expect(lint).toMatch(/p43FileViolations\(file, getChangedFileContent\(file\)\)/);
-    expect((lint.match(/expectRule: 'P43_authIdorBodyTrusted'/g) || []).length).toBe(15);
+    expect((lint.match(/expectRule: 'P43_authIdorBodyTrusted'/g) || []).length).toBe(18);
   });
 });
 
@@ -122,6 +122,30 @@ describe('P43 — manageFetch first argument must be exactly one allowed literal
     expect(check(String.raw`manageFetch('/api/\booking-manage', { manageToken: t });` + '\n')).toHaveLength(1);
     expect(check(String.raw`manageFetch('/api/cancel\Booking', { manageToken: t });` + '\n')).toHaveLength(1);
     expect(check("manageFetch('/api/booking-manage', { manageToken: t });\n")).toEqual([]);
+  });
+});
+
+describe('P43 — review round 3 (regex start after keywords / =>)', () => {
+  it('regex after `return` inside a template interpolation — "/*" in it is not a comment', () => {
+    expect(check("const s = `${(() => { return /[/*]/.test(input); })()}`; fetch('/api/voucher');\n")).toHaveLength(1);
+  });
+
+  it('regex after `=>` — "/*" in it is not a comment', () => {
+    expect(check("const ok = (input) => /[/*]/.test(input); fetch('/api/my-bookings');\n")).toHaveLength(1);
+  });
+
+  it('other regex-leading keywords (typeof, case, throw, await …)', () => {
+    expect(check("switch (k) { case /[/*]/.source: break; } fetch('/api/my-bookings');\n")).toHaveLength(1);
+    expect(check("async function f() { await /[/*]/.exec(x); } fetch('/api/my-bookings');\n")).toHaveLength(1);
+  });
+
+  it('division is still division — the real comment after it is stripped (no Bearer exemption)', () => {
+    expect(check("const r = a / b; /* real comment with Authorization: Bearer */ fetch('/api/voucher');\n")).toHaveLength(1);
+    expect(check("const r = (a) / 2 / c[0] / 1; /* Authorization: Bearer */ fetch('/api/voucher');\n")).toHaveLength(1);
+  });
+
+  it('a property named like a keyword is not a regex lead (obj.return / 2)', () => {
+    expect(check("const r = obj.return / 2; /* Authorization: Bearer */ fetch('/api/voucher');\n")).toHaveLength(1);
   });
 });
 

@@ -7,6 +7,16 @@ export const P43_MANAGE_FETCH_PATHS = new Set(['/api/booking-manage', '/api/canc
 
 // 이 문자 뒤(또는 줄 시작)의 `/` 는 나눗셈이 아니라 정규식 리터럴의 시작으로 본다(단순 휴리스틱).
 const REGEX_PRECEDERS = new Set(['(', ',', '=', ':', '[', '!', '&', '|', '?', '{', '}', ';']);
+// 직전 토큰이 이 키워드이거나 `=>` 여도 정규식 시작이다(`return /[/*]/`·`=> /x/`). 식별자·숫자·`)`·`]` 뒤는 나눗셈.
+const REGEX_KEYWORDS = new Set(['return', 'typeof', 'case', 'do', 'else', 'in', 'instanceof', 'new', 'delete', 'void', 'throw', 'yield', 'await']);
+
+/** 지금까지 내보낸 코드의 끝이 `=>` 또는 정규식을 앞세우는 키워드인가. `obj.return` 같은 속성 이름은 제외. */
+function regexAfterToken(out) {
+  const tail = out.slice(-64);
+  if (/=>\s*$/.test(tail)) return true;
+  const m = /(?:^|[^\w$.])([A-Za-z_$][\w$]*)\s*$/.exec(tail);
+  return Boolean(m && REGEX_KEYWORDS.has(m[1]));
+}
 
 /**
  * 주석 제거(줄 수 유지) — 문자 스캐너. 작은/큰따옴표·백틱 문자열(이스케이프 포함)과 정규식 리터럴 안의
@@ -75,7 +85,7 @@ export function p43StripComments(content) {
         i += 2;
         continue;
       }
-      if (ch === '/' && next !== '>' && (prev === '' || REGEX_PRECEDERS.has(prev))) {
+      if (ch === '/' && next !== '>' && (prev === '' || REGEX_PRECEDERS.has(prev) || regexAfterToken(out))) {
         out += ch;
         i += 1;
         let inClass = false;

@@ -7999,6 +7999,24 @@ function runSelfTest() {
       expectRule: 'P43_authIdorBodyTrusted',
     },
     {
+      label: 'P43: a regex after `return` containing "/*" is not a block comment (raw fetch after it is caught)',
+      base: { 'src/pages/P43Probe.tsx': "export const x = 1;\n" },
+      head: { 'src/pages/P43Probe.tsx': "const s = `${(() => { return /[/*]/.test(input); })()}`; export const c = () => fetch('/api/voucher');\n" },
+      expectRule: 'P43_authIdorBodyTrusted',
+    },
+    {
+      label: 'P43: a regex after `=>` containing "/*" is not a block comment (raw fetch after it is caught)',
+      base: { 'src/pages/P43Probe.tsx': "export const x = 1;\n" },
+      head: { 'src/pages/P43Probe.tsx': "const ok = (input) => /[/*]/.test(input); export const c = () => fetch('/api/my-bookings');\n" },
+      expectRule: 'P43_authIdorBodyTrusted',
+    },
+    {
+      label: 'P43: division is still division — a real comment after it with "Authorization: Bearer" is no exemption',
+      base: { 'src/pages/P43Probe.tsx': "export const x = 1;\n" },
+      head: { 'src/pages/P43Probe.tsx': "const r = a / b; /* real comment with Authorization: Bearer */ export const c = () => fetch('/api/voucher');\n" },
+      expectRule: 'P43_authIdorBodyTrusted',
+    },
+    {
       label: 'P43 (false positive 차단): multi-line manageFetch with an allowed literal passes',
       base: { 'src/pages/P43Probe.tsx': "export const x = 1;\n" },
       head: { 'src/pages/P43Probe.tsx': "export const c = (t) => manageFetch(\n  '/api/cancelBooking',\n  { manageToken: t },\n);\n" },
