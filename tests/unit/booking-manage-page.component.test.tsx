@@ -4,9 +4,11 @@
  * /booking/manage 페이지 (2026-10-23, 후속 ②a 리뷰 P2).
  * 잠그는 것: 해시 토큰 읽고 주소창에서 제거 · 취소 409 → 최신 상태 재조회 + 안내(오류 화면 아님) ·
  *   5xx → 오류 화면의 "다시 조회"는 조회만 재시도(취소 재전송 없음) · 202 → 확인 중 · 401 → 링크 무효.
+ *   ②b: canModify 면 날짜 변경 → 성공 응답의 새 토큰으로 state 토큰 교체 후 새 토큰으로 재조회(해시 미반영) ·
+ *   메일 성공/실패 문구 분기.
  */
 import React from 'react';
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import en from '../../src/i18n/locales/en.json';
@@ -16,12 +18,17 @@ void React;
 const copy = en.bookingManage;
 const manageFetchMock = vi.hoisted(() => vi.fn<(path: string, opts: any) => Promise<any>>());
 vi.mock('@/lib/manageFetch', () => ({ manageFetch: (path: string, opts: any) => manageFetchMock(path, opts) }));
+// 날짜 변경 모달(②b)이 회원 모드용 authFetch 를 import 한다 — 게스트 페이지 테스트에서는 호출되면 안 된다.
+const authFetchMock = vi.hoisted(() => vi.fn());
+vi.mock('@/lib/authFetch', () => ({ authFetch: authFetchMock }));
 vi.mock('@/hooks/useLanguage', () => ({ useLanguage: () => ({ language: 'en', t: en, changeLanguage: vi.fn() }) }));
 vi.mock('@/hooks/usePageMeta', () => ({ usePageMeta: vi.fn() }));
 vi.mock('@/sections/Header', () => ({ Header: () => <div data-testid="header" /> }));
 vi.mock('@/sections/Footer', () => ({ Footer: () => <div data-testid="footer" /> }));
 
 const BookingManagePage = (await import('../../src/pages/BookingManagePage')).default;
+const { kstDatePlusDays } = await import('../../src/lib/bookingDateChange');
+const dc = en.bookingDateChange;
 
 const BOOKING = {
   bookingID: 'ORD-1', bookingRef: 'CT-77', label: 'Gyeongbok Tour', tourDate: '2099-12-31', tourTime: '10:00', paxCount: 2,
@@ -113,5 +120,99 @@ describe('/booking/manage', () => {
     await openAndConfirm();
     await waitFor(() => expect(screen.getByText(copy.bmInvalid)).toBeTruthy());
     expect(calls('/api/booking-manage')).toHaveLength(1);
+  });
+});
+
+describe('/booking/manage — date change (②b)', () => {
+  async function changeDate(modifyReply: any, refetch: any) {
+    const NEW = kstDatePlusDays(40);
+    manageFetchMock
+      .mockResolvedValueOnce(lookupOk({ canModify: true }))
+      .mockResolvedValueOnce(modifyReply)
+      .mockResolvedValueOnce(refetch);
+    renderPage();
+    fireEvent.click(await screen.findByRole('button', { name: dc.bdcButton }));
+    const dialog = await screen.findByRole('dialog');
+    fireEvent.change(within(dialog).getByLabelText(dc.bdcNew), { target: { value: NEW } });
+    fireEvent.click(within(dialog).getByRole('button', { name: dc.bdcSubmit }));
+    return NEW;
+  }
+
+  it('closing the date-change dialog returns focus to the "Change date" button', async () => {
+    manageFetchMock.mockResolvedValueOnce(lookupOk({ canModify: true }));
+    renderPage();
+    fireEvent.click(await screen.findByRole('button', { name: dc.bdcButton }));
+    const dialog = await screen.findByRole('dialog');
+    await waitFor(() => expect(dialog.contains(document.activeElement)).toBe(true));
+    fireEvent.keyDown(document.activeElement || document.body, { key: 'Escape' });
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    await waitFor(() => expect(document.activeElement).toBe(screen.getByRole('button', { name: dc.bdcButton })));
+  });
+
+  // Astra r3 — 저장 뒤 재조회 동안 버튼이 사라진다 → 재조회가 끝난 뒤 복귀(모달 언마운트 시점이 아니라).
+  async function saveWithSlowRefetch(refetchBody: Record<string, any>) {
+    const NEW = kstDatePlusDays(40);
+    let release: () => void = () => {};
+    const slow = new Promise<any>((r) => { release = () => r(lookupOk({ tourDate: NEW, ...refetchBody })); });
+    manageFetchMock
+      .mockResolvedValueOnce(lookupOk({ canModify: true }))
+      .mockResolvedValueOnce(reply(200, { ok: true, data: { tourDate: NEW, manageToken: 'TOKEN-2', emailSent: true } }))
+      .mockImplementationOnce(() => slow);
+    renderPage();
+    fireEvent.click(await screen.findByRole('button', { name: dc.bdcButton }));
+    const dialog = await screen.findByRole('dialog');
+    fireEvent.change(within(dialog).getByLabelText(dc.bdcNew), { target: { value: NEW } });
+    fireEvent.click(within(dialog).getByRole('button', { name: dc.bdcSubmit }));
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    await waitFor(() => expect(calls('/api/booking-manage')).toHaveLength(2));
+    // 재조회 중 — 버튼 없음
+    expect(screen.queryByRole('button', { name: dc.bdcButton })).toBeNull();
+    release();
+    return NEW;
+  }
+
+  it('after save, focus lands on "Change date" once the re-fetch has finished', async () => {
+    await saveWithSlowRefetch({ canModify: true });
+    const btn = await screen.findByRole('button', { name: dc.bdcButton });
+    await waitFor(() => expect(document.activeElement).toBe(btn));
+  });
+
+  it('after save, if the re-fetched booking can no longer be changed, focus falls back to the status notice', async () => {
+    const NEW = await saveWithSlowRefetch({ canModify: false });
+    const notice = await screen.findByText(dc.bdcSavedGuestMailSent.replace('{date}', NEW));
+    await waitFor(() => expect(document.activeElement).toBe(notice));
+    expect(screen.queryByRole('button', { name: dc.bdcButton })).toBeNull();
+  });
+
+  it('no button when canModify is false', async () => {
+    manageFetchMock.mockResolvedValueOnce(lookupOk({ canModify: false }));
+    renderPage();
+    await screen.findByText('CT-77');
+    expect(screen.queryByRole('button', { name: dc.bdcButton })).toBeNull();
+  });
+
+  it('success → state token swapped to the new one, booking re-fetched with it, hash stays empty, mail-sent notice', async () => {
+    const NEW = kstDatePlusDays(40);
+    await changeDate(
+      reply(200, { ok: true, data: { tourDate: NEW, manageToken: 'TOKEN-2', emailSent: true } }),
+      lookupOk({ tourDate: NEW, canModify: true }),
+    );
+    expect(await screen.findByText(dc.bdcSavedGuestMailSent.replace('{date}', NEW))).toBeTruthy();
+    const modify = calls('/api/modifyBooking');
+    expect(modify).toHaveLength(1);
+    expect(modify[0][1].manageToken).toBe('TOKEN-1');
+    await waitFor(() => expect(calls('/api/booking-manage').at(-1)![1]).toEqual({ manageToken: 'TOKEN-2' }));
+    expect(window.location.hash).toBe('');
+    expect(authFetchMock).not.toHaveBeenCalled();
+  });
+
+  it('mail failed → the "keep managing here, we will resend" notice (never claims the mail went out)', async () => {
+    const NEW = kstDatePlusDays(40);
+    await changeDate(
+      reply(200, { ok: true, data: { tourDate: NEW, manageToken: 'TOKEN-2', emailSent: false } }),
+      lookupOk({ tourDate: NEW, canModify: true }),
+    );
+    expect(await screen.findByText(dc.bdcSavedGuestMailFailed.replace('{date}', NEW))).toBeTruthy();
+    expect(screen.queryByText(dc.bdcSavedGuestMailSent.replace('{date}', NEW))).toBeNull();
   });
 });

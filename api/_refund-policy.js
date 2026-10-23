@@ -93,7 +93,8 @@ export function evaluateRefundPolicy({ tourDate, tourTime = '00:00', tier = 'Bro
     refundPercent: Math.round(ratio * 100),
     refundRatio: ratio,
     canRefund: ratio > 0,
-    canModify: hoursUntilTour >= 12,  // 변경은 12h 이전까지만 (2026-05-07 통일)
+    // 날짜·메모·공항 변경은 24h 이전까지만 — 무료 취소 기한과 같은 선(2026-10-23 ②b 통일, 이전 12h).
+    canModify: hoursUntilTour >= 24,
     freeCancelUntil: new Date(freeCancelUntilTs).toISOString(),
     finalCancelUntil: new Date(finalCancelUntilTs).toISOString(),
     tierApplied: tier,

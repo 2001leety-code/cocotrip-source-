@@ -62,7 +62,7 @@ describe('POST /api/booking-manage', () => {
       'amountKRW', 'amountUSD', 'bookingID', 'bookingRef', 'canModify', 'canRefund', 'currency', 'hoursUntilTour',
       'label', 'maskedEmail', 'paxCount', 'pickupLocation', 'productType', 'refundPercent', 'status', 'tourDate', 'tourTime', 'vehicleType',
     ].sort());
-    expect(r.json.data).toMatchObject({ bookingID: ID, bookingRef: 'CT-9', label: 'Label:tour-gyeongbok', canRefund: true, canModify: false, refundPercent: 100, maskedEmail: 'gu…＠example.com' });
+    expect(r.json.data).toMatchObject({ bookingID: ID, bookingRef: 'CT-9', label: 'Label:tour-gyeongbok', canRefund: true, canModify: true, refundPercent: 100, maskedEmail: 'gu…＠example.com' });
     expect(r.body).not.toMatch(/CAP-SECRET|PP-SECRET|0000-0000|guest\.person/);
   });
 
@@ -113,6 +113,16 @@ describe('POST /api/booking-manage', () => {
     db = createFakeFirestore({ [PATH]: guest({ tourDate, tourTime }) });
     const r = await call('POST', { manageToken: tokenFor({ tourDate }) });
     expect(r.json.data.canRefund).toBe(false);
+    expect(r.json.data.canModify).toBe(false);
+  });
+
+  it('canModify (②b date change): true for a confirmed booking ≥24h away; false for non-CONFIRMED / ai-planner (cart children never pass guest access)', async () => {
+    db = createFakeFirestore({ [PATH]: guest({ captureID: '' }) });
+    expect((await call('POST', { manageToken: tokenFor() })).json.data.canModify).toBe(true); // 환불 불가여도 날짜 변경은 별개
+    for (const over of [{ status: 'CANCELED' }, { productType: 'ai-planner-full' }]) {
+      db = createFakeFirestore({ [PATH]: guest(over) });
+      expect((await call('POST', { manageToken: tokenFor() })).json.data.canModify).toBe(false);
+    }
   });
 
   it('errors go to Sentry with route/method only (no token)', async () => {

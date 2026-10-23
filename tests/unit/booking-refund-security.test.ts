@@ -2,7 +2,8 @@
 /**
  * 예약/환불 보안 회귀 (2026-06-12 예약/배차 버그헌트).
  *   1. cancelBooking: body.tier 신뢰 종료 — 서버 users/{uid}.tier 만 사용(Platinum 위조 환불 IDOR 차단)
- *   2. modifyBooking: 가격영향 필드(paxCount/pickup/dropoff/tourDate) 제외 — 무료 업그레이드 차단
+ *   2. modifyBooking: 가격영향 필드(paxCount/pickup/dropoff) 제외 — 무료 업그레이드 차단
+ *      (tourDate 는 2026-10-23 ②b 부터 허용 — 가격이 날짜 무관 + 같은 슬롯·인원·좌석 이전, modify-booking-date-change.test.ts)
  *   3. modifyBooking: status='MODIFIED' 로 안 덮음 — 수정 후에도 취소·재수정 가능
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
@@ -23,9 +24,9 @@ describe('cancelBooking — tier IDOR 차단 (소스 가드)', () => {
   });
 });
 describe('modifyBooking — 무료 업그레이드 + 상태락 차단 (소스 가드)', () => {
-  it('ALLOWED_FIELDS 에 가격영향 필드 없음 (memo·airport 만)', () => {
-    expect(modifySrc).toMatch(/ALLOWED_FIELDS\s*=\s*\['memo',\s*'airport'\]/);
-    expect(modifySrc).not.toMatch(/ALLOWED_FIELDS\s*=\s*\[[^\]]*paxCount/);
+  it('ALLOWED_FIELDS 에 가격영향 필드 없음 (memo·airport·tourDate 만 — 날짜는 같은 상품·슬롯·인원 ②b)', () => {
+    expect(modifySrc).toMatch(/ALLOWED_FIELDS\s*=\s*\['memo',\s*'airport',\s*'tourDate'\]/);
+    expect(modifySrc).not.toMatch(/ALLOWED_FIELDS\s*=\s*\[[^\]]*(paxCount|pickupLocation|dropoffLocation|vehicleType)/);
   });
   it("status: 'MODIFIED' 로 덮지 않음", () => {
     expect(modifySrc).not.toMatch(/status:\s*'MODIFIED'/);
@@ -45,9 +46,14 @@ const verifyUserTokenMock = vi.fn();
 vi.mock('../../api/_shared/user-auth.js', () => ({ verifyUserToken: verifyUserTokenMock, default: verifyUserTokenMock }));
 const updateMock = vi.fn(async () => undefined);
 let bookingData: any;
+// 2026-10-23 (②b): 메모·공항 변경도 트랜잭션 안 재검증 뒤에만 쓴다 → tx.update 를 같은 updateMock 으로 관찰.
 vi.mock('../../api/_shared/firebase-admin.js', () => ({
   initAdminDb: () => ({
     collection: () => ({ doc: () => ({ get: async () => ({ exists: true, data: () => bookingData }), update: (...a: any[]) => updateMock(...a) }) }),
+    runTransaction: async (fn: (tx: any) => Promise<unknown>) => fn({
+      get: async () => ({ exists: true, data: () => bookingData }),
+      update: (_ref: unknown, payload: any) => updateMock(payload),
+    }),
   }),
 }));
 vi.mock('../../api/_shared/sentry.js', () => ({ captureError: vi.fn() }));

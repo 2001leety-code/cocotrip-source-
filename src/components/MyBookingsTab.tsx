@@ -1,5 +1,5 @@
 // MyBookingsTab — MyPage의 "My Bookings" 탭 콘텐츠 · i18n
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { Package, Clock, XCircle, Edit, Check, X, Star, ExternalLink, Download } from 'lucide-react';
 import { getWizardI18n } from '@/components/charter/wizard-i18n';
@@ -10,6 +10,7 @@ import { fillPrice } from '@/lib/aiPlannerPrice';
 import { translations, type Language } from '@/i18n';
 import { authFetch, authDownload } from '@/lib/authFetch';
 import { toast } from 'sonner';
+import { BookingDateChangeModal } from '@/components/BookingDateChangeModal';
 
 interface Booking {
   id: string;
@@ -105,6 +106,13 @@ export function MyBookingsTab({ userEmail, tier = 'Bronze', language = 'en' }: P
   const [error, setError]       = useState<string | null>(null);
   const [cancelingId, setCancelingId] = useState<string | null>(null);
   const [modifyTarget, setModifyTarget] = useState<Booking | null>(null);
+  const [dateChangeTarget, setDateChangeTarget] = useState<Booking | null>(null);
+  // 날짜 변경 모달이 닫힌 뒤 초점 복귀 대상 — 그 예약 카드의 "수정" 버튼(ModifyModal 은 그때 이미 닫혀 있다).
+  const cardModifyBtnRefs = useRef(new Map<string, HTMLButtonElement>());
+  // 저장·다시 불러오기 뒤에는 목록이 로딩 화면으로 바뀌었다 돌아온다 → 복귀할 예약 ID 를 들고 있다가
+  // 로딩이 끝나 카드가 다시 그려진 뒤 그 카드의 "수정" 버튼(없으면 목록 컨테이너)에 초점을 준다.
+  const pendingFocusIdRef = useRef<string | null>(null);
+  const listRootRef = useRef<HTMLDivElement>(null);
   const [reviewTarget, setReviewTarget] = useState<Booking | null>(null);
   // 2026-05-04 P0 fix: 예약 카드 클릭 시 상세 모달 표시. 이전엔 카드 클릭 시 아무 동작도 없어
   // 사용자가 PNR/세부 정보를 볼 수 없었음 (사용자 신고: "들어가볼 수도 없음").
@@ -138,6 +146,15 @@ export function MyBookingsTab({ userEmail, tier = 'Bronze', language = 'en' }: P
     else setBookings(result.bookings);
     setLoading(false);
   }, [tier]);
+
+  useEffect(() => {
+    if (loading) return;
+    const id = pendingFocusIdRef.current;
+    if (!id) return;
+    pendingFocusIdRef.current = null;
+    const target = cardModifyBtnRefs.current.get(id) || listRootRef.current;
+    if (target) target.focus();
+  }, [loading]);
 
   useEffect(() => {
     if (!automaticRequest) return;
@@ -192,12 +209,12 @@ export function MyBookingsTab({ userEmail, tier = 'Bronze', language = 'en' }: P
   }
 
   if (error) {
-    return <div className="p-4 text-red-400 text-sm customer-bookings-root customer-bookings-error">⚠ {error}</div>;
+    return <div ref={listRootRef} tabIndex={-1} className="p-4 text-red-400 text-sm focus:outline-none customer-bookings-root customer-bookings-error">⚠ {error}</div>;
   }
 
   if (bookings.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center py-16 text-white/55 customer-bookings-root customer-bookings-empty">
+      <div ref={listRootRef} tabIndex={-1} className="flex flex-col items-center justify-center py-16 text-white/55 focus:outline-none customer-bookings-root customer-bookings-empty">
         <Package size={36} className="mb-3 opacity-30" />
         <p className="text-sm">{i18n.mbEmpty}</p>
         <p className="text-xs mt-1 text-white/15 customer-bookings-empty-helper">{i18n.mbEmptySub}</p>
@@ -206,7 +223,7 @@ export function MyBookingsTab({ userEmail, tier = 'Bronze', language = 'en' }: P
   }
 
   return (
-    <div className="space-y-3 customer-bookings-root">
+    <div ref={listRootRef} tabIndex={-1} className="space-y-3 focus:outline-none customer-bookings-root">
       <div className="flex items-center justify-between mb-2">
         <h3 className="text-white font-bold text-lg customer-bookings-title">{i18n.mbHeader}</h3>
         {/* 🔴 2026-07-30: 이 숫자는 **현재 계정 이메일로 조회된 예약** 개수다.
@@ -285,6 +302,7 @@ export function MyBookingsTab({ userEmail, tier = 'Bronze', language = 'en' }: P
               {b.canModify && (
                 <button
                   type="button"
+                  ref={(el) => { if (el) cardModifyBtnRefs.current.set(b.id, el); else cardModifyBtnRefs.current.delete(b.id); }}
                   onClick={(e) => { e.stopPropagation(); setModifyTarget(b); }}
                   className="flex items-center gap-1 px-3 py-1.5 rounded-lg border border-white/10 text-white/60 text-[11px] hover:bg-white/5 customer-booking-action"
                 >
@@ -368,6 +386,32 @@ export function MyBookingsTab({ userEmail, tier = 'Bronze', language = 'en' }: P
           language={language}
           onClose={() => setModifyTarget(null)}
           onSaved={async () => { setModifyTarget(null); await load(); }}
+          onChangeDate={() => { setDateChangeTarget(modifyTarget); setModifyTarget(null); }}
+        />
+      )}
+
+      {/* 2026-10-23 (②b): 날짜 변경 — 같은 상품·슬롯·인원·가격, 24h 전까지. 회원 = Bearer(authFetch). */}
+      {dateChangeTarget && (
+        <BookingDateChangeModal
+          bookingID={dateChangeTarget.id}
+          bookingRef={dateChangeTarget.bookingRef}
+          currentDate={dateChangeTarget.tourDate}
+          language={language}
+          auth={{ kind: 'member' }}
+          returnFocusTo={() => cardModifyBtnRefs.current.get(dateChangeTarget.id) || null}
+          onClose={() => setDateChangeTarget(null)}
+          onReload={() => { pendingFocusIdRef.current = dateChangeTarget.id; setDateChangeTarget(null); void load(); }}
+          onSaved={async (result) => {
+            const dc = translations[language].bookingDateChange;
+            // 재조회 중엔 카드가 언마운트돼 모달의 returnFocusTo 가 null — 로딩이 끝난 뒤 아래 effect 가 복귀시킨다.
+            pendingFocusIdRef.current = dateChangeTarget.id;
+            setDateChangeTarget(null);
+            // recovered = 앞선 요청이 이미 반영(응답만 유실) — 메일 결과를 모르므로 "실패" 라고 하지 않는다.
+            const msg = result.recovered ? dc.bdcSavedRecovered
+              : (result.emailSent ? dc.bdcSavedMemberMailSent : dc.bdcSavedMemberMailFailed);
+            toast.success(msg.replace('{date}', result.tourDate));
+            await load();
+          }}
         />
       )}
 
@@ -429,16 +473,17 @@ export function MyBookingsTab({ userEmail, tier = 'Bronze', language = 'en' }: P
   );
 }
 
-function ModifyModal({ booking, tier, language, onClose, onSaved }: {
+// 2026-10-23 (②b): 메모·공항(편명·터미널)만 바꾼다. 날짜는 별도 "날짜 변경"(BookingDateChangeModal —
+//   좌석 이전·새 바우처). 인원·픽업은 가격 영향이라 자가 변경 불가(서버도 ignored 로 돌려준다) — 입력을 두면
+//   손님은 바뀐 줄 안다(②b 이전 버그).
+function ModifyModal({ booking, tier, language, onClose, onSaved, onChangeDate }: {
   booking: Booking; tier: string; language: 'ko'|'en'|'ja'|'zh';
-  onClose: () => void; onSaved: () => void | Promise<void>;
+  onClose: () => void; onSaved: () => void | Promise<void>; onChangeDate: () => void;
 }) {
   const i18n = getWizardI18n(language);
-  const [tourDate, setTourDate] = useState(booking.tourDate);
-  const [paxCount, setPaxCount] = useState(booking.paxCount);
-  const [pickupLocation, setPickupLocation] = useState(booking.pickupLocation);
-  const [terminal, setTerminal] = useState<'T1' | 'T2' | ''>(booking.airport?.terminal ?? '');
-  const [flightNumber, setFlightNumber] = useState(booking.airport?.flightNumber ?? '');
+  const dc = translations[language].bookingDateChange;
+  const [terminal, setTerminal] = useState<'T1' | 'T2' | ''>((booking.airport && booking.airport.terminal) || '');
+  const [flightNumber, setFlightNumber] = useState((booking.airport && booking.airport.flightNumber) || '');
   const [memo, setMemo] = useState('');
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState<string | null>(null);
@@ -448,9 +493,6 @@ function ModifyModal({ booking, tier, language, onClose, onSaved }: {
   const handleSave = async () => {
     setSaving(true); setErr(null);
     const changes: Record<string, unknown> = {};
-    if (tourDate !== booking.tourDate) changes.tourDate = tourDate;
-    if (paxCount !== booking.paxCount) changes.paxCount = paxCount;
-    if (pickupLocation !== booking.pickupLocation) changes.pickupLocation = pickupLocation;
     if (memo) changes.memo = memo;
     if (hasAirport && (terminal !== booking.airport?.terminal || flightNumber !== booking.airport?.flightNumber)) {
       changes.airport = { ...booking.airport, terminal: terminal || undefined, flightNumber: flightNumber || undefined };
@@ -464,8 +506,11 @@ function ModifyModal({ booking, tier, language, onClose, onSaved }: {
         body: JSON.stringify({ bookingID: booking.id, tier, changes }),
       });
       const json = await res.json();
-      if (json.ok) await onSaved();
-      else setErr(json.error || i18n.modifyNetworkError);
+      if (json.ok) {
+        const ignored: string[] = Array.isArray(json.data && json.data.ignored) ? json.data.ignored : [];
+        if (ignored.length > 0) toast(dc.bdcIgnored.replace('{fields}', ignored.join(', ')));
+        await onSaved();
+      } else setErr(json.error || i18n.modifyNetworkError);
     } catch (e) {
       setErr(e instanceof Error ? e.message : i18n.modifyNetworkError);
     } finally {
@@ -482,13 +527,13 @@ function ModifyModal({ booking, tier, language, onClose, onSaved }: {
         </div>
         <div className="p-5 space-y-3 text-sm">
           <Field label={i18n.modifyFieldDate}>
-            <input type="date" value={tourDate} onChange={e => setTourDate(e.target.value)} className={modalInput} min={new Date().toISOString().slice(0,10)} />
-          </Field>
-          <Field label={i18n.modifyFieldPax}>
-            <input type="number" min={1} max={30} value={paxCount} onChange={e => setPaxCount(parseInt(e.target.value, 10) || 1)} className={modalInput} />
-          </Field>
-          <Field label={i18n.modifyFieldPickup}>
-            <input type="text" value={pickupLocation} onChange={e => setPickupLocation(e.target.value)} className={modalInput} />
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-white/85">{booking.tourDate}</span>
+              <button type="button" onClick={onChangeDate}
+                className="px-3 py-1.5 rounded-lg text-xs font-bold border border-[#B668FC]/50 text-white hover:bg-[#B668FC]/15">
+                {dc.bdcButton}
+              </button>
+            </div>
           </Field>
           {hasAirport && (
             <>

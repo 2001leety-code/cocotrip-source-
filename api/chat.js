@@ -188,7 +188,7 @@ that only the live calculator gets right. ALWAYS say something like:
 - Charter/vehicle bookings (transfer, airport pickup, multi-day, K-pop shuttle): cutoff is 1 hour before pickup — same-day booking is often possible
 - Tours (Seoul city, DMZ, Gangwon, ski, Gyeongju/Jeonju, Busan day tours): cutoff is 8 hours before start
 - 1 week advance recommended for peak season, but late booking usually works within the cutoffs above
-- Free changes up to 12 hours before the tour/pickup; after that, changes follow the cancellation policy below
+- Free date changes up to 24 hours before the tour/pickup (same product, slot and party size); after that, changes follow the cancellation policy below
 - Share your flight number when booking and we'll check your arrival to help time the pickup
 - Calendar X marks = sold out, pick another date
 

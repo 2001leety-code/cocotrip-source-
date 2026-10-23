@@ -10,26 +10,14 @@
  * 서명 = 공용 hmac-sign.js (비밀 BOOKING_MANAGE_SIGNING_SECRET → GOOGLE_SERVICE_ACCOUNT_KEY → FIREBASE_PRIVATE_KEY).
  */
 import { createSignedToken, verifySignedToken } from './hmac-sign.js';
+import { tourDateEndKstMs } from './calendar-date.js';
 
 const SIGN_OPTS = { secretEnv: 'BOOKING_MANAGE_SIGNING_SECRET', label: 'booking manage signing' };
 const TOKEN_RE = /^[A-Za-z0-9_-]{10,4000}\.[A-Za-z0-9_-]{20,200}$/;
 const DAY_MS = 24 * 60 * 60 * 1000;
-const KST_OFFSET_MS = 9 * 60 * 60 * 1000;
 const GRACE_AFTER_TOUR_MS = 7 * DAY_MS;
 const MAX_LIFETIME_MS = 400 * DAY_MS;
 const CLOCK_SKEW_MS = 60_000;
-
-/** 실제 달력 날짜(YYYY-MM-DD, Date 왕복 일치)만 허용. 무효면 null. */
-function tourDateEndKstMs(tourDate) {
-  const s = String(tourDate || '');
-  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(s);
-  if (!m) return null;
-  const y = Number(m[1]); const mo = Number(m[2]); const d = Number(m[3]);
-  const probe = new Date(Date.UTC(y, mo - 1, d));
-  if (probe.getUTCFullYear() !== y || probe.getUTCMonth() !== mo - 1 || probe.getUTCDate() !== d) return null;
-  // KST 23:59 = UTC 14:59 같은 날
-  return Date.UTC(y, mo - 1, d, 23, 59, 0) - KST_OFFSET_MS;
-}
 
 function normEnv(paypalEnvironment) {
   return paypalEnvironment === 'sandbox' ? 'sandbox' : 'live';

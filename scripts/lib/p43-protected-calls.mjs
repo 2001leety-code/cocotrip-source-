@@ -3,7 +3,7 @@
  * 규칙 설명은 scripts/lint-mistake-patterns.mjs 의 P43_authIdorBodyTrusted 주석.
  */
 export const P43_PROTECTED = /\/api\/(my-bookings|voucher|cancelBooking|modifyBooking|reviews)\b/;
-export const P43_MANAGE_FETCH_PATHS = new Set(['/api/booking-manage', '/api/cancelBooking']);
+export const P43_MANAGE_FETCH_PATHS = new Set(['/api/booking-manage', '/api/cancelBooking', '/api/modifyBooking']);
 
 // 이 문자 뒤(또는 줄 시작)의 `/` 는 나눗셈이 아니라 정규식 리터럴의 시작으로 본다(단순 휴리스틱).
 const REGEX_PRECEDERS = new Set(['(', ',', '=', ':', '[', '!', '&', '|', '?', '{', '}', ';']);
@@ -226,7 +226,7 @@ export function p43FileViolations(file, content) {
   const text = lines.join('\n');
   for (const v of manageFetchViolations(text)) {
     const lineNo = text.slice(0, v.index).split('\n').length;
-    out.push(`${file}:L${lineNo}: manageFetch() first argument must be exactly '/api/booking-manage' or '/api/cancelBooking'`);
+    out.push(`${file}:L${lineNo}: manageFetch() first argument must be exactly '/api/booking-manage', '/api/cancelBooking' or '/api/modifyBooking'`);
   }
   return out;
 }

@@ -3,7 +3,8 @@
  * 서버 Sentry 가 요청 본문을 이벤트에 싣지 않는다 (2026-10-23, 후속 ②a 리뷰 P1).
  * 게스트 예약 관리 토큰은 POST 본문(manageToken)으로만 오므로, 본문이 오류 이벤트에 붙으면 토큰이 샌다.
  * 잠그는 것: requestDataIntegration({ include: { data: false } }) +
- *   httpIntegration({ ignoreIncomingRequestBody }) 가 /api/booking-manage · /api/cancelBooking 에서만 true.
+ *   httpIntegration({ ignoreIncomingRequestBody }) 가 /api/booking-manage · /api/cancelBooking · /api/modifyBooking(②b)
+ *   에서만 true.
  *   기존 옵션(sendDefaultPii:false, tracesSampleRate) 유지.
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
@@ -54,6 +55,10 @@ describe('api/_shared/sentry.js — request body never attached', () => {
     expect(ignore('/api/tours')).toBe(false);
     expect(ignore('/api/capturePaypalOrder')).toBe(false);
     expect(ignore('/api/cancelBookingLegacy')).toBe(false);
+    // ②b — 날짜 변경도 본문에 게스트 관리 토큰이 온다.
+    expect(ignore('/api/modifyBooking')).toBe(true);
+    expect(ignore('https://cocotripkr.com/api/modifyBooking?x=1')).toBe(true);
+    expect(ignore('/api/modifyBookingX')).toBe(false);
   });
 
   it('existing options are kept', async () => {

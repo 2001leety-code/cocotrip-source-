@@ -33,3 +33,17 @@ describe('capturePaypalOrder function duration', () => {
     expect(waitMs + 10_000).toBeLessThanOrEqual(maxDurationMs);
   });
 });
+
+// 2026-10-23 (②b): 날짜 변경은 커밋 뒤 Puppeteer 바우처 PDF + 메일을 같은 요청에서 만든다(콜드스타트 큼).
+//   글롭 30 s 에 걸리면 커밋 뒤 끊겨 메일이 안 간다 → booking-processor·pdf/generate 와 같은 60 s.
+describe('modifyBooking function duration', () => {
+  it('has its own 60 s maxDuration', () => {
+    expect(vercel.functions['api/modifyBooking.js'].maxDuration).toBe(60);
+  });
+
+  it('is declared before the "api/*.js" glob', () => {
+    const keys = Object.keys(vercel.functions);
+    expect(keys.indexOf('api/modifyBooking.js')).toBeGreaterThan(-1);
+    expect(keys.indexOf('api/modifyBooking.js')).toBeLessThan(keys.indexOf('api/*.js'));
+  });
+});

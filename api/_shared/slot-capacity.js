@@ -425,8 +425,19 @@ export function readSlotFields(booking) {
  */
 export async function fetchServerSlotCapacity({ adminDb, tourId, slotId }) {
   const snap = await adminDb.doc(`tours/${tourId}`).get();
-  if (!snap.exists) return { ok: false, code: 'SLOT_TOUR_NOT_FOUND' };
-  const tour = snap.data() || {};
+  return resolveSlotCapacityFromTour(snap.exists ? (snap.data() || {}) : null, slotId);
+}
+
+/**
+ * fetchServerSlotCapacity 의 검증 본문(순수 함수, 2026-10-23 ②b 추출) — 트랜잭션 안에서 이미 읽은
+ * `tours/{tourId}` 데이터로 같은 판정을 한다(transferConfirmedSlot). 반환 계약은 위와 같다.
+ * @param {object|null} tourData  tours 문서 데이터(없으면 null)
+ * @param {string} slotId
+ * @returns {{ok:true, capacity:number, priceModifierKrw:number}|{ok:false, code:string}}
+ */
+export function resolveSlotCapacityFromTour(tourData, slotId) {
+  if (!tourData) return { ok: false, code: 'SLOT_TOUR_NOT_FOUND' };
+  const tour = tourData;
   const slots = Array.isArray(tour.slots) ? tour.slots : [];
   const slot = slots.find((s) => s && typeof s === 'object' && s.id === slotId);
   if (!slot) return { ok: false, code: 'SLOT_NOT_IN_TOUR' };
@@ -547,6 +558,137 @@ export async function fetchOrderSlotBinding({ adminDb, orderId }) {
   const snap = await adminDb.collection('paypal_order_snapshots').doc(orderId).get();
   if (!snap.exists) return null;
   return readSlotFields((snap.data() || {}).slotBooking);
+}
+
+/**
+ * 날짜 변경(②b)용 바인딩 상태 분류 — fetchOrderSlotBinding 은 "없음" 과 "반쪽" 을 둘 다 null 로 돌려
+ * 구분할 수 없다. 차터는 create/capture 가 `slotBooking: null` 을 **저장**하므로(슬롯 없는 상품) 그건
+ * none, 그 밖의 값인데 5필드가 안 갖춰진 것은 partial(= 좌석 근거가 깨진 투어 → 변경 거부).
+ * @param {{adminDb: object, orderId: string}} args
+ * @returns {Promise<{kind:'none'}|{kind:'partial'}|{kind:'ok', binding:{tourId:string, date:string, slotId:string, capacity:number, pax:number}}>}
+ */
+export async function fetchOrderSlotBindingState({ adminDb, orderId }) {
+  if (!orderId) return { kind: 'none' };
+  const snap = await adminDb.collection('paypal_order_snapshots').doc(orderId).get();
+  if (!snap.exists) return { kind: 'none' };
+  const data = snap.data() || {};
+  if (!('slotBooking' in data) || data.slotBooking === null || data.slotBooking === undefined) return { kind: 'none' };
+  const binding = readSlotFields(data.slotBooking);
+  return binding ? { kind: 'ok', binding } : { kind: 'partial' };
+}
+
+function slotError(code, message) {
+  const e = new Error(message || code);
+  e.code = code;
+  return e;
+}
+
+/**
+ * 확정 좌석 이전 — 예약 날짜 변경(②b). **한 트랜잭션**에서 읽기 5개(예약·스냅샷·상품·from·to) →
+ * 재검증 → 쓰기 4개(from 해제·to 확정·스냅샷 날짜·예약 패치). 어느 검증이든 실패하면 throw(쓰기 0).
+ *
+ * 왜 releaseConfirmedSlot + confirmSlotLock 두 번 호출이 아닌가 — 그 사이에 실패하면 좌석이 사라지거나
+ * 두 날짜에 이중으로 잡힌다. 여기서는 원장 엔트리를 같은 규칙(count 0 + releasedAt / count + releasedAt:null)
+ * 으로 한 번에 옮긴다. `slot_pending`·다른 주문 엔트리·`__legacy__` 는 읽기만 한다(merge 로 보존).
+ *
+ * 스냅샷은 `slotBooking.bookingDate` 만 merge 로 바꾼다 → 나중 취소의 releaseSlotForCanceledOrder 가
+ * 다시 읽을 때 **새 날짜**의 좌석을 푼다(tourId/tourSlotId/slotCapacity/passengers 보존).
+ *
+ * @param {object} args
+ * @param {object} args.adminDb
+ * @param {string} args.orderId       원장 키(= 스냅샷 문서 id)
+ * @param {string} args.tourId
+ * @param {string} args.slotId
+ * @param {number} args.pax
+ * @param {string} args.fromDate
+ * @param {string} args.toDate
+ * @param {object} args.bookingRef    bookings/{id} 문서 ref
+ * @param {object} args.snapshotRef   paypal_order_snapshots/{orderId} 문서 ref
+ * @param {object} args.bookingPatch  예약 문서 tx.update 패치
+ * @param {(booking: object, nowMs: number) => boolean} args.verifyBooking  재시도마다 호출되는 예약 재검증
+ * @param {Date} [args.now]
+ * @returns {Promise<{ok:true, capacity:number, remaining:number, priceModifierKrw:number}>}
+ * @throws Error{code: 'BOOKING_CHANGED'|'SLOT_BINDING_MISMATCH'|'DATE_UNAVAILABLE'|'SLOT_FULL'|SLOT_* 상품 코드}
+ */
+export async function transferConfirmedSlot({
+  adminDb, orderId, tourId, slotId, pax, fromDate, toDate, bookingRef, snapshotRef, bookingPatch, verifyBooking, now,
+}) {
+  const fromRef = adminDb.doc(`tour_availability/${tourId}/dates/${fromDate}`);
+  const toRef = adminDb.doc(`tour_availability/${tourId}/dates/${toDate}`);
+  const tourRef = adminDb.doc(`tours/${tourId}`);
+
+  return adminDb.runTransaction(async (tx) => {
+    // 재시도마다 현재 시각으로 다시 판정한다(24h 경계는 시간이 흐르며 바뀐다).
+    const nowMs = now instanceof Date ? now.getTime() : Date.now();
+    const nowIso = new Date(nowMs).toISOString();
+
+    // ── 읽기 5개(Firestore 트랜잭션은 모든 읽기가 쓰기보다 앞서야 한다) ──
+    const bookingSnap = await tx.get(bookingRef);
+    const snapshotSnap = await tx.get(snapshotRef);
+    const tourSnap = await tx.get(tourRef);
+    const fromSnap = await tx.get(fromRef);
+    const toSnap = await tx.get(toRef);
+
+    const booking = bookingSnap.exists ? (bookingSnap.data() || {}) : null;
+    if (!booking || !verifyBooking(booking, nowMs)) throw slotError('BOOKING_CHANGED', 'Booking changed meanwhile');
+
+    const bound = readSlotFields((snapshotSnap.exists ? (snapshotSnap.data() || {}) : {}).slotBooking);
+    if (!bound || bound.tourId !== tourId || bound.slotId !== slotId || bound.date !== fromDate || bound.pax !== pax) {
+      throw slotError('SLOT_BINDING_MISMATCH', 'Order slot binding does not match the booking');
+    }
+
+    const product = resolveSlotCapacityFromTour(tourSnap.exists ? (tourSnap.data() || {}) : null, slotId);
+    if (!product.ok) throw slotError(product.code);
+
+    const to = toSnap.exists ? (toSnap.data() || {}) : {};
+    if (to.status === 'blackout' || to.status === 'fully_booked') {
+      throw slotError('DATE_UNAVAILABLE', `Date ${toDate} is ${to.status}`);
+    }
+    const toSummary = summarizeSlot(to, slotId, nowMs);
+    if (toSummary.total + pax > product.capacity) {
+      throw slotError('SLOT_FULL', `Slot full on ${toDate}: total=${toSummary.total}, pax=${pax}, capacity=${product.capacity}`);
+    }
+    const toEntry = to.slot_confirmed && to.slot_confirmed[slotId] ? to.slot_confirmed[slotId][orderId] : null;
+    if (toEntry && Number(toEntry.count || 0) > 0) {
+      throw slotError('SLOT_BINDING_MISMATCH', 'Order already holds seats on the target date');
+    }
+
+    const from = fromSnap.exists ? (fromSnap.data() || {}) : {};
+    const fromEntry = from.slot_confirmed && from.slot_confirmed[slotId] ? from.slot_confirmed[slotId][orderId] : null;
+    const confirmedFrom = Number((from.slot_bookings || {})[slotId] || 0);
+    if (Number((fromEntry && fromEntry.count) || 0) !== pax || confirmedFrom < pax) {
+      throw slotError('SLOT_BINDING_MISMATCH', 'Confirmed seat ledger does not prove this order on the current date');
+    }
+    const confirmedTo = Number((to.slot_bookings || {})[slotId] || 0);
+
+    // ── 쓰기 4개 — merge 는 비어 있지 않은 중첩 객체로 다른 슬롯·다른 주문 키를 보존한다 ──
+    tx.set(fromRef, {
+      slot_bookings: { [slotId]: confirmedFrom - pax },
+      slot_confirmed: { [slotId]: { [orderId]: { count: 0, releasedAt: nowIso } } },
+      updatedAt: nowIso,
+    }, { merge: true });
+    tx.set(toRef, {
+      tourId,
+      date: toDate,
+      status: to.status || 'available',
+      slot_bookings: { [slotId]: confirmedTo + pax },
+      slot_confirmed: { [slotId]: { [orderId]: { count: pax, at: nowIso, releasedAt: null } } },
+      updatedAt: nowIso,
+    }, { merge: true });
+    tx.set(snapshotRef, {
+      slotBooking: { bookingDate: toDate },
+      slotBookingMovedAt: nowIso,
+      slotBookingPreviousDate: fromDate,
+    }, { merge: true });
+    tx.update(bookingRef, bookingPatch);
+
+    return {
+      ok: true,
+      capacity: product.capacity,
+      remaining: product.capacity - (toSummary.total + pax),
+      priceModifierKrw: product.priceModifierKrw,
+    };
+  });
 }
 
 /**
