@@ -239,14 +239,24 @@ function countBadAddressPrefix(stopsList) {
 // 손님이 알아채는 진짜 중복은 관광지·식당이 다시 나오는 것.
 // 그룹 키는 trim + 소문자(대소문자·앞뒤 공백만 다른 같은 이름을 한 그룹으로).
 // 표시용 이름은 그 그룹에서 처음 나온 trim 된 라벨. 공백뿐인 라벨은 빈 라벨로 무시.
+/**
+ * 종단 중복 판정 키 — 숙소·빈 이름은 ''(비교 제외). 이름은 신·구 필드 폴백(stopLabel) → trim → 소문자.
+ * 블록 선택 보정(blockMode repairRepeatedBlockSelections)도 같은 규칙을 쓴다 — 2026-10-23, 서로 다른
+ * DMZ 블록 둘이 "임진각 평화누리공원" 을 공유해 이 게이트에서 ×2 로 막힌 사례.
+ */
+export function stopDuplicateKey(stop) {
+  if (isLodging(stop)) return '';
+  return String(stopLabel(stop)).trim().toLowerCase();
+}
+
 function groupNonLodgingStopCounts(stopsList) {
   const counted = stopsList.filter(({ stop }) => !isLodging(stop));
   const seen = new Map();
   const labels = new Map();
   for (const { stop } of counted) {
+    const key = stopDuplicateKey(stop);
+    if (!key) continue;
     const label = String(stopLabel(stop)).trim();
-    if (!label) continue;
-    const key = label.toLowerCase();
     if (!labels.has(key)) labels.set(key, label);
     seen.set(key, (seen.get(key) || 0) + 1);
   }

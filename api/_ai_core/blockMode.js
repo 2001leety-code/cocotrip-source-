@@ -41,6 +41,7 @@ import {
   estimateAirportTransitMinFrom, hhmmToMin, arrivalReadyMinutes,
 } from './constants.js';
 import { repairAndParseJSON, normalizeRegionKey } from './responseValidator.js';
+import { stopDuplicateKey } from './qualityMetrics.js';
 import { buildCityPerDayWithBookends } from '../_shared/plannerIntentV1.js';
 import { recordGeminiUsage } from '../_shared/apiUsageRecorder.js';
 // 식이 신뢰 등급 SSOT (.claude/rules/dietary-safety.md). 태그만 보고 "인증" 판정 금지 —
@@ -551,7 +552,22 @@ export async function selectBlocksWithGemini(blocks, userInput, geminiClient) {
   return { day_selections: repairRepeatedBlockSelections(cleaned, cleaned.map(() => blocks)), language, cacheMetadata };
 }
 
-/** Replace repeated normal-day blocks only when that day has an unused normal block. */
+/** 블록 원본 stops 전체의 장소 키(카드 stops_summary 아님) — 종단 중복 게이트와 같은 정규화. */
+function blockPlaceKeys(block) {
+  const keys = new Set();
+  for (const stop of (block && block.stops) || []) {
+    const key = stopDuplicateKey(stop);
+    if (key) keys.add(key);
+  }
+  return keys;
+}
+
+/**
+ * Replace repeated normal-day blocks only when that day has an unused normal block.
+ * "반복" = 같은 block_id, 또는 앞 날짜들이 실제로 남긴 블록과 장소가 하나라도 겹침(2026-10-23 — 서로 다른
+ * 서울 DMZ 블록 둘이 "임진각 평화누리공원" 을 공유해 종단 게이트가 ×2 로 막았다). 겹침 없는 후보가 없으면
+ * 원본을 둔다 — 최종 일정에 중복이 남으면 기존 종단 게이트가 막는다.
+ */
 function repairRepeatedBlockSelections(daySelections, blocksByDay) {
   const reserved = new Set();
   daySelections.forEach((selection, index) => {
@@ -560,27 +576,34 @@ function repairRepeatedBlockSelections(daySelections, blocksByDay) {
   });
 
   const used = new Set();
+  const usedKeys = new Set();
+  const overlapsUsed = (block) => [...blockPlaceKeys(block)].some((key) => usedKeys.has(key));
+  const keep = (block) => {
+    if (!block) return;
+    used.add(block.id);
+    for (const key of blockPlaceKeys(block)) usedKeys.add(key);
+  };
   return daySelections.map((selection, index) => {
     const candidates = blocksByDay[index] || [];
     const selected = candidates.find((block) => block.id === selection.block_id);
-    const duplicate = used.has(selection.block_id);
+    const duplicate = used.has(selection.block_id) || (Boolean(selected) && overlapsUsed(selected));
     const selectedType = String(selected?.block_type || '').toLowerCase();
     if (!duplicate || (selected && selectedType && selectedType !== 'city_day')) {
-      if (selected) used.add(selected.id);
+      keep(selected);
       return selection;
     }
 
     const replacement = candidates.find((block) => {
       const type = String(block.block_type || '').toLowerCase();
-      return (!type || type === 'city_day') && !reserved.has(block.id) && !used.has(block.id);
+      return (!type || type === 'city_day') && !reserved.has(block.id) && !used.has(block.id) && !overlapsUsed(block);
     });
     if (!replacement) {
-      if (selected) used.add(selected.id);
+      keep(selected);
       return selection;
     }
 
     reserved.add(replacement.id);
-    used.add(replacement.id);
+    keep(replacement);
     return { ...selection, block_id: replacement.id, tweak_notes: '' };
   });
 }
