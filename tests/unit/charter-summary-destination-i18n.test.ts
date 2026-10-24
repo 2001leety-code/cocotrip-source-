@@ -14,8 +14,11 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { resolveDestinationKeyLabel } from '../../src/components/charter/destinationDisplayLabels';
+import { originCodeLabel, resolveDestinationKeyLabel } from '../../src/components/charter/destinationDisplayLabels';
+import { getWizardI18n, serviceModeLabel } from '../../src/components/charter/wizard-i18n';
 import {
+  AIRPORTS_CATALOG,
+  CITIES_CATALOG,
   AIRPORT_TRANSFER_PRICES,
   DAILY_TOUR_PRICES,
   DISTANCE_MATRIX,
@@ -111,5 +114,87 @@ describe('결제 요약 2곳 — destinationKey 를 raw 로 보여주지 않고 
     const code = src('src/components/charter/CharterWizard.tsx');
     expect(code).toMatch(/from ['"]\.\/destinationDisplayLabels['"]/);
     expect(code).toMatch(/resolveDestinationKeyLabel\(state\.destinationKey, language\)/);
+  });
+});
+
+// 2026-10-24: CharterWizard 요약의 서비스·출발 행도 raw 키(airport_transfer · ICN · SEL_METRO)를 보이지 않는다.
+describe('CharterWizard 요약 — 서비스·출발 행 4개 언어 (raw 키 미노출)', () => {
+  const SERVICES = ['airport_transfer', 'day_tour', 'multi_day', 'kpop_shuttle', 'transfer'];
+  const ORIGINS = ['ICN', 'GMP', 'PUS', 'CJU', 'TAE', 'CJJ', 'MWX', 'KWJ', 'RSU', 'USN', 'SEL_METRO', 'BUS_METRO'];
+
+  it.each(LANGS)('%s: 서비스 5종이 Step2 카드 라벨로 보인다 (키·밑줄 미노출)', (lang) => {
+    const step2 = getWizardI18n(lang);
+    const expected = [step2.svcAirport, step2.svcDayTour, step2.svcMultiDay, step2.svcKpop, step2.svcTransfer];
+    SERVICES.forEach((key, i) => {
+      const label = serviceModeLabel(key, lang);
+      expect(label, key).toBe(expected[i]);
+      expect(label, key).not.toBe(key);
+      expect(label, key).not.toBe(key.replace(/_/g, ' '));
+    });
+  });
+
+  it('서비스: 모르는 키는 기존 폴백(밑줄 → 공백), 없으면 undefined', () => {
+    expect(serviceModeLabel('future_mode', 'en')).toBe('future mode');
+    expect(serviceModeLabel(undefined, 'ko')).toBeUndefined();
+  });
+
+  it.each(LANGS)('%s: 출발 코드 12개가 raw 코드로 보이지 않는다', (lang) => {
+    for (const code of ORIGINS) {
+      const label = originCodeLabel(code, lang);
+      expect(label, code).not.toBe(code);
+      expect(label, code).not.toMatch(/^[A-Z_]+$/);
+    }
+  });
+
+  it.each(['ja', 'zh'] as const)('%s: 출발 코드가 영어 원문(name_en)으로 새지 않는다', (lang) => {
+    const catalog = { ...CITIES_CATALOG, ...AIRPORTS_CATALOG } as Record<string, { name_en: string }>;
+    for (const code of ORIGINS) {
+      expect(originCodeLabel(code, lang), code).not.toBe(catalog[code].name_en);
+    }
+  });
+
+  it('출발: CUSTOM·빈 값은 이름이 아니다 → fallback 또는 "-"', () => {
+    expect(originCodeLabel('CUSTOM', 'en')).toBe('-');
+    expect(originCodeLabel(undefined, 'ko')).toBe('-');
+    expect(originCodeLabel('NOT_A_CODE', 'en', 'Somewhere')).toBe('Somewhere');
+  });
+
+  // 2026-10-24 r2: 결제 패널(CharterNewPage PaymentPanel)도 같은 두 함수 — 로컬 SERVICE_LABEL('intercity' 키 → 'transfer' raw 노출) 제거.
+  it.each(LANGS)('%s: 결제 패널 서비스 5종 — transfer 포함 raw 값 미노출 (serviceModeLabel)', (lang) => {
+    const step2 = getWizardI18n(lang);
+    const expected = [step2.svcAirport, step2.svcDayTour, step2.svcMultiDay, step2.svcKpop, step2.svcTransfer];
+    SERVICES.forEach((key, i) => {
+      const label = serviceModeLabel(key, lang) || '-';
+      expect(label, key).toBe(expected[i]); // Step2 카드 라벨 그대로(폴백 아님)
+      expect(label, key).not.toBe(key);
+      // raw 폴백 모양("airport transfer")과 정확 비교 — 대소문자 무시하면 실제 영어 라벨 "Airport Transfer" 까지 걸린다.
+      expect(label, key).not.toBe(key.replace(/_/g, ' '));
+    });
+    expect(serviceModeLabel('transfer', lang)).toBe(step2.svcTransfer);
+    expect(serviceModeLabel('transfer', lang)).not.toBe('transfer');
+  });
+
+  it.each(['ja', 'zh'] as const)('%s: 결제 패널 출발지가 영어 카탈로그명이 아니다 (originCodeLabel, CUSTOM 은 originCustom)', (lang) => {
+    const catalog = { ...CITIES_CATALOG, ...AIRPORTS_CATALOG } as Record<string, { name_en: string }>;
+    for (const code of ORIGINS) expect(originCodeLabel(code, lang, 'Custom Addr'), code).not.toBe(catalog[code].name_en);
+    expect(originCodeLabel('CUSTOM', lang, 'Custom Addr')).toBe('Custom Addr');
+  });
+
+  it('배선: CharterNewPage 결제 패널이 serviceModeLabel / originCodeLabel 을 쓴다 (로컬 SERVICE_LABEL 없음)', () => {
+    const code = src('src/pages/CharterNewPage.tsx');
+    expect(code).toMatch(/const serviceLabel = serviceModeLabel\(state\.service, language\) \|\| '-';/);
+    expect(code).toMatch(/const originLabel\s+= state\.originName \|\| originCodeLabel\(state\.origin, language, state\.originCustom\);/);
+    expect(code).not.toMatch(/SERVICE_LABEL/);
+    expect(code).not.toMatch(/\bintercity:/);
+    // 목적지 쪽은 기존 그대로
+    expect(code).toMatch(/resolveDestinationKeyLabel\(state\.destinationKey, language, resolveLocationLabel\(state\.destinationKey\)\)/);
+  });
+
+  it('배선: CharterWizard 출발·서비스 행이 originCodeLabel / serviceModeLabel 을 거친다 (raw 폴백 제거)', () => {
+    const code = src('src/components/charter/CharterWizard.tsx');
+    expect(code).toMatch(/state\.originCustom \|\| originCodeLabel\(state\.origin, language\)/);
+    expect(code).toMatch(/compactValue\(serviceModeLabel\(state\.service, language\), '-'\)/);
+    expect(code).not.toMatch(/state\.service\?\.replace\(/);
+    expect(code).not.toMatch(/state\.originCustom \|\| state\.origin,/);
   });
 });

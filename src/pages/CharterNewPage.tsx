@@ -19,7 +19,7 @@ import { CartAddButton } from '@/components/CartButton';
 import { isFeatureFlagOn } from '@/lib/featureFlag';
 import { EditFieldModal } from '@/components/charter/ReviewEditModals';
 import type { EditFieldSpec } from '@/components/charter/ReviewEditModals';
-import { getWizardI18n } from '@/components/charter/wizard-i18n';
+import { getWizardI18n, serviceModeLabel } from '@/components/charter/wizard-i18n';
 import { useQuoteCalculator } from '@/hooks/useQuoteCalculator';
 import { useCharterRouteKm } from '@/lib/charterRouteKm';
 import type { WizardState } from '@/components/charter/types';
@@ -31,7 +31,7 @@ import { AIRPORTS_CATALOG, CITIES_CATALOG, VEHICLE_TYPES } from '@/data/charterP
 import { charterUsdFromKrw, formatCharterKrwUsd } from '@/lib/charterUsd';
 import { EstimateConsentBox } from '@/components/charter/EstimateConsentBox';
 import { ESTIMATE_POLICY_VERSION } from '@/lib/estimateConsent';
-import { resolveDestinationKeyLabel } from '@/components/charter/destinationDisplayLabels';
+import { originCodeLabel, resolveDestinationKeyLabel } from '@/components/charter/destinationDisplayLabels';
 import '@/styles/editorial-charter-funnel.css';
 
 const PayPalBookingButton = lazy(() => import('@/components/PayPalBookingButton').then(({ PayPalBookingButton }) => ({ default: PayPalBookingButton })));
@@ -170,14 +170,8 @@ function PaymentPanel({
   const resolved = resolveProductType(state, { routeKm });
 
   // ── #1 번역: raw 코드값 → 사람이 읽는 레이블 ──
-  // 서비스 타입 레이블 (4언어)
-  const SERVICE_LABEL: Record<string, Record<'ko'|'en'|'ja'|'zh', string>> = {
-    airport_transfer: { ko: i18n.svcAirport, en: i18n.svcAirport, ja: i18n.svcAirport, zh: i18n.svcAirport },
-    day_tour:         { ko: i18n.svcDayTour, en: i18n.svcDayTour, ja: i18n.svcDayTour, zh: i18n.svcDayTour },
-    multi_day:        { ko: i18n.svcMultiDay, en: i18n.svcMultiDay, ja: i18n.svcMultiDay, zh: i18n.svcMultiDay },
-    kpop_shuttle:     { ko: i18n.svcKpop, en: i18n.svcKpop, ja: i18n.svcKpop, zh: i18n.svcKpop },
-    intercity:        { ko: i18n.svcTransfer, en: i18n.svcTransfer, ja: i18n.svcTransfer, zh: i18n.svcTransfer },
-  };
+  // 서비스 타입 레이블 (4언어) — 2026-10-24: 위저드 요약과 같은 serviceModeLabel(Step2 카드 라벨 SSOT).
+  //   예전 로컬 사전은 키가 'intercity' 라 실제 값 'transfer' 가 raw 로 보였다.
   const airports = AIRPORTS_CATALOG as Record<string, { name_ko: string; name_en: string; name_ja?: string; name_zh?: string }>;
   const cities   = CITIES_CATALOG   as Record<string, { name_ko: string; name_en: string; name_ja?: string; name_zh?: string }>;
   // 코드(ICN/SEL_METRO 등) → 현재 언어 레이블 반환. 없으면 코드 그대로.
@@ -200,8 +194,10 @@ function PaymentPanel({
     // 카탈로그에 없으면 fallback(originCustom/destinationCustom) → 코드 순
     return fallback ?? code;
   }
-  const serviceLabel = (state.service && SERVICE_LABEL[state.service]?.[language]) ?? state.service ?? '-';
-  const originLabel      = state.originName ?? resolveLocationLabel(state.origin, state.originCustom);
+  const serviceLabel = serviceModeLabel(state.service, language) || '-';
+  // 2026-10-24: 출발지는 Step1 카드와 같은 이름(originCodeLabel — ja/zh 보완명) — 카탈로그 영어 폴백 대신.
+  //   CUSTOM·모르는 코드는 기존처럼 originCustom → 코드 순 폴백.
+  const originLabel      = state.originName || originCodeLabel(state.origin, language, state.originCustom);
   // 🔴 2026-08-19: destinationKey 는 airports/cities 카탈로그(name_ko/name_en 뿐)에 없는
   //   경우가 대부분(매트릭스 21개·공항픽업 12개·당일투어 7개 목적지 키는 카탈로그 밖) —
   //   Step3 가 이미 쓰는 destinationDisplayLabels 사전을 먼저 조회하고, 그 사전도 모르는

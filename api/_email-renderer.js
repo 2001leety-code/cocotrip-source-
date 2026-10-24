@@ -293,7 +293,7 @@ export function renderBookingEmail({ guestName, orderID, tourTitle, tourDate, ve
       <tr>
         <td style="font-size:12px;color:#666;line-height:1.8;">
           📞 WhatsApp: <a href="https://wa.me/821087140611" style="color:#a855f7;text-decoration:none;">+82-10-8714-0611</a><br>
-          🌐 <a href="https://cocotripkr.com" style="color:#a855f7;text-decoration:none;">cocotripkr.com</a><br>
+          🌐 <a href="https://cocotripkr.com/?utm_source=email&utm_medium=footer&utm_campaign=transactional" style="color:#a855f7;text-decoration:none;">cocotripkr.com</a><br>
           ✉️ <a href="mailto:info@cocotripkr.com" style="color:#a855f7;text-decoration:none;">info@cocotripkr.com</a>
         </td>
       </tr>
@@ -305,7 +305,7 @@ export function renderBookingEmail({ guestName, orderID, tourTitle, tourDate, ve
   <tr><td style="background:#1a1a2e;padding:24px 32px;text-align:center;">
     <div style="font-size:11px;color:rgba(255,255,255,0.4);line-height:1.8;">
       CocoTripKR · Korea Private Tour & Transfer<br>
-      <a href="https://cocotripkr.com" style="color:rgba(255,255,255,0.3);text-decoration:none;">cocotripkr.com</a> · 
+      <a href="https://cocotripkr.com/?utm_source=email&utm_medium=footer&utm_campaign=transactional" style="color:rgba(255,255,255,0.3);text-decoration:none;">cocotripkr.com</a> · 
       Kakao: cocotripkr · WhatsApp: +82-10-8714-0611<br>
       <span style="color:rgba(255,255,255,0.2);font-size:10px;">This itinerary was curated by CocoTrip AI and may be adjusted based on traffic conditions.</span>
     </div>

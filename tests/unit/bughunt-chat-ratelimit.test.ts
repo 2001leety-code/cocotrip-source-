@@ -113,7 +113,8 @@ describe('bug #19 — checkRateLimit is atomic (transaction), not read-check-wri
 
   it('caller still awaits the result before allowing the Gemini call (L~335)', () => {
     // uid = 정규화된 userId(형식 불량·게스트는 null) — 게스트도 이 관문을 지난다.
-    expect(src).toMatch(/const\s+rl\s*=\s*await\s+checkRateLimit\s*\(\s*uid\s*,\s*ip\s*\)/);
+    // 2026-10-24: 게스트만 세 번째 인자로 서명 쿠키 sessionId(무료 문답 한도) — 로그인은 ''.
+    expect(src).toMatch(/const\s+rl\s*=\s*await\s+checkRateLimit\s*\(\s*uid\s*,\s*ip\s*,\s*uid \? '' : sessionId\s*\)/);
   });
 });
 

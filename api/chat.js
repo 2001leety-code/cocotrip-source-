@@ -13,6 +13,7 @@ import { initAdminDb } from './_shared/firebase-admin.js';
 import { hashIp } from './_shared/ip-rate-limit.js';
 import { wrapHandler, captureError } from './_shared/sentry.js';
 import { resolveChatSessionForPost } from './_shared/chat-session-auth.js';
+import { GUEST_FREE_QUESTIONS } from './_shared/guest-chat-limit.js';
 import { buildChatTelegramMessage } from './_shared/chat-telegram-message.js';
 
 // ── Firebase Admin (카운터 전용, 공유 헬퍼 사용) ──────────────────────
@@ -51,7 +52,10 @@ const RATE_USER_MAX = 5;
 const RATE_USER_DAILY_MAX = 50;
 const RATE_GUEST_DAILY_MAX = 15;
 
-async function checkRateLimit(userId, ip) {
+// 2026-10-24: 게스트 무료 문답(GUEST_FREE_QUESTIONS)을 서버에서도 집행 — 서명 쿠키 게스트 세션(sessionId) 기준
+//   일(KST) 한도. 클라이언트 3문답 게이트는 새로고침으로 초기화되므로 서버가 같은 값을 다시 센다.
+//   초과 시 GUEST_FREE_LIMIT(클라이언트가 로그인 카드로 전환). IP 일 15건 캡은 쿠키 없는 우회의 백스톱으로 유지.
+async function checkRateLimit(userId, ip, guestSessionId = '') {
   if (!counterDb) return { allowed: true }; // graceful skip if Firestore down
   const now = Date.now();
 
@@ -69,12 +73,16 @@ async function checkRateLimit(userId, ip) {
   const kst = new Date(now + 9 * 60 * 60 * 1000);
   const dayKey = kst.toISOString().slice(0, 10);
   const dailyRef = counterDb.collection('chat_rate_limits').doc(`usr:${userId}:${dayKey}`);
+  const guestSessionRef = isGuest && guestSessionId
+    ? counterDb.collection('chat_rate_limits').doc(`guest-session:${guestSessionId}:${dayKey}`)
+    : null;
 
   try {
     return await counterDb.runTransaction(async (tx) => {
       // Firestore 트랜잭션 규칙: 모든 read 가 모든 write 보다 먼저.
       const userSnap = await tx.get(userRef);
       const dailySnap = await tx.get(dailyRef);
+      const guestSessionSnap = guestSessionRef ? await tx.get(guestSessionRef) : null;
 
       // 1. user 슬라이딩 윈도우 5min
       const stamps = userSnap.exists ? (userSnap.data().t || []) : [];
@@ -85,17 +93,24 @@ async function checkRateLimit(userId, ip) {
         return { allowed: false, code: 'RATE_LIMIT_USER', retryAfter: retry };
       }
 
-      // 2. daily cap (KST 기준). 로그인=uid 키 50건(PR #448), 게스트=IP 키 15건.
+      // 2. 게스트 세션 무료 문답 (KST 일 GUEST_FREE_QUESTIONS 건) — IP 캡보다 먼저(손님에게 로그인 안내가 맞는 응답).
+      const guestSessionCount = guestSessionSnap && guestSessionSnap.exists ? (guestSessionSnap.data().c || 0) : 0;
+      if (guestSessionRef && guestSessionCount >= GUEST_FREE_QUESTIONS) {
+        return { allowed: false, code: 'GUEST_FREE_LIMIT', retryAfter: 3600 };
+      }
+
+      // 3. daily cap (KST 기준). 로그인=uid 키 50건(PR #448), 게스트=IP 키 15건.
       const dailyCount = dailySnap.exists ? (dailySnap.data().c || 0) : 0;
       if (dailyCount >= dailyMax) {
         return { allowed: false, code: isGuest ? 'RATE_LIMIT_GUEST_DAILY' : 'RATE_LIMIT_USER_DAILY', retryAfter: 3600 };
       }
 
-      // 두 캡 모두 통과 — 이 트랜잭션 안에서 atomic 하게 증가시키고 커밋.
+      // 모든 캡 통과 — 이 트랜잭션 안에서 atomic 하게 증가시키고 커밋.
       // 동시 요청은 트랜잭션 충돌 시 Firestore 가 재시도하므로 이중 통과 불가.
       fresh.push(now);
       tx.set(userRef, { t: fresh, updatedAt: now }, { merge: true });
       tx.set(dailyRef, { c: dailyCount + 1, lastUpdated: now }, { merge: true });
+      if (guestSessionRef) tx.set(guestSessionRef, { c: guestSessionCount + 1, lastUpdated: now }, { merge: true });
 
       return { allowed: true };
     });
@@ -383,7 +398,8 @@ export default wrapHandler(async function handler(req, res) {
     || req.socket?.remoteAddress
     || 'unknown';
   try {
-    const rl = await checkRateLimit(uid, ip);
+    // 게스트만 세션 무료 문답 한도 — 로그인 경로는 uid 캡 그대로(sessionId 미사용).
+    const rl = await checkRateLimit(uid, ip, uid ? '' : sessionId);
     if (!rl.allowed) {
       res.writeHead(429, { ...JSON_CORS, 'Retry-After': String(rl.retryAfter) });
       return res.end(JSON.stringify(_err('Too many requests. Please wait.', rl.code)));

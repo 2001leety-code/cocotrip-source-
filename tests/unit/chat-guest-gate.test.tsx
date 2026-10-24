@@ -104,3 +104,27 @@ describe('guest 3-question gate', () => {
     expect(result.current.messages.at(-1)?.text).toContain('Connection error');
   });
 });
+
+// 2026-10-24: 서버가 게스트 세션 기준 일 3건을 집행(api/chat.js GUEST_FREE_LIMIT) — 새로고침으로 클라 카운트가
+//   0 이어도 서버 429 를 받으면 같은 로그인 카드(guestGated)로 전환하고 더 보내지 않는다.
+describe('server-enforced guest free limit (GUEST_FREE_LIMIT)', () => {
+  const limited = { ok: false, status: 429, json: async () => ({ ok: false, error: 'Too many requests. Please wait.', code: 'GUEST_FREE_LIMIT' }) };
+
+  it('a 429 GUEST_FREE_LIMIT on the first send gates the guest (login card), with no error bubble and no further fetch', async () => {
+    fetchMock.mockResolvedValueOnce(limited);
+    const { result } = renderHook(() => useChatSession('en', true));
+    await act(async () => { await result.current.sendMessage('after a reload'); });
+    expect(result.current.guestGated).toBe(true);
+    expect(result.current.messages.filter((m) => m.role === 'ai' && /Too many|wait/i.test(m.text))).toHaveLength(0);
+    await act(async () => { await result.current.sendMessage('again'); });
+    expect(chatCalls()).toHaveLength(1);
+  });
+
+  it('signed-in users are not gated by that code (it never applies to them)', async () => {
+    authHolder.user = { uid: 'user-1234', getIdToken: async () => 'token' };
+    fetchMock.mockResolvedValueOnce(limited);
+    const { result } = renderHook(() => useChatSession('en', true));
+    await act(async () => { await result.current.sendMessage('hi'); });
+    expect(result.current.guestGated).toBe(false);
+  });
+});

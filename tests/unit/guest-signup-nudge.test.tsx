@@ -157,14 +157,17 @@ describe('PayPalBookingButton — 게스트 넛지 배선 가드', () => {
     expect(src).toMatch(/\{!authUser\s*&&\s*\([\s\S]*?<GuestSignupNudge/);
   });
 
-  it('handleGuestSignup 이 signInWithGoogle 을 호출(로그인 실행부는 부모가 소유)', () => {
-    expect(src).toMatch(/import\s*\{\s*signInWithGoogle\s*\}\s*from\s*'@\/lib\/firebase-auth'/);
-    expect(src).toMatch(/async function handleGuestSignup\(\)[\s\S]*?await signInWithGoogle\(\)/);
+  // 2026-10-24: 핸들러·상태는 공용 훅 useGuestSignup(CartCheckout 성공 화면과 공유) — 실행부는 여전히 부모(훅) 소유.
+  const hookSrc = readFileSync(join(process.cwd(), 'src', 'hooks', 'useGuestSignup.ts'), 'utf8');
+  it('handleGuestSignup 이 signInWithGoogle 을 호출(로그인 실행부는 부모가 소유 — 공용 훅)', () => {
+    expect(src).toMatch(/const \{ signupLoading, signupError, handleGuestSignup \} = useGuestSignup\(\);/);
+    expect(hookSrc).toMatch(/import\s*\{\s*signInWithGoogle\s*\}\s*from\s*'@\/lib\/firebase-auth'/);
+    expect(hookSrc).toMatch(/const handleGuestSignup = useCallback\(async \(\) => \{[\s\S]*?await signInWithGoogle\(\)/);
   });
 
   it('결제 loading/error state 를 재사용하지 않는다 — 별도 signupLoading/signupError', () => {
-    expect(src).toMatch(/const \[signupLoading,\s*setSignupLoading\]\s*=\s*useState/);
-    expect(src).toMatch(/const \[signupError,\s*setSignupError\]\s*=\s*useState/);
+    expect(hookSrc).toMatch(/const \[signupLoading,\s*setSignupLoading\]\s*=\s*useState/);
+    expect(hookSrc).toMatch(/const \[signupError,\s*setSignupError\]\s*=\s*useState/);
   });
 
   it('GuestSignupNudge 는 signupLoading/signupError 를 prop 으로 받는다(결제 loading/error 아님)', () => {

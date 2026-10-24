@@ -5,7 +5,7 @@ import { track as posthogTrack } from '@/lib/posthog';
 import { trackPaidConversion, trackBeginCheckout, getAttributionSnapshot } from '@/lib/analytics';
 import { useLoyalty } from '@/hooks/useLoyalty';
 import { useAuth } from '@/hooks/useAuth';
-import { signInWithGoogle } from '@/lib/firebase-auth';
+import { useGuestSignup } from '@/hooks/useGuestSignup';
 import { haptic } from '@/lib/haptic';
 import { authFetch } from '@/lib/authFetch';
 import { formatPrice } from '@/lib/exchange-rate';
@@ -252,21 +252,8 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
   const [useFallback, setUseFallback] = useState(false);
 
   // 게스트 → 회원 전환 넛지 (2026-08-19): 결제 성공 오버레이에서 same-email 가입 유도.
-  //   결제 흐름의 loading/error 와는 별개 상태 — 결제 로직에 영향 없음(추가 UI 전용).
-  const [signupLoading, setSignupLoading] = useState(false);
-  const [signupError,   setSignupError]   = useState<string | null>(null);
-  async function handleGuestSignup() {
-    setSignupError(null);
-    setSignupLoading(true);
-    try {
-      await signInWithGoogle();
-      // 성공 시 useAuth 의 onAuthStateChanged 가 authUser 를 채워 넛지가 자동으로 사라진다.
-    } catch (e) {
-      setSignupError(e instanceof Error ? e.message : 'Login failed');
-    } finally {
-      setSignupLoading(false);
-    }
-  }
+  //   핸들러 = 공용 훅 useGuestSignup (CartCheckout 성공 화면과 공유, 2026-10-24). 결제 로직과 별개 상태.
+  const { signupLoading, signupError, handleGuestSignup } = useGuestSignup();
 
   // ── Promo code state ──────────────────────────────────────────────
   const [promoCode,     setPromoCode]     = useState('');

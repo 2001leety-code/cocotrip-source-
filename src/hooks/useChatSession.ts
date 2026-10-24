@@ -268,16 +268,18 @@ export function useChatSession(language: Language, active: boolean) {
   }, [active, sessionId, lastPollTs, messages, user]);
 
   // 게스트 게이트 — 비로그인은 무료 3문답까지. 세션 내 보낸 user 메시지 수로 판정
-  // (새로고침하면 초기화되지만 서버 IP 일 15건 캡이 백스톱).
+  // (새로고침하면 초기화되지만 서버가 서명 쿠키 게스트 세션 기준 일 3건을 다시 센다 — 2026-10-24).
+  //   서버가 GUEST_FREE_LIMIT 429 를 주면 카운트와 무관하게 같은 로그인 카드로 전환한다.
+  const [serverGuestLimited, setServerGuestLimited] = useState(false);
   const guestQuestionCount = user ? 0 : messages.filter((m) => m.role === 'user').length;
-  const guestGated = !user && guestQuestionCount >= GUEST_FREE_QUESTIONS;
+  const guestGated = !user && (serverGuestLimited || guestQuestionCount >= GUEST_FREE_QUESTIONS);
 
   const sendMessage = useCallback(
     async (text: string) => {
       const trimmed = text.trim();
       if (!trimmed || loading) return;
       // 게이트에 걸린 게스트는 전송 자체를 막는다 — UI 가 로그인 카드를 띄움.
-      if (!user && messages.filter((m) => m.role === 'user').length >= GUEST_FREE_QUESTIONS) return;
+      if (!user && (serverGuestLimited || messages.filter((m) => m.role === 'user').length >= GUEST_FREE_QUESTIONS)) return;
 
       setQuickShown(false);
       setMessages((prev) => [
@@ -311,7 +313,10 @@ export function useChatSession(language: Language, active: boolean) {
           rememberSessionId(serverSessionId);
         }
         // 429 / 401은 사용자에게 명확히 안내 (그냥 generic 에러 메시지면 혼란)
-        if (!res.ok) {
+        if (!res.ok && json.code === 'GUEST_FREE_LIMIT' && !user) {
+          // 서버 무료 문답 한도 — 에러 말풍선 대신 기존 로그인 카드(guestGated).
+          setServerGuestLimited(true);
+        } else if (!res.ok) {
           const code = json.code || '';
           const errT = CHAT_ERROR_TEXT[language];
           let msg = errT.generic;
@@ -335,7 +340,7 @@ export function useChatSession(language: Language, active: boolean) {
         setLoading(false);
       }
     },
-    [loading, sessionId, language, messages, user],
+    [loading, sessionId, language, messages, user, serverGuestLimited],
   );
 
   return { user, messages, loading, sendMessage, quickShown, sessionId, guestQuestionCount, guestGated };

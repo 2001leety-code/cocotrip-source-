@@ -13,11 +13,11 @@ import { useAuth } from '@/hooks/useAuth';
 import { signInWithGoogle } from '@/lib/firebase-auth';
 import { mergeProfileDefaults, normalizeProfilePhone } from '@/lib/profilePrefill';
 import { useCharterFunnelTracking } from './useCharterFunnelTracking';
-import { resolveDestinationKeyLabel } from './destinationDisplayLabels';
+import { originCodeLabel, resolveDestinationKeyLabel } from './destinationDisplayLabels';
 import { INITIAL_WIZARD_STATE } from './types';
 import type { WizardState } from './types';
 import { Step1Origin } from './Step1Origin';
-import { getWizardI18n } from './wizard-i18n';
+import { getWizardI18n, serviceModeLabel } from './wizard-i18n';
 import { isValidInternationalPhone } from '@/lib/phone-validation';
 import { resolveProductType } from './resolveProductType';
 import { isPastCutoff } from '@/lib/bookingCutoff';
@@ -349,11 +349,13 @@ export function CharterWizard({ initialState, onComplete, language = 'en' }: Cha
   const summaryRows = [
     {
       label: language === 'ko' ? '출발' : language === 'ja' ? '出発' : language === 'zh' ? '出发' : 'Pickup',
-      value: compactValue(state.originName || state.originAddress || state.originCustom || state.origin, '-'),
+      // 2026-10-24: 출발 코드(ICN·SEL_METRO 등)를 raw 로 보이지 않게 — Step1 카드와 같은 이름(originCodeLabel).
+      value: compactValue(state.originName || state.originAddress || state.originCustom || originCodeLabel(state.origin, language), '-'),
     },
     {
       label: language === 'ko' ? '서비스' : language === 'ja' ? 'サービス' : language === 'zh' ? '服务' : 'Service',
-      value: compactValue(state.service?.replace(/_/g, ' '), '-'),
+      // 2026-10-24: airport_transfer 류 키 대신 Step2 카드 라벨(serviceModeLabel).
+      value: compactValue(serviceModeLabel(state.service, language), '-'),
     },
     {
       label: language === 'ko' ? '도착' : language === 'ja' ? '目的地' : language === 'zh' ? '目的地' : 'Destination',
