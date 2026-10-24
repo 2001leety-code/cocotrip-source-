@@ -17,9 +17,11 @@ import { evaluateCompareRun, formatOutcome, foodNameCompliance } from './llm-com
 //   seoul-busan-halal  = regions [seoul,busan], ICN 입국(서울)→PUS 출국(부산) — 두 도시 목록 사용
 //   seoul-ja           = Vegetarian·일본어 — 원문 이름 복사 vs 쉼표 앞 별칭 구분
 //   jeju-vegan         = CJU→CJU 14:00/10:00 — 출국일 조식 부족을 미충족으로 남기는지
+// 2026-10-24 (출국 11:00 전 식당 조식 면제): busan-halal-local 은 15:00 출국(조식 또는 점심 경로), seoul-busan-halal·
+//   jeju-vegan 은 10:00 유지(면제 + 체크아웃 tip 안내 경로).
 // regions·입출국 도시는 요청(shapeRequest)·식당 목록(운영 buildTripFoodContext)·검증기에 같이 들어간다.
 export const SCENARIOS = {
-  'busan-halal-local': { area: 'busan', regions: ['busan'], durationDays: 3, pax: 4, dietPrefs: ['Halal'], priceRange: 'Moderate', language: 'en', arrivalTime: '14:00', departureTime: '10:00', arrival_airport: 'PUS', departure_airport: 'PUS' },
+  'busan-halal-local': { area: 'busan', regions: ['busan'], durationDays: 3, pax: 4, dietPrefs: ['Halal'], priceRange: 'Moderate', language: 'en', arrivalTime: '14:00', departureTime: '15:00', arrival_airport: 'PUS', departure_airport: 'PUS' },
   'seoul-busan-halal': { area: 'seoul', regions: ['seoul', 'busan'], durationDays: 4, pax: 2, dietPrefs: ['Halal'], priceRange: 'Moderate', language: 'en', arrivalTime: '14:00', departureTime: '10:00', arrival_airport: 'ICN_T1', departure_airport: 'PUS', arrivalCity: 'seoul', departureCity: 'busan' },
   'seoul-ja':          { area: 'seoul', regions: ['seoul'], durationDays: 3, pax: 2, dietPrefs: ['Vegetarian'], priceRange: 'Moderate', language: 'ja' },
   'jeju-vegan':        { area: 'jeju', regions: ['jeju'], durationDays: 2, pax: 2, dietPrefs: ['Vegan'], priceRange: 'Budget', language: 'en', arrivalTime: '14:00', departureTime: '10:00', arrival_airport: 'CJU', departure_airport: 'CJU' },

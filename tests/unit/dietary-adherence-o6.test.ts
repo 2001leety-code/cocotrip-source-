@@ -317,8 +317,10 @@ describe('P1 — prompt contract', () => {
     expect(sys).toMatch(/If NO "VERIFIED RESTAURANT DATABASE" appears in the message AND diet_preferences includes none of Halal\/Vegan\/Vegetarian/);
     expect(sys).toMatch(/When the destination includes Busan AND diet_preferences includes none of Halal\/Vegan\/Vegetarian/);
   });
-  it('departure-day breakfast instruction (Astra wording)', () => {
-    expect(sys).toContain('09:00–10:59 출국일에는 조식이 필요하다. 제공된 신뢰 후보로 해결할 수 없으면 식당·영업시간·호텔 조식·편의점 대안을 지어내지 말고 해당 끼니를 미충족으로 남겨라. 다른 category 로 바꾸어 숨기지 말라. DB 신뢰 등급은 아침 영업을 보장하지 않는다.');
+  it('departure-day breakfast instruction (2026-10-24: no restaurant breakfast before an 11:00 departure)', () => {
+    expect(sys).toContain('출국 11:00 전에는 식당 조식을 넣지 않는다. 체크아웃 stop tip 에 호텔/공항 조식 안내 한 문장. 지어내기 금지.');
+    expect(sys).toContain('<11:00 → no restaurant breakfast (hotel/airport; one sentence in the checkout stop tip); 11-16:59 → breakfast OR lunch/snack; ≥17:00 → both');
+    expect(sys).not.toContain('09:00–10:59 출국일에는 조식이 필요하다');
   });
   it('per-request block: present only for safety diets, and it says the chain fallback does not apply', () => {
     expect(buildDietarySafetyBlock(['Halal'])).toMatch(/nationwide-chain \/ category fallback does NOT apply/);
@@ -348,8 +350,8 @@ const breakfast = (over: object = {}) => ({ name: '합성 아침', category: 'fo
 describe('P3 — required meals (B-MEAL) shared with the final gate', () => {
   it.each([
     ['08:59', 0], // red-eye — 조식 면제
-    ['09:00', 1],
-    ['10:59', 1],
+    ['09:00', 0], // 2026-10-24: 출국 11:00 전 식당 조식 면제(안내는 체크아웃 tip)
+    ['10:59', 0],
     ['11:00', 1], // 낮 출국 — 조식 또는 점심 필요
   ])('departure %s with no food on the last day → %i required-meal issue(s)', (departure, count) => {
     const issues = checkRequiredMeals(twoDayPlan([checkout, airport]), { departure_time: departure });
@@ -357,44 +359,50 @@ describe('P3 — required meals (B-MEAL) shared with the final gate', () => {
     if (count) expect(issues[0]).toMatch(new RegExp(`^Day 2 \\(출국일\\): departure_time=${departure}.*\\(B-MEAL`));
   });
 
-  it('final gate with tripTimes: a missing 10:00-departure breakfast fails (it slipped past the <3-activity exemption before)', () => {
+  // 2026-10-24: 출국 11:00 전은 식당 조식 면제 → 이 블록의 "끼니 누락" 의도는 13:00(낮 출국 — 조식 또는 점심) 로 검사.
+  const DEP = '13:00';
+  it('final gate: a 10:00 departure with checkout + airport only now passes (restaurant breakfast exempt)', () => {
+    expect(runFinalItineraryValidation(twoDayPlan([checkout, airport]), { dietary: ['Vegan'], language: 'en', foodIndex: trustedRows, tripTimes: { departure_time: '10:00' } }).ok).toBe(true);
+  });
+
+  it('final gate with tripTimes: a missing 13:00-departure meal fails (it slipped past the <3-activity exemption before)', () => {
     const plan = twoDayPlan([checkout, airport]);
     const legacy = runFinalItineraryValidation(plan, { dietary: ['Vegan'], language: 'en', foodIndex: trustedRows });
     expect(legacy.ok).toBe(true); // tripTimes 없는 호출은 기존 판정 그대로
-    const gate = runFinalItineraryValidation(plan, { dietary: ['Vegan'], language: 'en', foodIndex: trustedRows, tripTimes: { departure_time: '10:00' } });
+    const gate = runFinalItineraryValidation(plan, { dietary: ['Vegan'], language: 'en', foodIndex: trustedRows, tripTimes: { departure_time: DEP } });
     expect(gate).toMatchObject({ ok: false, code: FINAL_GATE_MEAL_CODE });
-    expect(gate.requiredMealIssues).toEqual([expect.stringMatching(/^Day 2 \(출국일\): departure_time=10:00 이른 출국 — 조식\(06-10시\) 누락 \(B-MEAL, P137\)$/)]);
+    expect(gate.requiredMealIssues).toEqual([expect.stringMatching(/^Day 2 \(출국일\): departure_time=13:00 낮 출국 — 조식\(06-10시\)\/오후식사\(11-16시\) 모두 누락 \(B-MEAL, P137\)$/)]);
     const err = buildFinalGateError(gate, ['Vegan'], 'post_response');
     expect(err).toMatchObject({ code: FINAL_GATE_MEAL_CODE, statusCode: 422 });
     expect(err.details).toEqual(gate.requiredMealIssues);
   });
 
   it('a trusted breakfast satisfies it', () => {
-    const gate = runFinalItineraryValidation(twoDayPlan([checkout, breakfast(), airport]), { dietary: ['Vegan'], language: 'en', foodIndex: trustedRows, tripTimes: { departure_time: '10:00' } });
+    const gate = runFinalItineraryValidation(twoDayPlan([checkout, breakfast(), airport]), { dietary: ['Vegan'], language: 'en', foodIndex: trustedRows, tripTimes: { departure_time: DEP } });
     expect(gate.ok).toBe(true);
   });
 
   it('a placeholder breakfast is not a completed meal (dietary evidence fails)', () => {
     const gate = runFinalItineraryValidation(twoDayPlan([checkout, breakfast({ name: '[추천 식당 준비 중]', verified: false }), airport]),
-      { dietary: ['Vegan'], language: 'en', foodIndex: trustedRows, tripTimes: { departure_time: '10:00' } });
+      { dietary: ['Vegan'], language: 'en', foodIndex: trustedRows, tripTimes: { departure_time: DEP } });
     expect(gate).toMatchObject({ ok: false, code: FINAL_GATE_DIETARY_CODE });
   });
 
   it('hiding the breakfast under another category does not count as a meal', () => {
     const gate = runFinalItineraryValidation(twoDayPlan([checkout, breakfast({ category: 'cafe' }), airport]),
-      { dietary: ['Vegan'], language: 'en', foodIndex: trustedRows, tripTimes: { departure_time: '10:00' } });
+      { dietary: ['Vegan'], language: 'en', foodIndex: trustedRows, tripTimes: { departure_time: DEP } });
     expect(gate).toMatchObject({ ok: false, code: FINAL_GATE_MEAL_CODE });
   });
 
   it('a forged dietary_tags on the stop (now allowed by the schema) is not evidence — the DB row decides', () => {
     const generalRow = { ...trustedRows[1], tag: 'general', verification_status: undefined };
     const gate = runFinalItineraryValidation(twoDayPlan([checkout, breakfast({ dietary_tags: ['vegan'], verified: true }), airport]),
-      { dietary: ['Vegan'], language: 'en', foodIndex: [trustedRows[0], generalRow], tripTimes: { departure_time: '10:00' } });
+      { dietary: ['Vegan'], language: 'en', foodIndex: [trustedRows[0], generalRow], tripTimes: { departure_time: DEP } });
     expect(gate).toMatchObject({ ok: false, code: FINAL_GATE_DIETARY_CODE });
   });
 
   it('non-dietary guests: final gate stays a no-op even with tripTimes', () => {
-    expect(runFinalItineraryValidation(twoDayPlan([checkout, airport]), { dietary: ['Meat'], tripTimes: { departure_time: '10:00' } }).ok).toBe(true);
+    expect(runFinalItineraryValidation(twoDayPlan([checkout, airport]), { dietary: ['Meat'], tripTimes: { departure_time: DEP } }).ok).toBe(true);
   });
 
   it('tripTimesFrom reads camel or snake, HH:MM', () => {
@@ -414,7 +422,7 @@ describe('P4 — compare harness scenarios and safety tally', () => {
   const freeSrc = read('scripts/integration/llm-compare-free.mjs');
   it('exactly the four dietary scenarios, with regions and entry/exit wired through the production list builder', () => {
     expect(Object.keys(SCENARIOS)).toEqual(['busan-halal-local', 'seoul-busan-halal', 'seoul-ja', 'jeju-vegan']);
-    expect(SCENARIOS['busan-halal-local']).toMatchObject({ arrival_airport: 'PUS', departure_airport: 'PUS' });
+    expect(SCENARIOS['busan-halal-local']).toMatchObject({ arrival_airport: 'PUS', departure_airport: 'PUS', departureTime: '15:00' }); // 조식 또는 점심 경로
     expect(SCENARIOS['seoul-busan-halal']).toMatchObject({ regions: ['seoul', 'busan'], arrival_airport: 'ICN_T1', departure_airport: 'PUS', arrivalCity: 'seoul', departureCity: 'busan' });
     expect(SCENARIOS['jeju-vegan']).toMatchObject({ arrivalTime: '14:00', departureTime: '10:00', arrival_airport: 'CJU', departure_airport: 'CJU' });
     expect(freeSrc).toMatch(/buildTripFoodContext\(\{ cities: mealCities,/);

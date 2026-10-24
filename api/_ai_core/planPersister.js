@@ -258,6 +258,37 @@ function lodgingBookendTip(role, lang) {
   return t[lang] || t.en;
 }
 
+// 2026-10-24 (운영자 결정): 출국 11:00 전은 식당 조식 면제(responseValidator B-MEAL) — 대신 손님이 화면에서 보도록
+// 체크아웃 stop tip 에 안내를 결정론적으로 붙인다(departure_guide 는 렌더러가 안 그리고, 블록·Inngest 경로는 프롬프트가
+// 안 닿음). 제공 보장 문구 없음 — 운영시간·식이 적합성은 손님 확인.
+const DEPARTURE_BREAKFAST_NOTE = {
+  ko: '출국일 조식은 이른 비행 때문에 일정에 넣지 않았습니다. 호텔 또는 공항에서 준비해 주세요 — 운영시간과 식이 요건을 확인하세요.',
+  en: 'Breakfast on departure day is not in the itinerary because of the early flight. Please arrange it at your hotel or the airport — check opening hours and dietary requirements.',
+  ja: '出国日の朝食は早朝便のため日程に入れていません。ホテルまたは空港でご用意ください — 営業時間と食事制限への対応をご確認ください。',
+  zh: '因航班较早，离境日早餐未列入行程。请在酒店或机场自行安排 — 请确认营业时间及饮食要求。',
+};
+
+/**
+ * 출국 11:00 전 + 마지막 날(days ≥ 2) food stop 0개일 때만 그 날 첫 lodging stop(없으면 첫 stop) tip 끝에 안내 1문장.
+ * food stop 이 있으면 no-op(배정된 식당이 있는데 "미배정" 표시 금지). 멱등(`_breakfast_note`).
+ * @returns {boolean} 붙였으면 true
+ */
+export function applyDepartureBreakfastNote(itinerary, { departureTime, language } = {}) {
+  const days = Array.isArray(itinerary?.days) ? itinerary.days : [];
+  if (days.length < 2) return false;
+  const m = /^(\d{1,2}):(\d{2})$/.exec(String(departureTime || '').slice(0, 5));
+  if (!m || Number(m[1]) > 23 || Number(m[2]) > 59 || Number(m[1]) >= 11) return false;
+  const stops = Array.isArray(days[days.length - 1]?.stops) ? days[days.length - 1].stops : [];
+  if (stops.length === 0 || stops.some((s) => s?.category === 'food')) return false;
+  const target = stops.find((s) => s?.category === 'lodging') || stops[0];
+  if (!target || typeof target !== 'object' || target._breakfast_note === true) return false;
+  const note = DEPARTURE_BREAKFAST_NOTE[language] || DEPARTURE_BREAKFAST_NOTE.en;
+  const tip = typeof target.tip === 'string' ? target.tip.trim() : '';
+  target.tip = tip ? `${tip} ${note}` : note;
+  target._breakfast_note = true;
+  return true;
+}
+
 // P156 (2026-05-22): 동네/랜드마크 → 도시 매핑. P152 의 도시명 매칭이 못 잡는
 // "황리단길 호텔" (Gyeongju 동네명만 있고 "경주" 미명시) 같은 케이스 보강.
 // prod 시뮬레이션 잔여 B-13 fail 2건의 원인.

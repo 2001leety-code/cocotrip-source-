@@ -12,6 +12,7 @@
  *   → 체크아웃 + 공항 2 stops 만으로 두 룰 모두 통과.
  *
  * 회귀 시: red-eye 출국 plan 이 food 0건이어도 B-MEAL 조식 누락이 다시 fire → trap 재발.
+ * 2026-10-24: 면제를 출국 11:00 전 전체로 확장(isRedEyeDeparture 가드 제거 — 분기 자체가 면제).
  */
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
@@ -86,16 +87,25 @@ describe('#7 red-eye (출국 < 09:00) — B-MEAL 조식 면제 (B-EARLY-DEPARTUR
     expect(errors.filter((e) => e.includes('B-MEAL') && e.includes('Day 5'))).toEqual([]);
   });
 
-  it('non-red-eye 경계: 출국 09:00 + food 0건 → B-MEAL 조식 누락 fire (이른 출국 조식 의무 유지)', () => {
-    // 09:00 은 red-eye 아님 (depHour=9). 조식 의무 그대로 → trap 아님 (공항 buffer 충분).
-    const { itinerary, request } = makePlan(redEyeDepartureDay(5), '09:00');
+  // 2026-10-24 (운영자 결정): 면제를 출국 11:00 전 전체로 확장 — 09:00~10:59 도 3시간 버퍼 때문에 06~07시 식당뿐이라
+  //   red-eye 와 같은 trap. 체크아웃 + 공항 2 stops 가 정답, 조식 안내는 체크아웃 tip(applyDepartureBreakfastNote).
+  it.each(['09:00', '10:59'])('출국 %s + 체크아웃/공항 2 stops (food 0건) → B-MEAL·B-EARLY-DEPARTURE 모두 통과', (dep) => {
+    const { itinerary, request } = makePlan(redEyeDepartureDay(5), dep);
     const errors = validatePatternStructure(itinerary, request);
-    expect(errors.some((e) => e.includes('B-MEAL') && e.includes('Day 5') && e.includes('조식'))).toBe(true);
+    expect(errors.filter((e) => e.includes('B-MEAL') && e.includes('Day 5'))).toEqual([]);
+    expect(errors.filter((e) => e.includes('B-EARLY-DEPARTURE') && e.includes('Day 5'))).toEqual([]);
   });
 
-  it('source invariant: responseValidator.js 에 isRedEyeDeparture 가드 존재', () => {
+  it('경계: 출국 11:00 + food 0건 → B-MEAL fire (낮 출국 규칙 불변)', () => {
+    const { itinerary, request } = makePlan(redEyeDepartureDay(5), '11:00');
+    const errors = validatePatternStructure(itinerary, request);
+    expect(errors.some((e) => e.includes('B-MEAL') && e.includes('Day 5'))).toBe(true);
+  });
+
+  it('source invariant: responseValidator.js 의 depHour < 11 분기에 조식 오류 push 없음', () => {
     const src = readFileSync(resolve(process.cwd(), 'api/_ai_core/responseValidator.js'), 'utf8');
-    expect(/isRedEyeDeparture/.test(src)).toBe(true);
-    expect(/depHour < 9/.test(src)).toBe(true);
+    expect(src).not.toMatch(/isRedEyeDeparture/);
+    expect(src).not.toMatch(/이른 출국 — 조식/);
+    expect(src).toMatch(/if \(depHour < 11\) \{/);
   });
 });

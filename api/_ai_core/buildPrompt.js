@@ -350,6 +350,7 @@ Gemini 가 \`departure_guide.airport: 'ICN T1'\` (T1 추가 hallucinate) + \`arr
 - **🔴 MIN STOPS PER DAY — ABSOLUTE MUST (2026-05-12 강화, 위반 시 사용자 신고)**:
   - **EACH day MUST have AT LEAST 4 stops** (lodging 출발 + 관광/식사 2+ + lodging 복귀 포함)
     AND **AT MOST 8 stops**.
+  - 예외: 출국 11:00 전 마지막 날은 체크아웃(lodging) + 공항(airport) 2 stops 가 정답.
   - 사용자 신고: Day 5 가 1 stop (점심만) 으로 끝나는 buggy plan 발생. 절대 금지.
   - **분량 균형**: 5일 trip 이면 Day 1~4 에 stops 몰아넣고 Day 5 비우지 말 것.
     Day 5 도 4-6 stops 확보 (출국 항공편 시각 고려해 마지막 lodging 대신 공항 가는 경우는
@@ -442,7 +443,7 @@ P124 (arrival_time + 9h sleep buffer) 는 옛 룰. tour_start_time 입력 시 (d
 ### 🔴 DEPARTURE DAY HANDLING — STRICT (P124)
 - 모든 stop start_time ≤ departure_time - 180min (공항 3h buffer 강제)
 - departure_time < 09:00 → Day N = lodging체크아웃 + airport 2stops only
-- 예시: 05:05출국→2stops | 09:00→아침+공항(3-4) | 14:00→점심+공항(5-6) | 22:00→저녁+공항(6-7)
+- 예시: 05:05출국→2stops | 09:00~10:59→체크아웃+공항(2), 조식은 tip 안내 | 14:00→점심+공항(5-6) | 22:00→저녁+공항(6-7)
 - NEVER: any stop start_time > departure_time - 180min
 
 ### 🔴 GLOBAL TIME RULES — STRICT (P124-extended)
@@ -599,9 +600,9 @@ If "special_request" is present in the user message, treat it as HIGHEST PRIORIT
 ## MEAL PLANNING — STRICT RULES (NEVER VIOLATE)
 - Full day = middle days. 필수: lunch/snack (11-16:59) ≥1 + dinner (17-21:59) ≥1. Breakfast (06-10:59) bonus.
 - Backend B-MEAL-LUNCH/DINNER validator: 누락 시 즉시 reject + retry.
-- Arrival day: ≥1 meal. Departure day (P137): <11:00→breakfast; 11-16:59→breakfast OR lunch; ≥17:00→breakfast+lunch 둘 다.
-- 09:00–10:59 출국일에는 조식이 필요하다. 제공된 신뢰 후보로 해결할 수 없으면 식당·영업시간·호텔 조식·편의점 대안을 지어내지 말고 해당 끼니를 미충족으로 남겨라. 다른 category 로 바꾸어 숨기지 말라. DB 신뢰 등급은 아침 영업을 보장하지 않는다.
-- GOOD (departure 20:00): breakfast 08:00 + lunch 12:30. BAD (departure day): 출국일 0 food stops → IMMEDIATE reject.
+- Arrival day: ≥1 meal. Departure day (P137): <11:00 → no restaurant breakfast (hotel/airport; one sentence in the checkout stop tip); 11-16:59 → breakfast OR lunch/snack; ≥17:00 → both.
+- 출국 11:00 전에는 식당 조식을 넣지 않는다. 체크아웃 stop tip 에 호텔/공항 조식 안내 한 문장. 지어내기 금지.
+- GOOD (departure 20:00): breakfast 08:00 + lunch 12:30. BAD (departure day): 출국 11:00 이후인데 0 food stops → reject.
 - 3-5 signature menu items with KRW prices. reservation_required + phone for popular spots.
 
 ## DAY COUNT — STRICT (B-DC)
@@ -815,7 +816,7 @@ If meal_budget is "Premium":
 출력 전 각 day 확인:
 - **full day (middle)**: lunch slot (11:00-14:59) OR snack (15:00-16:59) ≥1 + dinner slot (17:00-21:59) ≥1 — **MINIMUM 2 food stops per full day** 필수.
 - **Day 1 (도착일)**: arrival_time 기준 breakfast / lunch / snack / dinner 중 시간 가능한 식사 최소 1식 (예: arrival 14:00 → snack + dinner; arrival 18:00 → dinner only).
-- **출국일 (P137)**: departure_time <11:00 → breakfast; 11-16:59 → breakfast OR lunch 1건; ≥17:00 → breakfast + lunch 둘 다.
+- **출국일 (P137)**: departure_time <11:00 → no restaurant breakfast (hotel/airport; one sentence in the checkout stop tip); 11-16:59 → breakfast OR lunch/snack; ≥17:00 → both.
 
 **BAD 예시 (즉시 retry 트리거 — P179 측정 발견 2026-05-24)**:
 - Day 2 저녁 누락: full day 인데 dinner slot 17:00-21:59 식당 0건.

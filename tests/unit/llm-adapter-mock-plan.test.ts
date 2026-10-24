@@ -133,24 +133,27 @@ describe('buildMockPlan — daily-health 식이 시나리오 (실데이터): 필
     const pool = trustedPool(s);
     expect(pool.size).toBeGreaterThanOrEqual(4); // 필수 4끼 이상 — 격리 후 기대 6
     const foods = foodsOf(plan);
-    expect(foods).toHaveLength(4); // 도착일 1 + 중간일 2 + 출국 10:00 조식 1
+    expect(foods).toHaveLength(3); // 도착일 1 + 중간일 2 (출국 10:00 = 식당 조식 면제, 2026-10-24)
     for (const f of foods) expect(pool.has(f.name), f.name).toBe(true);
     expect(validatePatternStructure(plan, healthBody(s))).toEqual([]);
   });
-  it('jeju-vegan 2일: 끼니 2개 모두 trusted(AND유CAFE·비건테이블바람), 반복 0, 구조 이슈 0', async () => {
+  it('jeju-vegan 2일: 필수 끼니 1개(도착일) trusted, 출국 10:00 은 체크아웃+공항만, 반복 0, 구조 이슈 0', async () => {
     const s = DIET_SCENARIOS[1];
     const plan = buildMockPlan({ userText: healthUserText(s) });
     expect(plan.days).toHaveLength(s.durationDays);
     await hardGates(plan, s);
     expect(trustedPool(s)).toEqual(new Set(['AND유CAFE', '비건테이블바람']));
-    expect(foodsOf(plan).map((f) => f.name).sort()).toEqual(['AND유CAFE', '비건테이블바람']);
+    expect(foodsOf(plan).map((f) => f.name)).toEqual(['AND유CAFE']); // 출국 10:00 = 식당 조식 면제(2026-10-24)
+    expect(plan.days[1].stops.map((x: Stop) => x.category)).toEqual(['lodging', 'airport']);
     expect(validatePatternStructure(plan, healthBody(s))).toEqual([]);
   });
 });
 
 describe('buildMockPlan — 식이 후보 부족(foodPool 로 풀 고정): 부족은 부족으로 남긴다(성공으로 꾸미지 않음)', () => {
-  for (const s of DIET_SCENARIOS) {
-    it(`${s.id}: trusted ${s.shortagePool}곳만 — 반복·지어내기 0, 출국일 조식 B-MEAL 부족 1건만 남음`, async () => {
+  // 2026-10-24: 출국 10:00 은 식당 조식 면제라 끼니가 하나 줄어든다 → 부족 상황은 출국 15:00(조식 또는 점심 1끼)으로 잠근다.
+  for (const base of DIET_SCENARIOS) {
+    const s = { ...base, departureTime: '15:00' };
+    it(`${s.id}: trusted ${s.shortagePool}곳만 — 반복·지어내기 0, 출국일(15:00) 점심 B-MEAL 부족 1건만 남음`, async () => {
       const poolRows = trustedRows(s).slice(0, s.shortagePool);
       expect(poolRows).toHaveLength(s.shortagePool);
       const plan = buildMockPlan({ userText: healthUserText(s), foodPool: poolRows });
@@ -162,12 +165,12 @@ describe('buildMockPlan — 식이 후보 부족(foodPool 로 풀 고정): 부�
       expect(foods.length).toBe(s.shortagePool); // 풀 전부 쓰고, 그 이상은 지어내지 않는다
       for (const f of foods) expect(pool.has(f.name)).toBe(true);
 
-      // 필수 끼니(도착일 1 + 중간일 2 + 출국 10:00 조식 1) > trusted 수 → 출국일 조식 한 끼만 빈다. 그 외 이슈 0.
+      // 필수 끼니(도착일 1 + 중간일 2 + 출국 15:00 조식 또는 점심 1) > trusted 수 → 출국일 점심 한 끼만 빈다. 그 외 이슈 0.
       const pattern = validatePatternStructure(plan, healthBody(s));
       expect(pattern).toHaveLength(1);
-      expect(pattern[0]).toMatch(new RegExp(`^Day ${s.durationDays} \\(출국일\\): departure_time=10:00 이른 출국 — 조식\\(06-10시\\) 누락 \\(B-MEAL, P137\\)$`));
+      expect(pattern[0]).toMatch(new RegExp(`^Day ${s.durationDays} \\(출국일\\): departure_time=15:00 낮 출국 — 조식\\(06-10시\\)/오후식사\\(11-16시\\) 모두 누락 \\(B-MEAL, P137\\)$`));
 
-      // 2026-10-24 (식이 준수 P3): 운영 종단 게이트는 여행 시각을 받는다 → 이 빈 조식이 저장 전에 막힌다
+      // 2026-10-24 (식이 준수 P3): 운영 종단 게이트는 여행 시각을 받는다 → 이 빈 끼니가 저장 전에 막힌다
       //   (예전엔 출국일 활동 3개 미만 면제로 통과). 같은 끼니가 details 로 남는다.
       const final = runFinalItineraryValidation(plan, { dietary: s.dietPrefs, language: s.language, foodIndex: await loadFoodIndex(), tripTimes: { departure_time: s.departureTime, arrival_time: s.arrivalTime } });
       expect(final).toMatchObject({ ok: false, code: 'DIETARY_MEAL_COVERAGE_FAILED' });

@@ -357,10 +357,10 @@ describe('free loop: runDumpPrompts / runJudgePlan (model calls 0, no keys, no -
     duration_days: 2, styles: ['culture', 'food'], area: 'jeju', regions: ['jeju'], arrival_airport: 'CJU', departure_airport: 'CJU',
     arrival_time: '14:00', departure_time: '10:00', arrival_ready_time: arrivalReadyHHMM('14:00', 'CJU', 'jeju'), diet_preferences: ['vegan'], tour_start_time: '09:00',
   }) + '\n=== VARIATION ===' });
-  const judge = async (name: string, text: string) => {
+  const judge = async (name: string, text: string, scenarioId = 'jeju-vegan') => {
     const file = join(tmp, name);
     writeFileSync(file, text);
-    const r = await runJudgePlan({ file, scenarioId: 'jeju-vegan' });
+    const r = await runJudgePlan({ file, scenarioId });
     type JudgeRow = Record<string, unknown> & { parsed?: boolean; dietaryCritical?: boolean; nameCompliance?: unknown; mealCoverage: { checked: boolean; missing: string[] } };
     return { r, row: r.row as JudgeRow, out: r.lines.join('\n') };
   };
@@ -370,7 +370,7 @@ describe('free loop: runDumpPrompts / runJudgePlan (model calls 0, no keys, no -
     const { r, row, out } = await judge('ok.json', JSON.stringify(plan));
     expect(r.exitCode, out).toBe(0);
     expect(row).toMatchObject({ provider: 'subagent', providerActual: 'subagent', usd: 0, parsed: true, dietaryCritical: false, duplicateStops: 0, mealCoverage: { checked: true, missing: [] } });
-    expect(row.nameCompliance).toEqual({ exact: 2, aliasOnly: 0, unmatched: 0 });
+    expect(row.nameCompliance).toEqual({ exact: 1, aliasOnly: 0, unmatched: 0 }); // 도착일 1끼 — 출국 10:00 은 식당 조식 면제(2026-10-24)
     expect(row).not.toHaveProperty('plan');
     expect(out).toMatch(/outcome=PASS/);
     expect(llm.createLlmModel).not.toHaveBeenCalled();
@@ -392,13 +392,25 @@ describe('free loop: runDumpPrompts / runJudgePlan (model calls 0, no keys, no -
     expect(out).toMatch(/subagent jeju-vegan: .*dietary_critical_or_unknown/);
   });
 
-  it('the 10:00-departure breakfast removed → meal coverage missing, exit 1', async () => {
-    const p = clone();
-    p.days[p.days.length - 1].stops = p.days[p.days.length - 1].stops.filter((s: { category: string }) => s.category !== 'food');
-    const { r, row, out } = await judge('meal.json', JSON.stringify(p));
+  // 2026-10-24: 출국 11:00 전은 식당 조식 면제 → 끼니 누락 판정은 busan-halal-local(PUS 14:00/15:00, 조식 또는 점심) 로 잠근다.
+  it('the 15:00-departure meal removed → meal coverage missing (1), exit 1', async () => {
+    const busan = buildMockPlan({ userText: 'X\n' + JSON.stringify({
+      duration_days: 3, styles: ['culture', 'food'], area: 'busan', regions: ['busan'], arrival_airport: 'PUS', departure_airport: 'PUS',
+      arrival_time: '14:00', departure_time: '15:00', arrival_ready_time: arrivalReadyHHMM('14:00', 'PUS', 'busan'), diet_preferences: ['halal'], tour_start_time: '09:00',
+    }) + '\n=== VARIATION ===' });
+    const last = busan.days[busan.days.length - 1];
+    expect(last.stops.some((s: { category: string }) => s.category === 'food')).toBe(true);
+    last.stops = last.stops.filter((s: { category: string }) => s.category !== 'food');
+    const { r, row, out } = await judge('meal.json', JSON.stringify(busan), 'busan-halal-local');
     expect(r.exitCode).toBe(1);
-    expect(row.mealCoverage.missing).toEqual([expect.stringMatching(/^Day 2 \(출국일\): departure_time=10:00 이른 출국 — 조식/)]);
+    expect(row.mealCoverage.missing).toEqual([expect.stringMatching(/^Day 3 \(출국일\): departure_time=15:00 낮 출국 — 조식\(06-10시\)\/오후식사\(11-16시\) 모두 누락/)]);
     expect(out).toMatch(/meal_coverage_missing/);
+  });
+
+  it('a 10:00-departure plan with checkout + airport only (no breakfast) → no meal coverage issue', async () => {
+    expect(plan.days[1].stops.map((s: { category: string }) => s.category)).toEqual(['lodging', 'airport']);
+    const { row } = await judge('dep10.json', JSON.stringify(plan));
+    expect(row.mealCoverage).toMatchObject({ checked: true, missing: [] });
   });
 
   it('runJudgePlan needs exactly one known scenario (exit 5) and a readable file (exit 4)', async () => {

@@ -25,6 +25,7 @@ import {
   // 마지막 stop 이 lodging 아닐 때 (zone_courses JSON 자체에 lodging 없음) self_heal
   // 발동 안 됨 → 운영자 의도 ("호텔=동선 anchor, Day 마지막 호텔 복귀") 위반.
   selfHealLodgingBookend,
+  applyDepartureBreakfastNote,
 } from './planPersister.js';
 import { pickRecommendedRestaurantsByStyle } from './recommendedRestaurants.js';
 import { loadFoodIndex } from './geminiPipeline.js';
@@ -304,6 +305,11 @@ export function applyBackfillsAndTmoney(itinerary, ctx) {
       normalizeRegionKey(_lastDay.city || '') || normalizeRegionKey(ctx.body?.area || ''),
     );
   }
+  // 2026-10-24: 출국 11:00 전 조식 면제 안내 — 항공 컷 뒤(컷으로 food 가 빠진 경우 포함), 블록·legacy 공용 지점.
+  applyDepartureBreakfastNote(itinerary, {
+    departureTime: ctx.departureTime || ctx.body?.departureTime || ctx.body?.departure_time,
+    language: ctx.language,
+  });
 
   // ── P270 (2026-05-28): lodging bookend self-heal (dead code 복구) ───
   // 운영자 의도 "호텔=동선 anchor, Day 시작/마지막 호텔" SSOT 박제. block_mode plan
