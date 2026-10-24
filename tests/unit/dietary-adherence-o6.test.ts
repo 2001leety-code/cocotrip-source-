@@ -17,7 +17,7 @@ import { findSelectedFoodRow } from '../../api/_shared/food-name-match.js';
 import { buildSystemPrompt } from '../../api/_ai_core/buildPrompt.js';
 import { buildDietarySafetyBlock } from '../../api/_ai_core/userMessageBuilder.js';
 import { checkRequiredMeals } from '../../api/_ai_core/responseValidator.js';
-import { runFinalItineraryValidation, buildFinalGateError, tripTimesFrom, FINAL_GATE_MEAL_CODE, FINAL_GATE_DIETARY_CODE } from '../../api/_ai_core/finalItineraryGate.js';
+import { runFinalItineraryValidation, buildFinalGateError, tripTimesFrom, failureDetailsOf, FINAL_GATE_MEAL_CODE, FINAL_GATE_DIETARY_CODE } from '../../api/_ai_core/finalItineraryGate.js';
 import { summarizeSafety, formatOutcome, evaluateCompareRun, foodNameCompliance } from '../../scripts/integration/llm-compare-outcome.mjs';
 
 const read = (p: string) => readFileSync(resolve(process.cwd(), p), 'utf8');
@@ -128,6 +128,55 @@ describe('r1 — coverage = intersection of all requested diets, real city keys,
     expect(() => buildTripFoodContext({ cities: ['busan', 'incheon'], area: 'busan', dietaryAll: ['Halal'], priceRange: 'Any', maxItems: 10, getContext }))
       .toThrowError(expect.objectContaining({ details: 'incheon:halal' }));
     expect(getContext.mock.calls.map((c) => c[0])).toEqual(['busan']);
+  });
+});
+
+// ── r2 ─────────────────────────────────────────────────────────────────────
+describe('r2 — localized city names resolve through the UI city SSOT; cities without their own list are blocked', () => {
+  const seoulHalal = { name: 'H', city: 'seoul', address: '서울특별시 종로구 1', tag: 'halal', verification_status: 'muslim_friendly' };
+  const incheonHalal = { name: 'I', city: 'incheon', address: '인천광역시 중구 1', tag: 'halal', verification_status: 'muslim_friendly' };
+
+  it.each(['ソウル', '首尔', '首爾', '서울', 'Seoul ', 'SEOUL'])('%s → seoul, and the Seoul trusted row satisfies the gate', (name) => {
+    expect(mealCitiesForTrip({ regions: [name], area: name })).toEqual(['seoul']);
+    expect(() => enforceDietaryCoverage({ foodIndex: [seoulHalal], regions: [name], area: name, dietaryAll: ['Halal'] })).not.toThrow();
+  });
+
+  it.each(['인천', 'incheon', 'インチョン'])('%s → incheon is blocked even with an incheon trusted row (its list would be Seoul\'s)', (name) => {
+    expect(mealCitiesForTrip({ regions: [name], area: name })).toEqual(['incheon']);
+    expect(() => enforceDietaryCoverage({ foodIndex: [seoulHalal, incheonHalal], regions: [name], area: name, dietaryAll: ['Halal'] }))
+      .toThrowError(expect.objectContaining({ code: 'DIETARY_COVERAGE_UNAVAILABLE', details: 'incheon:halal' }));
+  });
+
+  it('non-dietary requests are untouched (no gate, single-city list by area)', () => {
+    expect(() => enforceDietaryCoverage({ foodIndex: [], regions: ['ソウル'], area: 'ソウル', dietaryAll: ['Meat'] })).not.toThrow();
+    const getContext = vi.fn(() => '[GENERAL]');
+    expect(buildTripFoodContext({ cities: mealCitiesForTrip({ regions: ['ソウル'], area: 'ソウル' }), area: 'ソウル', dietaryAll: [], priceRange: 'Any', maxItems: 10, getContext })).toBe('[GENERAL]');
+    expect(getContext.mock.calls[0][0]).toBe('ソウル');
+  });
+});
+
+describe('r2 — worker failure details survive Inngest error serialization (cause.details)', () => {
+  // inngest/helpers/errors.js copiedErrorProperties: name / message / stack / code / cause 만 보존 — 그대로 흉내.
+  const inngestRoundTrip = (e: Error & Record<string, unknown>) => {
+    const copy = Object.assign(new Error(e.message), { name: e.name, stack: e.stack, code: e.code, cause: JSON.parse(JSON.stringify(e.cause)) });
+    return copy as Error & Record<string, unknown>;
+  };
+  it('a final-gate meal error keeps its day/meal/reason through the round trip', () => {
+    const issue = 'Day 2 (출국일): departure_time=10:00 이른 출국 — 조식(06-10시) 누락 (B-MEAL, P137)';
+    const err = buildFinalGateError({ code: FINAL_GATE_MEAL_CODE, zeroFoodDays: [], requiredMealIssues: [issue], violations: [] }, ['Vegan'], 'post_response') as Error & Record<string, unknown>;
+    const after = inngestRoundTrip(err);
+    expect(after.details).toBeUndefined(); // details 자체는 직렬화에서 사라진다
+    expect(failureDetailsOf(after)).toEqual([issue]);
+    expect(after.code).toBe(FINAL_GATE_MEAL_CODE);
+    expect(after.message).toBe(err.message); // message 그대로
+  });
+  it('a direct details field still wins; malformed cause is ignored', () => {
+    expect(failureDetailsOf({ details: ['a'], cause: { details: ['b'] } })).toEqual(['a']);
+    expect(failureDetailsOf({ cause: 'text' })).toBeUndefined();
+    expect(failureDetailsOf({ cause: { details: [{}, 3] } })).toBeUndefined();
+  });
+  it('the worker onFailure writes failureDetailsOf(error) (not error.details) into the plan doc', () => {
+    expect(read('api/_inngest/functions/processPlanAfterAI.js')).toMatch(/failureDetailsOf\(error\) \? \{ _streaming_error_details: failureDetailsOf\(error\) \}/);
   });
 });
 

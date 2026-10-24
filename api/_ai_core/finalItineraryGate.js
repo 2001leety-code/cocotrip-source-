@@ -120,7 +120,8 @@ export function runFinalItineraryValidation(itinerary, ctx = {}) {
  * @returns {string[]|undefined}
  */
 export function failureDetailsOf(error) {
-  const raw = error && error.details;
+  // details 우선, 없으면 cause.details(Inngest 직렬화를 거친 오류 — 위 buildFinalGateError 참고).
+  const raw = error && (error.details || (error.cause && typeof error.cause === 'object' ? error.cause.details : undefined));
   const list = Array.isArray(raw) ? raw : (typeof raw === 'string' && raw ? [raw] : []);
   const out = list.filter((d) => typeof d === 'string' && d).slice(0, 5).map((d) => d.slice(0, 300));
   return out.length ? out : undefined;
@@ -202,6 +203,9 @@ export function buildFinalGateError(result, dietary, stage) {
   e.details = result.code === FINAL_GATE_MEAL_CODE
     ? [...result.zeroFoodDays.map((f) => f.message), ...(result.requiredMealIssues || [])].slice(0, 5)
     : result.violations.slice(0, 5).map((v) => `${v.diet}:${v.stop}`);
+  // 2026-10-24 (r2): Inngest 는 오류를 넘길 때 name/message/stack/code/cause 만 보존한다(inngest/helpers/errors.js
+  //   copiedErrorProperties) → worker 실패 문서에서 details 가 사라졌다. cause 에 같은 값을 실어 보존.
+  e.cause = { details: e.details };
   return e;
 }
 

@@ -16,6 +16,7 @@
 import { dietaryEvidenceFor } from '../_shared/dietary-trust.js';
 import { isRowCityConsistent } from '../_shared/food-row-provenance.js';
 import { resolveCityCode, getFoodContext } from '../_food_helper.js';
+import { resolveUiCityKey } from '../_shared/cityResolver.js';
 
 const SAFETY_DIETS = ['halal', 'vegan', 'vegetarian'];
 const CANONICAL_DIET = { halal: 'Halal', vegan: 'Vegan', vegetarian: 'Vegetarian' };
@@ -24,15 +25,15 @@ export const hasSafetyDiet = (dietaryAll) => (dietaryAll || []).some((d) => SAFE
 /** 요청된 안전 식이(소문자, 중복 제거). */
 const safetyDietsOf = (dietaryAll) => [...new Set((dietaryAll || []).map((d) => String(d).toLowerCase()).filter((d) => SAFETY_DIETS.includes(d)))];
 
-// 식이 요청의 도시 키 — 공용 resolver 는 인천·수원·미등록 도시를 seoul 로 묶는다(일반 목록용 그룹핑). 식이 요청에서
-// 그대로 쓰면 인천 손님이 서울 신뢰 목록을 받는다 → 실제 도시 키를 유지한다(그 도시 신뢰 행이 없으면 아래 검사가 차단).
-const KO_CITY = { '서울': 'seoul', '인천': 'incheon', '수원': 'suwon' };
+// 식이 요청의 도시 키 — 위자드는 번역 도시명(ソウル·首尔·서울…)을 regions 로 보낸다 → UI 도시 SSOT(resolveUiCityKey,
+// ko/en/ja/zh 별칭)로 정규화. 별칭에 없는 도시는 소문자 원문 그대로(서울로 바꾸지 않는다 — 아래 검사가 차단).
+// 공용 목록 resolver(resolveCityCode)가 다른 도시로 묶는 도시(인천·수원 → seoul)는 그 도시 목록을 만들 수 없으므로
+// 사전 검사와 목록 주입 모두 차단한다(listUnavailable).
 function mealCityCode(token) {
   const t = String(token || '').toLowerCase().trim();
-  const mapped = resolveCityCode(t);
-  if (mapped !== 'seoul' || /seoul|서울/.test(t)) return mapped;
-  return KO_CITY[t] || t;
+  return resolveUiCityKey(t) || t;
 }
+const listUnavailable = (city) => resolveCityCode(city) !== city;
 
 /**
  * 2026-10-24 (식이 준수 P1): 이 여행에서 **식사하는 도시** 집합 — 사전 커버리지 검사와 식당 목록 주입이 같은 집합을 쓴다.
@@ -55,8 +56,8 @@ export function enforceDietaryCoverage({ foodIndex, regions, area, dietaryAll, a
   const diets = safetyDietsOf(dietaryAll);
   if (diets.length === 0) return;
   const cities = mealCitiesForTrip({ regions, area, arrivalCity, departureCity });
-  const missing = cities.filter((city) => !(foodIndex || []).some((r) => r && r.city === city && isRowCityConsistent(r)
-    && diets.every((d) => dietaryEvidenceFor(r, d))));
+  const missing = cities.filter((city) => listUnavailable(city) || !(foodIndex || []).some((r) => r && r.city === city
+    && isRowCityConsistent(r) && diets.every((d) => dietaryEvidenceFor(r, d))));
   if (missing.length === 0) return;
   throw coverageUnavailableError(dietaryAll, missing.map((c) => `${c}:${diets.join('+')}`).join(', '));
 }
@@ -85,7 +86,7 @@ export function buildTripFoodContext({ cities, area, dietaryAll, priceRange, max
   const empty = [];
   for (const city of cities) {
     // 목록 함수는 도시를 다시 resolve 한다 — 다른 도시 목록(예: incheon → seoul)이 될 도시는 목록 없음으로 차단.
-    if (resolveCityCode(city) !== city) { empty.push(city); continue; }
+    if (listUnavailable(city)) { empty.push(city); continue; }
     let ctx = '';
     try { ctx = getContext(city, prefs, priceRange, maxItems) || ''; } catch (err) {
       console.warn('[ai-planner-full] getFoodContext failed for', city, err && err.message);

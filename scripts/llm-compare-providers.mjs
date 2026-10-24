@@ -49,6 +49,8 @@ if (args.evaluate) {
 // 2026-10-24 (O7): 무료 반복 루프 — --dump-prompts(운영과 같은 프롬프트 저장) / --judge-plan(저장된 플랜 판정).
 //   둘 다 모델 호출 0 · 키 불필요라 --confirm-cost 를 요구하지 않는다. 유료 경로는 그대로.
 const FREE_MODE = Boolean(args['dump-prompts'] || args['judge-plan']);
+// 무료 모드는 오프라인 — 검증기 경로의 외부 알림(throttledTelegramAlert)을 로그로만 (api 모듈 import 전에 세운다).
+if (FREE_MODE) process.env.LLM_COMPARE_OFFLINE = '1';
 if (!FREE_MODE && !args['confirm-cost']) {
   console.error('유료 호출입니다. 비용 확인 후 --confirm-cost 를 붙여 다시 실행하세요.');
   process.exit(2);

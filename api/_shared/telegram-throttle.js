@@ -102,6 +102,12 @@ export async function throttledTelegramAlert({
   severity = 'medium',
   context = {},
 }) {
+  // 2026-10-24: 비교 하네스의 무료 채점(--judge-plan/--dump-prompts)은 검증기(repairAndParseJSON 등)를 그대로 돌린다 —
+  //   운영 키가 있는 셸에서도 외부 알림이 나가면 안 된다. LLM_COMPARE_OFFLINE=1 이면 로그만 남기고 끝.
+  if (process.env.LLM_COMPARE_OFFLINE === '1') {
+    console.warn(`[telegram-throttle] LLM_COMPARE_OFFLINE — alert suppressed: ${String(key || '(no key)').slice(0, 80)}`);
+    return { ok: true, alerted: false, suppressed: true };
+  }
   if (!key || typeof key !== 'string') {
     // No key → can't dedup. Apply an in-memory throttle keyed on a stable
     // hash of the message so a runaway no-key caller can't flood the channel.
