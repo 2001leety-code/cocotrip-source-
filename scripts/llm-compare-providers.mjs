@@ -18,7 +18,8 @@
  * 종료 코드 (2026-10-17): 0 = 모든 행 통과 · 1 = 한 공급자라도 실패(호출 에러·구조 오류·폴백 포함) 또는
  *   행/시나리오 누락·중복 · 2 = --confirm-cost 없음 · 3 = 사전 추정 비용이 --max-usd 초과(호출 전) 또는
  *   실제 누적 비용이 --max-usd 초과(매 호출 전 + 최종 저장 전 검사, 결과 JSON 은 저장 — budgetStop·maxUsd 기록.
- *   예외로 비용 불명인 행은 호출 전 예약 비용 usdReserved 로 합산하고 판정 실패) ·
+ *   예외로 비용 불명인 행은 호출 전 예약 비용 usdReserved 로 합산하고 판정 실패) 또는 비용 불명 행 발생
+ *   (예외, 또는 mock 아닌 응답의 사용량 누락 — budgetStop.reason='unknown_cost', 남은 호출 0회) ·
  *   4 = --evaluate 입력 파일 불량 · 5 = --scenarios 에 모르는/중복 ID (호출 전 중단).
  *   산출물에 expectedScenarios(실행한 시나리오 ID 목록)와 행별 scenarioId 를 기록한다.
  *   실패해도 결과 JSON 은 먼저 저장한다. 판정 = scripts/integration/llm-compare-outcome.mjs.
@@ -28,7 +29,7 @@
 import { performance } from 'node:perf_hooks';
 import { writeFileSync, mkdirSync, readFileSync } from 'node:fs';
 import { dirname } from 'node:path';
-import { evaluateCompareRun, formatOutcome, budgetStop, finalizeCompareRun, OUTCOME_EXIT } from './integration/llm-compare-outcome.mjs';
+import { evaluateCompareRun, formatOutcome, budgetStop, finalizeCompareRun, runCompareCalls, costFieldsFromUsage, OUTCOME_EXIT } from './integration/llm-compare-outcome.mjs';
 
 const args = Object.fromEntries(process.argv.slice(2).map((a) => { const m = a.match(/^--([^=]+)(?:=(.*))?$/); return m ? [m[1], m[2] === undefined ? true : m[2]] : [a, true]; }));
 if (args.evaluate) {
@@ -109,77 +110,78 @@ for (const p of prepared) for (const prov of PROVIDERS) {
 console.log(`[compare] scenarios=${SCEN.length} providers=${PROVIDERS.join(',')} 사전 추정 비용 ≈ $${est.toFixed(3)} (상한 $${MAX_USD})`);
 if (est > MAX_USD) { console.error('추정 비용이 상한을 넘습니다. 중단.'); process.exit(3); }
 
-const results = [];
-let stopped = null; // 실제 누적 비용 상한 초과 — 다음 호출 전에 중단
-for (const p of prepared) {
-  for (const prov of PROVIDERS) {
-    const budget = budgetStop(results, MAX_USD);
-    if (budget.stop) { stopped = budget; break; }
-    // scenarioId = 판정 키(ALL 키), scenario = 표시 라벨(기존 산출물 호환).
-    const row = { scenarioId: p.id, scenario: p.s.area + '-' + p.s.durationDays + 'd-' + p.s.dietPrefs[0] + '-' + p.s.language, provider: prov };
-    try {
-      await runWithLlmContext({ provider: prov }, async () => {
-        row.model = resolveLlmModel('main');
-        const model = gp.buildModel(process.env.GEMINI_API_KEY || 'managed-by-llm-adapter', undefined, {});
-        // 호출 직전 보수적 예약 — 예외(타임아웃·연결 끊김)로 실측이 없으면 이 값이 누적에 남는다(0 아님).
-        row.usdReserved = +estimateCallUsd(p, row.model).toFixed(4);
-        const t0 = performance.now();
-        const result = await gp.withTimeout((signal) => model.generateContent({
-          contents: [{ role: 'user', parts: [{ text: p.userMessage }] }],
-          systemInstruction: { role: 'system', parts: [{ text: p.systemPrompt }] },
-        }, { signal }), 240_000, `compare-${prov}`);
-        row.ms = Math.round(performance.now() - t0);
-        // 어댑터 getter = 첫 호출 뒤 실제 사용 공급자·모델. Claude 초기화 실패 → Gemini 폴백이면 이 행은 비교 오염 → 실패.
-        row.providerActual = model.provider;
-        row.modelActual = model.modelId;
-        row.fallback = row.providerActual !== prov;
-        row.finishReason = gp.extractFinishReason(result);
-        const cm = gp.extractCacheMetadata(result.response);
-        // 단가 = apiPricing 표(gemini·claude 공용, 미등록 모델은 보수적 기본값) — 실제 모델 기준.
-        row.tokens = cm; row.usd = +estimateGeminiCostUsd(row.modelActual, cm).toFixed(4);
-        const raw = gp.extractTextFromResponse(result.response).trim();
-        row.chars = raw.length;
-        const plan = repairAndParseJSON(raw);
-        row.parsed = !!plan && !plan.__repair_minimal_fallback;
-        row.requiredKeys = ['days', 'arrival_guide', 'departure_guide'].filter((k) => !(plan && plan[k]));
-        row.days = plan?.days?.length || 0;
-        row.daysMatch = row.days === p.s.durationDays;
-        row.stopsPerDay = (plan?.days || []).map((d) => (d.stops || []).length);
-        row.foodPerDay = (plan?.days || []).map((d) => (d.stops || []).filter((x) => x.category === 'food').length);
-        // 도착·출국 시각·공항 = 시나리오 값 그대로(없으면 미전달 → 검증기 기본 규칙). B-MEAL 출국일 규칙이 departureTime 을 본다.
-        const trip = { arrivalTime: p.s.arrivalTime, departureTime: p.s.departureTime, arrival_airport: p.s.arrival_airport, departure_airport: p.s.departure_airport };
-        row.structureErrors = validatePatternStructure(plan, { durationDays: p.s.durationDays, regions: [p.s.area], area: p.s.area, ...trip });
-        // 필수 끼니 = validatePatternStructure 의 B-MEAL 결과. 검사가 꺼져 있으면(VALIDATOR_BMEAL_ENABLED=false) checked:false → 판정 실패.
-        row.mealCoverage = { checked: process.env.VALIDATOR_BMEAL_ENABLED !== 'false', missing: row.structureErrors.filter((e) => /\(B-MEAL/.test(String(e))) };
-        const gate = runDuplicateStopGate(plan);
-        row.duplicateStops = gate.duplicates.length;
-        row.duplicateStopNames = gate.duplicates.map((d) => `${d.name}×${d.count}`);
-        const issues = validateResponse(plan, { dietary: p.dietaryAll, language: p.s.language, area: p.s.area, regions: [p.s.area], ...trip }, await gp.loadFoodIndex());
-        row.dietaryCritical = hasCriticalDietaryViolation(issues);
-        row.unverifiedRestaurants = issues.filter((i) => i.type === 'unverified_restaurant').length;
-        const sample = [plan?.tour_title, ...(plan?.days || []).map((d) => d.theme), ...(plan?.days || []).flatMap((d) => (d.stops || []).map((x) => x.tip))].filter(Boolean).join(' ');
-        row.languageOk = LANG_RE[p.s.language].test(sample);
-        row.titleSample = String(plan?.tour_title || '').slice(0, 60);
-        row.plan = plan;
-      });
-    } catch (e) {
-      row.error = String(e && e.message || e).slice(0, 300);
-      // 실측 전 예외 = 과금 여부 불명 → 판정 실패(cost_unknown), 누적엔 usdReserved 유지. 실측 뒤 예외면 usd 그대로.
-      if (typeof row.usd !== 'number') { row.usd = null; row.usdUnknown = true; }
-    }
-    const { plan, ...summary } = row;
-    console.log(JSON.stringify(summary));
-    results.push(row);
+// 호출 1건 → 행. 던지지 않는다(예외는 row.error / 비용 불명). 루프·중단 규칙 = runCompareCalls.
+async function callOne(p, prov) {
+  // scenarioId = 판정 키(ALL 키), scenario = 표시 라벨(기존 산출물 호환).
+  const row = { scenarioId: p.id, scenario: p.s.area + '-' + p.s.durationDays + 'd-' + p.s.dietPrefs[0] + '-' + p.s.language, provider: prov };
+  try {
+    await runWithLlmContext({ provider: prov }, async () => {
+      row.model = resolveLlmModel('main');
+      const model = gp.buildModel(process.env.GEMINI_API_KEY || 'managed-by-llm-adapter', undefined, {});
+      // 호출 직전 보수적 예약 — 예외(타임아웃·연결 끊김)로 실측이 없으면 이 값이 누적에 남는다(0 아님).
+      row.usdReserved = +estimateCallUsd(p, row.model).toFixed(4);
+      const t0 = performance.now();
+      const result = await gp.withTimeout((signal) => model.generateContent({
+        contents: [{ role: 'user', parts: [{ text: p.userMessage }] }],
+        systemInstruction: { role: 'system', parts: [{ text: p.systemPrompt }] },
+      }, { signal }), 240_000, `compare-${prov}`);
+      row.ms = Math.round(performance.now() - t0);
+      // 어댑터 getter = 첫 호출 뒤 실제 사용 공급자·모델. Claude 초기화 실패 → Gemini 폴백이면 이 행은 비교 오염 → 실패.
+      row.providerActual = model.provider;
+      row.modelActual = model.modelId;
+      row.fallback = row.providerActual !== prov;
+      row.finishReason = gp.extractFinishReason(result);
+      // 단가 = apiPricing 표(gemini·claude 공용, 미등록 모델은 보수적 기본값) — 실제 모델 기준.
+      // 사용량 누락(비 mock)은 $0 확정이 아니라 비용 불명 → runCompareCalls 가 즉시 중단.
+      Object.assign(row, costFieldsFromUsage({ providerActual: row.providerActual, modelActual: row.modelActual, usageMetadata: result.response && result.response.usageMetadata, price: estimateGeminiCostUsd }));
+      const raw = gp.extractTextFromResponse(result.response).trim();
+      row.chars = raw.length;
+      const plan = repairAndParseJSON(raw);
+      row.parsed = !!plan && !plan.__repair_minimal_fallback;
+      row.requiredKeys = ['days', 'arrival_guide', 'departure_guide'].filter((k) => !(plan && plan[k]));
+      row.days = plan?.days?.length || 0;
+      row.daysMatch = row.days === p.s.durationDays;
+      row.stopsPerDay = (plan?.days || []).map((d) => (d.stops || []).length);
+      row.foodPerDay = (plan?.days || []).map((d) => (d.stops || []).filter((x) => x.category === 'food').length);
+      // 도착·출국 시각·공항 = 시나리오 값 그대로(없으면 미전달 → 검증기 기본 규칙). B-MEAL 출국일 규칙이 departureTime 을 본다.
+      const trip = { arrivalTime: p.s.arrivalTime, departureTime: p.s.departureTime, arrival_airport: p.s.arrival_airport, departure_airport: p.s.departure_airport };
+      row.structureErrors = validatePatternStructure(plan, { durationDays: p.s.durationDays, regions: [p.s.area], area: p.s.area, ...trip });
+      // 필수 끼니 = validatePatternStructure 의 B-MEAL 결과. 검사가 꺼져 있으면(VALIDATOR_BMEAL_ENABLED=false) checked:false → 판정 실패.
+      row.mealCoverage = { checked: process.env.VALIDATOR_BMEAL_ENABLED !== 'false', missing: row.structureErrors.filter((e) => /\(B-MEAL/.test(String(e))) };
+      const gate = runDuplicateStopGate(plan);
+      row.duplicateStops = gate.duplicates.length;
+      row.duplicateStopNames = gate.duplicates.map((d) => `${d.name}×${d.count}`);
+      const issues = validateResponse(plan, { dietary: p.dietaryAll, language: p.s.language, area: p.s.area, regions: [p.s.area], ...trip }, await gp.loadFoodIndex());
+      row.dietaryCritical = hasCriticalDietaryViolation(issues);
+      row.unverifiedRestaurants = issues.filter((i) => i.type === 'unverified_restaurant').length;
+      const sample = [plan?.tour_title, ...(plan?.days || []).map((d) => d.theme), ...(plan?.days || []).flatMap((d) => (d.stops || []).map((x) => x.tip))].filter(Boolean).join(' ');
+      row.languageOk = LANG_RE[p.s.language].test(sample);
+      row.titleSample = String(plan?.tour_title || '').slice(0, 60);
+      row.plan = plan;
+    });
+  } catch (e) {
+    row.error = String(e && e.message || e).slice(0, 300);
+    // 실측 전 예외 = 과금 여부 불명 → 판정 실패(cost_unknown), 누적엔 usdReserved 유지. 실측 뒤 예외면 usd 그대로.
+    if (typeof row.usd !== 'number') { row.usd = null; row.usdUnknown = true; }
   }
-  if (stopped) break;
+  const { plan, ...summary } = row;
+  console.log(JSON.stringify(summary));
+  return row;
 }
+
+const { results, stopped } = await runCompareCalls({ prepared, providers: PROVIDERS, maxUsd: MAX_USD, callOne });
 
 const out = String(args.out || `scripts/plan-local/outputs/llm-compare-${Date.now()}.json`);
 mkdirSync(dirname(out), { recursive: true });
 // 마지막 행까지 더한 합을 저장 전에 다시 검사 — 마지막 호출에서 넘어도 exit 3.
 const final = finalizeCompareRun({ providers: PROVIDERS, expectedScenarios: SCEN, results, maxUsd: MAX_USD, stopped });
 const outcome = final.outcome;
-if (final.budgetStop) console.error(`[compare] 누적 비용(예약 포함) $${final.budgetStop.spentUsd} > 상한 $${MAX_USD} — 중단 (exit ${OUTCOME_EXIT.budget}).`);
+if (final.budgetStop) {
+  const b = final.budgetStop;
+  console.error(b.reason === 'unknown_cost'
+    ? `[compare] ${b.provider} ${b.scenarioId}: 비용 불명(예외 또는 사용량 누락) — 남은 호출 중단, 누적(예약 포함) $${b.spentUsd} (exit ${OUTCOME_EXIT.budget}).`
+    : `[compare] 누적 비용(예약 포함) $${b.spentUsd} > 상한 $${MAX_USD} — 중단 (exit ${OUTCOME_EXIT.budget}).`);
+}
 writeFileSync(out, JSON.stringify({ at: new Date().toISOString(), providers: PROVIDERS, expectedScenarios: SCEN, maxUsd: MAX_USD, results, budgetStop: final.budgetStop, outcome }, null, 2));
 const spent = budgetStop(results, MAX_USD).spentUsd;
 console.log(`\n[compare] 실호출 ${results.filter((r) => !r.error).length}/${results.length} · 누적 비용(불명 행은 예약치) ≈ $${spent.toFixed(4)} · 비용 불명 ${results.filter((r) => r.usdUnknown).length}건 · 저장 ${out}`);

@@ -10,7 +10,9 @@ import { describe, it, expect } from 'vitest';
 import { spawnSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { evaluateCompareRun, rowFailures, formatOutcome, budgetStop, finalizeCompareRun, rowSpendUsd } from '../../scripts/integration/llm-compare-outcome.mjs';
+import {
+  evaluateCompareRun, rowFailures, formatOutcome, budgetStop, finalizeCompareRun, rowSpendUsd, costFieldsFromUsage, runCompareCalls,
+} from '../../scripts/integration/llm-compare-outcome.mjs';
 
 const ROOT = join(__dirname, '..', '..');
 const SCRIPT = join(ROOT, 'scripts', 'llm-compare-providers.mjs');
@@ -230,6 +232,81 @@ describe('budgetStop (actual cumulative spend cap)', () => {
   });
 });
 
+// Astra r2 — 응답 → 행 비용 경로, 그리고 "비용을 모르면 더 호출하지 않는다".
+describe('costFieldsFromUsage (response → row cost)', () => {
+  const price = (_m: string, cm: { total: number; output: number }) => (cm.total * 2 + cm.output * 10) / 1_000_000;
+  it('real usage → measured usd', () => {
+    const c = costFieldsFromUsage({ providerActual: 'claude', modelActual: 'claude-sonnet-5-5', usageMetadata: { promptTokenCount: 20000, candidatesTokenCount: 8000, cachedContentTokenCount: 0 }, price });
+    expect(c).toEqual({ tokens: { cached: 0, total: 20000, output: 8000 }, usd: 0.12, usdUnknown: false });
+  });
+  it.each([
+    ['no usageMetadata', undefined],
+    ['null usageMetadata', null],
+    ['both token counts 0', { promptTokenCount: 0, candidatesTokenCount: 0 }],
+    ['empty object', {}],
+  ])('non-mock response with %s → cost unknown (usd null, not 0)', (_label, usageMetadata) => {
+    for (const providerActual of ['gemini', 'claude', undefined]) {
+      expect(costFieldsFromUsage({ providerActual, modelActual: 'x', usageMetadata, price })).toMatchObject({ usd: null, usdUnknown: true });
+    }
+  });
+  it('a real mock (providerActual mock) is $0 and known, even without usage', () => {
+    expect(costFieldsFromUsage({ providerActual: 'mock', modelActual: 'mock:main', usageMetadata: undefined, price })).toMatchObject({ usd: 0, usdUnknown: false });
+  });
+  it('output-only usage is still a measured cost', () => {
+    expect(costFieldsFromUsage({ providerActual: 'gemini', modelActual: 'g', usageMetadata: { candidatesTokenCount: 100000 }, price })).toMatchObject({ usd: 1, usdUnknown: false });
+  });
+});
+
+describe('runCompareCalls (call loop, injected callOne)', () => {
+  const prepared = [{ id: 's1' }, { id: 's2' }];
+  const rowOf = (p: { id: string }, prov: string, extra: object = {}) => ({ ...(prov === 'claude' ? claude : good), scenarioId: p.id, usd: 0.1, ...extra });
+  const counting = (make: (p: { id: string }, prov: string, n: number) => object) => {
+    const calls: string[] = [];
+    return { calls, callOne: async (p: { id: string }, prov: string) => { calls.push(`${p.id}/${prov}`); return make(p, prov, calls.length); } };
+  };
+  it('all known costs under the cap → every pair called once, no stop', async () => {
+    const c = counting((p, prov) => rowOf(p, prov));
+    const r = await runCompareCalls({ prepared, providers: ['gemini', 'claude'], maxUsd: 5, callOne: c.callOne });
+    expect(c.calls).toEqual(['s1/gemini', 's1/claude', 's2/gemini', 's2/claude']);
+    expect(r.stopped).toBeNull();
+    expect(finalizeCompareRun({ providers: ['gemini', 'claude'], expectedScenarios: ['s1', 's2'], results: r.results, maxUsd: 5, stopped: r.stopped }).outcome.exitCode).toBe(0);
+  });
+  it('an exception row (cost unknown) stops immediately: zero further calls, exit 3, reservation counted', async () => {
+    const c = counting((p, prov, n) => (n === 2 ? rowOf(p, prov, { error: 'timeout', usd: null, usdReserved: 0.4, usdUnknown: true }) : rowOf(p, prov)));
+    const r = await runCompareCalls({ prepared, providers: ['gemini', 'claude'], maxUsd: 5, callOne: c.callOne });
+    expect(c.calls).toEqual(['s1/gemini', 's1/claude']);
+    expect(r.stopped).toEqual({ stop: true, reason: 'unknown_cost', scenarioId: 's1', provider: 'claude', spentUsd: 0.5, maxUsd: 5 });
+    const f = finalizeCompareRun({ providers: ['gemini', 'claude'], expectedScenarios: ['s1', 's2'], results: r.results, maxUsd: 5, stopped: r.stopped });
+    expect(f.budgetStop).toEqual(r.stopped);
+    expect(f.outcome.exitCode).toBe(3);
+    expect(f.outcome.failures[0].reasons).toEqual(expect.arrayContaining(['error', 'cost_unknown']));
+  });
+  it('a normal response without usage (cost unknown via costFieldsFromUsage) also stops immediately', async () => {
+    const c = counting((p, prov, n) => {
+      if (n !== 1) return rowOf(p, prov);
+      const cost = costFieldsFromUsage({ providerActual: 'gemini', modelActual: 'g', usageMetadata: undefined, price: () => 0 });
+      return rowOf(p, prov, { ...cost, usdReserved: 0.3 });
+    });
+    const r = await runCompareCalls({ prepared, providers: ['gemini', 'claude'], maxUsd: 5, callOne: c.callOne });
+    expect(c.calls).toEqual(['s1/gemini']);
+    expect(r.stopped).toMatchObject({ reason: 'unknown_cost', provider: 'gemini', spentUsd: 0.3 });
+    expect(finalizeCompareRun({ providers: ['gemini', 'claude'], expectedScenarios: ['s1', 's2'], results: r.results, maxUsd: 5, stopped: r.stopped }).outcome.exitCode).toBe(3);
+  });
+  it('mock rows at $0 pass through and never stop the loop', async () => {
+    const c = counting((p) => ({ ...good, provider: 'mock', providerActual: 'mock', scenarioId: p.id, ...costFieldsFromUsage({ providerActual: 'mock', modelActual: 'mock:main', usageMetadata: undefined, price: () => 1 }) }));
+    const r = await runCompareCalls({ prepared, providers: ['mock'], maxUsd: 0, callOne: c.callOne });
+    expect(c.calls).toEqual(['s1/mock', 's2/mock']);
+    expect(r.stopped).toBeNull();
+    expect(finalizeCompareRun({ providers: ['mock'], expectedScenarios: ['s1', 's2'], results: r.results, maxUsd: 0, stopped: null }).outcome.exitCode).toBe(0);
+  });
+  it('the cumulative cap is checked before each call (no call after the total passes the cap)', async () => {
+    const c = counting((p, prov) => rowOf(p, prov, { usd: 3 }));
+    const r = await runCompareCalls({ prepared, providers: ['gemini', 'claude'], maxUsd: 5, callOne: c.callOne });
+    expect(c.calls).toEqual(['s1/gemini', 's1/claude']);
+    expect(r.stopped).toEqual({ stop: true, spentUsd: 6, maxUsd: 5 });
+  });
+});
+
 describe('CLI exit codes (no LLM calls)', () => {
   const env = { ...process.env };
   for (const k of ['GEMINI_API_KEY', 'ANTHROPIC_API_KEY', 'LLM_PROVIDER']) delete env[k];
@@ -274,17 +351,18 @@ describe('CLI exit codes (no LLM calls)', () => {
     expect(src.indexOf('finalizeCompareRun({')).toBeLessThan(src.indexOf('writeFileSync(out,'));
     expect(src.indexOf('writeFileSync(out,')).toBeLessThan(src.indexOf('process.exitCode = outcome.exitCode'));
   });
-  it('source: cumulative cap is checked before each call; actual provider/model come from the adapter; trip times reach the validator', () => {
+  it('source: the loop is runCompareCalls (cap + unknown-cost stop); reservation precedes the call; cost comes from costFieldsFromUsage', () => {
     const src = readFileSync(SCRIPT, 'utf8');
-    const loop = src.slice(src.indexOf('for (const prov of PROVIDERS) {\n    const budget'));
-    expect(loop.indexOf('budgetStop(results, MAX_USD)')).toBeGreaterThan(-1);
-    expect(loop.indexOf('budgetStop(results, MAX_USD)')).toBeLessThan(loop.indexOf('model.generateContent('));
-    expect(loop.indexOf('row.usdReserved =')).toBeGreaterThan(-1);
-    expect(loop.indexOf('row.usdReserved =')).toBeLessThan(loop.indexOf('model.generateContent('));
+    expect(src).toMatch(/await runCompareCalls\(\{ prepared, providers: PROVIDERS, maxUsd: MAX_USD, callOne \}\)/);
+    expect(src).not.toMatch(/for \(const prov of PROVIDERS\) \{\n\s+const budget/); // 하네스 안에 따로 도는 루프 없음
+    const fn = src.slice(src.indexOf('async function callOne('));
+    expect(fn.indexOf('row.usdReserved =')).toBeGreaterThan(-1);
+    expect(fn.indexOf('row.usdReserved =')).toBeLessThan(fn.indexOf('model.generateContent('));
     expect(src).toMatch(/if \(typeof row\.usd !== 'number'\) \{ row\.usd = null; row\.usdUnknown = true; \}/);
     expect(src).toMatch(/row\.providerActual = model\.provider;/);
     expect(src).toMatch(/row\.modelActual = model\.modelId;/);
-    expect(src).toMatch(/estimateGeminiCostUsd\(row\.modelActual, cm\)/);
+    expect(src).toMatch(/costFieldsFromUsage\(\{ providerActual: row\.providerActual, modelActual: row\.modelActual, usageMetadata: result\.response && result\.response\.usageMetadata, price: estimateGeminiCostUsd \}\)/);
+    expect(src).not.toMatch(/extractCacheMetadata/); // 누락을 0 으로 바꾸는 추출기를 비용에 쓰지 않는다
     expect(src).toMatch(/validatePatternStructure\(plan, \{[^}]*\.\.\.trip \}\)/);
     expect(src).toMatch(/runDuplicateStopGate\(plan\)/);
   });

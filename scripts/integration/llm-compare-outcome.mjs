@@ -39,6 +39,46 @@ export function budgetStop(results, maxUsd) {
 }
 
 /**
+ * 응답 사용량 → 행 비용 필드 (2026-10-24 r2). 실제 공급자가 mock 이면 $0 정상. 그 외에 usageMetadata 가 없거나
+ * 입력·출력 토큰이 둘 다 0 이면 **비용 불명** — 0 으로 확정하지 않고 usd=null·usdUnknown=true(누적엔 예약 유지).
+ * @param {{providerActual?: string, modelActual?: string, usageMetadata?: object|null, price: (model: string, cm: {cached:number,total:number,output:number}) => number}} a
+ * @returns {{tokens: {cached:number,total:number,output:number}, usd: number|null, usdUnknown: boolean}}
+ */
+export function costFieldsFromUsage({ providerActual, modelActual, usageMetadata, price }) {
+  const um = usageMetadata && typeof usageMetadata === 'object' ? usageMetadata : null;
+  const tokens = {
+    cached: Number(um && um.cachedContentTokenCount) || 0,
+    total: Number(um && um.promptTokenCount) || 0,
+    output: Number(um && um.candidatesTokenCount) || 0,
+  };
+  if (providerActual === 'mock') return { tokens, usd: 0, usdUnknown: false };
+  if (!um || (tokens.total === 0 && tokens.output === 0)) return { tokens, usd: null, usdUnknown: true };
+  return { tokens, usd: +price(modelActual, tokens).toFixed(4), usdUnknown: false };
+}
+
+/**
+ * 하네스 호출 루프 — callOne(p, provider) 는 행을 돌려주고 던지지 않는다(예외는 행의 error/usdUnknown 으로).
+ * 방침: **비용을 모르면 더 호출하지 않는다.** 매 호출 전 누적 상한 검사, 비용 불명 행이 나오면 즉시 중단.
+ * @returns {Promise<{results: object[], stopped: object|null}>}
+ */
+export async function runCompareCalls({ prepared, providers, maxUsd, callOne }) {
+  const results = [];
+  for (const p of prepared) {
+    for (const prov of providers) {
+      const budget = budgetStop(results, maxUsd);
+      if (budget.stop) return { results, stopped: budget };
+      const row = await callOne(p, prov);
+      results.push(row);
+      if (row && row.usdUnknown === true) {
+        const { spentUsd } = budgetStop(results, maxUsd);
+        return { results, stopped: { stop: true, reason: 'unknown_cost', scenarioId: row.scenarioId, provider: row.provider, spentUsd, maxUsd } };
+      }
+    }
+  }
+  return { results, stopped: null };
+}
+
+/**
  * 하네스 마지막 단계 — 루프 중 중단(stopped)이 없어도 마지막 행까지 더한 합을 다시 검사해, 넘었으면 budgetStop 을
  * 기록하고 판정한다(마지막 호출에서 초과해도 exit 3).
  */
