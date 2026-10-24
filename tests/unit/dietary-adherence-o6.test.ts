@@ -318,8 +318,9 @@ describe('P1 — prompt contract', () => {
     expect(sys).toMatch(/When the destination includes Busan AND diet_preferences includes none of Halal\/Vegan\/Vegetarian/);
   });
   it('departure-day breakfast instruction (2026-10-24: no restaurant breakfast before an 11:00 departure)', () => {
-    expect(sys).toContain('출국 11:00 전에는 식당 조식을 넣지 않는다. 체크아웃 stop tip 에 호텔/공항 조식 안내 한 문장. 지어내기 금지.');
-    expect(sys).toContain('<11:00 → no restaurant breakfast (hotel/airport; one sentence in the checkout stop tip); 11-16:59 → breakfast OR lunch/snack; ≥17:00 → both');
+    expect(sys).toContain('출국 11:00 전에는 식당 조식을 넣지 않는다. 안내 문장은 백엔드가 자동으로 붙이므로 직접 쓰지 않는다. 지어내기 금지.');
+    expect(sys).toContain('<11:00 → no restaurant breakfast (no breakfast stop; the backend appends the guest notice automatically — do NOT write it); 11-16:59 → breakfast OR lunch/snack; ≥17:00 → both');
+    expect(sys).not.toMatch(/checkout stop tip|체크아웃 stop tip/); // 안내는 후처리 단일 책임(applyDepartureBreakfastNote)
     expect(sys).not.toContain('09:00–10:59 출국일에는 조식이 필요하다');
   });
   it('per-request block: present only for safety diets, and it says the chain fallback does not apply', () => {

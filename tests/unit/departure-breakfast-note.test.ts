@@ -13,7 +13,7 @@ import { applyBackfillsAndTmoney } from '../../api/_ai_core/postResponsePipeline
 import { validatePatternStructure } from '../../api/_ai_core/responseValidator.js';
 import { runFinalItineraryValidation } from '../../api/_ai_core/finalItineraryGate.js';
 
-type Stop = { category: string; name: string; start_time: string; tip?: string; _breakfast_note?: boolean; [k: string]: unknown };
+type Stop = { category: string; name: string; start_time: string; tip?: string; breakfast_note?: string; _breakfast_note?: boolean; [k: string]: unknown };
 type Day = { day: number; city: string; stops: Stop[] };
 
 const NOTE = {
@@ -41,6 +41,7 @@ describe('applyDepartureBreakfastNote', () => {
     expect(applyDepartureBreakfastNote(p, { departureTime: '10:00', language: lang })).toBe(true);
     const checkout = p.days[1].stops[0];
     expect(checkout.tip).toBe(`Check out early. ${note}`);
+    expect(checkout.breakfast_note).toBe(note); // 공개 공유 투영용 고정 문구(호텔 tip 원문 없이)
     expect(checkout._breakfast_note).toBe(true);
     expect(p.days[1].stops[1].tip).toBeUndefined();
   });
@@ -61,6 +62,9 @@ describe('applyDepartureBreakfastNote', () => {
     const once = JSON.stringify(p);
     expect(applyDepartureBreakfastNote(p, { departureTime: '10:00', language: 'en' })).toBe(false);
     expect(JSON.stringify(p)).toBe(once);
+    const checkout = p.days[1].stops[0];
+    expect(checkout.tip?.split(NOTE.en)).toHaveLength(2); // 문구 1회
+    expect(checkout.breakfast_note).toBe(NOTE.en);
   });
 
   it('no-op when the departure day has a food stop (an assigned restaurant must not read as "not included")', () => {
@@ -68,6 +72,7 @@ describe('applyDepartureBreakfastNote', () => {
     const before = JSON.stringify(p);
     expect(applyDepartureBreakfastNote(p, { departureTime: '10:00', language: 'en' })).toBe(false);
     expect(JSON.stringify(p)).toBe(before);
+    expect(p.days[1].stops.some((s) => 'breakfast_note' in s)).toBe(false);
   });
 
   it.each(['11:00', '13:00', '20:00'])('no-op for departure %s (11:00 or later keeps the meal rules)', (dep) => {

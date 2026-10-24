@@ -285,6 +285,8 @@ export function applyDepartureBreakfastNote(itinerary, { departureTime, language
   const note = DEPARTURE_BREAKFAST_NOTE[language] || DEPARTURE_BREAKFAST_NOTE.en;
   const tip = typeof target.tip === 'string' ? target.tip.trim() : '';
   target.tip = tip ? `${tip} ${note}` : note;
+  // 고정 안내만 따로 — 공개 공유 투영(publicPlanProjection)은 숙소 tip 원문을 버리고 이 값만 보인다.
+  target.breakfast_note = note;
   target._breakfast_note = true;
   return true;
 }

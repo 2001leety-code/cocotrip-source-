@@ -10,6 +10,7 @@
  *   2. responseValidator.js isLast 분기 — departure_time 기준 strict validator
  *      - departure_time < 11:00 → 식당 조식 면제 (2026-10-24 운영자 결정 — 출국 −180분 버퍼와 모순, 검증 식당 새벽 영업 없음.
  *        안내는 planPersister.applyDepartureBreakfastNote 가 체크아웃 tip 에 결정론적으로)
+ *        모델은 안내 문장을 쓰지 않는다(프롬프트가 금지 — 후처리 단일 책임).
  *      - departure_time 11:00-16:59 → breakfast OR lunch/snack 중 최소 1건
  *      - departure_time >= 17:00 → breakfast + lunch/snack 둘 다 의무
  *      - departure_time 미제공 → 기존 로직 (3개 slot 모두 0이면 에러)

@@ -93,6 +93,21 @@ describe('shared public plan projection', () => {
     expect(day.stops[2].transit_from_prev?.steps_detail?.[0].fromPoint).toEqual({ lat: 37.58, lng: 126.98, name: 'Palace' });
   });
 
+  // 2026-10-24: 출국일 조식 안내(planPersister.applyDepartureBreakfastNote 가 저장한 고정 문구)만 공개, 호텔 고유 tip 은 계속 비공개.
+  it('a lodging stop shows only the fixed breakfast notice as its public tip; without it, no tip (unchanged)', () => {
+    const note = 'Breakfast on departure day is not in the itinerary because of the early flight. Please arrange it at your hotel or the airport — check opening hours and dietary requirements.';
+    const plan = makePlan();
+    Object.assign(plan.itinerary.days[0].stops[0], { tip: '호텔 고유 메모 ' + note, breakfast_note: note });
+    const projected = projectPublicPlan(plan) as ReturnType<typeof makePlan>;
+    const stay = projected.itinerary.days[0].stops[0] as Record<string, unknown>;
+    expect(stay.tip).toBe(note);
+    expect(JSON.stringify(projected)).not.toContain('호텔 고유 메모');
+    expect(JSON.stringify(projected)).not.toContain(hotel);
+    expect(projectPublicPlan(projected)).toEqual(projected); // 재투영 멱등
+    const plain = projectPublicPlan(makePlan()) as ReturnType<typeof makePlan>;
+    expect((plain.itinerary.days[0].stops[0] as Record<string, unknown>).tip).toBeUndefined();
+  });
+
   it.each([['ko', '숙소'], ['en', 'Stay'], ['ja', '宿泊先'], ['zh', '住宿']])('uses generic %s hotel labels', (language, label) => {
     const projected = projectPublicPlan(makePlan(), { language }) as ReturnType<typeof makePlan>;
     expect(projected.itinerary.days[0].stops[0].name).toBe(label);
