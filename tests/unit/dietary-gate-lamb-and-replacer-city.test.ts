@@ -57,11 +57,15 @@ describe('1. vegan / vegetarian conflict words', () => {
 describe('2. replacer candidates must belong to the day city', () => {
   const violation = [{ type: 'dietary_violation', diet: 'vegan', stop: '합성위반식당' }];
 
-  it('Busan day + model coordinates in Seoul: the Seoul vegan row within 8km is NOT used', () => {
+  // 2026-10-24 재방문 정책 F: 8km 는 1단계일 뿐 — 8km 안 후보(서울 행)는 그 날 도시(부산)가 아니라 제외되고,
+  //   2단계(도시 전체 미사용)에서 **부산** 행이 쓰인다. 도시 필터는 그대로(서울 행은 어느 단계에서도 후보 아님).
+  it('Busan day + model coordinates in Seoul: the Seoul vegan row within 8km is NOT used; a Busan row is (stage city-unused)', () => {
     const plan = { days: [{ day: 2, city: 'Busan', stops: [{ category: 'food', name: '합성위반식당', lat: 37.534, lng: 126.99 }] }] };
     const r = replaceViolatingFoodStops(plan, violation, FI, ['Vegan'], 'seoul');
-    expect(r.replaced).toBe(0);
-    expect(plan.days[0].stops[0].name).toBe('합성위반식당');
+    expect(r.replaced).toBe(1);
+    expect(plan.days[0].stops[0].name).not.toBe('합성서울비건');
+    expect(['합성부산비건', '364 Grilled Lamb&Hanwoo Dumplings']).toContain(plan.days[0].stops[0].name);
+    expect(r.detail[0]).toMatch(/\[city-unused\]$/);
   });
 
   it('Busan day + Busan coordinates: the Busan vegan row is used', () => {

@@ -40,8 +40,8 @@ describe('P253 transit cache zone_id 추출 fix', () => {
   });
 
   it('postResponsePipeline: runRouteEnrichment ctx 에서 zone_id 추출', () => {
-    // destructuring 에 zone_id 포함
-    expect(pipelineSrc).toMatch(/zone_id,?\s*\n?\s*\}\s*=\s*ctx/);
+    // destructuring 에 zone_id 포함 (2026-10-24 재방문 정책 뒤 zone_id 다음에 dietPrefs·avoidStopNames 가 더 온다 — 위치 무관)
+    expect(pipelineSrc).toMatch(/\bzone_id\b[^}]*\}\s*=\s*ctx/);
   });
 
   it('postResponsePipeline: enrichItineraryWithRoute 호출 시 zone_id 전달', () => {

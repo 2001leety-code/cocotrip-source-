@@ -377,9 +377,12 @@ export function checkAllDaysNonEmpty(itinerary) {
   return { ok: emptyDays.length === 0, emptyDays };
 }
 
-/** 비-lodging 중복 stop 0건. qualityMetrics.findDuplicateStops(=lodging 예외)와 같은 소스. */
-export function checkNoDuplicateStops(itinerary) {
-  const duplicates = findDuplicateStops(itinerary);
+/**
+ * 비-lodging 중복 stop 0건. qualityMetrics.findDuplicateStops(=lodging 예외)와 같은 소스.
+ * 2026-10-24: ctx(foodIndex + 식이)가 있으면 운영 종단 게이트와 같은 재방문 판정(허용 재방문은 중복 아님).
+ */
+export function checkNoDuplicateStops(itinerary, ctx) {
+  const duplicates = findDuplicateStops(itinerary, ctx);
   return { ok: duplicates.length === 0, duplicates };
 }
 
@@ -422,7 +425,9 @@ export function runPreWriteQualityChecks({ itinerary, userInput, foodIndex }) {
     });
   }
 
-  const dup = checkNoDuplicateStops(itinerary);
+  const dup = checkNoDuplicateStops(itinerary, Array.isArray(foodIndex) && foodIndex.length
+    ? { foodIndex, dietary: Array.isArray(userInput && userInput.dietPrefs) ? userInput.dietPrefs : [] }
+    : undefined);
   if (!dup.ok) {
     failures.push({
       check: 'duplicate_stops',

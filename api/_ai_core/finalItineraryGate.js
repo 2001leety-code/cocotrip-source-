@@ -19,7 +19,7 @@
  * 식이 요구가 없는 손님에겐 완전 no-op (기존 동작 byte-identical).
  */
 import { validateResponse, hasCriticalDietaryViolation, checkRequiredMeals } from './responseValidator.js';
-import { findDuplicateStops } from './qualityMetrics.js';
+import { findDuplicateStops, findRevisits } from './qualityMetrics.js';
 
 export const FINAL_GATE_DIETARY_CODE = 'DIETARY_VIOLATION';
 export const FINAL_GATE_MEAL_CODE = 'DIETARY_MEAL_COVERAGE_FAILED';
@@ -143,16 +143,22 @@ export function tripTimesFrom(source) {
  * qualityMetrics.findDuplicateStops 를 그대로 써서 duplicate_stops 점수 지표와
  * 같은 분류(호텔/숙소 예외)를 공유한다 — 별도 판정 로직을 두지 않는다.
  *
+ * 2026-10-24: ctx(식이 손님 foodIndex + 안전 식이 + avoid)가 있으면 revisitPolicy.judgeRepeats — 소진 증명된
+ *   다른 날 재방문(revisit: true, 검증 식당)만 중복에서 빠진다. 같은 날·미검증·미소진 반복은 그대로 거부.
+ *
  * @param {object} itinerary
- * @returns {{ok: boolean, code: string|null, duplicates: Array<{name: string, count: number}>}}
+ * @param {{foodIndex?: object[], dietary?: string[], avoidStopNames?: string[]}} [ctx]
+ * @returns {{ok: boolean, code: string|null, duplicates: Array<{name: string, count: number}>, revisits: Array<{name: string, day: number}>}}
  */
-export function runDuplicateStopGate(itinerary) {
-  if (!itinerary || typeof itinerary !== 'object') return { ok: true, code: null, duplicates: [] };
-  const duplicates = findDuplicateStops(itinerary);
+export function runDuplicateStopGate(itinerary, ctx) {
+  // revisits 는 ctx 가 있을 때만 붙인다 — ctx 없는 기존 호출은 반환 모양 그대로.
+  const withRevisits = (result) => (ctx ? { ...result, revisits: findRevisits(itinerary, ctx) } : result);
+  if (!itinerary || typeof itinerary !== 'object') return ctx ? { ok: true, code: null, duplicates: [], revisits: [] } : { ok: true, code: null, duplicates: [] };
+  const duplicates = findDuplicateStops(itinerary, ctx);
   if (duplicates.length > 0) {
-    return { ok: false, code: FINAL_GATE_DUPLICATE_CODE, duplicates };
+    return withRevisits({ ok: false, code: FINAL_GATE_DUPLICATE_CODE, duplicates });
   }
-  return { ok: true, code: null, duplicates: [] };
+  return withRevisits({ ok: true, code: null, duplicates: [] });
 }
 
 /** 중복 게이트 실패 → 손님에게 낼 에러. @param {string} stage */
@@ -172,8 +178,8 @@ export function buildDuplicateGateError(result, stage) {
  * 종단 중복 검증 + 실패 시 throw. 저장·응답 직전에 쓴다 — 식이 게이트와 동일 지점.
  * @throws {Error & {code: string, statusCode: 422}}
  */
-export function assertNoDuplicateStops(itinerary, stage = 'unknown') {
-  const result = runDuplicateStopGate(itinerary);
+export function assertNoDuplicateStops(itinerary, stage = 'unknown', ctx) {
+  const result = runDuplicateStopGate(itinerary, ctx);
   if (result.ok) return result;
   console.error(`[finalGate] ${stage} FAILED (${result.code}):`, JSON.stringify(result.duplicates.slice(0, 5)));
   throw buildDuplicateGateError(result, stage);

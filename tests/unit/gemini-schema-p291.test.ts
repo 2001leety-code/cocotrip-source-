@@ -141,16 +141,18 @@ describe('P291 PLAN_RESPONSE_SCHEMA properties hint 확장 (cache miss 0 대안)
 
   // ── R5: stops.items propertyOrdering ─────────────────────────────────────
 
-  it('R5 — stops.items propertyOrdering 14 fields (P200 required:[name,category,start_time] 유지)', () => {
+  it('R5 — stops.items propertyOrdering 15 fields (P200 required:[name,category,start_time] 유지)', () => {
     // 2026-07-03 B-18 fix: local_tag 추가(12→13). responseSchema 에 없는 필드는 구조화출력이
     // 물리적으로 못 내서 프롬프트 LOCAL TAG MANDATORY 가 무력화됐었다 (5/24 이후 전 plan 0%).
     // 2026-10-24: dietary_tags 추가(13→14) — 같은 이유(프롬프트가 요구하는데 스키마에 없음). 설명용, 신뢰 근거 아님.
+    // 2026-10-24 재방문 정책: revisit(BOOLEAN) 추가(14→15) — 모델이 다른 날 재방문을 표시하는 필드, 판정은 revisitPolicy.
     const stopsItems = PLAN_RESPONSE_SCHEMA.properties.days.items.properties.stops.items;
     expect(stopsItems.propertyOrdering).toEqual([
       'order', 'start_time', 'name', 'display_name', 'category',
-      'stay_min', 'address', 'tip', 'local_tag', 'lat', 'lng', 'entry_fee_krw', 'verified', 'dietary_tags',
+      'stay_min', 'address', 'tip', 'local_tag', 'lat', 'lng', 'entry_fee_krw', 'verified', 'dietary_tags', 'revisit',
     ]);
     expect(stopsItems.properties.dietary_tags).toEqual({ type: 'ARRAY', items: { type: 'STRING' } });
+    expect(stopsItems.properties.revisit).toEqual({ type: 'BOOLEAN' });
     expect(stopsItems.required).toEqual(['name', 'category', 'start_time']);
   });
 

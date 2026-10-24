@@ -98,9 +98,11 @@ export function judgePlanInto(row, raw, p, d) {
   row.structureErrors = d.validatePatternStructure(plan, { durationDays: p.s.durationDays, regions, area: p.s.area, ...trip });
   // 필수 끼니 = validatePatternStructure 의 B-MEAL 결과. 검사가 꺼져 있으면(VALIDATOR_BMEAL_ENABLED=false) checked:false → 판정 실패.
   row.mealCoverage = { checked: process.env.VALIDATOR_BMEAL_ENABLED !== 'false', missing: row.structureErrors.filter((e) => /\(B-MEAL/.test(String(e))) };
-  const gate = d.runDuplicateStopGate(plan);
+  // 2026-10-24: 운영 종단 게이트와 같은 ctx(식이 + foodIndex) — 소진 증명된 다른 날 재방문만 중복에서 빠지고 따로 센다.
+  const gate = d.runDuplicateStopGate(plan, { foodIndex: d.foodIndex, dietary: p.dietaryAll });
   row.duplicateStops = gate.duplicates.length;
   row.duplicateStopNames = gate.duplicates.map((x) => `${x.name}×${x.count}`);
+  row.revisits = (gate.revisits || []).map((x) => `${x.name}@D${x.day}`);
   const issues = d.validateResponse(plan, { dietary: p.dietaryAll, language: p.s.language, area: p.s.area, regions, ...trip }, d.foodIndex);
   row.dietaryCritical = d.hasCriticalDietaryViolation(issues);
   row.dietaryViolations = issues.filter((i) => i && i.type === 'dietary_violation' && i.severity === 'critical').length;

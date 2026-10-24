@@ -36,6 +36,7 @@ import { applyBlockModeDietaryWarnings, normalizeRegionKey } from './responseVal
 import { applyDepartureDayFlightCap } from './blockMode.js';
 import { assertFinalItineraryValid, assertNoDuplicateStops, tripTimesFrom } from './finalItineraryGate.js';
 import { assertNoAvoidedStopsRemain, filterAvoidedRestaurantBuckets } from './avoidStops.js';
+import { normalizeRevisits, applyRevisitNotes } from './revisitPolicy.js';
 
 // P203 (2026-05-26): routeEnrich 180s wall-clock cap.
 // 배경: 5/25 prod alert step elapsed 27분 (1.67M ms) — Vercel 600s cap 도달 전
@@ -97,7 +98,23 @@ export async function runRouteEnrichment(itinerary, ctx) {
     // P253 (2026-05-27): block_mode 에서 첫 번째 blocksUsed 항목 = Firestore zone_courses doc ID.
     // enrichItineraryWithRoute 의 wrapped 객체를 통해 RouteAgent data.zone_id 로 전달.
     zone_id,
+    // 2026-10-24 재방문 정책: 식이 손님 반복 식당 정규화 입력(없으면 no-op).
+    dietPrefs, avoidStopNames,
   } = ctx;
+
+  // ── 2026-10-24 (재방문 정책 R2): 동선 계산 **전에** 반복 식당 정규화 ─────────────
+  //   교체된 식당의 이동·시간·교통비가 옛 식당 기준으로 남지 않게 RouteAgent 보다 먼저. HTTP·Inngest 둘 다 이 함수를 지난다.
+  //   미사용 적격(검증·요청 식이 전부) 행이 있으면 가장 가까운 행으로 교체, 소진이면 다른 날 revisit 표시(같은 날 금지).
+  if (Array.isArray(dietPrefs) && dietPrefs.length > 0) {
+    try {
+      const foodIndex = await loadFoodIndex();
+      const { changes } = normalizeRevisits(itinerary, { foodIndex, dietary: dietPrefs, avoidStopNames, language }, { mode: 'replace' });
+      if (changes.length > 0) console.log('[planner] revisit normalize (pre-route):', changes.map((c) => `D${c.day} ${c.action} ${c.from}→${c.to}`).join(' | '));
+    } catch (e) {
+      // 정규화 실패는 판정 완화가 아니다 — 종단 게이트가 같은 판정기로 다시 막는다.
+      console.warn('[planner] revisit normalize (pre-route) skipped:', e.message);
+    }
+  }
 
   // ALREADY 또는 미정 → arrival_guide / departure_guide 제거
   if (!arrival_airport || arrival_airport === 'ALREADY') delete itinerary.arrival_guide;
@@ -404,7 +421,12 @@ export async function applyRecommendedRestaurants(itinerary, ctx) {
   );
   // ── 종단 중복 게이트 — 식이 요구 유무와 무관하게 항상 (2026-08-24) ─────────
   //   같은 지점(저장 전 마지막 mutation 뒤)에서 관광지·식당 중복도 fail-closed.
-  assertNoDuplicateStops(itinerary, blockModeUsed ? 'block_mode' : 'post_response');
+  //   2026-10-24 재방문 정책: 동선 계산 뒤라 교체 없이 표시만 정리(markOnly — 항공 컷 등으로 첫 방문이 지워진
+  //   stop 의 revisit 표시 제거, 소진된 다른 날 반복 표시) → 같은 ctx 로 판정. 교체가 필요한 반복은 그대로 거부(422).
+  const revisitCtx = { foodIndex: foodIndexForQuality, dietary: dietPrefs, avoidStopNames, language };
+  normalizeRevisits(itinerary, revisitCtx, { mode: 'markOnly' });
+  applyRevisitNotes(itinerary, { language }); // 정규화 결과 재방문에만 안내 1문장(기존 안내 제거 후 — R6)
+  assertNoDuplicateStops(itinerary, blockModeUsed ? 'block_mode' : 'post_response', revisitCtx);
   return foodIndexForQuality;
 }
 

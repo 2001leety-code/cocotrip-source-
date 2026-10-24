@@ -34,6 +34,8 @@ import {
 import { loadFoodIndex } from './_ai_core/geminiPipeline.js';
 import { backfillStopEndTimes } from './_ai_core/planPersister.js';
 import { validatePatternStructure } from './_ai_core/responseValidator.js';
+import { normalizeRevisits, applyRevisitNotes, clearReplacedLegs } from './_ai_core/revisitPolicy.js';
+import { runDuplicateStopGate } from './_ai_core/finalItineraryGate.js';
 
 export const maxDuration = 30;
 export const config = { runtime: 'nodejs' };
@@ -392,6 +394,10 @@ export function applyStopSwap({ itinerary, classified, dietPrefs, foodIndex, are
     tip: matched.tip || oldStop.tip,
     personalization_reasoning: `Swap (user-requested): ${classified.raw_text.slice(0, 60)}`,
   };
+  // 2026-10-24 재방문 정책: 옛 stop 의 재방문 표시·안내는 새 식당에 넘기지 않는다 — 저장 전 전체 일정 재정규화가 다시 판정.
+  delete swapped.revisit;
+  delete swapped.revisit_note;
+  delete swapped._revisit_note;
   const dietCheck = checkDietary(swapped, dietPrefs);
   if (!dietCheck.ok) {
     return { ok: false, code: 'DIETARY_UNSATISFIED', message: `Dietary preference (${dietCheck.missing}) not met by candidate.` };
@@ -765,6 +771,26 @@ export default async function handler(req, res) {
         'PATTERN_VIOLATION',
         { violations: patternErrors.slice(0, 5) },
       )));
+    }
+
+    // ── 2026-10-24 재방문 정책: 저장 전 전체 일정 재정규화(replace — 블록 변경으로 생긴 반복을 미사용 적격 행으로 교체,
+    //   소진이면 다른 날 재방문 표시) + 안내 재부착 + 같은 판정. 이 API 는 이동 구간을 재계산하지 않으므로(기존 swap 과 동일)
+    //   교체된 stop 의 앞뒤 구간은 비운다(옛 식당 기준 이동·교통비가 남지 않게). 승인되지 않는 반복은 기존처럼 422(저장 안 함).
+    {
+      const revisitCtx = { foodIndex, dietary: dietPrefs, language, avoidStopNames: Array.isArray(planData.planner_intent_v1?.revision?.avoidStopNames) ? planData.planner_intent_v1.revision.avoidStopNames : [] };
+      const { changes } = normalizeRevisits(itinerary, revisitCtx, { mode: 'replace' });
+      clearReplacedLegs(itinerary, changes);
+      applyRevisitNotes(itinerary, { language });
+      const dupGate = runDuplicateStopGate(itinerary, revisitCtx);
+      if (!dupGate.ok) {
+        try { itinerary.days = JSON.parse(originalDaysJson); } catch {}
+        res.writeHead(422, JSON_CORS);
+        return res.end(JSON.stringify(_err(
+          'Modification would repeat a stop in your itinerary — request rejected.',
+          dupGate.code,
+          { duplicates: dupGate.duplicates.slice(0, 5) },
+        )));
+      }
     }
 
     // ── persist

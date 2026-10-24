@@ -79,9 +79,20 @@ describe('a) 순수 게이트 — findDuplicateStops / runDuplicateStopGate', ()
     expect(r.duplicates).toEqual([{ name: '비건 하우스', count: 2 }]);
   });
 
-  it('식이 요구 유무와 무관하게 항상 돈다 (ctx 자체를 안 받음)', () => {
-    // runDuplicateStopGate 는 dietary 파라미터가 없다 — 시그니처 자체가 증거.
-    expect(runDuplicateStopGate.length).toBe(1);
+  // 2026-10-24 재방문 정책: 게이트가 선택 ctx(foodIndex + 식이)를 받게 됐다 — 시그니처 대신 **동작**으로 의도를 잠근다.
+  //   식이 없어도 항상 돌고, ctx 가 없거나 안전 식이가 없으면 다른 day 반복도 전부 중복(재방문 표시가 있어도).
+  it('식이 요구 유무와 무관하게 항상 돈다 — ctx 없음/비식이 ctx 면 모든 반복 = 중복', () => {
+    const day2 = { ...okDay2(2), stops: okDay2(2).stops.map((s) => (
+      s.name === '한옥 비건 식당' ? { ...s, name: '비건 하우스', revisit: true, verified: true } : s
+    )) };
+    const repeated = { days: [okDay(1), day2] };
+    const row = { name: '비건 하우스', city: 'seoul', tag: 'vegan', verification_status: 'vegan_restaurant', address: '서울특별시 종로구 12' };
+    for (const ctx of [undefined, { foodIndex: [row], dietary: [] }, { foodIndex: [row], dietary: ['Meat'] }, { foodIndex: [], dietary: ['Vegan'] }]) {
+      const r = runDuplicateStopGate(repeated, ctx);
+      expect(r.ok, JSON.stringify(ctx)).toBe(false);
+      expect(r.duplicates).toEqual([{ name: '비건 하우스', count: 2 }]);
+    }
+    expect(runDuplicateStopGate({ days: [dupDay(1)] }, { foodIndex: [row], dietary: ['Vegan'] }).duplicates).toEqual([{ name: '경복궁', count: 2 }]);
   });
 
   it('assertNoDuplicateStops 는 중복이면 stable code 로 throw, 부분성공/저장 없음', () => {

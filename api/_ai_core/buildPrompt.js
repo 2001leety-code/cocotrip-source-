@@ -633,7 +633,9 @@ When the user message contains "VERIFIED RESTAURANT DATABASE":
 4. Set "verified": true on EVERY food stop from the database
 5. Match by geographic proximity (same dong/neighborhood as nearby landmark stops)
 6. Create recommended_items with 3-5 realistic menu items + KRW prices
-7. Each restaurant at most once per trip (the backend rejects repeated stops). If the list is too short, leave that meal out — never invent one.
+7. Use each listed restaurant once per trip whenever the list allows (the backend rejects repeated stops). Never invent one and never use a restaurant outside the list.
+   - Halal/Vegan/Vegetarian guests: if that city's list has fewer restaurants than that city's meals, do NOT leave the meal empty — use a listed restaurant again on a DIFFERENT day (the one closest to that day's other stops) and set "revisit": true on that stop. Never the same restaurant twice on the same day.
+   - Other guests: if the list is too short, leave that meal out.
 
 If NO "VERIFIED RESTAURANT DATABASE" appears in the message AND diet_preferences includes none of Halal/Vegan/Vegetarian
 (this chain exception NEVER applies to Halal/Vegan/Vegetarian guests — see DIETARY SAFETY):

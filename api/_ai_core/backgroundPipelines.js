@@ -46,6 +46,7 @@ import { calcPrice } from './vehicleAndPrice.js';
 import { randomUUID } from 'crypto';
 import { sendNotificationEmail, recordLeadToSheets } from './emailNotifier.js';
 import { runFinalItineraryValidation, runDuplicateStopGate } from './finalItineraryGate.js';
+import { normalizeRevisits, applyRevisitNotes } from './revisitPolicy.js';
 
 /**
  * plan 발급 완료 후 비차단 알림 3종 — 이메일 / Google Sheets 리드 / 텔레그램+웹푸시.
@@ -103,7 +104,7 @@ export function isSkeletonInWorkerEnabled() {
  *   GEMINI_ADMIN_BYPASS_MODEL 우선 (운영자 Pro→Flash 비교 시 background tip 도 Flash).
  *   dietary/styles — 종단 검증 입력 (없으면 식이 요구 없는 손님 = 검증 no-op).
  */
-export function triggerPass3BackgroundIfPending({ adminDb, planId, language, apiKey, itinerary, isAdminBypass, identifierForBucketing, dietary, styles, tripTimes }) {
+export function triggerPass3BackgroundIfPending({ adminDb, planId, language, apiKey, itinerary, isAdminBypass, identifierForBucketing, dietary, styles, tripTimes, avoidStopNames }) {
   if (!itinerary._pass3_pending || !isPass3BackgroundEnabled()) return;
 
   // fire-and-forget — UnhandledPromiseRejection 방지를 위해 .catch() 필수.
@@ -116,16 +117,22 @@ export function triggerPass3BackgroundIfPending({ adminDb, planId, language, api
       const enriched = await pass3Enrich(bgModel, itinerary, language);
 
       // 종단 검증 — 실패 시 Firestore overwrite 자체를 건너뛴다 (경고 주입으로 때우지 않는다).
+      const bgFoodIndex = await Promise.resolve(loadFoodIndex()).catch(() => []);
       const gate = runFinalItineraryValidation(enriched, {
         language,
         dietary,
         styles,
-        foodIndex: await Promise.resolve(loadFoodIndex()).catch(() => []),
+        foodIndex: bgFoodIndex,
         tripTimes, // 2026-10-24: 필수 끼니 판정(sync 종단 게이트와 같은 입력) — 없으면 기존 판정
       });
+      // 2026-10-24 재방문 정책: 동선 계산 뒤라 교체 없이 표시만 정리(markOnly, R2) → 같은 ctx 로 중복 판정.
+      // 사용자 제외 목록도 sync 게이트와 같은 적격 집합으로(없으면 []).
+      const revisitCtx = { foodIndex: bgFoodIndex, dietary, language, avoidStopNames: Array.isArray(avoidStopNames) ? avoidStopNames : [] };
+      normalizeRevisits(enriched, revisitCtx, { mode: 'markOnly' });
+      applyRevisitNotes(enriched, { language }); // pass3 가 tip 을 덮어썼으므로 재부착(R6)
       // 종단 중복 게이트 — 식이 요구 유무와 무관, 같은 지점에서 항상 (2026-08-24).
       //   background rewrite 가 정상 plan 을 중복 있는 plan 으로 덮어쓰면 안 된다.
-      const dupGate = runDuplicateStopGate(enriched);
+      const dupGate = runDuplicateStopGate(enriched, revisitCtx);
       if (!gate.ok || !dupGate.ok) {
         const code = !gate.ok ? gate.code : dupGate.code;
         console.error(`[planner] P168 Pass3 background enrich FAILED final validation (${code}) — Firestore overwrite SKIPPED: planId=${planId}`);

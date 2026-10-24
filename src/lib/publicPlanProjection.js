@@ -3,6 +3,7 @@
  * Known private-string filtering supplements the schema; it cannot detect paraphrases.
  */
 import { departureBreakfastNote } from './departureBreakfastNote.js';
+import { revisitNote, stripRevisitNote } from './revisitNote.js';
 
 const S = 'string';
 const N = 'number';
@@ -58,6 +59,7 @@ const stopSchema = {
   accessibility_note: S, tip: S, tip_en: S, description: S, local_tag: S,
   verified: B, dietary_tags: texts,
   dietary_evidence: [{ diet: S, tag: S, verification_status: S }],
+  revisit: B, // 2026-10-24 검증 식당 재방문 정책 — 안내 문구(revisit_note)는 projectStop 이 보는 사람 언어로
 };
 const restaurantSchema = {
   name: S, nameEn: S, address: S, lat: N, lng: N, rating: N, reviewCount: N,
@@ -171,6 +173,15 @@ function projectStop(stop, privateEndpoint, language, terms) {
     return result;
   }
   const result = project(stop, stopSchema, terms);
+  // 2026-10-24 재방문 안내: 저장 언어 문장을 떼고 보는 사람 언어 고정 문장으로(언어 전환 재투영에도 1회·정확한 언어).
+  if (typeof result.tip === 'string') result.tip = stripRevisitNote(result.tip, stop.revisit_note);
+  if (stop.revisit === true && stop.category === 'food') {
+    const note = revisitNote(language);
+    // 본문 = 화면과 같은 폴백(tip 우선, 1회) — 저장 tip 이 비어도 옛 필드 설명이 사라지지 않게.
+    const body = String(stripRevisitNote(result.tip || result.tip_en || '', stop.revisit_note) || '').trim();
+    result.revisit_note = note;
+    result.tip = body ? `${body} ${note}` : note;
+  }
   if (Array.isArray(stop.recommended_items)) {
     result.recommended_items = stop.recommended_items.map((item) => project(item,
       typeof item === 'string' ? S : { name: S, price_krw: N, note: S }, terms))

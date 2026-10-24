@@ -266,6 +266,9 @@ export const processPlanAfterAI = inngest.createFunction(
         //   ctx.zone_id 는 inngestDispatch.buildPlanAiCompletePayload 가 blocksUsed[0] 로 채움.
         //   다도시는 RouteAgent dayPlan.source_block_id per-day fallback 으로 보완.
         zone_id: ctx.zone_id || null,
+        // 2026-10-24 재방문 정책 R2: 동선 계산 전 반복 식당 정규화 입력(sync handlerCore 와 같은 값).
+        dietPrefs: ctx.dietPrefs,
+        avoidStopNames: ctx.avoidStopNames,
       });
       return itinerary;
     });
@@ -390,6 +393,7 @@ export const processPlanAfterAI = inngest.createFunction(
       dietary: ctx.dietPrefs,
       styles: ctx.styles,
       tripTimes: tripTimesFrom(ctx.body), // 2026-10-24: 종단 게이트 필수 끼니 판정(sync 경로와 동형)
+      avoidStopNames: Array.isArray(ctx.avoidStopNames) ? ctx.avoidStopNames : [], // 2026-10-24 재방문 정책: 같은 적격 집합
     });
 
     if (ctx.email) {

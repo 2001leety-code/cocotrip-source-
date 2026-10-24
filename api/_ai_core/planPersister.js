@@ -286,6 +286,10 @@ export function applyDepartureBreakfastNote(itinerary, { departureTime, language
   return true;
 }
 
+// 2026-10-24 검증 식당 재방문 정책 — 재방문 stop 안내(R6). 구현은 revisitPolicy(순수 모듈 — 이 파일을 모킹하는
+//   테스트에서도 파이프라인이 그대로 부르게), 여기서는 같은 이름으로 내보낸다.
+export { applyRevisitNotes } from './revisitPolicy.js';
+
 // P156 (2026-05-22): 동네/랜드마크 → 도시 매핑. P152 의 도시명 매칭이 못 잡는
 // "황리단길 호텔" (Gyeongju 동네명만 있고 "경주" 미명시) 같은 케이스 보강.
 // prod 시뮬레이션 잔여 B-13 fail 2건의 원인.
@@ -1498,7 +1502,8 @@ export async function persistPlan(adminDb, {
       dietaryForScore,
       area,
       foodIndex || [],
-      { lang: language || 'ko' },
+      // 2026-10-24 재방문 정책: 점수의 중복 판정도 종단 게이트와 같은 적격 집합(사용자 제외 목록 포함, 없으면 []).
+      { lang: language || 'ko', avoidStopNames: Array.isArray(plannerIntent?.revision?.avoidStopNames) ? plannerIntent.revision.avoidStopNames : [] },
     );
     console.log(
       `[planner] qualityScore: ${qualityScore.score}/100 ` +
