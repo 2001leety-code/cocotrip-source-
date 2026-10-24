@@ -189,7 +189,29 @@ export function evaluateCompareRun(run) {
     missingPairs,
     missingScenarios,
     perProvider,
+    safety: summarizeSafety(results),
   };
+}
+
+/**
+ * 2026-10-24 (식이 준수 P4): 공급자별 안전 집계 — 원본 응답 기준. 정확 이름 준수 / 별칭으로만 회복 / 이름 못 찾음 /
+ * 식이 위반 / 필수끼니 누락. 판정(rowFailures)과 별개의 관측값이다 — 식이 위반·끼니 누락 행은 rowFailures 에서 이미 실패.
+ * 집계 필드가 하나도 없는 옛 산출물은 {} (formatOutcome 이 줄을 생략).
+ */
+export function summarizeSafety(results) {
+  const out = {};
+  for (const r of Array.isArray(results) ? results : []) {
+    if (!r || typeof r !== 'object' || !r.nameCompliance) continue;
+    const p = String(r.provider);
+    const s = out[p] || (out[p] = { rows: 0, exactNames: 0, aliasOnlyNames: 0, unmatchedNames: 0, dietaryViolationRows: 0, mealMissingRows: 0 });
+    s.rows += 1;
+    s.exactNames += Number(r.nameCompliance.exact) || 0;
+    s.aliasOnlyNames += Number(r.nameCompliance.aliasOnly) || 0;
+    s.unmatchedNames += Number(r.nameCompliance.unmatched) || 0;
+    if (r.dietaryCritical === true || Number(r.dietaryViolations) > 0) s.dietaryViolationRows += 1;
+    if (r.mealCoverage && Array.isArray(r.mealCoverage.missing) && r.mealCoverage.missing.length > 0) s.mealMissingRows += 1;
+  }
+  return out;
 }
 
 /** 사람이 읽는 한 줄 요약 (CLI 출력용). */
@@ -197,6 +219,10 @@ export function formatOutcome(o) {
   const head = o.ok ? 'PASS' : 'FAIL';
   const per = Object.entries(o.perProvider).map(([p, v]) => `${p} ${v.passed}/${v.total}`).join(' · ');
   const lines = [`[compare] outcome=${head} rows ${o.passed}/${o.total}${per ? ` (${per})` : ''}`];
+  for (const [p, s] of Object.entries(o.safety || {})) {
+    lines.push(`  safety ${p}: exact=${s.exactNames} aliasOnly=${s.aliasOnlyNames} unmatched=${s.unmatchedNames} `
+      + `dietaryViolationRows=${s.dietaryViolationRows} mealMissingRows=${s.mealMissingRows} (rows ${s.rows})`);
+  }
   for (const e of o.runErrors || []) lines.push(`  - run: ${e}`);
   if (o.total === 0) lines.push('  - no result rows');
   for (const f of o.failures) lines.push(`  - ${f.provider} ${f.scenario}: ${f.reasons.join(',')}`);

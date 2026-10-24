@@ -7,9 +7,10 @@
  *
  * 사용:
  *   node --env-file=<GEMINI 키 있는 .env> --env-file=.env.local scripts/llm-compare-providers.mjs --confirm-cost
- *   옵션: --providers=gemini,claude  --scenarios=seoul-meat,jeju-vegan  --max-usd=5  --out=<json 경로>
- *   --scenarios (식이 여부): seoul-meat(비식이) · busan-halal(식이 Halal) · jeju-vegan(식이 Vegan) ·
- *     seoul-ja(식이 Vegetarian) · seoul-zh(비식이)
+ *   옵션: --providers=gemini,claude  --scenarios=busan-halal-local,jeju-vegan  --max-usd=5  --out=<json 경로>
+ *   --scenarios (2026-10-24, 전부 식이): busan-halal-local(Halal, PUS→PUS) · seoul-busan-halal(Halal, ICN 서울→PUS 부산) ·
+ *     seoul-ja(Vegetarian, ja) · jeju-vegan(Vegan, CJU→CJU 14:00/10:00)
+ *   판정 요약에 안전 집계(정확 이름 / 별칭으로만 회복 / 이름 못 찾음 / 식이 위반 / 필수끼니 누락)를 따로 낸다.
  *
  * 평가 항목(계획서 4-b): JSON 파싱 · 필수 키(days/arrival_guide/departure_guide) · 일수 일치 · 구조(B-10/12/14/15,
  *   도착·출국 시각·공항 반영 B-MEAL 포함) · 필수 끼니(mealCoverage) · 종단 중복 게이트(duplicateStops) ·
@@ -50,13 +51,17 @@ const PROVIDERS = String(args.providers || 'gemini,claude').split(',').map((s) =
 const MAX_USD = Number(args['max-usd'] || 5);
 const FUTURE = new Date(Date.now() + 14 * 86400000).toISOString().slice(0, 10);
 
-// 식이 여부: seoul-meat·seoul-zh = 비식이 / busan-halal·jeju-vegan·seoul-ja(Vegetarian) = 식이.
+// 2026-10-24 (식이 준수 P4, Astra dietary-adherence r1 E): 식이 4개 시나리오 — 전부 식이.
+//   busan-halal-local  = 부산만(PUS→PUS) — 서울 구간 없이 부산 목록만으로 준수하는지
+//   seoul-busan-halal  = regions [seoul,busan], ICN 입국(서울)→PUS 출국(부산) — 두 도시 목록 사용
+//   seoul-ja           = Vegetarian·일본어 — 원문 이름 복사 vs 쉼표 앞 별칭 구분
+//   jeju-vegan         = CJU→CJU 14:00/10:00 — 출국일 조식 부족을 미충족으로 남기는지
+// regions·입출국 도시는 요청(shapeRequest)·식당 목록(운영 buildTripFoodContext)·검증기에 같이 들어간다.
 const ALL = {
-  'seoul-meat':  { area: 'seoul', durationDays: 2, pax: 2, dietPrefs: ['Meat'],       priceRange: 'Moderate', language: 'ko', arrivalTime: '14:00', departureTime: '10:00', arrival_airport: 'ICN_T1', departure_airport: 'ICN_T1' },
-  'busan-halal': { area: 'busan', durationDays: 3, pax: 4, dietPrefs: ['Halal'],      priceRange: 'Moderate', language: 'en', arrivalTime: '14:00', departureTime: '10:00', arrival_airport: 'ICN_T1', departure_airport: 'ICN_T1' },
-  'jeju-vegan':  { area: 'jeju',  durationDays: 2, pax: 2, dietPrefs: ['Vegan'],      priceRange: 'Budget',   language: 'en', arrivalTime: '14:00', departureTime: '10:00' },
-  'seoul-ja':    { area: 'seoul', durationDays: 3, pax: 2, dietPrefs: ['Vegetarian'], priceRange: 'Moderate', language: 'ja' },
-  'seoul-zh':    { area: 'seoul', durationDays: 1, pax: 3, dietPrefs: ['Meat'],       priceRange: 'Premium',  language: 'zh' },
+  'busan-halal-local': { area: 'busan', regions: ['busan'], durationDays: 3, pax: 4, dietPrefs: ['Halal'], priceRange: 'Moderate', language: 'en', arrivalTime: '14:00', departureTime: '10:00', arrival_airport: 'PUS', departure_airport: 'PUS' },
+  'seoul-busan-halal': { area: 'seoul', regions: ['seoul', 'busan'], durationDays: 4, pax: 2, dietPrefs: ['Halal'], priceRange: 'Moderate', language: 'en', arrivalTime: '14:00', departureTime: '10:00', arrival_airport: 'ICN_T1', departure_airport: 'PUS', arrivalCity: 'seoul', departureCity: 'busan' },
+  'seoul-ja':          { area: 'seoul', regions: ['seoul'], durationDays: 3, pax: 2, dietPrefs: ['Vegetarian'], priceRange: 'Moderate', language: 'ja' },
+  'jeju-vegan':        { area: 'jeju', regions: ['jeju'], durationDays: 2, pax: 2, dietPrefs: ['Vegan'], priceRange: 'Budget', language: 'en', arrivalTime: '14:00', departureTime: '10:00', arrival_airport: 'CJU', departure_airport: 'CJU' },
 };
 // 시나리오 ID = ALL 키. 모르는 ID 를 조용히 버리면 "요청한 시나리오 통째 누락"이 통과로 보인다 → 호출 전 중단.
 const REQUESTED = String(args.scenarios || Object.keys(ALL).join(',')).split(',').map((s) => s.trim()).filter(Boolean);
@@ -71,7 +76,8 @@ const { buildSystemPrompt } = await import('../api/_ai_core/buildPrompt.js');
 const { buildUserMessage } = await import('../api/_ai_core/userMessageBuilder.js');
 const { shapeRequest } = await import('../api/_ai_core/requestShaper.js');
 const { getSpotContext } = await import('../api/_spots_helper.js');
-const { getFoodContext } = await import('../api/_food_helper.js');
+const { mealCitiesForTrip, buildTripFoodContext } = await import('../api/_ai_core/dietaryCoverageGate.js');
+const { findSelectedFoodRow } = await import('../api/_shared/food-name-match.js');
 const { getAttractionsContext } = await import('../api/_attractions_helper.js');
 const gp = await import('../api/_ai_core/geminiPipeline.js');
 const { repairAndParseJSON, validateResponse, validatePatternStructure, hasCriticalDietaryViolation } = await import('../api/_ai_core/responseValidator.js');
@@ -87,15 +93,35 @@ function buildInputs(key) {
     guestName: 'Compare-Test', pax: s.pax, styles: ['Food', 'Culture'], area: s.area, durationDays: s.durationDays,
     duration: `${s.durationDays}day`, startDate: FUTURE, language: s.language, dietPrefs: s.dietPrefs, priceRange: s.priceRange,
     arrivalTime: s.arrivalTime, departureTime: s.departureTime, arrival_airport: s.arrival_airport, departure_airport: s.departure_airport,
+    regions: s.regions, arrival_city: s.arrivalCity, departure_city: s.departureCity,
     vehicle: 'public', mobility: 'walking', email: 'compare@example.com',
   };
   const shaped = shapeRequest(body, body.email, false, null);
   const dietaryAll = [...new Set([...(shaped.dietPrefs || []), ...(shaped.dietaryRestrictions || [])])].filter((d) => d && d !== 'None');
   let spotContext = ''; try { spotContext = getSpotContext(s.area, 6) || ''; } catch { /* ignore */ }
-  let foodContext = ''; try { foodContext = getFoodContext(s.area, dietaryAll, s.priceRange, Math.min(40, Math.max(10, s.durationDays * 4))) || ''; } catch { /* ignore */ }
+  // 운영(handlerCore)과 같은 식사 도시 집합·도시별 목록 — 목록이 비면 여기서 throw(운영과 같이 생성 전 422).
+  const mealCities = mealCitiesForTrip({ regions: shaped.regions, area: shaped.area, arrivalCity: shaped.arrivalCity, departureCity: shaped.departureCity });
+  const foodContext = buildTripFoodContext({ cities: mealCities, area: shaped.area, dietaryAll, priceRange: s.priceRange, maxItems: Math.min(40, Math.max(10, s.durationDays * 4)) });
   let attractionsContext = ''; try { attractionsContext = getAttractionsContext({ city: s.area, styles: body.styles, language: s.language, maxLocations: 6 }) || ''; } catch { /* ignore */ }
   const userMessage = buildUserMessage({ shaped, body, spotContext, foodContext, attractionsContext, mountainContext: '', runningContext: '' });
-  return { id: key, s, body, shaped, dietaryAll, systemPrompt: buildSystemPrompt(s.language), userMessage };
+  return { id: key, s, body, shaped, dietaryAll, mealCities, systemPrompt: buildSystemPrompt(s.language), userMessage };
+}
+
+// 식당 stop 이름 준수 집계 — 정확 이름(원문/영문) / 쉼표·| 앞 별칭으로만 회복 / DB 행 못 찾음.
+function foodNameCompliance(plan, foodIndex, fallbackCity) {
+  const norm = (v) => (typeof v === 'string' ? v.trim().toLowerCase() : '');
+  const out = { exact: 0, aliasOnly: 0, unmatched: 0 };
+  for (const day of Array.isArray(plan?.days) ? plan.days : []) {
+    for (const stop of Array.isArray(day?.stops) ? day.stops : []) {
+      if (!stop || stop.category !== 'food') continue;
+      const row = findSelectedFoodRow(stop, foodIndex, { dayCity: day.city || fallbackCity });
+      if (!row) { out.unmatched += 1; continue; }
+      const exactNames = [row.name, String(row.name || '').split('|')[0], row.nameEn].map(norm).filter(Boolean);
+      const said = [stop.name, stop.display_name].map(norm).filter(Boolean);
+      if (said.some((n) => exactNames.includes(n))) out.exact += 1; else out.aliasOnly += 1;
+    }
+  }
+  return out;
 }
 
 // 호출 1건 추정 비용 (입력 chars/4 ≈ 토큰, 출력 8K 토큰 가정) — 사전 추정과 행별 예약(usdReserved)이 같은 공식.
@@ -144,15 +170,21 @@ async function callOne(p, prov) {
       row.stopsPerDay = (plan?.days || []).map((d) => (d.stops || []).length);
       row.foodPerDay = (plan?.days || []).map((d) => (d.stops || []).filter((x) => x.category === 'food').length);
       // 도착·출국 시각·공항 = 시나리오 값 그대로(없으면 미전달 → 검증기 기본 규칙). B-MEAL 출국일 규칙이 departureTime 을 본다.
+      // regions 는 요청과 같은 값(단일 도시 고정 아님).
       const trip = { arrivalTime: p.s.arrivalTime, departureTime: p.s.departureTime, arrival_airport: p.s.arrival_airport, departure_airport: p.s.departure_airport };
-      row.structureErrors = validatePatternStructure(plan, { durationDays: p.s.durationDays, regions: [p.s.area], area: p.s.area, ...trip });
+      const regions = p.shaped.regions && p.shaped.regions.length ? p.shaped.regions : [p.s.area];
+      row.structureErrors = validatePatternStructure(plan, { durationDays: p.s.durationDays, regions, area: p.s.area, ...trip });
       // 필수 끼니 = validatePatternStructure 의 B-MEAL 결과. 검사가 꺼져 있으면(VALIDATOR_BMEAL_ENABLED=false) checked:false → 판정 실패.
       row.mealCoverage = { checked: process.env.VALIDATOR_BMEAL_ENABLED !== 'false', missing: row.structureErrors.filter((e) => /\(B-MEAL/.test(String(e))) };
       const gate = runDuplicateStopGate(plan);
       row.duplicateStops = gate.duplicates.length;
       row.duplicateStopNames = gate.duplicates.map((d) => `${d.name}×${d.count}`);
-      const issues = validateResponse(plan, { dietary: p.dietaryAll, language: p.s.language, area: p.s.area, regions: [p.s.area], ...trip }, await gp.loadFoodIndex());
+      const foodIndex = await gp.loadFoodIndex();
+      const issues = validateResponse(plan, { dietary: p.dietaryAll, language: p.s.language, area: p.s.area, regions, ...trip }, foodIndex);
       row.dietaryCritical = hasCriticalDietaryViolation(issues);
+      row.dietaryViolations = issues.filter((i) => i && i.type === 'dietary_violation' && i.severity === 'critical').length;
+      // 이름 준수(정확 / 별칭으로만 회복 / 못 찾음) — 별칭 회복은 통과지만 원문 복사 실패로 따로 센다.
+      row.nameCompliance = foodNameCompliance(plan, foodIndex, p.s.area);
       row.unverifiedRestaurants = issues.filter((i) => i.type === 'unverified_restaurant').length;
       const sample = [plan?.tour_title, ...(plan?.days || []).map((d) => d.theme), ...(plan?.days || []).flatMap((d) => (d.stops || []).map((x) => x.tip))].filter(Boolean).join(' ');
       row.languageOk = LANG_RE[p.s.language].test(sample);

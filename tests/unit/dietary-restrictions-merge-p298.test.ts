@@ -43,8 +43,8 @@ describe('P298 dietary/dietaryRestrictions 합집합 통합 (SAFETY-CRITICAL)', 
 
   // ── 7지점 모두 dietaryAll 전달 ──────────────────────────────────────────────
 
-  it('지점1 — getFoodContext(area, dietaryAll, ...)', () => {
-    expect(src).toMatch(/getFoodContext\(area,\s*dietaryAll,/);
+  it('지점1 — 식당 목록 주입에 dietaryAll (2026-10-24: buildTripFoodContext — 식사 도시별 목록, 내부에서 getFoodContext)', () => {
+    expect(src).toMatch(/buildTripFoodContext\(\{\s*cities:\s*mealCities,\s*area,\s*dietaryAll,/);
   });
 
   it('지점2 — logPromptMetrics diet: dietaryAll', () => {

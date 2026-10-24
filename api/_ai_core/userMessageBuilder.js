@@ -40,6 +40,21 @@ import { normalizeRegionKey } from './responseValidator.js';
 // P241: Kbeauty/DMZ/Haenyeo/Jjimjilbang/HangangBike
 const P241_ACTIVITY_STYLES = new Set(['Kbeauty', 'Dmz', 'Haenyeo', 'Jjimjilbang', 'HangangBike']);
 
+/**
+ * 2026-10-24 (식이 준수 P1): Halal/Vegan/Vegetarian 요청에만 붙는 요청별 식이 계약. 시스템 프롬프트는 정적이라
+ * (R-P166 — language 외 파라미터 금지) "전국 체인 예외는 이 요청에 적용되지 않음"을 여기서 명시한다.
+ * 비식이 요청에는 아무것도 붙지 않는다(빈 문자열).
+ */
+export function buildDietarySafetyBlock(dietPreferences) {
+  const diets = (Array.isArray(dietPreferences) ? dietPreferences : [])
+    .filter((d) => /^(halal|vegan|vegetarian)$/i.test(String(d || '')));
+  if (diets.length === 0) return '';
+  return '\n\n--- DIETARY SAFETY FOR THIS REQUEST (' + diets.join(' + ') + ') ---\n'
+    + '- Every food stop must be a restaurant from the VERIFIED RESTAURANT DATABASE list for that day\'s city that satisfies ALL of: ' + diets.join(', ') + '.\n'
+    + '- The nationwide-chain / category fallback does NOT apply to this request. No chains, no category descriptions, no hotel or convenience-store meals.\n'
+    + '- Copy "name" exactly as listed (including text after commas). If the list cannot cover a meal, leave that meal out.\n---';
+}
+
 export function buildUserMessage({
   shaped,
   body,
@@ -96,6 +111,7 @@ export function buildUserMessage({
   const staticPrefix =
     spotContext +
     foodContext +
+    buildDietarySafetyBlock(dietPreferencesForPrompt) +
     attractionsContext +
     mountainContext +
     runningContext +

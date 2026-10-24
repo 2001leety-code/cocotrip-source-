@@ -52,6 +52,34 @@ describe('selected meal evidence', () => {
     expect(check(meal(), [{ ...trusted, name: '합성 식당 | Synthetic Garden' }])).toBe(true);
   });
 
+  // 2026-10-24 (식이 준수 P2): DB 이름의 첫 쉼표 앞부분 별칭 — 실측 "무채색" ↔ "무채색, 홍대 연남동 맛집 & 술집".
+  describe('comma-head alias (DB side only, uniqueness over every city-consistent row)', () => {
+    const full = '무채색, 홍대 연남동 맛집 & 술집';
+    const commaRow: Row = { ...trusted, name: full, nameEn: 'Muchaesaek' };
+    it('accepts both the full listed name and the head before the first comma', () => {
+      expect(check(meal({ name: full }), [commaRow])).toBe(true);
+      expect(check(meal({ name: '무채색' }), [commaRow])).toBe(true);
+    });
+    it('rejects an exact name colliding with another row\'s comma-head alias (real DB pair shape), full name still unique', () => {
+      const rows = [{ ...trusted, name: '무쇠김치삼겹', nameEn: '' }, { ...trusted, name: '무쇠김치삼겹, 명동 맛집 & 고기집', nameEn: '' }];
+      expect(findSelectedFoodRow(meal({ name: '무쇠김치삼겹' }), rows, { dayCity: 'seoul' })).toBeNull();
+      expect(check(meal({ name: '무쇠김치삼겹' }), rows)).toBe(false);
+      expect(check(meal({ name: '무쇠김치삼겹, 명동 맛집 & 고기집' }), rows)).toBe(true);
+    });
+    it.each([false, true])('rejects a trusted/unverified alias collision regardless of row order: %s', (reverse) => {
+      const unverified = { ...trusted, name: '무채색', nameEn: '', verification_status: 'unverified', source: 'naver_local' };
+      const rows = reverse ? [unverified, commaRow] : [commaRow, unverified];
+      expect(check(meal({ name: '무채색' }), rows)).toBe(false);
+    });
+    it('rejects a comma-head match whose row is in another city', () => {
+      const busanRow = { ...commaRow, city: 'busan' };
+      expect(check(meal({ name: '무채색' }), [busanRow])).toBe(false);
+    });
+    it.each(['무채색 홍대점', '무채', '무채색, 홍대', '홍대 연남동 맛집 & 술집'])('never truncates the model output or matches a substring: %s', (name) => {
+      expect(check(meal({ name }), [commaRow])).toBe(false);
+    });
+  });
+
   it.each(['Synthetic', 'Synthetic Garden Annex', 'Synthetic-Garden'])('rejects partial, branch, or altered names: %s', name => {
     expect(check(meal({ name }), [trusted])).toBe(false);
   });

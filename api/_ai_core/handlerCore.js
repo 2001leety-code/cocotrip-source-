@@ -12,8 +12,7 @@
 import { resolveLlmApiKey, adoptLlmMock, enterLlmMockContext } from '../_shared/llm/index.js';
 import { verifyUserToken, resolveGuestAnonOwner, isGuestCheckoutAllowed } from '../_shared/user-auth.js';
 import { getSpotContext } from '../_spots_helper.js';
-import { getFoodContext } from '../_food_helper.js';
-import { enforceDietaryCoverage } from './dietaryCoverageGate.js';
+import { enforceDietaryCoverage, mealCitiesForTrip, buildTripFoodContext } from './dietaryCoverageGate.js';
 import { getAttractionsContext } from '../_attractions_helper.js';
 import { getMountainContextForPrompt } from '../_mountain_helper.js'; // P191 SAFETY: Trekking/Hallasan
 import { getRunningContextForPrompt } from '../_running_helper.js'; // P237: Running 코스 16개 DB
@@ -197,7 +196,10 @@ export default async function handler(req, res) {
     lastUid = uid;
     // P298 (2026-05-29) SAFETY-CRITICAL: 할랄/비건이 dietaryRestrictions 칸으로 들어옴 (WizardForm DIETARY_RESTRICTION_KEYS). dietPrefs 만 보던 검증·필터·추천·저장·dispatch 체인에 합집합 전달 ('None' 제외). 검증 함수(responseValidator/_food_helper)는 'Halal'/'Vegan' 문자열 처리 가능 — 값 도달만 하면 즉시 작동.
     const dietaryAll = [...new Set([...(Array.isArray(dietPrefs) ? dietPrefs : []), ...(Array.isArray(dietaryRestrictions) ? dietaryRestrictions : [])])].filter((d) => d && d !== 'None');
-    enforceDietaryCoverage({ foodIndex: await loadFoodIndex(), regions, area, dietaryAll }); // 2026-07-11 SAFETY: 검증 후보 0 도시 = 422 (dietaryCoverageGate.js)
+    // 2026-07-11 SAFETY: 검증 후보 0 도시 = 422. 2026-10-24: 식사 도시 집합(regions + 명시 입·출국 도시) 하나를
+    //   사전 검사와 아래 식당 목록 주입이 함께 쓴다(dietaryCoverageGate.js mealCitiesForTrip).
+    const mealCities = mealCitiesForTrip({ regions, area, arrivalCity, departureCity });
+    enforceDietaryCoverage({ foodIndex: await loadFoodIndex(), regions, area, dietaryAll, arrivalCity, departureCity });
 
     // ── Phase 4 A/B test: planner mode 결정 (uid > guestEmail > sessionId) ───
     // sessionId 는 client 가 보낼 수 있는 anonymous 식별자 (현재 미사용이지만 향후
@@ -237,13 +239,12 @@ export default async function handler(req, res) {
     try { spotContext = getSpotContext(area, 6) || ''; }
     catch (spotErr) { console.warn('[ai-planner-full] getSpotContext failed:', spotErr.message); }
 
-    let foodContext = '';
-    try {
-      foodContext = getFoodContext(area, dietaryAll, priceRange, Math.min(40, Math.max(10, (durationDays || 1) * 4))) || ''; // P325: maxItems 일수비례(환각감소)
-      if (foodContext) console.log('[ai-planner-full] Food context injected:', foodContext.length, 'chars');
-    } catch (foodErr) {
-      console.warn('[ai-planner-full] getFoodContext failed:', foodErr.message);
-    }
+    // 2026-10-24: 식이 요청은 식사 도시마다 목록 — 어느 도시든 비거나 실패하면 모델 호출 전 422(던짐).
+    //   비식이 요청은 기존 단일 도시(area) 주입 그대로, 실패 시 빈 문자열. P325: maxItems 일수비례(환각감소).
+    const foodContext = buildTripFoodContext({
+      cities: mealCities, area, dietaryAll, priceRange, maxItems: Math.min(40, Math.max(10, (durationDays || 1) * 4)),
+    });
+    if (foodContext) console.log('[ai-planner-full] Food context injected:', foodContext.length, 'chars');
     // P190 attractions + P191 Trekking/Hallasan + P237 Running 컨텍스트 주입.
     let attractionsContext = '', mountainContext = '', runningContext = '';
     try { attractionsContext = getAttractionsContext({ city: area, styles, language, maxLocations: 6 }) || ''; } catch (e) { console.warn('[ai-planner-full] getAttractionsContext failed:', e.message); }
@@ -390,7 +391,7 @@ export default async function handler(req, res) {
 
     // ── Must-visit 맛집 추천 ──────────────────────────────────────────────
     // 저장 전 마지막 식이/식사 게이트; avoidStopNames 는 재생성에만 적용한다.
-    const foodIndexForQuality = await withStep('finalGate', () => applyRecommendedRestaurants(itinerary, { area, dietPrefs: dietaryAll, regions, blockModeUsed, language, styles, avoidStopNames }));
+    const foodIndexForQuality = await withStep('finalGate', () => applyRecommendedRestaurants(itinerary, { area, dietPrefs: dietaryAll, regions, blockModeUsed, language, styles, avoidStopNames, departureTime, arrivalTime }));
 
     // ── 예상 여행비 (판매가 아님) — 화면·PDF 표시용. 결제/적립/환불에 절대 넘기지 말 것.
     //    원장은 결제 검증된 booking.amountUSD 만 본다(booking-processor readVerifiedLedgerBasis).

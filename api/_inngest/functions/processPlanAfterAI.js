@@ -310,6 +310,7 @@ export const processPlanAfterAI = inngest.createFunction(
         styles: ctx.styles,
         avoidStopNames: Array.isArray(ctx.avoidStopNames) ? ctx.avoidStopNames : [],
         blockModeUsed: ctx.plannerMode === 'block_mode',
+        body: ctx.body, // 2026-10-24: 종단 게이트 필수 끼니 판정의 출국·도착 시각(departureTime 은 ctx 에 없어 body 에서)
       });
     });
 

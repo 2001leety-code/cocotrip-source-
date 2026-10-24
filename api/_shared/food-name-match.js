@@ -1,6 +1,7 @@
 /**
- * Select one food-index row by an exact, nonblank canonical name or established
- * English alias. Trust is deliberately checked only after identity is unique.
+ * Select one food-index row by an exact, nonblank canonical name, established
+ * English alias, or the DB name's head before the first ',' / '|' (2026-10-24).
+ * Uniqueness is over ALL city-consistent rows (names + aliases), then trust is checked.
  * No fuzzy/brand matching, row deduplication, or coordinate-based rescue.
  */
 import { isRowCityConsistent } from './food-row-provenance.js';
@@ -28,7 +29,11 @@ export function findSelectedFoodRow(stop, foodIndex, {
   const candidates = foodIndex.filter((row) => {
     if (!row || typeof row !== 'object') return false;
     const canonical = typeof row.name === 'string' ? row.name.split('|')[0] : '';
-    const rowNames = [canonical, row.nameEn].map(normalizedName).filter(Boolean);
+    // 2026-10-24: DB 이름의 첫 ',' 또는 '|' 앞부분도 별칭 — "무채색, 홍대 연남동 맛집 & 술집" ↔ 모델 출력 "무채색".
+    //   DB 쪽만 자르고 모델 출력은 자르지 않는다(부분 문자열 매칭 아님). 별칭 때문에 두 행이 맞으면 아래 유일성
+    //   검사가 null 로 돌려준다(예: "무쇠김치삼겹" vs "무쇠김치삼겹, 명동 맛집 & 고기집").
+    const head = typeof row.name === 'string' ? row.name.split(/[,|]/)[0] : '';
+    const rowNames = [canonical, row.nameEn, head].map(normalizedName).filter(Boolean);
     if (!rowNames.some((name) => names.includes(name))) return false;
     const rowCity = cityKey(row.city);
     if (rowCity && stopCity && rowCity !== stopCity) return false;
