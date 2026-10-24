@@ -175,11 +175,12 @@ function projectStop(stop, privateEndpoint, language, terms) {
   const result = project(stop, stopSchema, terms);
   // 2026-10-24 재방문 안내: 저장 언어 문장을 떼고 보는 사람 언어 고정 문장으로(언어 전환 재투영에도 1회·정확한 언어).
   if (typeof result.tip === 'string') result.tip = stripRevisitNote(result.tip, stop.revisit_note);
-  if (typeof result.tip_en === 'string') result.tip_en = stripRevisitNote(result.tip_en, stop.revisit_note);
   if (stop.revisit === true && stop.category === 'food') {
     const note = revisitNote(language);
+    // 본문 = 화면과 같은 폴백(tip 우선, 1회) — 저장 tip 이 비어도 옛 필드 설명이 사라지지 않게.
+    const body = String(stripRevisitNote(result.tip || result.tip_en || '', stop.revisit_note) || '').trim();
     result.revisit_note = note;
-    result.tip = result.tip ? `${result.tip} ${note}` : note;
+    result.tip = body ? `${body} ${note}` : note;
   }
   if (Array.isArray(stop.recommended_items)) {
     result.recommended_items = stop.recommended_items.map((item) => project(item,

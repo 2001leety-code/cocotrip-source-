@@ -8,6 +8,7 @@ import { matchFoodPlaceholder } from '../../api/_ai_core/blockMode.js';
 import { replaceViolatingFoodStops } from '../../api/_ai_core/dietaryStopReplacer.js';
 import { pass2Resolve } from '../../api/_ai_core/threePassPipeline.js';
 import { buildDietarySafetyBlock } from '../../api/_ai_core/userMessageBuilder.js';
+import { buildSystemPrompt } from '../../api/_ai_core/buildPrompt.js';
 import { PLAN_RESPONSE_SCHEMA } from '../../api/_ai_core/geminiPipeline.js';
 import { judgeRepeats } from '../../api/_ai_core/revisitPolicy.js';
 
@@ -68,6 +69,18 @@ describe('F — dietaryStopReplacer: all requested diets on one row, staged fall
     q.days[1].stops.push({ category: 'food', name: '식당A', start_time: '18:00' });
     expect(replaceViolatingFoodStops(q, [viol('halal')], [A], ['Halal'], 'seoul', 'en')).toMatchObject({ replaced: 0, failed: 1 });
   });
+  // 2026-10-24 r4 (Astra P2): 처리 단위 = stop 객체 — 같은 이름의 위반 식당이 두 날에 있으면 둘 다 교체.
+  it('the same unverified restaurant U on Day 1 and Day 2 → both stops are replaced (handled per stop object)', () => {
+    const uStop = (t: string): Stop => ({ category: 'food', name: '식당U', start_time: t, lat: 37.561, lng: 126.981 });
+    const p = { days: [
+      { day: 1, city: 'seoul', stops: [uStop('12:00')] },
+      { day: 2, city: 'seoul', stops: [uStop('12:00')] },
+    ] };
+    // validateResponse 는 stop 마다 위반 1건 — 같은 이름 두 건(라벨만 같고 다른 stop).
+    const r = replaceViolatingFoodStops(p, [viol('halal'), viol('halal')].map((v) => ({ ...v, stop: '식당U' })), [A, B, U], ['Halal'], 'seoul', 'en');
+    expect(r).toMatchObject({ replaced: 2, failed: 0 });
+    expect([p.days[0].stops[0].name, p.days[1].stops[0].name].sort()).toEqual(['식당A', '식당B']);
+  });
   it('unverified rows stay out of every stage', () => {
     const p = plan([{ category: 'food', name: '식당A', start_time: '12:00' }], bad());
     replaceViolatingFoodStops(p, [viol('halal')], [A, U], ['Halal'], 'seoul', 'en');
@@ -108,6 +121,19 @@ describe('H — prompt block and schema', () => {
     expect(b).toMatch(/"revisit": true/);
     expect(b).toMatch(/Never the same restaurant twice on the same day; never a restaurant outside the list/);
     expect(buildDietarySafetyBlock(['Meat'])).toBe('');
+  });
+  // 2026-10-24 r4 (Astra P1): 시스템 프롬프트와 식이 블록이 같은 규칙 — "끼니를 비워라" 가 식이 손님에게 남아 있으면 안 된다.
+  it('system prompt and dietary block agree: dietary guests revisit on a different day instead of leaving the meal empty', () => {
+    const sys = buildSystemPrompt('en');
+    expect(sys).toContain('Halal/Vegan/Vegetarian guests: if that city\'s list has fewer restaurants than that city\'s meals, do NOT leave the meal empty');
+    expect(sys).toContain('set "revisit": true on that stop. Never the same restaurant twice on the same day.');
+    expect(sys).toContain('Other guests: if the list is too short, leave that meal out.');
+    expect(sys).not.toContain('Each restaurant at most once per trip');
+    expect(sys).not.toContain('If the list is too short, leave that meal out — never invent one.');
+    const b = buildDietarySafetyBlock(['Vegan']);
+    expect(b).not.toMatch(/leave that meal out/);
+    expect(b).toMatch(/do NOT leave the meal empty/);
+    expect(b).toMatch(/Never invent a restaurant/);
   });
   it('stop schema has revisit: BOOLEAN in properties and propertyOrdering', () => {
     const stopItems = (PLAN_RESPONSE_SCHEMA as { properties: { days: { items: { properties: { stops: { items: { properties: Record<string, { type: string }>; propertyOrdering: string[] } } } } } } })

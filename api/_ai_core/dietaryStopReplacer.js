@@ -90,23 +90,32 @@ export function replaceViolatingFoodStops(itinerary, issues, foodIndex, dietaryA
   //   Halal+Vegan 손님에게 halal 만 맞는 행으로 바꿔 vegan 위반을 새로 만들던 구멍). 같은 stop 의 위반 여러 건은 한 번만.
   const safety = [...new Set((Array.isArray(dietaryArr) ? dietaryArr : []).map((d) => String(d).toLowerCase())
     .filter((d) => d === 'halal' || d === 'vegan' || d === 'vegetarian'))];
+  // 위반 stop 찾기 (label 매칭 — validateResponse 와 동일 라벨 규칙). 2026-10-24: 처리 단위 = **stop 객체** —
+  //   같은 이름의 위반 식당이 Day1·Day2 에 둘 다 있으면 둘 다 교체(이름 단위면 두 번째가 남았다), 같은 stop 의
+  //   식이별 위반 여러 건은 한 번만. 교체 전에 대상을 다 모은다(교체로 바뀐 이름이 다음 라벨 매칭에 끼지 않게).
+  const targets = [];
   const handled = new Set();
-
+  const seenLabels = new Set();
   for (const v of violations) {
-    if (handled.has(v.stop)) continue;
-    handled.add(v.stop);
-    // 위반 stop 찾기 (label 매칭 — validateResponse 와 동일 라벨 규칙)
-    let target = null;
-    let targetDay = null;
-    let dayCity = null; // UI city key of the day that owns the stop; null when unknown (no seoul fallback)
+    if (seenLabels.has(v.stop)) continue;
+    seenLabels.add(v.stop);
+    let found = 0;
     for (const day of itinerary?.days || []) {
       for (const s of day?.stops || []) {
         const label = (s?.name || s?.display_name || '').split('|')[0].trim();
-        if (label && label === v.stop) { target = s; targetDay = day; dayCity = resolveUiCityKey(day?.city) || resolveUiCityKey(area); break; }
+        if (!label || label !== v.stop || handled.has(s)) continue;
+        handled.add(s);
+        found += 1;
+        targets.push({ v, target: s, targetDay: day });
       }
-      if (target) break;
     }
-    if (!target || target.category !== 'food') { result.failed++; continue; }
+    if (found === 0) result.failed++;
+  }
+
+  for (const { v, target, targetDay } of targets) {
+    // UI city key of the day that owns the stop; null when unknown (no seoul fallback)
+    const dayCity = resolveUiCityKey(targetDay?.city) || resolveUiCityKey(area);
+    if (target.category !== 'food') { result.failed++; continue; }
 
     const diets = safety.length > 0 ? safety : [String(v.diet || '').toLowerCase()];
     const hasCoord = Number.isFinite(target.lat) && Number.isFinite(target.lng);

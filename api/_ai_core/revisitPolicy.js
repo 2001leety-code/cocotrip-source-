@@ -242,7 +242,8 @@ function applyRow(stop, row, diets, language) {
  * @param {object} itinerary — in place
  * @param {{foodIndex?: object[], dietary?: string[], avoidStopNames?: string[], language?: string}} [ctx]
  * @param {{mode?: 'replace'|'markOnly'}} [opts]
- * @returns {{changes: Array<{day: number, action: 'replace'|'mark'|'unmark', from: string, to: string}>}}
+ * @returns {{changes: Array<{day: number, action: 'replace'|'mark'|'unmark', from: string, to: string, stop?: object}>}}
+ *   replace 항목은 교체된 stop 참조를 함께 준다 — 동선 계산 뒤 호출부가 그 stop 의 이동 구간을 비우는 데 쓴다.
  */
 export function normalizeRevisits(itinerary, ctx, { mode = 'replace' } = {}) {
   const changes = [];
@@ -282,7 +283,7 @@ export function normalizeRevisits(itinerary, ctx, { mode = 'replace' } = {}) {
         clearRevisit(stop);
         stop._replaced_for_revisit = from;
         finalRow = pick;
-        changes.push({ day: dayNo, action: 'replace', from, to: rowName(pick) });
+        changes.push({ day: dayNo, action: 'replace', from, to: rowName(pick), stop });
       } else if (unused.length === 0 && entry.minute !== null) {
         const todayFree = eligible.filter((r) => !state.visitedToday.has(r));
         const exhausted = eligible.every((r) => state.visitedBefore.has(r));
@@ -299,7 +300,7 @@ export function normalizeRevisits(itinerary, ctx, { mode = 'replace' } = {}) {
           stop.revisit = true;
           stop._replaced_for_revisit = from;
           finalRow = pick;
-          changes.push({ day: dayNo, action: 'replace', from, to: rowName(pick) });
+          changes.push({ day: dayNo, action: 'replace', from, to: rowName(pick), stop });
           changes.push({ day: dayNo, action: 'mark', from: rowName(pick), to: rowName(pick) });
         }
       }
@@ -317,6 +318,27 @@ export function normalizeRevisits(itinerary, ctx, { mode = 'replace' } = {}) {
 }
 
 /**
+ * 교체된 stop 의 이동 구간(그 stop 으로 오는 구간 + 다음 stop 으로 가는 구간)을 비운다 — 옛 식당 기준 이동·시간·교통비가
+ * 남지 않게(R2). 재계산 함수가 없는 경로(수정 API)용; 비워진 구간은 화면에서 이동 정보 없음으로 보인다.
+ * @returns {number} 비운 구간 수
+ */
+export function clearReplacedLegs(itinerary, changes) {
+  let n = 0;
+  const replaced = new Set((changes || []).filter((c) => c && c.action === 'replace' && c.stop).map((c) => c.stop));
+  for (const day of Array.isArray(itinerary && itinerary.days) ? itinerary.days : []) {
+    const stops = Array.isArray(day && day.stops) ? day.stops : [];
+    stops.forEach((s, i) => {
+      if (!replaced.has(s)) return;
+      for (const t of [s, stops[i + 1]]) {
+        if (!t) continue;
+        for (const f of ['travelFromPrev', 'transit_from_prev']) if (f in t) { delete t[f]; n += 1; }
+      }
+    });
+  }
+  return n;
+}
+
+/**
  * 재방문(revisit: true) food stop tip 끝에 안내 1문장(R6) — planPersister.applyRevisitNotes 로도 내보낸다.
  * 먼저 모든 stop 의 tip 에서 기존 안내(4개 언어 + 저장된 revisit_note)를 떼고, 정규화 결과 revisit===true 인
  * food stop 에만 다시 붙인다 → 언어 바뀜·표시 해제·pass3 tip 덮어쓰기 뒤에도 문장 1회·정확한 언어. revisit_note 에 저장.
@@ -329,10 +351,10 @@ export function applyRevisitNotes(itinerary, { language } = {}) {
     for (const stop of Array.isArray(day && day.stops) ? day.stops : []) {
       if (!stop || typeof stop !== 'object') continue;
       const prior = stop.revisit_note;
-      // 신 스키마 tip 만(CLAUDE.md B-2) — 렌더러는 tip 우선이라 안내가 붙는 곳도 tip 뿐.
+      // 안내는 tip 에만 저장. 본문은 화면과 같은 폴백(tip 우선) — tip 이 비고 옛 필드에만 설명이 있던 stop 도 설명이 남게.
       if (typeof stop.tip === 'string') stop.tip = stripRevisitNote(stop.tip, prior);
       if (stop.category === 'food' && stop.revisit === true) {
-        const tip = typeof stop.tip === 'string' ? stop.tip.trim() : '';
+        const tip = String(stripRevisitNote(stop.tip || stop.tip_en || '', prior) || '').trim();
         stop.tip = tip ? `${tip} ${note}` : note;
         stop.revisit_note = note;
         stop._revisit_note = true;

@@ -499,7 +499,9 @@ export function computeQualityScore(itinerary, dietary, _area, foodIndex, opts =
     language_mismatch:     countLanguageMismatch(stopsList, lang),
     bad_address_prefix:    countBadAddressPrefix(stopsList),
     // 2026-10-24: 식이 손님이면 종단 게이트와 같은 재방문 판정(허용 재방문은 중복 아님).
-    duplicate_stops:       countDuplicateStops(stopsList, Array.isArray(foodIndex) && foodIndex.length ? { foodIndex, dietary } : null, itinerary),
+    duplicate_stops:       countDuplicateStops(stopsList, Array.isArray(foodIndex) && foodIndex.length
+      ? { foodIndex, dietary, avoidStopNames: Array.isArray(opts.avoidStopNames) ? opts.avoidStopNames : [] }
+      : null, itinerary),
     tight_schedule:        sched.tight,
     loose_schedule:        sched.loose,
     route_failure:         countRouteFailures(itinerary),

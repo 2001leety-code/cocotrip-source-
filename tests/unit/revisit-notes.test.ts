@@ -7,8 +7,10 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { REVISIT_NOTE, revisitNote, stripRevisitNote } from '../../src/lib/revisitNote.js';
 import { applyRevisitNotes as persisterApply } from '../../api/_ai_core/planPersister.js';
-import { applyRevisitNotes, normalizeRevisits, judgeRepeats } from '../../api/_ai_core/revisitPolicy.js';
+import { applyRevisitNotes, normalizeRevisits, judgeRepeats, clearReplacedLegs } from '../../api/_ai_core/revisitPolicy.js';
 import { projectPublicPlan } from '../../api/_shared/public-plan-projection.js';
+import { runDuplicateStopGate } from '../../api/_ai_core/finalItineraryGate.js';
+import { computeQualityScore } from '../../api/_ai_core/qualityMetrics.js';
 
 type Stop = Record<string, unknown>;
 const read = (p: string) => readFileSync(resolve(process.cwd(), p), 'utf8');
@@ -108,14 +110,66 @@ describe('modify API and translation wiring', () => {
     expect(second(p).tip).toBe('Try the curry.');
     expect(judgeRepeats(p, { foodIndex: [A], dietary: ['Halal'] }).duplicates).toEqual([]);
   });
-  it('modify source: swapped stop drops revisit fields; save path = normalize(markOnly) → notes → duplicate gate (422)', () => {
+  // 2026-10-24 r4 (Astra P2): 수정 API 는 replace 모드 — 블록 변경으로 생긴 반복을 미사용 적격 행으로 교체하고 저장(200),
+  //   교체된 stop 의 앞뒤 이동 구간은 비운다(이 API 는 구간 재계산이 없다 — 옛 식당 기준 이동이 남지 않게).
+  it('modify: a block change created a repeat while an unused candidate exists → replaced, legs cleared, gate ok (200 path)', () => {
+    const B = { ...A, name: '합성B', nameEn: '합성B EN', lat: 37.57, lng: 126.99 };
+    const p = { days: [
+      { day: 1, city: 'seoul', stops: [{ category: 'food', name: '합성A', start_time: '12:00', verified: true }] },
+      { day: 2, city: 'seoul', stops: [
+        { category: 'culture', name: 'Spot', start_time: '10:00' },
+        { category: 'food', name: '합성A', start_time: '12:00', verified: true, travelFromPrev: { mode: 'walk' }, transit_from_prev: { est_min: 5 } },
+        { category: 'culture', name: 'Spot2', start_time: '14:00', travelFromPrev: { mode: 'bus' } },
+      ] },
+    ] };
+    const ctx = { foodIndex: [A, B], dietary: ['Halal'] };
+    const { changes } = normalizeRevisits(p, ctx, { mode: 'replace' });
+    expect(clearReplacedLegs(p, changes)).toBe(3);
+    expect(p.days[1].stops[1]).toMatchObject({ name: '합성B' });
+    expect(p.days[1].stops[1]).not.toHaveProperty('travelFromPrev');
+    expect(p.days[1].stops[1]).not.toHaveProperty('transit_from_prev');
+    expect(p.days[1].stops[2]).not.toHaveProperty('travelFromPrev');
+    expect(runDuplicateStopGate(p, ctx).ok).toBe(true);
+  });
+  it('modify: no candidate left and the repeat is on the same day → gate rejects (422 path)', () => {
+    const p = { days: [{ day: 1, city: 'seoul', stops: [
+      { category: 'food', name: '합성A', start_time: '12:00', verified: true },
+      { category: 'food', name: '합성A', start_time: '18:00', verified: true },
+    ] }] };
+    const ctx = { foodIndex: [A], dietary: ['Halal'] };
+    normalizeRevisits(p, ctx, { mode: 'replace' });
+    expect(runDuplicateStopGate(p, ctx)).toMatchObject({ ok: false, code: 'DUPLICATE_STOP_VIOLATION' });
+  });
+  it('modify source: swapped stop drops revisit fields; save path = normalize(replace) → clear legs → notes → duplicate gate (422)', () => {
     const src = read('api/ai-planner-modify.js');
     expect(src).toMatch(/delete swapped\.revisit;\s*delete swapped\.revisit_note;\s*delete swapped\._revisit_note;/);
-    const i = src.indexOf("normalizeRevisits(itinerary, revisitCtx, { mode: 'markOnly' })");
+    const i = src.indexOf("normalizeRevisits(itinerary, revisitCtx, { mode: 'replace' })");
     expect(i).toBeGreaterThan(-1);
+    expect(src.indexOf('clearReplacedLegs(itinerary, changes)', i)).toBeGreaterThan(i);
     expect(src.indexOf('applyRevisitNotes(itinerary, { language })', i)).toBeGreaterThan(i);
     expect(src.indexOf('runDuplicateStopGate(itinerary, revisitCtx)', i)).toBeGreaterThan(i);
     expect(src.indexOf('runDuplicateStopGate(itinerary, revisitCtx)')).toBeLessThan(src.indexOf('// ── persist'));
+  });
+  it('tip body falls back exactly like the screen (tip, then the legacy field) so an old description is not lost', () => {
+    const legacyField = ['tip', 'en'].join('_');
+    const p = plan({ tip: '', [legacyField]: 'Old curry note.' });
+    applyRevisitNotes(p, { language: 'en' });
+    expect(second(p).tip).toBe(`Old curry note. ${REVISIT_NOTE.en}`);
+    const out = projectPublicPlan({ id: 'z', isPublic: true, input: {}, itinerary: plan({ tip: '', [legacyField]: 'Old curry note.' }) }, { language: 'ja' });
+    expect((out as { itinerary: { days: Array<{ stops: Stop[] }> } }).itinerary.days[1].stops[0].tip).toBe(`Old curry note. ${REVISIT_NOTE.ja}`);
+  });
+  it('avoid list: pool {A,B} with B excluded and A revisited on another day — gate, score and background ctx agree (0 duplicates)', () => {
+    const B = { ...A, name: '합성B', nameEn: '합성B EN' };
+    const p = plan();
+    const ctx = { foodIndex: [A, B], dietary: ['Halal'], avoidStopNames: ['합성B'] };
+    expect(runDuplicateStopGate(p, ctx)).toMatchObject({ ok: true, duplicates: [] });
+    expect(runDuplicateStopGate(p, { foodIndex: [A, B], dietary: ['Halal'] }).ok).toBe(false); // 제외 목록 없으면 B 미사용 → 미소진
+    expect(computeQualityScore(p, ['Halal'], 'seoul', [A, B], { avoidStopNames: ['합성B'] }).metrics.duplicate_stops.count).toBe(0);
+    const bg = read('api/_ai_core/backgroundPipelines.js');
+    expect(bg).toMatch(/const revisitCtx = \{ foodIndex: bgFoodIndex, dietary, language, avoidStopNames: Array\.isArray\(avoidStopNames\) \? avoidStopNames : \[\] \};/);
+    expect(read('api/_ai_core/handlerCore.js')).toMatch(/triggerPass3BackgroundIfPending\(\{[^}]*\}, avoidStopNames \}\);/);
+    expect(read('api/_ai_core/planPersister.js')).toMatch(/avoidStopNames: Array\.isArray\(plannerIntent\?\.revision\?\.avoidStopNames\)/);
+    expect(read('api/_ai_core/geminiPipeline.js').match(/pass2Resolve\(itinerary, foodIndex, area, \{ dietary: dietaryArr, avoidStopNames: avoidArr \}\)/g)).toHaveLength(3);
   });
   it('translate-plan: note stripped before translation, target-language note attached after', () => {
     const src = read('api/translate-plan.js');

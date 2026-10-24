@@ -393,6 +393,7 @@ export const processPlanAfterAI = inngest.createFunction(
       dietary: ctx.dietPrefs,
       styles: ctx.styles,
       tripTimes: tripTimesFrom(ctx.body), // 2026-10-24: 종단 게이트 필수 끼니 판정(sync 경로와 동형)
+      avoidStopNames: Array.isArray(ctx.avoidStopNames) ? ctx.avoidStopNames : [], // 2026-10-24 재방문 정책: 같은 적격 집합
     });
 
     if (ctx.email) {

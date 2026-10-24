@@ -34,7 +34,7 @@ import {
 import { loadFoodIndex } from './_ai_core/geminiPipeline.js';
 import { backfillStopEndTimes } from './_ai_core/planPersister.js';
 import { validatePatternStructure } from './_ai_core/responseValidator.js';
-import { normalizeRevisits, applyRevisitNotes } from './_ai_core/revisitPolicy.js';
+import { normalizeRevisits, applyRevisitNotes, clearReplacedLegs } from './_ai_core/revisitPolicy.js';
 import { runDuplicateStopGate } from './_ai_core/finalItineraryGate.js';
 
 export const maxDuration = 30;
@@ -773,11 +773,13 @@ export default async function handler(req, res) {
       )));
     }
 
-    // ── 2026-10-24 재방문 정책: 저장 전 전체 일정 재정규화(동선 계산 뒤라 교체 없이 표시만 — R2) + 안내 재부착 + 같은 판정.
-    //   첫 방문이 지워지면 뒤 stop 의 표시가 빠지고, 승인되지 않는 반복은 기존처럼 422(저장 안 함).
+    // ── 2026-10-24 재방문 정책: 저장 전 전체 일정 재정규화(replace — 블록 변경으로 생긴 반복을 미사용 적격 행으로 교체,
+    //   소진이면 다른 날 재방문 표시) + 안내 재부착 + 같은 판정. 이 API 는 이동 구간을 재계산하지 않으므로(기존 swap 과 동일)
+    //   교체된 stop 의 앞뒤 구간은 비운다(옛 식당 기준 이동·교통비가 남지 않게). 승인되지 않는 반복은 기존처럼 422(저장 안 함).
     {
-      const revisitCtx = { foodIndex, dietary: dietPrefs, language };
-      normalizeRevisits(itinerary, revisitCtx, { mode: 'markOnly' });
+      const revisitCtx = { foodIndex, dietary: dietPrefs, language, avoidStopNames: Array.isArray(planData.planner_intent_v1?.revision?.avoidStopNames) ? planData.planner_intent_v1.revision.avoidStopNames : [] };
+      const { changes } = normalizeRevisits(itinerary, revisitCtx, { mode: 'replace' });
+      clearReplacedLegs(itinerary, changes);
       applyRevisitNotes(itinerary, { language });
       const dupGate = runDuplicateStopGate(itinerary, revisitCtx);
       if (!dupGate.ok) {

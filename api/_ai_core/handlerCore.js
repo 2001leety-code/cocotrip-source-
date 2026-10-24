@@ -331,6 +331,7 @@ export default async function handler(req, res) {
       // PLAN_VALIDATION_FAILED). Customers still get hard validation.
       isAdminBypass: !!gate.isAdminBypass,
       identifierForBucketing, // P172: PCT bucketing 입력 (admin > PCT 우선)
+      avoidStopNames, // 2026-10-24 재방문 정책: pass2 적격 집합 = 게이트와 같은 제외 목록
       body: {
         regions,
         arrival_airport,
@@ -419,7 +420,7 @@ export default async function handler(req, res) {
 
     // ── P168/P170/P171/P172/P173: Pass3 background trigger (fire-and-forget; backgroundPipelines.js 추출; gate.isAdminBypass 명시 전달)
     //   2026-08-24: dietary/styles 전달 — background enrich 결과가 종단 검증을 통과할 때만 Firestore 를 덮어쓴다.
-    triggerPass3BackgroundIfPending({ adminDb, planId, language, apiKey, itinerary, isAdminBypass: !!gate.isAdminBypass, identifierForBucketing, dietary: dietaryAll, styles, tripTimes: { departure_time: departureTime, arrival_time: arrivalTime } });
+    triggerPass3BackgroundIfPending({ adminDb, planId, language, apiKey, itinerary, isAdminBypass: !!gate.isAdminBypass, identifierForBucketing, dietary: dietaryAll, styles, tripTimes: { departure_time: departureTime, arrival_time: arrivalTime }, avoidStopNames });
 
     // ── JSON 응답 ────────────────────────────────────────────────────────
     // P169: streaming 모드에서는 이미 early response 전송 완료 → skip.
