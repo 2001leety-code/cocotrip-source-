@@ -56,6 +56,7 @@ export function loadCompareDeps() {
 /** 시나리오 → 운영과 같은 요청 정규화·식사 도시·사전 검사·도시별 목록·프롬프트. 목록이 비면 throw(운영과 같이 생성 전 422). */
 export function buildScenarioInputs(key, d) {
   const s = SCENARIOS[key];
+  // startDate = 여행 1일차(inclusive); 일정은 startDate 부터 durationDays 일간 (끝날 포함).
   const startDate = new Date(Date.now() + 14 * 86400000).toISOString().slice(0, 10);
   const body = {
     guestName: 'Compare-Test', pax: s.pax, styles: ['Food', 'Culture'], area: s.area, durationDays: s.durationDays,

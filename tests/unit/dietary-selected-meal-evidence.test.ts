@@ -80,6 +80,28 @@ describe('selected meal evidence', () => {
     });
   });
 
+  // 2026-10-24 (O6-r5): 식별자 우선 — stop.name 으로 먼저 판정, display_name 은 name 후보 0개일 때만.
+  describe('identifier-first (stop.name before display_name)', () => {
+    it('accepts the list line "<name> (<nameEn>)" copied whole into name, never a longer copy', () => {
+      expect(check(meal({ name: '합성 식당 (Synthetic Garden)' }), [trusted])).toBe(true);
+      expect(check(meal({ name: '합성 식당 (Synthetic Garden) [VEGAN]' }), [trusted])).toBe(false);
+      const commaRow = { ...trusted, name: '무채색, 홍대 연남동 맛집 & 술집', nameEn: 'Muchaesaek' };
+      expect(check(meal({ name: '무채색 (Muchaesaek)' }), [commaRow])).toBe(true);
+    });
+    it.each([false, true])('a trusted name row wins over a general row whose nameEn equals display_name (order %s)', reverse => {
+      const general = { ...trusted, name: '다른 식당', nameEn: 'Namaste Garden', tag: 'general', verification_status: undefined, source: 'google_places' };
+      const rows = reverse ? [general, trusted] : [trusted, general];
+      expect(check(meal({ display_name: 'Namaste Garden' }), rows)).toBe(true);
+    });
+    it('a name exactly matching two rows is still rejected', () => {
+      expect(check(meal({ name: '합성 식당 (Synthetic Garden)' }), [trusted, { ...trusted }])).toBe(false);
+    });
+    it('falls back to display_name only when name matches no row', () => {
+      expect(check(meal({ name: '합성 식당 본점', display_name: 'Synthetic Garden' }), [trusted])).toBe(true);
+      expect(check(meal({ name: '합성 식당 본점', display_name: 'Synthetic Garden' }), [trusted, { ...trusted, name: '합성 식당 2', verification_status: 'unverified' }])).toBe(false);
+    });
+  });
+
   it.each(['Synthetic', 'Synthetic Garden Annex', 'Synthetic-Garden'])('rejects partial, branch, or altered names: %s', name => {
     expect(check(meal({ name }), [trusted])).toBe(false);
   });

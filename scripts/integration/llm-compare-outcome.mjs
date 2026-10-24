@@ -195,7 +195,8 @@ export function evaluateCompareRun(run) {
 
 /**
  * 식당 stop 이름 준수 집계 (2026-10-24 r1) — exact = **stop.name** 이 목록에 표시된 원문 식별 이름(getFoodContext 가
- * 찍는 `name.split('|')[0]`)과 같음. display_name·영문명·쉼표 앞 별칭으로만 행이 찾아지면 aliasOnly(원문 복사 실패).
+ * 찍는 `name.split('|')[0]`, 괄호 앞 이름)과 같음. display_name·영문명·쉼표 앞 별칭·"<이름> (<nameEn>)" 통째 복사로만
+ * 행이 찾아지면 aliasOnly(원문 복사 실패).
  * 행을 못 찾으면 unmatched. 행 찾기는 주입(findRow = food-name-match.findSelectedFoodRow) — 이 모듈은 순수.
  * @returns {{exact: number, aliasOnly: number, unmatched: number}}
  */

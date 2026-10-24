@@ -216,6 +216,38 @@ describe('r1 — compare tally: exact means stop.name equals the listed identity
   });
 });
 
+// ── r5 (유료 run 4: Claude 이름 규칙 오해 2종) ───────────────────────────────
+describe('r5 — identifier-first matching: stop.name decides before display_name', () => {
+  const haepo = { name: '해포', nameEn: 'Haepo', city: 'seoul', tag: 'vegan', verification_status: 'vegan_restaurant', address: '서울특별시 마포구 1' };
+  const naver = { name: '나마스테 해운대점', nameEn: '', city: 'busan', tag: 'halal', verification_status: 'muslim_friendly', address: '부산광역시 해운대구 1' };
+  const google = { name: '나마스테 인도 레스토랑', nameEn: 'Namaste Haeundae', city: 'busan', tag: 'general', source: 'google_places', address: '부산광역시 해운대구 2' };
+  const planOf = (city: string, stop: object) => ({ days: [{ day: 1, city, stops: [{ category: 'food', start_time: '12:00', ...stop }] }] });
+
+  it('"해포 (Haepo)" copied whole from the list line matches the 해포 row; the harness counts it aliasOnly (exact = name before the parenthesis)', () => {
+    expect(findSelectedFoodRow({ name: '해포 (Haepo)' }, [haepo], { dayCity: 'seoul' })).toBe(haepo);
+    expect(findSelectedFoodRow({ name: '해포 (Haepo) [VEGAN]' }, [haepo], { dayCity: 'seoul' })).toBeNull(); // 모델 출력은 자르지 않는다
+    expect(foodNameCompliance(planOf('seoul', { name: '해포 (Haepo)' }), [haepo], 'seoul', findSelectedFoodRow)).toEqual({ exact: 0, aliasOnly: 1, unmatched: 0 });
+    expect(foodNameCompliance(planOf('seoul', { name: '해포', display_name: 'Haepo' }), [haepo], 'seoul', findSelectedFoodRow)).toEqual({ exact: 1, aliasOnly: 0, unmatched: 0 });
+  });
+
+  it('name matches one row and display_name matches another row\'s nameEn → the name row wins (not ambiguous)', () => {
+    const rows = [naver, google];
+    expect(findSelectedFoodRow({ name: '나마스테 해운대점', display_name: 'Namaste Haeundae' }, rows, { dayCity: 'busan' })).toBe(naver);
+    expect(findSelectedFoodRow({ name: '나마스테 해운대점', display_name: 'Namaste Haeundae' }, [...rows].reverse(), { dayCity: 'busan' })).toBe(naver);
+  });
+
+  it('a name exactly matching two rows stays ambiguous (null), whatever display_name says', () => {
+    const twin = { ...haepo, verification_status: 'unverified', source: 'naver_local' };
+    expect(findSelectedFoodRow({ name: '해포', display_name: 'Haepo' }, [haepo, twin], { dayCity: 'seoul' })).toBeNull();
+    expect(findSelectedFoodRow({ name: '해포 (Haepo)' }, [haepo, twin], { dayCity: 'seoul' })).toBeNull();
+  });
+
+  it('name unmatched → display_name still finds the row (step 2)', () => {
+    expect(findSelectedFoodRow({ name: '해포 망원점', display_name: 'Haepo' }, [haepo], { dayCity: 'seoul' })).toBe(haepo);
+    expect(findSelectedFoodRow({ name: '', display_name: 'Namaste Haeundae' }, [naver, google], { dayCity: 'busan' })).toBe(google);
+  });
+});
+
 describe('P1 — prompt contract', () => {
   const sys = buildSystemPrompt('en');
   it('top-level dietary rule (Astra wording), Vegetarian included', () => {
@@ -226,6 +258,11 @@ describe('P1 — prompt contract', () => {
   it('exact-name rule; the "reuse a restaurant" instruction is gone (the duplicate gate rejects it)', () => {
     expect(sys).toContain('"name" 은 목록에 표시된 원문 식별 이름이다. 쉼표 뒤 수식어·지점명·구두점까지 그대로 복사하고 줄이거나 번역하지 않는다. 번역은 "display_name" 에만 한다.');
     expect(sys).not.toMatch(/REUSE a DB restaurant/);
+  });
+  it('r5: "name" takes only the Korean identity name before the parenthesis (source string)', () => {
+    const src = read('api/_ai_core/buildPrompt.js');
+    expect(src).toContain('"name" 에는 목록 줄의 **괄호 앞 한국어 식별 이름만** 넣는다(예: "• 해포 (Haepo) [VEGAN] ⭐4.5" → "name": "해포"). 괄호 안 영문·[HALAL] 같은 표식·별점은 복사하지 않는다. 영문·번역은 "display_name" 에만 넣는다.');
+    expect(sys).toContain('괄호 앞 한국어 식별 이름만');
   });
   it('nationwide-chain exception and Busan signature dishes are conditioned on NO safety diet', () => {
     expect(sys).toMatch(/If NO "VERIFIED RESTAURANT DATABASE" appears in the message AND diet_preferences includes none of Halal\/Vegan\/Vegetarian/);
