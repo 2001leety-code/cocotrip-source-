@@ -24,14 +24,12 @@ import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import {
   entryToGuide,
-  classifyExisting,
   buildIndexFromLocalMeta,
   classifyGuideCandidates,
   buildPendingReview,
   GUIDE_CANONICAL_BASE,
-  LEGACY_BLOGGER_CUTOFF_PUBLISHED,
-  classifyPostCutoffBloggerTeaser,
-  extractCanonicalGuideSlugFromTeaser,
+  BLOGGER_NEWS_LABEL,
+  classifyFeedAgainstLocal,
 } from './sync-blog-guides.lib.mjs';
 import { auditGuideHtml } from './guide-html-safety.mjs';
 
@@ -40,6 +38,8 @@ const GUIDES_DIR = path.join(ROOT, 'src', 'content', 'guides');
 const INDEX_PATH = path.join(GUIDES_DIR, '_index.json');
 const SITEMAP_PATH = path.join(ROOT, 'public', 'sitemap.xml');
 const MANIFEST_PATH = path.join(ROOT, 'config', 'legacy-blogger-guide-import-ledger.json');
+// 2026-10-24: 검토된 Blogger 뉴스 기사 원장 — teaser 검사에서 건너뛸 글(slug + published 연-월). 없으면 빈 목록.
+const NEWS_LEDGER_PATH = path.join(ROOT, 'config', 'blogger-news-posts.json');
 const FEED_URL = 'https://cocotripkr.blogspot.com/feeds/posts/default?alt=json&max-results=500';
 
 const args = new Set(process.argv.slice(2));
@@ -83,33 +83,25 @@ const localFiles = readdirSync(GUIDES_DIR).filter((file) => file.endsWith('.json
 const readLocal = (slug) => JSON.parse(readFileSync(path.join(GUIDES_DIR, `${slug}.json`), 'utf8'));
 const localSlugs = new Set(localFiles.map((file) => file.replace(/\.json$/, '')));
 
-// 같은 slug 인데 다른 Blogger 글이면 조용히 스킵하지 않는다.
-const collisions = [];
-const postCutoffTeasers = [];
-for (const guide of guides) {
-  if (guide.published > LEGACY_BLOGGER_CUTOFF_PUBLISHED) {
-    const canonical = extractCanonicalGuideSlugFromTeaser(guide.html);
-    const localDoc = canonical.ok && localSlugs.has(canonical.slug) ? readLocal(canonical.slug) : null;
-    const teaser = classifyPostCutoffBloggerTeaser(guide, localDoc);
-    if (teaser.ok) postCutoffTeasers.push(guide);
-    else collisions.push(`${guide.slug}: invalid post-cutoff Blogger teaser (${teaser.reason})`);
-    continue;
-  }
-  if (!localSlugs.has(guide.slug)) continue;
-  const localDoc = readLocal(guide.slug);
-  const verdict = classifyExisting(localDoc.sourceUrl, guide.sourceUrl);
-  if (verdict === 'collision') collisions.push(`${guide.slug}: local source differs from feed (${guide.sourceUrl})`);
-  if (verdict === 'unknown') collisions.push(`${guide.slug}: local sourceUrl missing`);
+let newsLedger = [];
+try { newsLedger = JSON.parse(readFileSync(NEWS_LEDGER_PATH, 'utf8')); } catch (error) {
+  if (error && error.code !== 'ENOENT') throw error; // 깨진 원장은 조용히 무시하지 않는다
 }
+if (!Array.isArray(newsLedger)) throw new Error(`${path.basename(NEWS_LEDGER_PATH)} must be a JSON array`);
+
+// 같은 slug 인데 다른 Blogger 글이면 조용히 스킵하지 않는다.
+// cutoff 이후 글 중 검토된 뉴스(원장·라벨)만 teaser 검사에서 건너뛴다.
+const { collisions, postCutoffTeasers, newsPosts, candidates } = classifyFeedAgainstLocal({ guides, localSlugs, readLocal, newsLedger });
 for (const guide of postCutoffTeasers) console.log(`  TEASER ${guide.published} ${guide.slug}`);
+const newsCount = (kind) => newsPosts.filter((n) => n.kind === kind).length;
+console.log(`news(ledger)=${newsCount('ledger')} news(label)=${newsCount('label')}`);
+for (const { guide, kind } of newsPosts) console.log(`  NEWS(${kind}) ${guide.published} ${guide.slug}`);
 if (collisions.length) {
   for (const collision of collisions) console.error(`COLLISION ${collision}`);
+  console.error(`  뉴스 기사라면: 검토 후 config/blogger-news-posts.json 에 slug·published 를 추가하거나 Brain 발행기가 '${BLOGGER_NEWS_LABEL}' 라벨을 붙인다.`);
   process.exit(1);
 }
 
-const acceptedTeaserSources = new Set(postCutoffTeasers.map((guide) => guide.sourceUrl));
-const candidates = guides.filter((guide) => !localSlugs.has(guide.slug)
-  && !acceptedTeaserSources.has(guide.sourceUrl));
 const reviewState = classifyGuideCandidates(candidates, manifest);
 
 console.log(
