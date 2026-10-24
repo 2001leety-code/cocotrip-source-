@@ -204,6 +204,8 @@ export function usePlannerHandlers({ language, userEmail, setUserEmail }: UsePla
       setStatus('quickSuccess');
       void posthogTrack('preview_success', { language });
       setTimeout(() => {
+        // The timer can outlive the component (and, in unit tests, the DOM environment).
+        if (typeof document === 'undefined') return;
         document.getElementById('planner-quick-result')?.scrollIntoView({ behavior: 'smooth' });
       }, 100);
       return;
