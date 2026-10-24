@@ -13,6 +13,7 @@
  *   - Other Gemini errors               → re-thrown with code GEMINI_ERROR if missing.
  */
 import { createLlmModel, resolveLlmModel, resolveLlmProvider } from '../_shared/llm/index.js';
+import { geminiSchemaToJsonSchema, schemaTypeIssues } from '../_shared/llm/schema.js';
 import { repairAndParseJSON, cleanAddresses, sanitizeStops, validateResponse, hasCriticalDietaryViolation, validatePatternStructure, checkSoftQualityWarnings } from './responseValidator.js';
 import { applyDBMatcher } from './dbMatcher.js';
 import { captureError } from '../_shared/sentry.js';
@@ -881,6 +882,17 @@ const PLAN_RESPONSE_SCHEMA = {
 
 // Export for unit testing (회귀 검증).
 export { PLAN_RESPONSE_SCHEMA };
+// 2026-10-24: 응답 자료형·required 검사용(schemaTypeIssues) — 정리 함수 전에 쓴다.
+const PLAN_JSON_SCHEMA = geminiSchemaToJsonSchema(PLAN_RESPONSE_SCHEMA);
+
+/**
+ * 파싱된 플랜의 자료형 오류 목록. minimal fallback(코드가 만든 모양)·비객체는 검사 대상이 아니다.
+ * @returns {string[]}
+ */
+export function planSchemaTypeIssues(itinerary) {
+  if (!itinerary || typeof itinerary !== 'object' || itinerary.__repair_minimal_fallback) return [];
+  return schemaTypeIssues(itinerary, PLAN_JSON_SCHEMA);
+}
 
 // Per-instance sliding-window retry counter. Vercel containers don't share
 // state, but a single hot container handling many requests will surface a
@@ -1630,6 +1642,50 @@ export async function runGeminiPipeline({ apiKey, systemPrompt, userMessage, are
       }
     }
     console.log('[ai-planner-full] Parsed OK, days:', (itinerary.days || []).length);
+
+    // 2026-10-24: 자료형·required 검사를 정리 함수 **전에** — Claude 가 구조화 출력 없이(프롬프트 스키마) 답하면
+    //   `{"days":{}}`·숫자 address 같은 응답이 cleanAddresses/sanitizeStops 를 예외로 터뜨려 일반 500 이 됐다.
+    //   구조 오류로 받아 reinforced 재시도 1회 → 그래도 깨지면 기존 구조 오류 코드(PLAN_VALIDATION_FAILED).
+    //   자료형이 깨진 플랜은 저장·후처리를 못 하므로 admin bypass 도 throw. Gemini 구조화 출력은 사실상 0건.
+    let typeIssues = planSchemaTypeIssues(itinerary);
+    if (typeIssues.length > 0) {
+      console.warn('[planner] 🚨 schema type issues (legacy) — retrying with reinforced prompt:', typeIssues);
+      recordRetryAttempt('schema-types-legacy');
+      try {
+        const retryResult = await withTimeout((signal) =>
+          retryModel.generateContent({
+            contents: [{ role: 'user', parts: [{ text: userMessage }] }],
+            systemInstruction: { role: 'system', parts: [{ text: buildPatternReinforcedPrompt(systemPrompt, typeIssues) }] },
+          }, { signal }),
+          GEMINI_TIMEOUT_MS,
+          'legacy-retry-schema-types',
+        );
+        const retryCm = extractCacheMetadata(retryResult.response);
+        cacheMetadata = accumulateCacheMetadata(cacheMetadata, retryCm);
+        logCacheMetrics('schema-types-retry', retryCm, retryModel.modelId);
+        const retried = repairAndParseJSON(extractTextFromResponse(retryResult.response).trim());
+        const retriedIssues = !retried || retried.__repair_minimal_fallback
+          ? ['retry: no parseable plan'] : planSchemaTypeIssues(retried);
+        if (retriedIssues.length === 0) itinerary = retried;
+        typeIssues = retriedIssues;
+      } catch (retryErr) {
+        console.error('[planner] schema type retry failed:', retryErr.message);
+      }
+      if (typeIssues.length > 0) {
+        captureError(new Error('Plan schema type issues persist after retry'), {
+          route: 'ai-planner-full', mode: 'legacy', errorCount: typeIssues.length, sample: typeIssues.slice(0, 5),
+        }).catch(() => {});
+        const e = new Error(
+          'AI 응답이 구조 검증을 통과하지 못했습니다 (재시도 후에도 실패). ' +
+          '잠시 후 다시 시도해주시면 새 플랜이 생성됩니다. 운영팀에 알림이 전송됐습니다.'
+        );
+        e.code = 'PLAN_VALIDATION_FAILED';
+        e.statusCode = 500;
+        e.details = typeIssues.slice(0, 5);
+        throw e;
+      }
+      console.log('[planner] schema type retry succeeded (legacy)');
+    }
 
     cleanAddresses(itinerary);
     sanitizeStops(itinerary, language);
