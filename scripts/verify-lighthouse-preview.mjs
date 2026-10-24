@@ -13,59 +13,26 @@ const MAX_SAFE_ASSERTION_RESULTS_BYTES = 2 * 1024 * 1024;
 const MAX_SAFE_DIAGNOSTIC_SCAN = 256;
 const MAX_SAFE_DIAGNOSTIC_GROUPS = 32;
 
-// Fixed against treosh/lighthouse-ci-action 3e7e23f (bundled LHCI 0.15.1),
-// lighthouse:recommended, then this repository's reviewed .lighthouserc.json
-// overrides. Do not derive this from the run artifact: its IDs are untrusted.
-const RECOMMENDED_MIN_SCORE_ERROR_AUDITS = new Set([
-  'aria-allowed-attr', 'aria-allowed-role', 'aria-command-name', 'aria-conditional-attr',
-  'aria-deprecated-role', 'aria-dialog-name', 'aria-hidden-body', 'aria-hidden-focus',
-  'aria-input-field-name', 'aria-meter-name', 'aria-progressbar-name', 'aria-prohibited-attr',
-  'aria-required-attr', 'aria-required-children', 'aria-required-parent', 'aria-roles', 'aria-text',
-  'aria-toggle-field-name', 'aria-tooltip-name', 'aria-treeitem-name', 'aria-valid-attr-value',
-  'aria-valid-attr', 'button-name', 'clickjacking-mitigation', 'cls-culprits-insight',
-  'color-contrast', 'crawlable-anchors', 'definition-list', 'document-latency-insight',
-  'document-title', 'duplicate-id-aria', 'duplicated-javascript-insight', 'empty-heading',
-  'errors-in-console', 'font-display-insight', 'font-display', 'font-size', 'forced-reflow-insight',
-  'form-field-multiple-labels', 'frame-title', 'geolocation-on-start', 'has-hsts', 'heading-order',
-  'html-has-lang', 'html-lang-valid', 'html-xml-lang-mismatch', 'http-status-code',
-  'identical-links-same-purpose', 'image-alt', 'image-aspect-ratio', 'image-delivery-insight',
-  'image-redundant-alt', 'image-size-responsive', 'input-button-name', 'input-image-alt',
-  'inspector-issues', 'interaction-to-next-paint-insight', 'label-content-name-mismatch',
-  'landmark-one-main', 'lcp-discovery-insight', 'lcp-lazy-loaded', 'lcp-phases-insight',
-  'legacy-javascript-insight', 'link-in-text-block', 'link-name', 'link-text', 'meta-description',
-  'meta-refresh', 'meta-viewport', 'modern-http-insight', 'network-dependency-tree-insight',
-  'no-document-write', 'non-composited-animations', 'notification-on-start', 'object-alt',
-  'origin-isolation', 'paste-preventing-inputs', 'prioritize-lcp-image', 'redirects-http', 'robots-txt',
-  'select-name', 'skip-link', 'table-duplicate-name', 'table-fake-caption', 'target-size',
-  'td-has-header', 'td-headers-attr', 'th-has-data-cells', 'third-parties-insight',
-  'third-party-facades', 'total-byte-weight', 'unsized-images', 'uses-passive-event-listeners',
-  'valid-lang', 'valid-source-maps', 'video-caption', 'viewport-insight', 'accesskeys', 'bypass',
-  'canonical', 'charset', 'deprecations', 'dlitem', 'doctype', 'hreflang', 'label', 'list', 'listitem',
-  'redirects', 'tabindex', 'viewport',
-]);
-const RECOMMENDED_MAX_LENGTH_ERROR_AUDITS = new Set([
-  'efficient-animated-content', 'offscreen-images', 'unminified-css', 'unminified-javascript',
-  'unused-css-rules', 'unused-javascript', 'uses-optimized-images', 'uses-responsive-images',
-]);
-// The pinned recommended preset also emits warnings. is-crawlable is this
-// repository's warn override; omitted warnings must not become unknown errors.
-const RECOMMENDED_MIN_SCORE_WARN_AUDITS = new Set([
-  'bootup-time', 'first-meaningful-paint', 'mainthread-work-breakdown',
-  'max-potential-fid', 'speed-index', 'interactive', 'dom-size-insight',
-  'dom-size', 'is-on-https', 'server-response-time', 'is-crawlable',
-]);
-const RECOMMENDED_MAX_LENGTH_WARN_AUDITS = new Set([
-  'duplicated-javascript', 'legacy-javascript', 'cache-insight',
-  'modern-image-formats', 'render-blocking-insight', 'render-blocking-resources',
-  'uses-long-cache-ttl',
-]);
-const SAFE_CATEGORY_RULES = new Map([
+// Fixed against this repository's reviewed .lighthouserc.json (treosh/lighthouse-ci-action 3e7e23f,
+// bundled LHCI 0.15.1). Do not derive this from the run artifact: its IDs are untrusted.
+// 2026-10-24: lighthouse:recommended preset removed — it raised dozens of audits to error and every run
+// since 9/8 (#1381) failed on image/LCP/unused-bytes insights. Policy now = categories:accessibility
+// ≥0.85 is the only error; the other categories, four metric budgets and two audits
+// (errors-in-console, color-contrast) are warn. Budget reset is separate.
+// tests/unit/lighthouse-preview-auth.test.ts checks these rules against the config file.
+export const SAFE_CATEGORY_RULES = new Map([
   ['performance', { level: 'warn', expected: 0.5 }],
   ['accessibility', { level: 'error', expected: 0.85 }],
-  ['best-practices', { level: 'warn', expected: 0.8 }],
-  ['seo', { level: 'warn', expected: 0.85 }],
+  ['best-practices', { level: 'warn', expected: 0.5 }],
+  ['seo', { level: 'warn', expected: 0.5 }],
 ]);
-const SAFE_MAX_NUMERIC_WARN_RULES = new Map([
+// 2026-10-24 (Astra r1 P2): preset 제거로 사라진 개별 결함 신호 중 두 개는 warn 으로 남긴다 — 범주 점수가
+// 기준을 넘어도 콘솔 오류·색 대비 결함은 보이게. 0.9 = preset 시절과 같은 기준, 차단하지 않음.
+export const SAFE_MIN_SCORE_WARN_RULES = new Map([
+  ['errors-in-console', 0.9],
+  ['color-contrast', 0.9],
+]);
+export const SAFE_MAX_NUMERIC_WARN_RULES = new Map([
   ['first-contentful-paint', 3000],
   ['largest-contentful-paint', 4000],
   ['cumulative-layout-shift', 0.15],
@@ -108,16 +75,12 @@ function categoryRule(assertion) {
   return { auditId: `categories:${assertion.auditProperty}`, ...category, name: 'minScore', min: 0, max: 1 };
 }
 
-function recommendedRule(assertion) {
+function metricRule(assertion) {
   if (typeof assertion.auditId !== 'string' || assertion.auditProperty !== undefined) return null;
   const { auditId } = assertion;
-  if (RECOMMENDED_MIN_SCORE_ERROR_AUDITS.has(auditId) || RECOMMENDED_MIN_SCORE_WARN_AUDITS.has(auditId)) {
-    return { auditId, level: RECOMMENDED_MIN_SCORE_WARN_AUDITS.has(auditId) ? 'warn' : 'error',
-      expected: 0.9, name: 'minScore', min: 0, max: 1 };
-  }
-  if (RECOMMENDED_MAX_LENGTH_ERROR_AUDITS.has(auditId) || RECOMMENDED_MAX_LENGTH_WARN_AUDITS.has(auditId)) {
-    return { auditId, level: RECOMMENDED_MAX_LENGTH_WARN_AUDITS.has(auditId) ? 'warn' : 'error',
-      expected: 0, name: 'maxLength', min: 0, max: MAX_SAFE_AUDIT_LENGTH };
+  const minScoreExpected = SAFE_MIN_SCORE_WARN_RULES.get(auditId);
+  if (minScoreExpected !== undefined) {
+    return { auditId, level: 'warn', expected: minScoreExpected, name: 'minScore', min: 0, max: 1 };
   }
   const numericExpected = SAFE_MAX_NUMERIC_WARN_RULES.get(auditId);
   if (numericExpected !== undefined) {
@@ -127,25 +90,16 @@ function recommendedRule(assertion) {
 }
 
 function ruleForAssertion(assertion) {
-  const category = categoryRule(assertion);
-  if (category) {
-    if (assertion.name !== 'auditRan') return category;
-    return { ...category, expected: 1, name: 'auditRan', min: 0, max: 1 };
-  }
-  const recommended = recommendedRule(assertion);
-  if (!recommended || assertion.name !== 'auditRan') return recommended;
-  return { ...recommended, expected: 1, name: 'auditRan', min: 0, max: 1 };
+  const rule = categoryRule(assertion) || metricRule(assertion);
+  if (!rule || assertion.name !== 'auditRan') return rule;
+  return { ...rule, expected: 1, name: 'auditRan', min: 0, max: 1 };
 }
 
 function knownAssertionIdentity(assertion) {
   if (!isRecord(assertion)) return false;
   if (assertion.auditId === 'categories') return SAFE_CATEGORY_RULES.has(assertion.auditProperty);
   return typeof assertion.auditId === 'string'
-    && (RECOMMENDED_MIN_SCORE_ERROR_AUDITS.has(assertion.auditId)
-      || RECOMMENDED_MAX_LENGTH_ERROR_AUDITS.has(assertion.auditId)
-      || RECOMMENDED_MIN_SCORE_WARN_AUDITS.has(assertion.auditId)
-      || RECOMMENDED_MAX_LENGTH_WARN_AUDITS.has(assertion.auditId)
-      || SAFE_MAX_NUMERIC_WARN_RULES.has(assertion.auditId));
+    && (SAFE_MAX_NUMERIC_WARN_RULES.has(assertion.auditId) || SAFE_MIN_SCORE_WARN_RULES.has(assertion.auditId));
 }
 
 /**

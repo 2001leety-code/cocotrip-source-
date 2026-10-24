@@ -96,18 +96,14 @@ describe('pure Lighthouse preview result verification', () => {
     const output = safeLighthouseAssertionSummary([
       assertion({ message: PRIVATE_TEXT, url: `https://elsewhere.invalid/?key=${PRIVATE_TEXT}` }),
       assertion({ auditId: 'largest-contentful-paint', auditProperty: undefined, name: 'maxNumericValue', level: 'warn', expected: 4000, actual: 4001 }),
-      assertion({ auditId: 'document-title', auditProperty: undefined, name: 'minScore', expected: 0.9, actual: 0.8 }),
-      assertion({ auditId: 'unused-javascript', auditProperty: undefined, name: 'maxLength', expected: 0, actual: 3 }),
-      assertion({ auditId: 'image-alt', auditProperty: undefined, name: 'auditRan', expected: 1, actual: 0 }),
+      assertion({ auditId: 'categories', auditProperty: 'accessibility', name: 'auditRan', expected: 1, actual: 0 }),
       assertion({ auditProperty: 'performance', level: 'warn', expected: 0.5, actual: 0.4 }),
     ]);
     expect(output).toEqual({
       failures: [
         { auditId: 'categories:accessibility', level: 'error', actual: 0.84, expected: 0.85 },
         { auditId: 'largest-contentful-paint', level: 'warn', actual: 4001, expected: 4000 },
-        { auditId: 'document-title', level: 'error', actual: 0.8, expected: 0.9 },
-        { auditId: 'unused-javascript', level: 'error', actual: 3, expected: 0 },
-        { auditId: 'image-alt', level: 'error', actual: 0, expected: 1 },
+        { auditId: 'categories:accessibility', level: 'error', actual: 0, expected: 1 },
         { auditId: 'categories:performance', level: 'warn', actual: 0.4, expected: 0.5 },
       ],
       unknownCount: 0,
@@ -116,11 +112,24 @@ describe('pure Lighthouse preview result verification', () => {
     expect(JSON.stringify(output)).not.toContain(PRIVATE_TEXT);
   });
 
+  // 2026-10-24: lighthouse:recommended preset 제거 — preset 시절 audit(document-title·unused-javascript·image-alt·
+  //   dom-size-insight …)은 이제 정책 밖이라 이름을 내보내지 않고 unknown 으로만 센다.
+  it.each([
+    ['document-title', 'minScore', 0.9, 0.8, 'error'],
+    ['unused-javascript', 'maxLength', 0, 3, 'error'],
+    ['image-alt', 'auditRan', 1, 0, 'error'],
+    ['dom-size-insight', 'minScore', 0.9, 0.5, 'warn'],
+    ['is-crawlable', 'minScore', 0.9, 0, 'warn'],
+  ])('former preset audit %s is no longer a policy label (unknown, not reported)', (auditId, name, expected, actual, level) => {
+    expect(safeLighthouseAssertionSummary([assertion({ auditId, auditProperty: undefined, name, level, expected, actual })]))
+      .toEqual({ failures: [], unknownCount: 1, suppressedCount: 0 });
+  });
+
   it.each([
     ['performance', 'warn', 0.5, 0.4],
     ['accessibility', 'error', 0.85, 0.84],
-    ['best-practices', 'warn', 0.8, 0.79],
-    ['seo', 'warn', 0.85, 0.84],
+    ['best-practices', 'warn', 0.5, 0.49],
+    ['seo', 'warn', 0.5, 0.49],
   ])('uses the reviewed categories:%s metric and expected threshold', (category, level, expected, actual) => {
     const output = safeLighthouseAssertionSummary([
       assertion({ auditProperty: category, level, expected, actual }),
@@ -161,20 +170,25 @@ describe('pure Lighthouse preview result verification', () => {
     expect(safeLighthouseAssertionSummary([value]).failures).toEqual([]);
   });
 
-  it.each([
-    ...['bootup-time', 'first-meaningful-paint', 'mainthread-work-breakdown',
-      'max-potential-fid', 'speed-index', 'interactive', 'dom-size-insight',
-      'dom-size', 'is-on-https', 'server-response-time', 'is-crawlable']
-      .map(auditId => [auditId, 'minScore', 0.9, 0.5] as const),
-    ...['duplicated-javascript', 'legacy-javascript', 'cache-insight',
-      'modern-image-formats', 'render-blocking-insight', 'render-blocking-resources',
-      'uses-long-cache-ttl'].map(auditId => [auditId, 'maxLength', 0, 2] as const),
-  ])('classifies the pinned %s warning without changing its level', (auditId, name, expected, actual) => {
-    const input = assertion({ auditId, auditProperty: undefined, name, level: 'warn', expected, actual,
-      message: PRIVATE_TEXT, url: `${ORIGIN}/?key=${PRIVATE_TEXT}` });
-    expect(safeLighthouseAssertionSummary([input])).toEqual({
-      failures: [{ auditId, level: 'warn', expected, actual }], unknownCount: 0, suppressedCount: 0,
+  // Astra r1 P2: preset 제거 뒤에도 콘솔 오류·색 대비는 개별 warn 으로 보이고, 차단하지 않는다.
+  it.each(['errors-in-console', 'color-contrast'])('%s failing at warn is reported by name and does not block', (auditId) => {
+    const warning = assertion({ auditId, auditProperty: undefined, name: 'minScore', level: 'warn', expected: 0.9, actual: 0 });
+    expect(safeLighthouseAssertionSummary([warning])).toEqual({
+      failures: [{ auditId, level: 'warn', expected: 0.9, actual: 0 }], unknownCount: 0, suppressedCount: 0,
     });
+    const input = fixture();
+    input.assertionResults = [warning];
+    expect(verifyLighthousePreview(input)).toMatchObject({ ok: true, codes: [], warningCount: 1 });
+    // 같은 audit 이 error 로 오면 검토된 정책과 달라 이름 대신 suppressed 로만 센다
+    expect(safeLighthouseAssertionSummary([{ ...warning, level: 'error' }])).toEqual({ failures: [], unknownCount: 0, suppressedCount: 1 });
+  });
+
+  it.each([
+    ['first-contentful-paint', 3000, 3001],
+    ['total-blocking-time', 600, 601],
+  ])('a reviewed %s warning keeps its level: auditRan warns, an error-level copy is suppressed', (auditId, expected, actual) => {
+    const input = assertion({ auditId, auditProperty: undefined, name: 'maxNumericValue', level: 'warn', expected, actual,
+      message: PRIVATE_TEXT, url: `${ORIGIN}/?key=${PRIVATE_TEXT}` });
     const missing = { ...input, name: 'auditRan', expected: 1, actual: 0 };
     expect(safeLighthouseAssertionSummary([missing]).failures).toEqual([
       { auditId, level: 'warn', expected: 1, actual: 0 },
@@ -185,24 +199,24 @@ describe('pure Lighthouse preview result verification', () => {
   });
 
   it('groups only identical validated metrics so repeated routes do not consume the output cap', () => {
-    const warning = assertion({ auditId: 'dom-size-insight', auditProperty: undefined,
-      name: 'minScore', level: 'warn', expected: 0.9, actual: 0.5 });
+    const warning = assertion({ auditId: 'largest-contentful-paint', auditProperty: undefined,
+      name: 'maxNumericValue', level: 'warn', expected: 4000, actual: 4500 });
     const output = safeLighthouseAssertionSummary([
       ...Array.from({ length: 120 }, () => warning),
-      { ...warning, actual: 0.6 }, { ...warning, expected: 0.8 },
+      { ...warning, actual: 4600 }, { ...warning, expected: 3999 },
       assertion({ auditId: PRIVATE_TEXT }),
     ]);
     expect(output).toEqual({ failures: [
-      { auditId: 'dom-size-insight', level: 'warn', expected: 0.9, actual: 0.5, occurrences: 99 },
-      { auditId: 'dom-size-insight', level: 'warn', expected: 0.9, actual: 0.6 },
+      { auditId: 'largest-contentful-paint', level: 'warn', expected: 4000, actual: 4500, occurrences: 99 },
+      { auditId: 'largest-contentful-paint', level: 'warn', expected: 4000, actual: 4600 },
     ], unknownCount: 1, suppressedCount: 1 });
     expect(JSON.stringify(output)).not.toContain(PRIVATE_TEXT);
   });
 
   it('caps output while preserving fixed unknown and suppressed counts', () => {
-    const valid = assertion({ auditId: 'document-title', auditProperty: undefined, name: 'minScore', expected: 0.9, actual: 0.8 });
+    const valid = assertion({ actual: 0.8 });
     const unknown = assertion({ auditId: `untrusted-${PRIVATE_TEXT}`, auditProperty: undefined, name: 'minScore', expected: 0.9, actual: 0.8 });
-    const malformed = assertion({ auditId: 'document-title', auditProperty: undefined, name: 'minScore', expected: 0.91, actual: 0.8 });
+    const malformed = assertion({ expected: 0.91, actual: 0.8 });
     const output = safeLighthouseAssertionSummary([
       ...Array.from({ length: 21 }, (_, index) => ({ ...valid, actual: index / 100 })),
       ...Array.from({ length: 100 }, () => unknown), malformed,
