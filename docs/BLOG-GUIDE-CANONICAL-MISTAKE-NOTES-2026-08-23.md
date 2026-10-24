@@ -23,3 +23,8 @@
   projection 순서다. 이후 Blogger에는 짧은 canonical teaser만 둘 수 있다.
 - projection 적용은 기존 slug를 덮어쓰지 않는다. 같은 queueId/hash의 정확히 같은 문서만
   멱등 처리하고, guide JSON·목록·sitemap 중간 오류는 원래 바이트로 되돌린다.
+- 2026-10-24: 9/30부터 Brain 일일 뉴스 기사가 Blogger에 올라와 teaser 규칙에서 매일 COLLISION → guide-import-audit
+  연속 실패. 링크 수·본문 길이로 "뉴스"를 추측하면 `/guides/x` 오타나 정본 링크가 빠진 긴 가이드까지 숨기므로 쓰지 않는다.
+  뉴스로 건너뛰는 글은 검토된 원장 `config/blogger-news-posts.json`(slug + published 연-월) 또는 라벨 `cocotrip-news`만이다.
+  둘 다 없으면 계속 COLLISION이고, 원장·라벨이 있어도 `/guide/` 링크가 있으면 teaser로 검사한다. 웹으로 가져오지 않는다.
+  Brain 발행기가 라벨을 붙이는 작업은 Brain 레포 별건(운영자 승인)이다.

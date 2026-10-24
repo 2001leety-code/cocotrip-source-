@@ -339,6 +339,66 @@ export function classifyPostCutoffBloggerTeaser(guide, localDoc) {
   return { ok: true, reason: '' };
 }
 
+// 2026-10-24: Blogger 의 Brain 일일 뉴스 기사(9/30~)는 teaser 가 아니다. 휴리스틱(링크 수·길이)은 `/guides/x` 오타나
+// 정본 링크가 빠진 긴 가이드까지 숨기므로 쓰지 않는다 — 검토된 원장(config/blogger-news-posts.json) 또는 고정 라벨만 인정.
+// TODO(Brain 레포, 운영자 승인 별건): 뉴스 발행기가 Blogger 글에 BLOGGER_NEWS_LABEL 라벨을 붙이게 한다.
+export const BLOGGER_NEWS_LABEL = 'cocotrip-news';
+
+/**
+ * cutoff 이후 Blogger 글이 뉴스 기사로 **확인된** 경우의 근거: 'label' | 'ledger' | null.
+ *   label  = 라벨에 newsLabel(소문자 비교)
+ *   ledger = 원장에 slug + published 연-월 일치(blogspot slug 는 그 달 안에서만 유일)
+ * `/guide/` 링크가 하나라도 있으면 원장·라벨이 있어도 null — 가이드 teaser 로 검사한다(틀리면 COLLISION).
+ */
+export function newsArticleKind(guide, { newsLedger = [], newsLabel = BLOGGER_NEWS_LABEL } = {}) {
+  if (!guide || !/^\d{4}-\d{2}-\d{2}$/.test(String(guide.published || ''))
+    || guide.published <= LEGACY_BLOGGER_CUTOFF_PUBLISHED) return null;
+  const hrefs = [...String(guide.html || '').matchAll(/\bhref=(['"])(.*?)\1/gi)].map((match) => match[2]);
+  if (hrefs.some((href) => /\/guide\//i.test(href))) return null;
+  const label = String(newsLabel).toLowerCase();
+  if ((guide.labels || []).some((l) => String(l).toLowerCase() === label)) return 'label';
+  const month = guide.published.slice(0, 7);
+  const inLedger = (Array.isArray(newsLedger) ? newsLedger : []).some((entry) => entry && entry.slug === guide.slug
+    && typeof entry.published === 'string' && entry.published.slice(0, 7) === month);
+  return inLedger ? 'ledger' : null;
+}
+
+export function isNewsArticlePost(guide, opts) {
+  return newsArticleKind(guide, opts) !== null;
+}
+
+/**
+ * 피드 ↔ 로컬 판정(실행부의 충돌 검사 + 후보 계산). 순수 — 로컬 읽기는 readLocal 로 주입.
+ * cutoff 이후: 확인된 뉴스 → newsPosts(건너뜀), 아니면 teaser 검사(실패 = collision). cutoff 이전: sourceUrl 비교.
+ * 승인된 teaser·뉴스 글은 candidates 에서 빠진다(pending 으로 되살아나지 않게).
+ * @returns {{collisions: string[], postCutoffTeasers: object[], newsPosts: Array<{guide: object, kind: string}>, candidates: object[]}}
+ */
+export function classifyFeedAgainstLocal({ guides, localSlugs, readLocal, newsLedger = [] }) {
+  const collisions = [];
+  const postCutoffTeasers = [];
+  const newsPosts = [];
+  for (const guide of guides) {
+    if (guide.published > LEGACY_BLOGGER_CUTOFF_PUBLISHED) {
+      const kind = newsArticleKind(guide, { newsLedger });
+      if (kind) { newsPosts.push({ guide, kind }); continue; }
+      const canonical = extractCanonicalGuideSlugFromTeaser(guide.html);
+      const localDoc = canonical.ok && localSlugs.has(canonical.slug) ? readLocal(canonical.slug) : null;
+      const teaser = classifyPostCutoffBloggerTeaser(guide, localDoc);
+      if (teaser.ok) postCutoffTeasers.push(guide);
+      else collisions.push(`${guide.slug}: invalid post-cutoff Blogger teaser (${teaser.reason})`);
+      continue;
+    }
+    if (!localSlugs.has(guide.slug)) continue;
+    const localDoc = readLocal(guide.slug);
+    const verdict = classifyExisting(localDoc.sourceUrl, guide.sourceUrl);
+    if (verdict === 'collision') collisions.push(`${guide.slug}: local source differs from feed (${guide.sourceUrl})`);
+    if (verdict === 'unknown') collisions.push(`${guide.slug}: local sourceUrl missing`);
+  }
+  const skippedSources = new Set([...postCutoffTeasers, ...newsPosts.map((n) => n.guide)].map((guide) => guide.sourceUrl));
+  const candidates = guides.filter((guide) => !localSlugs.has(guide.slug) && !skippedSources.has(guide.sourceUrl));
+  return { collisions, postCutoffTeasers, newsPosts, candidates };
+}
+
 /** 대표 사진 = 본문의 첫 <img src>. 없으면 undefined — 빈 문자열도 대체 이미지도 만들지 않는다. */
 export function extractLeadImage(html) {
   return /<img[^>]+src="([^"]+)"/.exec(html)?.[1];

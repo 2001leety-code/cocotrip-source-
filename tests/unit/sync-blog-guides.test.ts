@@ -1,10 +1,13 @@
 import { describe, it, expect } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 // @ts-expect-error — .mjs 스크립트 lib (스크립트 전용, 타입 선언 없음)
 import {
   transformHtml, entryToGuide, classifyExisting, buildIndexFromLocalMeta,
   extractLeadImage, countWords, guideContentSha256, classifyGuideCandidates,
   buildPendingReview, isTrustedBloggerSourceUrl,
   classifyPostCutoffBloggerTeaser, extractCanonicalGuideSlugFromTeaser, guideHtmlSha256,
+  isNewsArticlePost, newsArticleKind, classifyFeedAgainstLocal, BLOGGER_NEWS_LABEL,
   GUIDE_CANONICAL_BASE as SCRIPT_GUIDE_CANONICAL_BASE,
   LEGACY_GUIDE_LEDGER_SCOPE,
   LEGACY_BLOGGER_CUTOFF_PUBLISHED,
@@ -270,6 +273,88 @@ describe('cutoff 이후 Blogger는 web-first guide의 짧은 teaser만 허용', 
       .toBe(false);
     expect(classifyPostCutoffBloggerTeaser(teaser, { ...local, slug: 'other-guide' }).ok)
       .toBe(false);
+  });
+
+  // 2026-10-24: Brain 일일 뉴스 기사(9/30~)는 검토된 원장(config/blogger-news-posts.json) 또는 고정 라벨로만 건너뛴다.
+  //   링크 수·길이 휴리스틱은 쓰지 않는다 — `/guides/x` 오타·정본 링크 빠진 긴 가이드를 숨기면 안 된다.
+  const newsLedger = JSON.parse(readFileSync(resolve(process.cwd(), 'config/blogger-news-posts.json'), 'utf8')) as Array<{ slug: string; published: string; reviewedBy: string; reason: string }>;
+  const para = '<p>Seoul officials said the program runs through the autumn with free admission, timed entry and guided sessions in English.</p>';
+  const longNewsHtml = Array.from({ length: 40 }, () => para).join('')
+    + '<p><a href="https://press.example.org/release">Press</a> <a href="https://cocotripkr.com/planner">Plan</a> '
+    + '<a href="https://cocotripkr.com/tours">Tours</a> <a href="https://www.visitseoul.net/">Visit Seoul</a> <a href="https://example.com/map">Map</a></p>';
+  const post = (s: string, published: string, over: Record<string, unknown> = {}) => ({
+    slug: s, title: `News ${s}`, published, labels: ['Seoul events'],
+    sourceUrl: `https://cocotripkr.blogspot.com/${published.slice(0, 4)}/${published.slice(5, 7)}/${s}.html`, html: longNewsHtml, ...over,
+  });
+  const classify = (guides: object[]) => classifyFeedAgainstLocal({ guides, localSlugs: new Set([slug]), readLocal: () => local, newsLedger });
+
+  it('원장 7건: 검토 필드 완비, 실제 피드 published 와 같은 slug·날짜 → 전부 news(ledger), 충돌 0, 후보 0', () => {
+    expect(newsLedger).toHaveLength(7);
+    for (const e of newsLedger) {
+      expect(e.slug).toMatch(/^[a-z0-9]+(?:-[a-z0-9]+)*$/);
+      expect(e.published).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+      expect(e.reviewedBy).toBeTruthy();
+      expect(e.reason).toBeTruthy();
+    }
+    const guides = newsLedger.map((e) => post(e.slug, e.published));
+    const r = classify(guides);
+    expect(r.collisions).toEqual([]);
+    expect(r.newsPosts.map((n: { kind: string }) => n.kind)).toEqual(Array(7).fill('ledger'));
+    expect(r.candidates).toEqual([]);
+  });
+
+  it('원장 slug 라도 published 월이 다르면(blogspot slug 는 그 달 안에서만 유일) news 아님 → COLLISION', () => {
+    const e = newsLedger[0];
+    const otherMonth = post(e.slug, '2026-12-01');
+    expect(newsArticleKind(otherMonth, { newsLedger })).toBeNull();
+    expect(classify([otherMonth]).collisions).toHaveLength(1);
+  });
+
+  it(`라벨 '${BLOGGER_NEWS_LABEL}'(대소문자 무관) → news(label), 원장 없이도 건너뜀`, () => {
+    const labeled = post('brand-new-news-item', '2026-10-24', { labels: ['K-pop', 'CocoTrip-News'] });
+    expect(newsArticleKind(labeled, { newsLedger: [] })).toBe('label');
+    const r = classify([labeled]);
+    expect(r.collisions).toEqual([]);
+    expect(r.newsPosts).toEqual([{ guide: labeled, kind: 'label' }]);
+    expect(r.candidates).toEqual([]);
+  });
+
+  it('원장·라벨 둘 다 없으면 링크 5개·긴 본문이어도 news 아님 → COLLISION(+ 운영자 안내는 실행부)', () => {
+    const unknownNews = post('unreviewed-news-item', '2026-10-24');
+    expect(isNewsArticlePost(unknownNews, { newsLedger })).toBe(false);
+    const r = classify([unknownNews]);
+    expect(r.collisions).toEqual([expect.stringMatching(/^unreviewed-news-item: invalid post-cutoff Blogger teaser/)]);
+    expect(r.newsPosts).toEqual([]);
+  });
+
+  it('`/guides/x` 오타 링크의 긴 가이드는 숨기지 않는다 → COLLISION', () => {
+    const typo = post('long-guide-with-typo', '2026-10-24', { html: `${longNewsHtml}<p><a href="https://cocotripkr.com/guides/${slug}">Read</a></p>` });
+    expect(isNewsArticlePost(typo, { newsLedger })).toBe(false);
+    expect(classify([typo]).collisions).toHaveLength(1);
+  });
+
+  it('원장에 있어도 `/guide/` 링크가 있으면 news 아님 → teaser 로 검사(정상 teaser 면 통과, 아니면 COLLISION)', () => {
+    const e = newsLedger[0];
+    const ledgerWithGuide = post(e.slug, e.published, { html: `${longNewsHtml}<p><a href="/guide/${slug}">Guide</a></p>` });
+    expect(newsArticleKind(ledgerWithGuide, { newsLedger })).toBeNull();
+    expect(classify([ledgerWithGuide]).collisions).toEqual([expect.stringMatching(/invalid post-cutoff Blogger teaser/)]);
+    const ledgerTeaser = { ...teaser, slug: e.slug, published: e.published };
+    const r = classify([ledgerTeaser]);
+    expect(r).toMatchObject({ collisions: [], newsPosts: [] });
+    expect(r.postCutoffTeasers).toEqual([ledgerTeaser]);
+  });
+
+  it('짧은 비가이드 링크 1개 글 → COLLISION (전체 분류 경로)', () => {
+    const shortOneLink = post('short-planner-link', '2026-10-24', { html: '<p>This short post has enough words but points travelers to the planner page only.</p><p><a href="/planner">Plan</a></p>' });
+    expect(classify([shortOneLink]).collisions).toHaveLength(1);
+  });
+
+  it('cutoff(2026-08-22) 이전 글은 원장·라벨과 무관하게 기존 이관 경로(로컬 없으면 후보)', () => {
+    const legacy = post('legacy-post', LEGACY_BLOGGER_CUTOFF_PUBLISHED, { labels: [BLOGGER_NEWS_LABEL] });
+    expect(newsArticleKind(legacy, { newsLedger: [{ slug: 'legacy-post', published: LEGACY_BLOGGER_CUTOFF_PUBLISHED }] })).toBeNull();
+    const r = classifyFeedAgainstLocal({ guides: [legacy], localSlugs: new Set<string>(), readLocal: () => null, newsLedger });
+    expect(r).toMatchObject({ collisions: [], newsPosts: [], postCutoffTeasers: [] });
+    expect(r.candidates).toEqual([legacy]);
   });
 });
 
