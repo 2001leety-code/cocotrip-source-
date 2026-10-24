@@ -249,6 +249,10 @@ export function matchesCuisinePrefs(item, dietPrefs) {
 export function getFoodContext(destination, dietPrefs = [], priceRange = 'Any', maxItems = 10) {
   const index = getFoodIndex();
   if (!index.length) return '';
+  // 2026-10-24 SAFETY: 식이 표기 정규화 — 아래 tag/fallback 판정이 'Halal'/'Vegan'/'Vegetarian' 대소문자를 그대로 비교해
+  //   소문자 'halal' 이 오면 일반 식당 목록이 됐다(getTagsForDiet default → general).
+  const CANON = { halal: 'Halal', vegan: 'Vegan', vegetarian: 'Vegetarian' };
+  dietPrefs = (Array.isArray(dietPrefs) ? dietPrefs : []).map((p) => CANON[String(p).toLowerCase()] || p);
 
   const dest = (destination || '').toLowerCase().trim();
   const tags = getTagsForDiet(dietPrefs);

@@ -11,12 +11,14 @@ import { resolve } from 'node:path';
 
 vi.mock('../../api/_shared/telegram-throttle.js', () => ({ throttledTelegramAlert: vi.fn(async () => {}) }));
 
-import { mealCitiesForTrip, buildTripFoodContext, enforceDietaryCoverage, hasSafetyDiet } from '../../api/_ai_core/dietaryCoverageGate.js';
+import { mealCitiesForTrip, buildTripFoodContext, enforceDietaryCoverage, hasSafetyDiet, canonicalDietPrefs } from '../../api/_ai_core/dietaryCoverageGate.js';
+import { getFoodContext } from '../../api/_food_helper.js';
+import { findSelectedFoodRow } from '../../api/_shared/food-name-match.js';
 import { buildSystemPrompt } from '../../api/_ai_core/buildPrompt.js';
 import { buildDietarySafetyBlock } from '../../api/_ai_core/userMessageBuilder.js';
 import { checkRequiredMeals } from '../../api/_ai_core/responseValidator.js';
 import { runFinalItineraryValidation, buildFinalGateError, tripTimesFrom, FINAL_GATE_MEAL_CODE, FINAL_GATE_DIETARY_CODE } from '../../api/_ai_core/finalItineraryGate.js';
-import { summarizeSafety, formatOutcome, evaluateCompareRun } from '../../scripts/integration/llm-compare-outcome.mjs';
+import { summarizeSafety, formatOutcome, evaluateCompareRun, foodNameCompliance } from '../../scripts/integration/llm-compare-outcome.mjs';
 
 const read = (p: string) => readFileSync(resolve(process.cwd(), p), 'utf8');
 
@@ -82,6 +84,64 @@ describe('P1 — meal cities: one set for coverage gate and list injection', () 
     expect(listAt).toBeGreaterThan(gateAt);
     for (const call of ['tryRunBlockMode({', 'runGeminiPipeline({']) expect(listAt, call).toBeLessThan(src.indexOf(call));
     expect(src).not.toMatch(/getFoodContext\(area,/);
+  });
+});
+
+// ── r1 (Astra dietary-code r1) ─────────────────────────────────────────────
+describe('r1 — coverage = intersection of all requested diets, real city keys, normalized diet values', () => {
+  const row = (over: object) => ({ name: 'R', city: 'seoul', address: '서울특별시 종로구 1', ...over });
+  const seoulHalal = row({ name: 'H', tag: 'halal', verification_status: 'muslim_friendly' });
+  const seoulVegan = row({ name: 'V', tag: 'vegan', verification_status: 'vegan_restaurant' });
+
+  it('Halal+Vegan: one halal row and one vegan row are not enough — a single row must satisfy both', () => {
+    expect(() => enforceDietaryCoverage({ foodIndex: [seoulHalal, seoulVegan], regions: ['seoul'], area: 'seoul', dietaryAll: ['Halal'] })).not.toThrow();
+    expect(() => enforceDietaryCoverage({ foodIndex: [seoulHalal, seoulVegan], regions: ['seoul'], area: 'seoul', dietaryAll: ['Halal', 'Vegan'] }))
+      .toThrowError(expect.objectContaining({ code: 'DIETARY_COVERAGE_UNAVAILABLE', details: 'seoul:halal+vegan' }));
+    // vegan 행은 vegetarian 도 충족(SSOT acceptTagsForDiet) — 교집합 통과
+    expect(() => enforceDietaryCoverage({ foodIndex: [seoulVegan], regions: ['seoul'], area: 'seoul', dietaryAll: ['Vegan', 'Vegetarian'] })).not.toThrow();
+  });
+
+  it('lowercase diet values are the same request (gate and list)', () => {
+    expect(() => enforceDietaryCoverage({ foodIndex: [seoulVegan], regions: ['seoul'], area: 'seoul', dietaryAll: ['halal'] }))
+      .toThrowError(expect.objectContaining({ details: 'seoul:halal' }));
+    expect(canonicalDietPrefs(['halal', 'VEGAN', 'Meat'])).toEqual(['Halal', 'Vegan', 'Meat']);
+    const getContext = vi.fn(() => '[LIST]');
+    buildTripFoodContext({ cities: ['seoul'], area: 'seoul', dietaryAll: ['halal'], priceRange: 'Any', maxItems: 10, getContext });
+    expect(getContext.mock.calls[0][1]).toEqual(['Halal']);
+  });
+
+  it('getFoodContext itself normalizes: lowercase "halal" on the real index lists only [HALAL] rows (never the general list)', () => {
+    const ctx = getFoodContext('seoul', ['halal'], 'Any', 10);
+    const lines = ctx.split('\n').filter((l) => l.trim().startsWith('•'));
+    expect(lines.length).toBeGreaterThan(0);
+    for (const l of lines) expect(l).toContain('[HALAL]');
+  });
+
+  it('incheon / suwon / unknown cities keep their own key (never Seoul) and are blocked when they have no trusted list', () => {
+    expect(mealCitiesForTrip({ regions: ['busan'], area: 'busan', arrivalCity: 'incheon' })).toEqual(['busan', 'incheon']);
+    expect(mealCitiesForTrip({ regions: ['수원'], area: '수원' })).toEqual(['suwon']);
+    expect(mealCitiesForTrip({ regions: ['seoul', 'gangneung', 'atlantis'], area: 'seoul' })).toEqual(['seoul', 'gangneung', 'atlantis']);
+    expect(() => enforceDietaryCoverage({ foodIndex: [seoulHalal], regions: ['incheon'], area: 'incheon', dietaryAll: ['Halal'] }))
+      .toThrowError(expect.objectContaining({ details: 'incheon:halal' }));
+    // 목록 주입: 목록 함수가 다른 도시(서울)로 resolve 할 도시는 호출조차 하지 않고 차단
+    const getContext = vi.fn((city: string) => `[LIST ${city}]`);
+    expect(() => buildTripFoodContext({ cities: ['busan', 'incheon'], area: 'busan', dietaryAll: ['Halal'], priceRange: 'Any', maxItems: 10, getContext }))
+      .toThrowError(expect.objectContaining({ details: 'incheon:halal' }));
+    expect(getContext.mock.calls.map((c) => c[0])).toEqual(['busan']);
+  });
+});
+
+describe('r1 — compare tally: exact means stop.name equals the listed identity name', () => {
+  const row = { name: '무채색, 홍대 연남동 맛집 & 술집', nameEn: 'Muchaesaek', city: 'seoul', tag: 'vegan', verification_status: 'vegan_restaurant', lat: 37.5, lng: 126.9 };
+  const planOf = (stop: object) => ({ days: [{ day: 1, city: 'seoul', stops: [{ category: 'food', start_time: '12:00', ...stop }] }] });
+  it.each([
+    [{ name: '무채색, 홍대 연남동 맛집 & 술집' }, 'exact'],
+    [{ name: '무채색', display_name: 'Muchaesaek' }, 'aliasOnly'], // 쉼표 뒤 원문 누락 — display_name 이 영문명과 맞아도 exact 아님
+    [{ name: 'Muchaesaek' }, 'aliasOnly'],
+    [{ name: '무채색 홍대점' }, 'unmatched'],
+  ])('%j → %s', (stop, kind) => {
+    const out = foodNameCompliance(planOf(stop), [row], 'seoul', findSelectedFoodRow);
+    expect(out).toEqual({ exact: kind === 'exact' ? 1 : 0, aliasOnly: kind === 'aliasOnly' ? 1 : 0, unmatched: kind === 'unmatched' ? 1 : 0 });
   });
 });
 

@@ -38,6 +38,7 @@
 import { randomUUID } from 'crypto'; // FEATURE_GUEST_ANON_AUTH: 게스트 익명 skeleton accessToken 발급용
 import { inngest } from '../client.js';
 import { initAdminDb } from '../../_ai_core/firestoreAdmin.js';
+import { failureDetailsOf, tripTimesFrom } from '../../_ai_core/finalItineraryGate.js';
 import {
   runRouteEnrichment,
   applyBackfillsAndTmoney,
@@ -111,6 +112,8 @@ export const processPlanAfterAI = inngest.createFunction(
             _streaming_in_progress: false,
             _streaming_error: 'inngest_worker_failure_p307',
             _streaming_error_message: (error?.message || 'unknown').slice(0, 500),
+            // 2026-10-24: 구조화 상세(종단 끼니 실패의 날짜·끼니·사유 등)가 직렬화돼 넘어오면 같이 남긴다.
+            ...(failureDetailsOf(error) ? { _streaming_error_details: failureDetailsOf(error) } : {}),
             _failed_at: new Date().toISOString(),
           },
           { merge: true },
@@ -386,6 +389,7 @@ export const processPlanAfterAI = inngest.createFunction(
       //   sync 호출(dietary: dietaryAll, styles)과 동일하게 맞춘다.
       dietary: ctx.dietPrefs,
       styles: ctx.styles,
+      tripTimes: tripTimesFrom(ctx.body), // 2026-10-24: 종단 게이트 필수 끼니 판정(sync 경로와 동형)
     });
 
     if (ctx.email) {

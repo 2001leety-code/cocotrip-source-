@@ -13,34 +13,57 @@
  * ⚠️ 옛 주석 "PayPal plan_issued_orders 마킹은 plan 저장 후" 는 **폐기된 설계**다. 그 지연 마킹이
  *    비원자 read-then-pass 라 동시 요청 둘이 모두 통과할 수 있었다 → 게이트 원자 선점 + 해제로 대체.
  */
-import { checkDietaryCoverage } from '../_shared/dietary-trust.js';
+import { dietaryEvidenceFor } from '../_shared/dietary-trust.js';
+import { isRowCityConsistent } from '../_shared/food-row-provenance.js';
 import { resolveCityCode, getFoodContext } from '../_food_helper.js';
 
 const SAFETY_DIETS = ['halal', 'vegan', 'vegetarian'];
+const CANONICAL_DIET = { halal: 'Halal', vegan: 'Vegan', vegetarian: 'Vegetarian' };
 
 export const hasSafetyDiet = (dietaryAll) => (dietaryAll || []).some((d) => SAFETY_DIETS.includes(String(d).toLowerCase()));
+/** 요청된 안전 식이(소문자, 중복 제거). */
+const safetyDietsOf = (dietaryAll) => [...new Set((dietaryAll || []).map((d) => String(d).toLowerCase()).filter((d) => SAFETY_DIETS.includes(d)))];
+
+// 식이 요청의 도시 키 — 공용 resolver 는 인천·수원·미등록 도시를 seoul 로 묶는다(일반 목록용 그룹핑). 식이 요청에서
+// 그대로 쓰면 인천 손님이 서울 신뢰 목록을 받는다 → 실제 도시 키를 유지한다(그 도시 신뢰 행이 없으면 아래 검사가 차단).
+const KO_CITY = { '서울': 'seoul', '인천': 'incheon', '수원': 'suwon' };
+function mealCityCode(token) {
+  const t = String(token || '').toLowerCase().trim();
+  const mapped = resolveCityCode(t);
+  if (mapped !== 'seoul' || /seoul|서울/.test(t)) return mapped;
+  return KO_CITY[t] || t;
+}
 
 /**
  * 2026-10-24 (식이 준수 P1): 이 여행에서 **식사하는 도시** 집합 — 사전 커버리지 검사와 식당 목록 주입이 같은 집합을 쓴다.
  * = regions(없으면 area) + 명시된 입국·출국 도시. 공항 코드만으로 도시를 추가하지 않는다(ICN 도착 ≠ 서울 식사).
- * 빈 값은 건너뛴다(resolveCityCode('') 는 seoul 폴백이라 그대로 넣으면 서울이 끼어든다).
+ * 빈 값은 건너뛴다(resolveCityCode('') 는 seoul 폴백이라 그대로 넣으면 서울이 끼어든다). 인천·수원 등은 서울로 바꾸지 않는다.
  * @returns {string[]} _food_index city 코드, 입력 순서 유지·중복 제거
  */
 export function mealCitiesForTrip({ regions, area, arrivalCity, departureCity }) {
   const base = Array.isArray(regions) && regions.length ? regions : [area];
   const named = [...base, arrivalCity, departureCity].filter((c) => typeof c === 'string' && c.trim());
-  return [...new Set(named.map((c) => resolveCityCode(c)))];
+  return [...new Set(named.map((c) => mealCityCode(c)))];
 }
 
 /**
+ * 2026-10-24 (r1): 도시마다 **요청 식이 전부를 한 행이 동시에** 만족하는 trusted 후보가 1곳 이상이어야 통과
+ * (예: Halal+Vegan 서울 — 각각은 있어도 교집합 0 이면 차단). 판정 SSOT = dietaryEvidenceFor(신뢰 등급·vegan⊇vegetarian).
  * @throws {Error & {code: 'DIETARY_COVERAGE_UNAVAILABLE', statusCode: 422}}
  */
 export function enforceDietaryCoverage({ foodIndex, regions, area, dietaryAll, arrivalCity, departureCity }) {
-  if (!hasSafetyDiet(dietaryAll)) return;
+  const diets = safetyDietsOf(dietaryAll);
+  if (diets.length === 0) return;
   const cities = mealCitiesForTrip({ regions, area, arrivalCity, departureCity });
-  const cov = checkDietaryCoverage(foodIndex, cities, dietaryAll);
-  if (cov.ok) return;
-  throw coverageUnavailableError(dietaryAll, cov.missing.map((m) => `${m.city}:${m.diet}`).join(', '));
+  const missing = cities.filter((city) => !(foodIndex || []).some((r) => r && r.city === city && isRowCityConsistent(r)
+    && diets.every((d) => dietaryEvidenceFor(r, d))));
+  if (missing.length === 0) return;
+  throw coverageUnavailableError(dietaryAll, missing.map((c) => `${c}:${diets.join('+')}`).join(', '));
+}
+
+/** 식이 값 표기 정규화 — 'halal' 도 'Halal' 로(목록 함수가 대소문자를 구분해 소문자면 일반 목록이 됐다). */
+export function canonicalDietPrefs(dietaryAll) {
+  return (Array.isArray(dietaryAll) ? dietaryAll : []).map((d) => CANONICAL_DIET[String(d).toLowerCase()] || d);
 }
 
 /**
@@ -57,18 +80,21 @@ export function buildTripFoodContext({ cities, area, dietaryAll, priceRange, max
       return '';
     }
   }
+  const prefs = canonicalDietPrefs(dietaryAll);
   const parts = [];
   const empty = [];
   for (const city of cities) {
+    // 목록 함수는 도시를 다시 resolve 한다 — 다른 도시 목록(예: incheon → seoul)이 될 도시는 목록 없음으로 차단.
+    if (resolveCityCode(city) !== city) { empty.push(city); continue; }
     let ctx = '';
-    try { ctx = getContext(city, dietaryAll, priceRange, maxItems) || ''; } catch (err) {
+    try { ctx = getContext(city, prefs, priceRange, maxItems) || ''; } catch (err) {
       console.warn('[ai-planner-full] getFoodContext failed for', city, err && err.message);
     }
     if (ctx) parts.push(ctx); else empty.push(city);
   }
   if (empty.length) {
-    const diets = (dietaryAll || []).filter((d) => SAFETY_DIETS.includes(String(d).toLowerCase())).map((d) => String(d).toLowerCase());
-    throw coverageUnavailableError(dietaryAll, empty.flatMap((c) => diets.map((d) => `${c}:${d}`)).join(', '));
+    const diets = safetyDietsOf(dietaryAll);
+    throw coverageUnavailableError(dietaryAll, empty.map((c) => `${c}:${diets.join('+')}`).join(', '));
   }
   return parts.join('');
 }

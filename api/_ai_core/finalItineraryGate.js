@@ -113,6 +113,19 @@ export function runFinalItineraryValidation(itinerary, ctx = {}) {
   return { ok: true, code: null, issues, violations, zeroFoodDays, requiredMealIssues };
 }
 
+/**
+ * 2026-10-24: 오류 객체의 구조화 상세(e.details — 예: 종단 게이트의 날짜·끼니·사유 목록)를 HTTP 응답·실패 문서용으로
+ * 정리한다. 문자열 배열(최대 5개, 각 300자)만 — 그 외 모양은 버린다. 없으면 undefined.
+ * (planCloseout·Inngest onFailure 공용 — 순수 모듈이라 여기 둔다.)
+ * @returns {string[]|undefined}
+ */
+export function failureDetailsOf(error) {
+  const raw = error && error.details;
+  const list = Array.isArray(raw) ? raw : (typeof raw === 'string' && raw ? [raw] : []);
+  const out = list.filter((d) => typeof d === 'string' && d).slice(0, 5).map((d) => d.slice(0, 300));
+  return out.length ? out : undefined;
+}
+
 /** 운영 호출부용 — body/shaped 어느 쪽이든 출국·도착 시각을 snake 키로 (HH:MM). */
 export function tripTimesFrom(source) {
   const s = source && typeof source === 'object' ? source : {};

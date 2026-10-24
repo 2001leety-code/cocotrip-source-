@@ -128,6 +128,21 @@ describe('runHandlerFailureCleanup — 게이트 실패 시 마감', () => {
     expect(issuance.claim).toBe(null);
   });
 
+  // 2026-10-24 (식이 준수 r1): 종단 게이트가 만든 날짜·끼니·사유(e.details)가 응답과 실패 문서에 그대로 남는다.
+  it('종단 끼니 실패 → HTTP 응답 failureDetails + streaming 문서 _streaming_error_details (details=message 는 그대로)', async () => {
+    const { buildFinalGateError, FINAL_GATE_MEAL_CODE } = await import('../../api/_ai_core/finalItineraryGate.js');
+    const issue = 'Day 2 (출국일): departure_time=10:00 이른 출국 — 조식(06-10시) 누락 (B-MEAL, P137)';
+    const error = buildFinalGateError({ code: FINAL_GATE_MEAL_CODE, zeroFoodDays: [], requiredMealIssues: [issue], violations: [] }, ['Vegan'], 'post_response');
+    const db = createFakeFirestore({ [PLAN_PATH]: STREAMING_DOC });
+    const res = makeRes();
+    await cleanup(db, { res, error, streamingPlanId: PLAN_ID });
+    await flush();
+    const body = JSON.parse(res.body as string);
+    expect(res.statusCode).toBe(422);
+    expect(body).toMatchObject({ code: FINAL_GATE_MEAL_CODE, details: error.message, failureDetails: [issue] });
+    expect(db.__get(PLAN_PATH)).toMatchObject({ status: 'error', _streaming_error_code: FINAL_GATE_MEAL_CODE, _streaming_error_details: [issue] });
+  });
+
   it('streamingPlanId 없음 → Firestore 호출 0 (응답·알림은 그대로)', async () => {
     const db = createFakeFirestore({ [PLAN_PATH]: STREAMING_DOC });
     const res = makeRes();

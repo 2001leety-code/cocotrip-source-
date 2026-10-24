@@ -889,6 +889,18 @@ export { PLAN_RESPONSE_SCHEMA };
 const PLAN_JSON_SCHEMA = geminiSchemaToJsonSchema(PLAN_RESPONSE_SCHEMA);
 
 /**
+ * 2026-10-24 (r1): 첫 응답의 자료형이 깨져 식이 검증·결정론적 교체를 건너뛴 경우, 구조 재시도 성공본을 그 단계에
+ * 재진입시킨다 — 위반 food stop 을 trusted DB 후보로 교체(모델 호출 0). 남은 위반은 종단 게이트가 막는다(완화 없음).
+ */
+function reenterDietaryReplacement(itinerary, { dietaryArr, foodIndex, area, language, styles, stage }) {
+  if (!dietaryArr.length) return;
+  const issues = validateResponse(itinerary, { lang: language, dietary: dietaryArr, styles }, foodIndex);
+  if (!hasCriticalDietaryViolation(issues)) return;
+  const rep = replaceViolatingFoodStops(itinerary, issues, foodIndex, dietaryArr, area, language);
+  if (rep.replaced > 0) console.log(`[planner] dietary deterministic replacement after structure retry (${stage}):`, rep.detail.join(' | '));
+}
+
+/**
  * 파싱된 플랜의 자료형 오류 목록 — 최상위 null·원시값·배열도 '(root): expected object, got …' 로 잡는다(첫 속성 접근 전에
  * 호출). minimal fallback(repairAndParseJSON 이 코드로 만든 모양)만 검사 대상이 아니다.
  * @returns {string[]}
@@ -1487,6 +1499,7 @@ export async function runGeminiPipeline({ apiKey, systemPrompt, userMessage, are
           } else {
             itinerary = await pass3Enrich(model, itinerary, language);
           }
+          if (!typeOk3pass) reenterDietaryReplacement(itinerary, { dietaryArr, foodIndex, area: body?.area || area, language, styles: body?.styles, stage: '3pass' });
           patternErrors = validatePatternStructure(itinerary, body || {});
         }
       } catch (retryErr) {
@@ -1791,6 +1804,7 @@ export async function runGeminiPipeline({ apiKey, systemPrompt, userMessage, are
           itinerary = retried;
           cleanAddresses(itinerary);
           sanitizeStops(itinerary, language);
+          if (!typeOk) reenterDietaryReplacement(itinerary, { dietaryArr, foodIndex, area: body?.area || area, language, styles: body?.styles, stage: 'legacy' });
           patternErrors = validatePatternStructure(itinerary, body || {});
         }
       } catch (retryErr) {

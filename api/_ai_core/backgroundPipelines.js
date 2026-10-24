@@ -103,7 +103,7 @@ export function isSkeletonInWorkerEnabled() {
  *   GEMINI_ADMIN_BYPASS_MODEL 우선 (운영자 Pro→Flash 비교 시 background tip 도 Flash).
  *   dietary/styles — 종단 검증 입력 (없으면 식이 요구 없는 손님 = 검증 no-op).
  */
-export function triggerPass3BackgroundIfPending({ adminDb, planId, language, apiKey, itinerary, isAdminBypass, identifierForBucketing, dietary, styles }) {
+export function triggerPass3BackgroundIfPending({ adminDb, planId, language, apiKey, itinerary, isAdminBypass, identifierForBucketing, dietary, styles, tripTimes }) {
   if (!itinerary._pass3_pending || !isPass3BackgroundEnabled()) return;
 
   // fire-and-forget — UnhandledPromiseRejection 방지를 위해 .catch() 필수.
@@ -121,6 +121,7 @@ export function triggerPass3BackgroundIfPending({ adminDb, planId, language, api
         dietary,
         styles,
         foodIndex: await Promise.resolve(loadFoodIndex()).catch(() => []),
+        tripTimes, // 2026-10-24: 필수 끼니 판정(sync 종단 게이트와 같은 입력) — 없으면 기존 판정
       });
       // 종단 중복 게이트 — 식이 요구 유무와 무관, 같은 지점에서 항상 (2026-08-24).
       //   background rewrite 가 정상 plan 을 중복 있는 plan 으로 덮어쓰면 안 된다.

@@ -194,6 +194,27 @@ export function evaluateCompareRun(run) {
 }
 
 /**
+ * 식당 stop 이름 준수 집계 (2026-10-24 r1) — exact = **stop.name** 이 목록에 표시된 원문 식별 이름(getFoodContext 가
+ * 찍는 `name.split('|')[0]`)과 같음. display_name·영문명·쉼표 앞 별칭으로만 행이 찾아지면 aliasOnly(원문 복사 실패).
+ * 행을 못 찾으면 unmatched. 행 찾기는 주입(findRow = food-name-match.findSelectedFoodRow) — 이 모듈은 순수.
+ * @returns {{exact: number, aliasOnly: number, unmatched: number}}
+ */
+export function foodNameCompliance(plan, foodIndex, fallbackCity, findRow) {
+  const norm = (v) => (typeof v === 'string' ? v.trim().toLowerCase() : '');
+  const out = { exact: 0, aliasOnly: 0, unmatched: 0 };
+  for (const day of Array.isArray(plan && plan.days) ? plan.days : []) {
+    for (const stop of Array.isArray(day && day.stops) ? day.stops : []) {
+      if (!stop || stop.category !== 'food') continue;
+      const row = findRow(stop, foodIndex, { dayCity: day.city || fallbackCity });
+      if (!row) { out.unmatched += 1; continue; }
+      const listedName = norm(String(row.name || '').split('|')[0]);
+      if (listedName && norm(stop.name) === listedName) out.exact += 1; else out.aliasOnly += 1;
+    }
+  }
+  return out;
+}
+
+/**
  * 2026-10-24 (식이 준수 P4): 공급자별 안전 집계 — 원본 응답 기준. 정확 이름 준수 / 별칭으로만 회복 / 이름 못 찾음 /
  * 식이 위반 / 필수끼니 누락. 판정(rowFailures)과 별개의 관측값이다 — 식이 위반·끼니 누락 행은 rowFailures 에서 이미 실패.
  * 집계 필드가 하나도 없는 옛 산출물은 {} (formatOutcome 이 줄을 생략).

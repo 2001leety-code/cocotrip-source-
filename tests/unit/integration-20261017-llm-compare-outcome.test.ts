@@ -8,8 +8,11 @@
  */
 import { describe, it, expect } from 'vitest';
 import { spawnSync } from 'node:child_process';
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { tmpdir } from 'node:os';
+import { buildMockPlan } from '../../api/_shared/llm/mock.js';
+import { arrivalReadyHHMM } from '../../api/_ai_core/constants.js';
 import {
   evaluateCompareRun, rowFailures, formatOutcome, budgetStop, finalizeCompareRun, rowSpendUsd, costFieldsFromUsage, runCompareCalls,
 } from '../../scripts/integration/llm-compare-outcome.mjs';
@@ -307,6 +310,87 @@ describe('runCompareCalls (call loop, injected callOne)', () => {
   });
 });
 
+// 2026-10-24 (O7): 무료 반복 루프 — 운영과 같은 프롬프트를 파일로 내보내고, 서브에이전트가 만든 플랜을 같은 판정기로 채점.
+describe('free loop: --dump-prompts / --judge-plan (model calls 0, no keys, no --confirm-cost)', () => {
+  const env: NodeJS.ProcessEnv = { ...process.env, LLM_KILL_SWITCH: '1' }; // 혹시 모델을 부르면 실패하게
+  for (const k of ['GEMINI_API_KEY', 'ANTHROPIC_API_KEY', 'LLM_PROVIDER']) delete env[k];
+  const run = (...a: string[]) => spawnSync(process.execPath, [SCRIPT, ...a], { cwd: ROOT, env, encoding: 'utf8', timeout: 90_000 });
+  const tmp = mkdtempSync(join(tmpdir(), 'llm-compare-free-'));
+
+  it('--dump-prompts writes system/user prompts per scenario + manifest, with zero model calls', () => {
+    const dir = join(tmp, 'dump');
+    const r = run(`--dump-prompts=${dir}`, '--scenarios=jeju-vegan,seoul-busan-halal');
+    expect(r.status, r.stderr).toBe(0);
+    expect(r.stdout).toMatch(/model calls 0/);
+    expect(`${r.stdout}${r.stderr}`).not.toMatch(/\[LLM_USAGE\]/);
+    expect(readdirSync(dir).sort()).toEqual(['jeju-vegan.system.txt', 'jeju-vegan.user.txt', 'manifest.json', 'seoul-busan-halal.system.txt', 'seoul-busan-halal.user.txt']);
+    const manifest = JSON.parse(readFileSync(join(dir, 'manifest.json'), 'utf8'));
+    expect(Object.keys(manifest.scenarios)).toEqual(['jeju-vegan', 'seoul-busan-halal']);
+    expect(manifest.scenarios['seoul-busan-halal']).toMatchObject({
+      regions: ['seoul', 'busan'], mealCities: ['seoul', 'busan'], arrival_airport: 'ICN_T1', departure_airport: 'PUS',
+      arrivalTime: '14:00', departureTime: '10:00', dietary: ['Halal'], language: 'en', systemFile: 'seoul-busan-halal.system.txt', userFile: 'seoul-busan-halal.user.txt',
+    });
+    const user = readFileSync(join(dir, 'seoul-busan-halal.user.txt'), 'utf8');
+    expect(user).toMatch(/Restaurants in Seoul/);
+    expect(user).toMatch(/Restaurants in Busan/); // 도시별 신뢰 목록(운영 buildTripFoodContext)
+    expect(user).toMatch(/DIETARY SAFETY FOR THIS REQUEST \(Halal\)/);
+    expect(readFileSync(join(dir, 'jeju-vegan.system.txt'), 'utf8')).toMatch(/DIETARY SAFETY — TOP RULE/);
+  });
+
+  // 같은 판정기 — jeju-vegan(2일, CJU 14:00/10:00) 입력으로 만든 mock 플랜을 정상 기준으로 쓴다.
+  const plan = buildMockPlan({ userText: 'X\n' + JSON.stringify({
+    duration_days: 2, styles: ['culture', 'food'], area: 'jeju', regions: ['jeju'], arrival_airport: 'CJU', departure_airport: 'CJU',
+    arrival_time: '14:00', departure_time: '10:00', arrival_ready_time: arrivalReadyHHMM('14:00', 'CJU', 'jeju'), diet_preferences: ['vegan'], tour_start_time: '09:00',
+  }) + '\n=== VARIATION ===' });
+  const judge = (name: string, text: string) => {
+    const file = join(tmp, name);
+    writeFileSync(file, text);
+    const r = run(`--judge-plan=${file}`, '--scenario=jeju-vegan');
+    const rowLine = r.stdout.split('\n').find((l) => l.startsWith('{"scenarioId"'));
+    return { r, row: rowLine ? JSON.parse(rowLine) : null };
+  };
+  const clone = () => JSON.parse(JSON.stringify(plan));
+
+  it('a compliant plan → row passes, exit 0, provider subagent at $0', () => {
+    const { r, row } = judge('ok.json', JSON.stringify(plan));
+    expect(r.status, r.stdout + r.stderr).toBe(0);
+    expect(row).toMatchObject({ provider: 'subagent', providerActual: 'subagent', usd: 0, parsed: true, dietaryCritical: false, duplicateStops: 0, mealCoverage: { checked: true, missing: [] } });
+    expect(row.nameCompliance).toEqual({ exact: 2, aliasOnly: 0, unmatched: 0 });
+    expect(r.stdout).toMatch(/outcome=PASS/);
+  });
+
+  it('a fenced answer (```json … ```) is parsed by the same repair path', () => {
+    const { r, row } = judge('fenced.txt', '```json\n' + JSON.stringify(plan, null, 2) + '\n```');
+    expect(r.status).toBe(0);
+    expect(row.parsed).toBe(true);
+  });
+
+  it('a non-vegan restaurant → dietary critical, exit 1', () => {
+    const p = clone();
+    const food = p.days.flatMap((d: { stops: Array<Record<string, unknown>> }) => d.stops).find((s: Record<string, unknown>) => s.category === 'food');
+    food.name = '돼지국밥 맛집'; food.display_name = 'Pork soup'; delete food.dietary_tags;
+    const { r, row } = judge('diet.json', JSON.stringify(p));
+    expect(r.status).toBe(1);
+    expect(row.dietaryCritical).toBe(true);
+    expect(r.stdout).toMatch(/subagent jeju-vegan: .*dietary_critical_or_unknown/);
+  });
+
+  it('the 10:00-departure breakfast removed → meal coverage missing, exit 1', () => {
+    const p = clone();
+    p.days[p.days.length - 1].stops = p.days[p.days.length - 1].stops.filter((s: { category: string }) => s.category !== 'food');
+    const { r, row } = judge('meal.json', JSON.stringify(p));
+    expect(r.status).toBe(1);
+    expect(row.mealCoverage.missing).toEqual([expect.stringMatching(/^Day 2 \(출국일\): departure_time=10:00 이른 출국 — 조식/)]);
+    expect(r.stdout).toMatch(/meal_coverage_missing/);
+  });
+
+  it('--judge-plan needs exactly one known --scenario (exit 5) and a readable file (exit 4)', () => {
+    expect(run(`--judge-plan=${join(tmp, 'ok.json')}`).status).toBe(5);
+    expect(run(`--judge-plan=${join(tmp, 'ok.json')}`, '--scenario=nope').status).toBe(5);
+    expect(run(`--judge-plan=${join(tmp, 'missing.json')}`, '--scenario=jeju-vegan').status).toBe(4);
+  });
+});
+
 describe('CLI exit codes (no LLM calls)', () => {
   const env = { ...process.env };
   for (const k of ['GEMINI_API_KEY', 'ANTHROPIC_API_KEY', 'LLM_PROVIDER']) delete env[k];
@@ -343,7 +427,10 @@ describe('CLI exit codes (no LLM calls)', () => {
     const firstApiImport = src.indexOf("await import('../api/");
     expect(firstApiImport).toBeGreaterThan(-1);
     expect(src.indexOf('if (args.evaluate)')).toBeLessThan(firstApiImport);
-    expect(src.indexOf("if (!args['confirm-cost'])")).toBeLessThan(firstApiImport);
+    // 2026-10-24 (O7): 무료 모드(--dump-prompts/--judge-plan)만 confirm-cost 없이 통과 — 유료 경로 게이트는 그대로 API import 전.
+    expect(src.indexOf("if (!FREE_MODE && !args['confirm-cost'])")).toBeGreaterThan(-1);
+    expect(src.indexOf("if (!FREE_MODE && !args['confirm-cost'])")).toBeLessThan(firstApiImport);
+    expect(src).toMatch(/const FREE_MODE = Boolean\(args\['dump-prompts'\] \|\| args\['judge-plan'\]\);/);
     expect(src.indexOf('process.exit(5)')).toBeGreaterThan(-1);
     expect(src.indexOf('process.exit(5)')).toBeLessThan(firstApiImport);
     expect(src).toMatch(/scenarioId: p\.id/);
