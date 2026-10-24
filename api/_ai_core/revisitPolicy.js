@@ -220,6 +220,8 @@ function clearRevisit(stop) {
 const RESTAURANT_ONLY_FIELDS = [
   'recommended_items', 'reservation_required', 'reservation_note', 'reservation_phone', 'reservation_url',
   'entry_fee_note', 'description', 'local_tag', '_dbMatchedName', '_intentScore', 'naverMapUrl',
+  // 2026-10-24 r6: StopCard 가 그리는 식당 종속 필드 대조 — 접근성 메모·입장료(index 행에 같은 키 없음 → 삭제만).
+  'accessibility_note', 'entry_fee_krw',
 ];
 const REPLACED_REASON = {
   ko: '검증 식당 대안으로 교체했습니다.',

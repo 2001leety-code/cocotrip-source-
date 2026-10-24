@@ -85,12 +85,12 @@ describe('F — dietaryStopReplacer: all requested diets on one row, staged fall
     expect([p.days[0].stops[0].name, p.days[1].stops[0].name].sort()).toEqual(['식당A', '식당B']);
   });
   it('the replacer clears the old restaurant\'s menu / reservation fields (shared applyFoodRowToStop helper)', () => {
-    const target = { ...bad(), recommended_items: [{ name: 'Pork belly', price_krw: 15000 }], reservation_required: true, reservation_url: 'https://old.example', naverMapUrl: 'https://naver.me/old', googleMapsUrl: 'https://maps.google.com/?cid=old' };
+    const target = { ...bad(), recommended_items: [{ name: 'Pork belly', price_krw: 15000 }], reservation_required: true, reservation_url: 'https://old.example', naverMapUrl: 'https://naver.me/old', googleMapsUrl: 'https://maps.google.com/?cid=old', accessibility_note: 'Old place has stairs' };
     const p = plan([], target);
     replaceViolatingFoodStops(p, [viol('halal')], [{ ...A, googleMapsUrl: 'https://maps.google.com/?cid=A' }], ['Halal'], 'seoul', 'en');
     const s = p.days[1].stops[1];
     expect(s).toMatchObject({ name: '식당A', googleMapsUrl: 'https://maps.google.com/?cid=A', verified: true });
-    for (const f of ['recommended_items', 'reservation_required', 'reservation_url', 'naverMapUrl']) expect(s, f).not.toHaveProperty(f);
+    for (const f of ['recommended_items', 'reservation_required', 'reservation_url', 'naverMapUrl', 'accessibility_note']) expect(s, f).not.toHaveProperty(f);
     expect(read('api/_ai_core/dietaryStopReplacer.js')).toMatch(/applyFoodRowToStop\(target, pick, \{ diets, language \}\)/);
   });
   it('unverified rows stay out of every stage', () => {

@@ -161,12 +161,13 @@ describe('normalizeRevisits', () => {
       reservation_phone: '010-0000-0000', reservation_url: 'https://a.example', entry_fee_note: 'A fee', description: 'About A',
       local_tag: 'Local Pick', naverMapUrl: 'https://naver.me/A', googleMapsUrl: 'https://maps.google.com/?cid=A', _dbMatchedName: '합성A', _intentScore: 7,
       personalization_reasoning: 'A is famous', stay_min: 60, end_time: '13:00',
+      accessibility_note: 'A has a step-free entrance', entry_fee_krw: 5000,
     };
     const it0 = { days: [day(1, [food('합성A', '12:00')]), day(2, [food('합성A', '12:00', { revisit: true, ...old })])] };
     normalizeRevisits(it0, halal([A, Bm]));
     const s = it0.days[1].stops[0];
     expect(s).toMatchObject({ name: '합성B', googleMapsUrl: 'https://maps.google.com/?cid=B', personalization_reasoning: 'Replaced with a verified alternative restaurant.', stay_min: 60, end_time: '13:00', start_time: '12:00', category: 'food' });
-    for (const f of ['recommended_items', 'reservation_required', 'reservation_note', 'reservation_phone', 'reservation_url', 'entry_fee_note', 'description', 'local_tag', 'naverMapUrl', '_dbMatchedName', '_intentScore']) {
+    for (const f of ['recommended_items', 'reservation_required', 'reservation_note', 'reservation_phone', 'reservation_url', 'entry_fee_note', 'description', 'local_tag', 'naverMapUrl', '_dbMatchedName', '_intentScore', 'accessibility_note', 'entry_fee_krw']) {
       expect(s, f).not.toHaveProperty(f);
     }
     const noLink = { days: [day(1, [food('합성A', '12:00')]), day(2, [food('합성A', '12:00', { revisit: true, googleMapsUrl: 'https://maps.google.com/?cid=A' })])] };
