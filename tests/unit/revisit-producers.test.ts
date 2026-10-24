@@ -4,6 +4,8 @@
  *   · H 프롬프트 식이 블록 + 스키마 revisit. 식이 신뢰 완화 없음(unverified 는 어느 단계에서도 후보 아님). 실호출 0.
  */
 import { describe, it, expect } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { matchFoodPlaceholder } from '../../api/_ai_core/blockMode.js';
 import { replaceViolatingFoodStops } from '../../api/_ai_core/dietaryStopReplacer.js';
 import { pass2Resolve } from '../../api/_ai_core/threePassPipeline.js';
@@ -14,6 +16,7 @@ import { judgeRepeats } from '../../api/_ai_core/revisitPolicy.js';
 
 type Row = Record<string, unknown>;
 type Stop = Record<string, unknown>;
+const read = (p: string) => readFileSync(resolve(process.cwd(), p), 'utf8');
 const halalRow = (name: string, o: Row = {}): Row => ({
   name, nameEn: `${name} EN`, city: 'seoul', type: 'restaurant', tag: 'halal', verification_status: 'muslim_friendly',
   address: '서울특별시 중구 1', rating: 4.5, reviewCount: 10, lat: 37.56, lng: 126.98, ...o,
@@ -80,6 +83,15 @@ describe('F — dietaryStopReplacer: all requested diets on one row, staged fall
     const r = replaceViolatingFoodStops(p, [viol('halal'), viol('halal')].map((v) => ({ ...v, stop: '식당U' })), [A, B, U], ['Halal'], 'seoul', 'en');
     expect(r).toMatchObject({ replaced: 2, failed: 0 });
     expect([p.days[0].stops[0].name, p.days[1].stops[0].name].sort()).toEqual(['식당A', '식당B']);
+  });
+  it('the replacer clears the old restaurant\'s menu / reservation fields (shared applyFoodRowToStop helper)', () => {
+    const target = { ...bad(), recommended_items: [{ name: 'Pork belly', price_krw: 15000 }], reservation_required: true, reservation_url: 'https://old.example', naverMapUrl: 'https://naver.me/old', googleMapsUrl: 'https://maps.google.com/?cid=old' };
+    const p = plan([], target);
+    replaceViolatingFoodStops(p, [viol('halal')], [{ ...A, googleMapsUrl: 'https://maps.google.com/?cid=A' }], ['Halal'], 'seoul', 'en');
+    const s = p.days[1].stops[1];
+    expect(s).toMatchObject({ name: '식당A', googleMapsUrl: 'https://maps.google.com/?cid=A', verified: true });
+    for (const f of ['recommended_items', 'reservation_required', 'reservation_url', 'naverMapUrl']) expect(s, f).not.toHaveProperty(f);
+    expect(read('api/_ai_core/dietaryStopReplacer.js')).toMatch(/applyFoodRowToStop\(target, pick, \{ diets, language \}\)/);
   });
   it('unverified rows stay out of every stage', () => {
     const p = plan([{ category: 'food', name: '식당A', start_time: '12:00' }], bad());

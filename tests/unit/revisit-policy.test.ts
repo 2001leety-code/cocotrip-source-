@@ -153,6 +153,26 @@ describe('normalizeRevisits', () => {
     expect(s.tip).not.toBe('old');
     expect(judgeRepeats(it0, halal([A, B, C])).duplicates).toEqual([]);
   });
+  // 2026-10-24 r5 (Astra P2): 교체는 옛 식당 종속 필드(메뉴·예약·지도 링크 등)를 남기지 않는다 — 행 값이 있으면 행 값으로.
+  it('replacement drops the old restaurant\'s menu / reservation / links and takes the row\'s googleMapsUrl', () => {
+    const Bm = { ...B, googleMapsUrl: 'https://maps.google.com/?cid=B' };
+    const old = {
+      recommended_items: [{ name: 'A curry', price_krw: 9000 }], reservation_required: true, reservation_note: 'Call A',
+      reservation_phone: '010-0000-0000', reservation_url: 'https://a.example', entry_fee_note: 'A fee', description: 'About A',
+      local_tag: 'Local Pick', naverMapUrl: 'https://naver.me/A', googleMapsUrl: 'https://maps.google.com/?cid=A', _dbMatchedName: '합성A', _intentScore: 7,
+      personalization_reasoning: 'A is famous', stay_min: 60, end_time: '13:00',
+    };
+    const it0 = { days: [day(1, [food('합성A', '12:00')]), day(2, [food('합성A', '12:00', { revisit: true, ...old })])] };
+    normalizeRevisits(it0, halal([A, Bm]));
+    const s = it0.days[1].stops[0];
+    expect(s).toMatchObject({ name: '합성B', googleMapsUrl: 'https://maps.google.com/?cid=B', personalization_reasoning: 'Replaced with a verified alternative restaurant.', stay_min: 60, end_time: '13:00', start_time: '12:00', category: 'food' });
+    for (const f of ['recommended_items', 'reservation_required', 'reservation_note', 'reservation_phone', 'reservation_url', 'entry_fee_note', 'description', 'local_tag', 'naverMapUrl', '_dbMatchedName', '_intentScore']) {
+      expect(s, f).not.toHaveProperty(f);
+    }
+    const noLink = { days: [day(1, [food('합성A', '12:00')]), day(2, [food('합성A', '12:00', { revisit: true, googleMapsUrl: 'https://maps.google.com/?cid=A' })])] };
+    normalizeRevisits(noLink, halal([A, B]));
+    expect(noLink.days[1].stops[0]).not.toHaveProperty('googleMapsUrl'); // 행에 링크가 없으면 옛 링크도 지운다
+  });
   it('markOnly (after routing) never replaces: an unexhausted repeat stays and is rejected', () => {
     const it0 = { days: [day(1, [food('합성A', '12:00')]), day(2, [food('합성A', '12:00', { revisit: true })])] };
     normalizeRevisits(it0, halal([A, B]), { mode: 'markOnly' });

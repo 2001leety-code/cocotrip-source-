@@ -216,20 +216,47 @@ function clearRevisit(stop) {
 }
 
 /** 행 값으로 stop 교체 — dietaryStopReplacer 와 같은 필드 규칙(이름=한국어, display_name=영문, 증거=행). */
-function applyRow(stop, row, diets, language) {
+// 옛 식당에만 맞는 필드 — 새 행에 같은 값이 없으므로 지운다(화면에 A 의 메뉴·예약 링크가 B 아래 뜨지 않게).
+const RESTAURANT_ONLY_FIELDS = [
+  'recommended_items', 'reservation_required', 'reservation_note', 'reservation_phone', 'reservation_url',
+  'entry_fee_note', 'description', 'local_tag', '_dbMatchedName', '_intentScore', 'naverMapUrl',
+];
+const REPLACED_REASON = {
+  ko: '검증 식당 대안으로 교체했습니다.',
+  en: 'Replaced with a verified alternative restaurant.',
+  ja: '確認済みの代替レストランに差し替えました。',
+  zh: '已替换为经核实的替代餐厅。',
+};
+
+/**
+ * stop 을 식당 DB 행으로 교체(정규화기·dietaryStopReplacer 공용). 행에 있는 값은 행 값으로, 옛 식당 종속 필드는 삭제.
+ * 유지: order/start_time/end_time/stay_min/category/이동 구간(구간은 호출부 — clearReplacedLegs 등).
+ * 식이 근거는 행에서만(요청 식이 전부의 증거) — 모델·옛 stop 값을 신뢰하지 않는다.
+ * @param {object} stop — in place
+ * @param {object} row — 적격 판정된 DB 행
+ * @param {{diets?: string[], language?: string}} [opts]
+ */
+export function applyFoodRowToStop(stop, row, { diets = [], language = 'en' } = {}) {
   const name = rowName(row);
   stop.name = name;
   stop.display_name = row.nameEn || name;
-  if (row.address) stop.address = row.address;
-  if (hasCoord(row)) { stop.lat = Number(row.lat); stop.lng = Number(row.lng); }
+  if (row.address) stop.address = row.address; else delete stop.address;
+  if (hasCoord(row)) { stop.lat = Number(row.lat); stop.lng = Number(row.lng); } else { delete stop.lat; delete stop.lng; }
   if (row.googleMapsUrl) stop.googleMapsUrl = row.googleMapsUrl; else delete stop.googleMapsUrl;
-  delete stop.naverMapUrl;
+  for (const f of RESTAURANT_ONLY_FIELDS) delete stop[f];
   stop.verified = true;
   stop.dietary_tags = [...dietaryTagsOfRow(row)];
   const evidence = diets.map((d) => dietaryEvidenceFor(row, d)).filter(Boolean);
-  stop.dietary_evidence = evidence;
-  // tip: 옛 식당 설명이 남지 않게 — 등급을 숨기지 않는 정직 문구(영업시간·메뉴 확언 없음, dietaryStopReplacer 와 동일).
-  if (evidence[0]) stop.tip = describeDietaryEvidence(evidence[0].verification_status, language);
+  if (evidence.length) stop.dietary_evidence = evidence; else delete stop.dietary_evidence;
+  // tip: 옛 식당 설명이 남지 않게 — 등급을 숨기지 않는 정직 문구(영업시간·메뉴 확언 없음).
+  stop.tip = evidence[0]
+    ? describeDietaryEvidence(evidence[0].verification_status, language)
+    : `Listed in our ${String(row.tag || 'restaurant')} database. Please confirm with the restaurant and check opening hours before visiting.`;
+  stop.personalization_reasoning = REPLACED_REASON[language] || REPLACED_REASON.en;
+}
+
+function applyRow(stop, row, diets, language) {
+  applyFoodRowToStop(stop, row, { diets, language });
 }
 
 /**
