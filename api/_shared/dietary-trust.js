@@ -40,6 +40,10 @@ export function deriveVerificationStatus(row) {
   if (!DIETARY_TAGS.includes(tag)) return null; // dietary 주장 아님 — 등급 불필요
   const existing = row.verification_status;
   if (existing === 'halal_certified' || existing === 'vegan_restaurant') return existing; // 수동 승격 보존
+  // 2026-10-24: 빌드 중복 제거에서 복구된 식이 태그(dietary_restored) = Google 식이 텍스트 검색 결과일 뿐 메뉴 근거 없음
+  //   (실측: 고깃집·치킨·한정식이 "halal" 로 섞임) → 자동 친화 등급 금지, 격리. 승격은 verified_overrides.json 로만 —
+  //   build-food-index / migrate-dietary-verification 은 override 를 derive 전에 적용하고 derive 를 건너뛰므로 살아남는다.
+  if (row.dietary_restored === true) return 'unverified';
   if (QUARANTINE_SOURCES.includes(row.source)) return 'unverified';
   const hasSource = row.source !== undefined && row.source !== null && String(row.source).trim() !== '';
   if (hasSource && !AUTO_TIER_SOURCES.includes(row.source)) return 'unverified'; // 미지의 명시 source — fail-safe

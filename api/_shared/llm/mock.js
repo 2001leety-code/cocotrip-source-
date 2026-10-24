@@ -144,15 +144,16 @@ function daySkeleton({ isSingle, isFirst, isLast, startMin, depMin }) {
 }
 
 /**
- * @param {{userText:string}} p user 메시지(끝에 userInput JSON) → 검증기 통과형 플랜.
+ * @param {{userText:string, foodPool?:object[]}} p user 메시지(끝에 userInput JSON) → 검증기 통과형 플랜.
+ *   foodPool: 테스트 전용 — 식당 후보를 이 행들로 고정(후보 부족 상황 재현). 호출자가 trusted 행만 넘긴다.
  */
-export function buildMockPlan({ userText }) {
+export function buildMockPlan({ userText, foodPool }) {
   const u = lastJsonObject(userText) || {};
   const days = Math.max(1, Math.min(14, Number(u.duration_days) || 1));
   const city = String((Array.isArray(u.regions) && u.regions[0]) || u.area || 'seoul').toLowerCase();
   const cityName = CITY_NAME[city] || city;
   const diets = (Array.isArray(u.diet_preferences) ? u.diet_preferences : []).map((d) => String(d).toLowerCase()).filter((d) => SAFETY_DIETS.includes(d));
-  const foods = foodRows(city, diets);
+  const foods = Array.isArray(foodPool) ? foodPool : foodRows(city, diets);
   const spots = getExactCitySpotCandidates(city);
   const arrCode = String(u.arrival_airport || 'ICN').split('_')[0];
   const depCode = String(u.departure_airport || arrCode).split('_')[0];

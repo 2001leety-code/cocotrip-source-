@@ -8,7 +8,8 @@
  * 복구 조건(전부 충족): 유지 행 tag === 'general' · 충돌 식이 행이 같은 강한 식별자(placeId 또는 googleMapsUrl)
  * · 식이 주장이 정확히 하나(halal+vegan, vegan+vegetarian 도 교차) · city 동일 · source 동일(둘 다 없음 포함)
  * · 유지 행에 검증 필드가 없음(deriveVerificationStatus 가 기존 승격 등급을 그대로 두므로 다른 식이로 번지는 것 방지).
- * 하나라도 어긋나면 손대지 않고 held 에 사유를 남긴다. 복구는 식이 안전 검증이 아니다 — 등급은 이후 파생 규칙 그대로.
+ * 하나라도 어긋나면 손대지 않고 held 에 사유를 남긴다. 복구는 식이 안전 검증이 아니다 — 복구 행은 `dietary_restored:true`
+ * 로 표시되고 deriveVerificationStatus 가 unverified 로 격리한다(2026-10-24 실측: 복구 "halal" 대부분이 비할랄).
  */
 
 export function dedupeKey(item) {
@@ -59,8 +60,9 @@ export function dedupeWithDietaryRestore(items, { dietaryTags }) {
       deduped.push(kept);
       continue;
     }
-    deduped.push({ ...kept, tag: tags[0] });
-    restored.push({ key, name: kept.name, city: kept.city, tag: tags[0] });
+    // dietary_restored: 복구 표시 — deriveVerificationStatus 가 이 행을 unverified 로 격리한다(운영자 override 로만 승격).
+    deduped.push({ ...kept, tag: tags[0], dietary_restored: true });
+    restored.push({ key, name: kept.name, city: kept.city, tag: tags[0], dietary_restored: true });
   }
   return { deduped, restored, held };
 }

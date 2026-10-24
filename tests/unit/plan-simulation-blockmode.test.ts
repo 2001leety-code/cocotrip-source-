@@ -4,6 +4,7 @@ import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 // @ts-expect-error — ESM .js in api/, no type decls
 import { expandBlocksToItineraryMultiCity } from '../../api/_ai_core/blockMode.js';
+import { dietaryTagsOfRow, isDietaryTrusted } from '../../api/_shared/dietary-trust.js';
 
 /**
  * 플랜 로컬 시뮬레이션 — Gemini/Firestore/배포 없이, 실 foodIndex + 실 블록으로 block_mode
@@ -25,7 +26,7 @@ const loadBlock = (f: string) => JSON.parse(readFileSync(join(ZONE_DIR, `${f}.js
 // 실 foodIndex (1.2MB) — 식당 매칭 실데이터.
 const FI_RAW = JSON.parse(readFileSync(join(dirname(fileURLToPath(import.meta.url)), '../../api/_food_index.json'), 'utf8'));
 type Coordinates = { lat: number; lng: number };
-type FoodRow = Coordinates & { name?: string; dietary_tags?: string[] };
+type FoodRow = Coordinates & { name?: string; tag?: string; dietary_tags?: string[]; verification_status?: string };
 type TestStop = Partial<Coordinates> & { category?: string; name?: string };
 type SimDay = { day: number; city?: string; stops?: TestStop[] };
 type SimItinerary = { days?: SimDay[] };
@@ -134,14 +135,17 @@ describe('플랜 로컬 시뮬레이션 (block_mode 다도시, Gemini 없이)', 
       expect(String(err?.code || err?.message || '')).toMatch(/DIETARY|dietary|halal/i);
       return;
     }
-    // throw 안 했으면(할랄 매칭 성공) — 모든 resolved food 가 할랄 또는 placeholder 여야.
+    // throw 안 했으면(할랄 매칭 성공) — placeholder 가 아닌 food 는 전부 인덱스 실식당 + halal 태그 + 신뢰 등급.
+    // 2026-10-24: 부산 할랄 trusted 풀이 늘어(복구 행은 격리, 기대 6곳) 이 분기를 탈 수 있다. 태그는 SSOT dietaryTagsOfRow
+    // (인덱스는 r.tag 단일 문자열 — r.dietary_tags 만 읽으면 빈 배열이라 판정이 무의미해진다).
     const foodStops = (halalItin.days || []).flatMap((d) => (d.stops || []).filter((s) => s.category === 'food'));
     for (const s of foodStops) {
       if (!s.name) continue;
-      const isPlaceholderText = String(s.name).startsWith('[추천');
+      if (String(s.name).startsWith('[추천')) continue; // placeholder 텍스트 — 실식당 아님
       const r = FOOD_INDEX.find((x) => String(x.name || '').split('|')[0].trim() === String(s.name).trim());
-      const tags = r && Array.isArray(r.dietary_tags) ? r.dietary_tags.map((t: string) => String(t).toLowerCase()) : [];
-      expect(isPlaceholderText || tags.includes('halal') || !r, `할랄 손님에 비할랄 식당 "${s.name}" 배정`).toBe(true);
+      expect(r, `할랄 손님에 인덱스에 없는 식당 "${s.name}" 배정`).toBeDefined();
+      expect(dietaryTagsOfRow(r), `할랄 손님에 비할랄 식당 "${s.name}" 배정`).toContain('halal');
+      expect(isDietaryTrusted(r) && r!.verification_status !== 'unverified', `할랄 손님에 미검증 등급 식당 "${s.name}" (${r!.verification_status}) 배정`).toBe(true);
     }
   });
 });

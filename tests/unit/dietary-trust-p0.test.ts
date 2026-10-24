@@ -42,6 +42,31 @@ describe('deriveVerificationStatus / isDietaryTrusted', () => {
     expect(isDietaryTrusted(mk({ tag: 'general', source: 'naver_local' }))).toBe(true);
   });
 
+  it('2026-10-24 dietary_restored(중복 제거 복구 행) → unverified 격리, 단 수동 승격 보존·override 승격 가능', () => {
+    // 자동 친화 등급 금지 — Google 식이 텍스트 검색 결과일 뿐 메뉴 근거가 없다.
+    expect(deriveVerificationStatus(mk({ dietary_restored: true }))).toBe('unverified');
+    expect(deriveVerificationStatus(mk({ dietary_restored: true, tag: 'vegan' }))).toBe('unverified');
+    expect(isDietaryTrusted(mk({ dietary_restored: true }))).toBe(false); // 필드 부재 → 파생 → 격리
+    expect(isDietaryTrusted(mk({ dietary_restored: true, verification_status: 'unverified' }))).toBe(false);
+    // 기존 운영자 인증은 보존
+    expect(deriveVerificationStatus(mk({ dietary_restored: true, verification_status: 'halal_certified' }))).toBe('halal_certified');
+    expect(deriveVerificationStatus(mk({ dietary_restored: true, tag: 'vegan', verification_status: 'vegan_restaurant' }))).toBe('vegan_restaurant');
+    // override 승격: 빌드가 verified_overrides 의 등급을 derive 전에 기록하고 derive 를 건너뛴다 → 그 값이 신뢰 판정에 쓰인다.
+    expect(isDietaryTrusted(mk({ dietary_restored: true, verification_status: 'muslim_friendly', verified_by: 'operator' }))).toBe(true);
+    // 복구 표시가 없는 같은 행은 기존 규칙(자동 친화) 그대로
+    expect(deriveVerificationStatus(mk({ dietary_restored: false }))).toBe('muslim_friendly');
+  });
+
+  it('build-food-index: override 는 derive 전에 적용되고 derive 를 건너뛴다(복구 행 승격이 살아남는 경로)', () => {
+    const src = readFileSync(resolve(process.cwd(), 'scripts/build-food-index.js'), 'utf8');
+    const ovAt = src.indexOf('const ov = ovMap.get(');
+    const deriveAt = src.indexOf('r.verification_status = deriveVerificationStatus(r)');
+    expect(ovAt).toBeGreaterThan(-1);
+    expect(ovAt).toBeLessThan(deriveAt);
+    expect(src.slice(ovAt, deriveAt)).toMatch(/r\.verification_status = ov\.verification_status;[\s\S]*continue;/);
+    expect(src).toMatch(/'dietary_restored',/); // KEEP_FIELDS — pickFields 가 표시를 버리지 않게
+  });
+
   it('verification_status 없는 옛 레코드 — 소스로 fail-safe 파생', () => {
     const legacy = mk({ source: 'naver_local' });
     delete (legacy as Record<string, unknown>).verification_status;

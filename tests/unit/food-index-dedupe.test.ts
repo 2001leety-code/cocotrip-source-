@@ -23,8 +23,8 @@ describe('dedupeWithDietaryRestore', () => {
   it('general + halal, same placeId → kept general row gets tag halal, every other field stays the general row', () => {
     const g = general();
     const { deduped, restored, held } = run([g, claim('halal')]);
-    expect(deduped).toEqual([{ ...g, tag: 'halal' }]);
-    expect(restored).toEqual([{ key: 'P1', name: g.name, city: 'busan', tag: 'halal' }]);
+    expect(deduped).toEqual([{ ...g, tag: 'halal', dietary_restored: true }]);
+    expect(restored).toEqual([{ key: 'P1', name: g.name, city: 'busan', tag: 'halal', dietary_restored: true }]);
     expect(held).toEqual([]);
   });
 
@@ -32,6 +32,7 @@ describe('dedupeWithDietaryRestore', () => {
     const url = 'https://maps.google.com/?cid=9';
     const { deduped, restored } = run([general({ placeId: undefined, googleMapsUrl: url }), claim('vegan', { placeId: undefined, googleMapsUrl: url })]);
     expect(deduped[0].tag).toBe('vegan');
+    expect(deduped[0].dietary_restored).toBe(true);
     expect(restored).toHaveLength(1);
   });
 
@@ -114,6 +115,9 @@ describe('dedupeWithDietaryRestore', () => {
     expect(first.held.map((h: { key: string; reason: string }) => `${h.key}:${h.reason}`)).toEqual(['P2:cross_tag', 'P4:city_mismatch']);
     // 복구된 행만 새 객체 — 나머지는 입력 행 그대로
     expect(first.deduped[0]).not.toBe(items[0]);
+    // 복구 표시는 복구 행에만 — held·비복구·식이 원본 행에는 없다(입력에도 붙지 않음).
+    expect(first.deduped.map((r: Row) => r.dietary_restored === true)).toEqual([true, false, false, false, false]);
+    expect(items.some((r) => 'dietary_restored' in r)).toBe(false);
     expect(first.deduped[1]).toBe(items[2]);
   });
 });

@@ -68,9 +68,12 @@ type HealthScenario = {
   arrivalTime?: string; departureTime?: string; arrival_airport?: string; departure_airport?: string;
 };
 // scripts/validate-planner.cjs · llm-compare-providers.mjs 와 같은 입력(도착 14:00 · 출국 10:00 · pax · language).
-const SHORTAGE: Array<HealthScenario & { trusted: number }> = [
-  { id: 'busan-halal', area: 'busan', durationDays: 3, pax: 4, dietPrefs: ['Halal'], language: 'en', arrivalTime: '14:00', departureTime: '10:00', arrival_airport: 'ICN_T1', departure_airport: 'ICN_T1', trusted: 3 },
-  { id: 'jeju-vegan', area: 'jeju', durationDays: 2, pax: 2, dietPrefs: ['Vegan'], language: 'en', arrivalTime: '14:00', departureTime: '10:00', arrival_airport: 'CJU', departure_airport: 'CJU', trusted: 1 },
+// 2026-10-24: trusted 풀 = 부산 할랄 6(기존 3 + Naver 승격 3), 제주 비건 2. 중복 제거 복구 행(dietary_restored)은
+//   unverified 격리라 풀에 들어오지 않는다. 실데이터로 필수 끼니가 다 찬다(부산 3일 = 4끼 ≤ 6).
+//   부족 상황은 buildMockPlan({ foodPool }) 로 풀 크기를 예전 값(3·1)에 고정해 계속 잠근다.
+const DIET_SCENARIOS: Array<HealthScenario & { shortagePool: number }> = [
+  { id: 'busan-halal', area: 'busan', durationDays: 3, pax: 4, dietPrefs: ['Halal'], language: 'en', arrivalTime: '14:00', departureTime: '10:00', arrival_airport: 'ICN_T1', departure_airport: 'ICN_T1', shortagePool: 3 },
+  { id: 'jeju-vegan', area: 'jeju', durationDays: 2, pax: 2, dietPrefs: ['Vegan'], language: 'en', arrivalTime: '14:00', departureTime: '10:00', arrival_airport: 'CJU', departure_airport: 'CJU', shortagePool: 1 },
 ];
 const NON_DIET: HealthScenario[] = [
   { id: 'seoul-meat', area: 'seoul', durationDays: 2, pax: 2, dietPrefs: ['Meat'], language: 'ko', arrivalTime: '14:00', departureTime: '10:00', arrival_airport: 'ICN_T1', departure_airport: 'ICN_T1' },
@@ -101,10 +104,13 @@ function healthBody(s: HealthScenario) {
 }
 
 const SAFETY = /halal|vegan|vegetarian/i;
-const trustedPool = (s: HealthScenario) => {
+type PoolRow = { name: string };
+const trustedRows = (s: HealthScenario): PoolRow[] => {
   const diets = s.dietPrefs.filter((d) => SAFETY.test(d)).map((d) => d.toLowerCase());
-  return new Set(getExactCityTrustedDietaryCandidates(s.area, diets, 40).map((c: { row: { name: string } }) => c.row.name));
+  const rows = getExactCityTrustedDietaryCandidates(s.area, diets, 40).map((c: { row: PoolRow }) => c.row);
+  return rows.filter((r: PoolRow, i: number) => rows.findIndex((x: PoolRow) => x.name === r.name) === i); // mock 과 같은 이름 중복 제거
 };
+const trustedPool = (s: HealthScenario) => new Set(trustedRows(s).map((r) => r.name));
 type Stop = { category?: string; name: string };
 const foodsOf = (plan: { days: Array<{ stops: Stop[] }> }) => plan.days.flatMap((d) => d.stops.filter((x) => x.category === 'food'));
 
@@ -118,18 +124,42 @@ async function hardGates(plan: object, s: HealthScenario) {
   expect(hasCriticalDietaryViolation(validateResponse(plan, { dietary: s.dietPrefs, language: s.language }, foodIndex))).toBe(false);
 }
 
-describe('buildMockPlan — daily-health 식이 시나리오: 후보 부족은 부족으로 남긴다(성공으로 꾸미지 않음)', () => {
-  for (const s of SHORTAGE) {
-    it(`${s.id}: 후보 부족(trusted ${s.trusted}곳) — 반복·지어내기 0, 출국일 조식 B-MEAL 부족 1건만 남음`, async () => {
-      const plan = buildMockPlan({ userText: healthUserText(s) });
+describe('buildMockPlan — daily-health 식이 시나리오 (실데이터): 필수 끼니 전부 trusted, 반복 0, B-MEAL 0', () => {
+  it('busan-halal 3일: 필수 끼니 4개 전부 trusted 할랄 식당, 반복 0, 구조 이슈 0', async () => {
+    const s = DIET_SCENARIOS[0];
+    const plan = buildMockPlan({ userText: healthUserText(s) });
+    expect(plan.days).toHaveLength(s.durationDays);
+    await hardGates(plan, s);
+    const pool = trustedPool(s);
+    expect(pool.size).toBeGreaterThanOrEqual(4); // 필수 4끼 이상 — 격리 후 기대 6
+    const foods = foodsOf(plan);
+    expect(foods).toHaveLength(4); // 도착일 1 + 중간일 2 + 출국 10:00 조식 1
+    for (const f of foods) expect(pool.has(f.name), f.name).toBe(true);
+    expect(validatePatternStructure(plan, healthBody(s))).toEqual([]);
+  });
+  it('jeju-vegan 2일: 끼니 2개 모두 trusted(AND유CAFE·비건테이블바람), 반복 0, 구조 이슈 0', async () => {
+    const s = DIET_SCENARIOS[1];
+    const plan = buildMockPlan({ userText: healthUserText(s) });
+    expect(plan.days).toHaveLength(s.durationDays);
+    await hardGates(plan, s);
+    expect(trustedPool(s)).toEqual(new Set(['AND유CAFE', '비건테이블바람']));
+    expect(foodsOf(plan).map((f) => f.name).sort()).toEqual(['AND유CAFE', '비건테이블바람']);
+    expect(validatePatternStructure(plan, healthBody(s))).toEqual([]);
+  });
+});
+
+describe('buildMockPlan — 식이 후보 부족(foodPool 로 풀 고정): 부족은 부족으로 남긴다(성공으로 꾸미지 않음)', () => {
+  for (const s of DIET_SCENARIOS) {
+    it(`${s.id}: trusted ${s.shortagePool}곳만 — 반복·지어내기 0, 출국일 조식 B-MEAL 부족 1건만 남음`, async () => {
+      const poolRows = trustedRows(s).slice(0, s.shortagePool);
+      expect(poolRows).toHaveLength(s.shortagePool);
+      const plan = buildMockPlan({ userText: healthUserText(s), foodPool: poolRows });
       expect(plan.days).toHaveLength(s.durationDays);
       await hardGates(plan, s);
 
-      // 실측 데이터 한계를 고정한다 — 풀이 바뀌면 이 테스트를 다시 본다.
-      const pool = trustedPool(s);
-      expect(pool.size).toBe(s.trusted);
+      const pool = new Set(poolRows.map((r) => r.name));
       const foods = foodsOf(plan);
-      expect(foods.length).toBe(s.trusted); // 풀 전부 쓰고, 그 이상은 지어내지 않는다
+      expect(foods.length).toBe(s.shortagePool); // 풀 전부 쓰고, 그 이상은 지어내지 않는다
       for (const f of foods) expect(pool.has(f.name)).toBe(true);
 
       // 필수 끼니(도착일 1 + 중간일 2 + 출국 10:00 조식 1) > trusted 수 → 출국일 조식 한 끼만 빈다. 그 외 이슈 0.

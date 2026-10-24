@@ -127,16 +127,16 @@ describe('식당 DB 수치 — 화면 숫자 ↔ 실제 JSON', () => {
   });
 
   // 2026-08-10 P2 (#1272): 원장 1번 항목이 "각 식당마다 cuisine 이 있다"고 말했지만
-  // 실측은 3,153/3,166 — 13건 누락이라 거짓이었다. coordinates·allergens 는 실제로 전 항목,
+  // 실측은 3,258/3,271(2026-10-24 식이 태그 복구 재빌드 후, 이전 3,153/3,166) — 13건 누락이라 거짓이었다. coordinates·allergens 는 실제로 전 항목,
   // cuisine 은 대부분(전부 아님)이라고 정확히 말해야 한다.
   //
   // 빈틈(수정 전): 이전 버전은 `withCuisine > 0 && < total` 만 단언했다. 이 범위는
   // [1, 3165] 전체를 통과시킨다 — 데이터가 극단적으로 저하돼 단 1건만 cuisine 을 가져도
   // (예: 재생성 스크립트 회귀로 나머지 3,165건이 전부 빠져도) 테스트는 초록이었다.
   // 그 상태에서 화면은 여전히 "nearly all/대부분/ほぼ全件/绝大多数" 라고 주장하는데,
-  // 실제로는 0.03%만 있으니 문구가 거짓이 된다. 정확한 개수(3,153)와 99%+ 하한을 박아
+  // 실제로는 0.03%만 있으니 문구가 거짓이 된다. 정확한 개수(3,258)와 99%+ 하한을 박아
   // 이런 저하를 실패로 만든다.
-  it('coordinates·allergens 는 전 항목, cuisine 은 정확히 3,153건(≥99%) — 실측과 일치', () => {
+  it('coordinates·allergens 는 전 항목, cuisine 은 정확히 3,258건(≥99%) — 실측과 일치', () => {
     const withCoords = index.filter((r) => (r as { lat?: number }).lat != null && (r as { lng?: number }).lng != null).length;
     const allergensOf = (r: unknown) => (r as { allergens?: Record<string, unknown> }).allergens;
     const withAllergens = index.filter((r) => allergensOf(r) != null).length;
@@ -159,7 +159,7 @@ describe('식당 DB 수치 — 화면 숫자 ↔ 실제 JSON', () => {
 
     // 실측 정확한 개수를 박제: 늘거나 줄면(재생성·데이터 저하 포함) 실패해
     // 문구("nearly all"/"대부분"/"ほぼ全件"/"绝大多数")를 다시 검토하게 만든다.
-    expect(withCuisine).toBe(3153);
+    expect(withCuisine).toBe(3258);
     const ratio = withCuisine / FOOD_DB.restaurants;
     expect(ratio).toBeGreaterThanOrEqual(0.99);
     expect(ratio).toBeLessThan(1);
