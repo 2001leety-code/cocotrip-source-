@@ -13,6 +13,7 @@ vi.mock('../../api/_shared/telegram-throttle.js', () => ({ throttledTelegramAler
 
 import { mealCitiesForTrip, buildTripFoodContext, enforceDietaryCoverage, hasSafetyDiet, canonicalDietPrefs } from '../../api/_ai_core/dietaryCoverageGate.js';
 import { getFoodContext } from '../../api/_food_helper.js';
+import { shapeRequest } from '../../api/_ai_core/requestShaper.js';
 import { findSelectedFoodRow } from '../../api/_shared/food-name-match.js';
 import { buildSystemPrompt } from '../../api/_ai_core/buildPrompt.js';
 import { buildDietarySafetyBlock } from '../../api/_ai_core/userMessageBuilder.js';
@@ -152,6 +153,26 @@ describe('r2 — localized city names resolve through the UI city SSOT; cities w
     const getContext = vi.fn(() => '[GENERAL]');
     expect(buildTripFoodContext({ cities: mealCitiesForTrip({ regions: ['ソウル'], area: 'ソウル' }), area: 'ソウル', dietaryAll: [], priceRange: 'Any', maxItems: 10, getContext })).toBe('[GENERAL]');
     expect(getContext.mock.calls[0][0]).toBe('ソウル');
+  });
+});
+
+describe('r3 — legacy region keys with a "_" suffix (seoul_city — requestShaper default area)', () => {
+  it.each([
+    ['seoul_city', 'seoul'], ['SEOUL_CITY', 'seoul'], ['busan_haeundae', 'busan'], ['jeju_island', 'jeju'], ['ソウル_x', 'seoul'], ['incheon_songdo', 'incheon'],
+  ])('%s → %s', (token, key) => {
+    expect(mealCitiesForTrip({ regions: [token], area: token })).toEqual([key]);
+  });
+
+  it('one path: shapeRequest without regions (area seoul_city) → gate passes → the Seoul trusted list is injected', () => {
+    const shaped = shapeRequest({ dietPrefs: ['Halal'], email: 'x@example.com' }, 'x@example.com', false, null);
+    expect(shaped.area).toBe('seoul_city');
+    const cities = mealCitiesForTrip({ regions: shaped.regions, area: shaped.area, arrivalCity: shaped.arrivalCity, departureCity: shaped.departureCity });
+    expect(cities).toEqual(['seoul']);
+    const foodIndex = JSON.parse(read('api/_food_index.json'));
+    expect(() => enforceDietaryCoverage({ foodIndex, regions: shaped.regions, area: shaped.area, dietaryAll: ['Halal'], arrivalCity: shaped.arrivalCity, departureCity: shaped.departureCity })).not.toThrow();
+    const ctx = buildTripFoodContext({ cities, area: shaped.area, dietaryAll: ['Halal'], priceRange: 'Any', maxItems: 10 });
+    expect(ctx).toMatch(/Restaurants in Seoul/);
+    expect((ctx.match(/\[HALAL\]/g) || []).length).toBeGreaterThan(0);
   });
 });
 
