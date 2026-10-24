@@ -13,6 +13,7 @@ import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { sanitizeStopName } from '../api/_ai_core/sanitizeName.js';
 import { deriveVerificationStatus, DIETARY_TAGS } from '../api/_shared/dietary-trust.js';
+import { dedupeWithDietaryRestore } from './lib/food-index-dedupe.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(__dirname, '..');
@@ -238,16 +239,20 @@ function main() {
   }
   console.log(`  🌐 Multilang sanitized: name=${nameClean}, nameEn=${enClean}`);
 
-  // Deduplicate by placeId (Google Maps unique ID)
-  const seen = new Set();
-  const deduped = [];
-  for (const item of filtered) {
-    const key = item.placeId || item.googleMapsUrl || `${item.name}|${item.address}`;
-    if (seen.has(key)) continue;
-    seen.add(key);
-    deduped.push(pickFields(item));
-  }
+  // Deduplicate by placeId (Google Maps unique ID) — 첫 행 유지. 2026-10-24: 같은 강한 식별자의 general 행에 밀려
+  // 사라지던 단일 식이 태그만 제한 복구(scripts/lib/food-index-dedupe.mjs 조건). 등급은 아래 파생 규칙 그대로.
+  const { deduped: dedupedRaw, restored, held } = dedupeWithDietaryRestore(filtered, { dietaryTags: DIETARY_TAGS });
+  const deduped = dedupedRaw.map(pickFields);
   console.log(`  🔄 After dedup: ${deduped.length}`);
+  const restoredBy = {};
+  for (const r of restored) {
+    const k = `${r.city || 'unknown'}/${r.tag}`;
+    restoredBy[k] = (restoredBy[k] || 0) + 1;
+  }
+  console.log(`  🩹 dietary tag restored: ${restored.length} ${JSON.stringify(restoredBy)}`);
+  console.log(`  ⏸️ dietary restore held: ${held.length}`);
+  for (const h of held.slice(0, 30)) console.log(`     - ${h.name} (${h.city || '?'}) [${h.tags.join('+')}] ${h.reason}`);
+  if (held.length > 30) console.log(`     … +${held.length - 30} more`);
 
   // 2026-07-11 식단 안전 신뢰 등급 파생 (운영자 지시 3단계-B) —
   // dietary 태그 레코드에 dietary_claim + verification_status 부여.
