@@ -10,14 +10,18 @@ import { describe, it, expect } from 'vitest';
 import { spawnSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { evaluateCompareRun, rowFailures, formatOutcome } from '../../scripts/integration/llm-compare-outcome.mjs';
+import { evaluateCompareRun, rowFailures, formatOutcome, budgetStop, finalizeCompareRun, rowSpendUsd } from '../../scripts/integration/llm-compare-outcome.mjs';
 
 const ROOT = join(__dirname, '..', '..');
 const SCRIPT = join(ROOT, 'scripts', 'llm-compare-providers.mjs');
 const FIX = join(ROOT, 'tests', 'fixtures', 'integration-20261017');
 const load = (f: string) => JSON.parse(readFileSync(join(FIX, f), 'utf8'));
 
-const good = { scenarioId: 's1', scenario: 'S1 label', provider: 'gemini', parsed: true, requiredKeys: [], daysMatch: true, structureErrors: [], dietaryCritical: false, languageOk: true };
+const good = {
+  scenarioId: 's1', scenario: 'S1 label', provider: 'gemini', providerActual: 'gemini', fallback: false, parsed: true, requiredKeys: [], daysMatch: true,
+  structureErrors: [], duplicateStops: 0, mealCoverage: { checked: true, missing: [] }, dietaryCritical: false, languageOk: true,
+};
+const claude = { ...good, provider: 'claude', providerActual: 'claude' };
 const runOf = (results: object[], extra: object = {}) => ({ providers: ['gemini', 'claude'], expectedScenarios: ['s1'], results, ...extra });
 
 describe('rowFailures', () => {
@@ -36,8 +40,31 @@ describe('rowFailures', () => {
     [{ dietaryCritical: true }, 'dietary_critical_or_unknown'],
     [{ dietaryCritical: undefined }, 'dietary_critical_or_unknown'],
     [{ languageOk: false }, 'language_mismatch_or_unknown'],
+    // O3 (2026-10-24): 실제 공급자 · 종단 중복 게이트 · 필수 끼니
+    [{ providerActual: 'gemini', provider: 'claude' }, 'provider_fallback'],
+    [{ fallback: true }, 'provider_fallback'],
+    [{ providerActual: undefined }, 'provider_actual_unknown'],
+    [{ providerActual: '' }, 'provider_actual_unknown'],
+    [{ duplicateStops: 2 }, 'duplicate_stops'],
+    [{ duplicateStops: undefined }, 'duplicate_stops_unknown'],
+    [{ duplicateStops: '0' }, 'duplicate_stops_unknown'],
+    [{ mealCoverage: { checked: true, missing: ['Day 2: 저녁(17-21시) food stop 누락 (B-MEAL-DINNER)'] } }, 'meal_coverage_missing'],
+    [{ mealCoverage: { checked: false, missing: [] } }, 'meal_coverage_unknown'],
+    [{ mealCoverage: undefined }, 'meal_coverage_unknown'],
   ])('%j -> %s', (patch, reason) => {
     expect(rowFailures({ ...good, ...patch })).toContain(reason);
+  });
+  it('a claude row that the adapter actually served with gemini fails the whole run (comparison contaminated)', () => {
+    const fallbackRow = { ...good, provider: 'claude', providerActual: 'gemini', fallback: true };
+    const o = evaluateCompareRun(runOf([good, fallbackRow]));
+    expect(o).toMatchObject({ ok: false, exitCode: 1 });
+    expect(o.failures).toEqual([{ scenario: 's1', provider: 'claude', reasons: ['provider_fallback'] }]);
+  });
+  it('duplicate stops or a missing required meal on an otherwise passing row -> exitCode 1', () => {
+    expect(evaluateCompareRun(runOf([good, { ...claude, duplicateStops: 1 }])).failures[0].reasons).toEqual(['duplicate_stops']);
+    const meal = evaluateCompareRun(runOf([good, { ...claude, mealCoverage: { checked: true, missing: ['x (B-MEAL)'] } }]));
+    expect(meal.exitCode).toBe(1);
+    expect(meal.failures[0].reasons).toEqual(['meal_coverage_missing']);
   });
   it('an error-only row (what the catch block produces) fails on every evidence field, not just error', () => {
     const r = rowFailures({ scenarioId: 's1', provider: 'claude', error: 'x' });
@@ -80,7 +107,7 @@ describe('evaluateCompareRun', () => {
     expect(o.missingScenarios).toEqual([]);
   });
   it('missing / empty / duplicated expectedScenarios fails closed even with passing rows', () => {
-    const rows = [good, { ...good, provider: 'claude' }];
+    const rows = [good, claude];
     expect(evaluateCompareRun(runOf(rows)).exitCode).toBe(0);
     const noExpected: Partial<ReturnType<typeof runOf>> = { ...runOf(rows) };
     delete noExpected.expectedScenarios;
@@ -111,14 +138,14 @@ describe('evaluateCompareRun', () => {
     [['gemini', 7], 'providers_invalid'],
     [['gemini', 'claude', 'gemini'], 'providers_duplicate'],
   ])('providers %j fails closed with %s even when every recorded pair has a passing row', (providers, reason) => {
-    const rows = [good, { ...good, provider: 'claude' }];
+    const rows = [good, claude];
     expect(evaluateCompareRun(runOf(rows)).exitCode).toBe(0);
     const o = evaluateCompareRun(runOf(rows, { providers }));
     expect(o.runErrors).toContain(reason);
     expect(o).toMatchObject({ ok: false, exitCode: 1 });
   });
   it('a non-array providers value is treated as missing, not coerced', () => {
-    const rows = [good, { ...good, provider: 'claude' }];
+    const rows = [good, claude];
     const o = evaluateCompareRun(runOf(rows, { providers: 'gemini,claude' }));
     expect(o.runErrors).toEqual(['providers_missing']);
     expect(o.exitCode).toBe(1);
@@ -126,17 +153,17 @@ describe('evaluateCompareRun', () => {
   it('display label alone is not an ID: a row without scenarioId fails', () => {
     const labelOnly: Partial<typeof good> = { ...good };
     delete labelOnly.scenarioId;
-    const o = evaluateCompareRun(runOf([labelOnly, { ...good, provider: 'claude' }]));
+    const o = evaluateCompareRun(runOf([labelOnly, claude]));
     expect(o.exitCode).toBe(1);
     expect(o.failures[0].reasons).toContain('scenario_id_missing');
   });
   it('a duplicate scenario×provider row is a failure', () => {
-    const o = evaluateCompareRun(runOf([good, { ...good, provider: 'claude' }, good]));
+    const o = evaluateCompareRun(runOf([good, claude, good]));
     expect(o.exitCode).toBe(1);
     expect(o.failures).toEqual([{ scenario: 's1', provider: 'gemini', reasons: ['duplicate_row'] }]);
   });
   it('a row for a scenario that was not expected is a failure', () => {
-    const o = evaluateCompareRun(runOf([good, { ...good, provider: 'claude' }, { ...good, scenarioId: 'extra' }]));
+    const o = evaluateCompareRun(runOf([good, claude, { ...good, scenarioId: 'extra' }]));
     expect(o.exitCode).toBe(1);
     expect(o.failures).toEqual([{ scenario: 'extra', provider: 'gemini', reasons: ['unexpected_scenario'] }]);
   });
@@ -150,6 +177,56 @@ describe('evaluateCompareRun', () => {
     const o = evaluateCompareRun({ providers: ['gemini'], expectedScenarios: ['s1'], results: [good, { ...good, provider: 'mystery' }] });
     expect(o.exitCode).toBe(1);
     expect(o.failures[0].reasons).toEqual(['unexpected_provider']);
+  });
+});
+
+describe('budgetStop (actual cumulative spend cap)', () => {
+  it('stops only once the summed row usd exceeds the cap; rows without usd count as 0', () => {
+    expect(budgetStop([], 5)).toEqual({ stop: false, spentUsd: 0, maxUsd: 5 });
+    expect(budgetStop([{ usd: 2 }, { usd: 3 }], 5).stop).toBe(false); // = 상한은 아직 통과
+    expect(budgetStop([{ usd: 2 }, { error: 'x' }, { usd: 3.01 }], 5)).toEqual({ stop: true, spentUsd: 5.01, maxUsd: 5 });
+  });
+  it('a run that recorded budgetStop exits 3 (even if every saved row passed) and says why', () => {
+    const rows = [good, claude];
+    const o = evaluateCompareRun(runOf(rows, { budgetStop: { stop: true, spentUsd: 5.2, maxUsd: 5 } }));
+    expect(o).toMatchObject({ ok: false, exitCode: 3 });
+    expect(o.runErrors).toContain('budget_exceeded');
+    expect(formatOutcome(o)).toMatch(/run: budget_exceeded/);
+    expect(evaluateCompareRun(runOf(rows, { budgetStop: null })).exitCode).toBe(0);
+  });
+
+  // Astra r1 P1 — 예외로 비용 불명인 행은 0 이 아니라 예약 비용으로 남고, 판정은 실패.
+  it('a cost-unknown row (usd null) counts its reservation, not 0; a measured usd replaces the reservation', () => {
+    expect(rowSpendUsd({ usd: null, usdReserved: 0.4, usdUnknown: true })).toBe(0.4);
+    expect(rowSpendUsd({ usd: 0.05, usdReserved: 0.4 })).toBe(0.05);
+    expect(rowSpendUsd({ usd: 0, usdReserved: 0.4 })).toBe(0); // 실측 0 은 실측
+    expect(rowSpendUsd({})).toBe(0); // 호출 전 단계 실패 = 예약 없음
+    expect(budgetStop([{ usd: 2 }, { usd: null, usdReserved: 3.5, usdUnknown: true }], 5)).toEqual({ stop: true, spentUsd: 5.5, maxUsd: 5 });
+    expect(rowFailures({ ...good, usd: null, usdReserved: 0.4, usdUnknown: true })).toEqual(['cost_unknown']);
+  });
+
+  // Astra r1 P2 — 실제 합산 경로(finalizeCompareRun = 하네스 마지막 단계). 중단 객체를 주입하지 않는다.
+  it('the last row pushing the total over the cap exits 3 even though every row passed and no in-loop stop happened', () => {
+    const rows = [{ ...good, usd: 2 }, { ...claude, usd: 3.5 }];
+    const f = finalizeCompareRun({ providers: ['gemini', 'claude'], expectedScenarios: ['s1'], results: rows, maxUsd: 5, stopped: null });
+    expect(f.budgetStop).toEqual({ stop: true, spentUsd: 5.5, maxUsd: 5 });
+    expect(f.outcome).toMatchObject({ ok: false, exitCode: 3 });
+    expect(f.outcome.runErrors).toContain('budget_exceeded');
+    const under = finalizeCompareRun({ providers: ['gemini', 'claude'], expectedScenarios: ['s1'], results: [{ ...good, usd: 2 }, { ...claude, usd: 3 }], maxUsd: 5, stopped: null });
+    expect(under.budgetStop).toBeNull();
+    expect(under.outcome.exitCode).toBe(0);
+  });
+  it('a cost-unknown last row is summed at its reservation and stops the run (exit 3), and the row itself fails', () => {
+    const rows = [{ ...good, usd: 2 }, { ...claude, error: 'timeout', usd: null, usdReserved: 3.5, usdUnknown: true }];
+    const f = finalizeCompareRun({ providers: ['gemini', 'claude'], expectedScenarios: ['s1'], results: rows, maxUsd: 5, stopped: null });
+    expect(f.budgetStop).toMatchObject({ stop: true, spentUsd: 5.5 });
+    expect(f.outcome.exitCode).toBe(3);
+    expect(f.outcome.failures[0].reasons).toEqual(expect.arrayContaining(['error', 'cost_unknown']));
+  });
+  it('--evaluate path: a saved artifact with maxUsd is re-summed (no budgetStop recorded) and still exits 3', () => {
+    const rows = [{ ...good, usd: 2 }, { ...claude, usd: 3.5 }];
+    expect(evaluateCompareRun(runOf(rows, { maxUsd: 5 })).exitCode).toBe(3);
+    expect(evaluateCompareRun(runOf(rows, { maxUsd: 6 })).exitCode).toBe(0);
   });
 });
 
@@ -193,7 +270,22 @@ describe('CLI exit codes (no LLM calls)', () => {
     expect(src.indexOf('process.exit(5)')).toBeGreaterThan(-1);
     expect(src.indexOf('process.exit(5)')).toBeLessThan(firstApiImport);
     expect(src).toMatch(/scenarioId: p\.id/);
-    expect(src).toMatch(/evaluateCompareRun\(\{ providers: PROVIDERS, expectedScenarios: SCEN, results \}\)/);
+    expect(src).toMatch(/finalizeCompareRun\(\{ providers: PROVIDERS, expectedScenarios: SCEN, results, maxUsd: MAX_USD, stopped \}\)/);
+    expect(src.indexOf('finalizeCompareRun({')).toBeLessThan(src.indexOf('writeFileSync(out,'));
     expect(src.indexOf('writeFileSync(out,')).toBeLessThan(src.indexOf('process.exitCode = outcome.exitCode'));
+  });
+  it('source: cumulative cap is checked before each call; actual provider/model come from the adapter; trip times reach the validator', () => {
+    const src = readFileSync(SCRIPT, 'utf8');
+    const loop = src.slice(src.indexOf('for (const prov of PROVIDERS) {\n    const budget'));
+    expect(loop.indexOf('budgetStop(results, MAX_USD)')).toBeGreaterThan(-1);
+    expect(loop.indexOf('budgetStop(results, MAX_USD)')).toBeLessThan(loop.indexOf('model.generateContent('));
+    expect(loop.indexOf('row.usdReserved =')).toBeGreaterThan(-1);
+    expect(loop.indexOf('row.usdReserved =')).toBeLessThan(loop.indexOf('model.generateContent('));
+    expect(src).toMatch(/if \(typeof row\.usd !== 'number'\) \{ row\.usd = null; row\.usdUnknown = true; \}/);
+    expect(src).toMatch(/row\.providerActual = model\.provider;/);
+    expect(src).toMatch(/row\.modelActual = model\.modelId;/);
+    expect(src).toMatch(/estimateGeminiCostUsd\(row\.modelActual, cm\)/);
+    expect(src).toMatch(/validatePatternStructure\(plan, \{[^}]*\.\.\.trip \}\)/);
+    expect(src).toMatch(/runDuplicateStopGate\(plan\)/);
   });
 });
