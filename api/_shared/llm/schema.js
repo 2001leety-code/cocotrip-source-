@@ -48,16 +48,18 @@ const kindOf = (v) => (v === null ? 'null' : Array.isArray(v) ? 'array' : typeof
  * 선택 속성의 null 은 "없음"으로 본다(하류는 없는 필드와 같게 다룬다). required 속성의 null 은 자료형 오류.
  * @param {unknown} value
  * @param {object} schema geminiSchemaToJsonSchema 결과
- * @param {{max?: number}} [opts]
+ * required:false(파이프라인 사전검사) — 자료형 불일치·최상위 비객체만 보고 required 누락은 무시한다(누락은 기존
+ *   pattern 검증·self-heal 이 처리: 예 P161 departure_guide 보강). 이때는 모든 속성의 null 을 "없음"으로 본다.
+ * @param {{max?: number, required?: boolean}} [opts]
  * @returns {string[]} 예: ['days: expected array, got object', 'days[0].stops[2].address: expected string, got number']
  */
-export function schemaTypeIssues(value, schema, { max = 20 } = {}) {
+export function schemaTypeIssues(value, schema, { max = 20, required: checkRequired = true } = {}) {
   const issues = [];
   const label = (path) => path || '(root)';
   const visit = (v, s, path) => {
     if (issues.length >= max || !s || typeof s !== 'object') return;
     if (Array.isArray(s.anyOf)) {
-      if (!s.anyOf.some((sub) => schemaTypeIssues(v, sub, { max: 1 }).length === 0)) issues.push(`${label(path)}: does not match any allowed type`);
+      if (!s.anyOf.some((sub) => schemaTypeIssues(v, sub, { max: 1, required: checkRequired }).length === 0)) issues.push(`${label(path)}: does not match any allowed type`);
       return;
     }
     const types = Array.isArray(s.type) ? s.type : (s.type ? [s.type] : []);
@@ -66,7 +68,7 @@ export function schemaTypeIssues(value, schema, { max = 20 } = {}) {
       return;
     }
     if (TYPE_OK.object(v) && s.properties) {
-      const required = new Set(Array.isArray(s.required) ? s.required : []);
+      const required = new Set(checkRequired && Array.isArray(s.required) ? s.required : []);
       for (const k of required) {
         if (v[k] === undefined && issues.length < max) issues.push(`${path ? `${path}.${k}` : k}: required property missing`);
       }

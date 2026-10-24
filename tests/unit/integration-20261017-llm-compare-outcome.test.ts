@@ -6,8 +6,15 @@
  * 유료 호출 0: 순수 판정 함수 + CLI --evaluate(저장 결과 재판정, API 모듈 import 전 종료)만 실행한다.
  * 자식 프로세스는 고정 파일(스크립트 + 픽스처)만 실행한다 (-e/eval 없음).
  */
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { spawnSync } from 'node:child_process';
+
+// 무료 루프가 모델을 만들면 잡히게 — createLlmModel 만 spy(나머지는 실제).
+const llm = vi.hoisted(() => ({ createLlmModel: vi.fn(() => { throw new Error('model call in free loop'); }) }));
+vi.mock('../../api/_shared/llm/index.js', async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
+  createLlmModel: llm.createLlmModel,
+}));
 import { readFileSync, readdirSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
@@ -16,6 +23,7 @@ import { arrivalReadyHHMM } from '../../api/_ai_core/constants.js';
 import {
   evaluateCompareRun, rowFailures, formatOutcome, budgetStop, finalizeCompareRun, rowSpendUsd, costFieldsFromUsage, runCompareCalls,
 } from '../../scripts/integration/llm-compare-outcome.mjs';
+import { runDumpPrompts, runJudgePlan } from '../../scripts/integration/llm-compare-free.mjs';
 
 const ROOT = join(__dirname, '..', '..');
 const SCRIPT = join(ROOT, 'scripts', 'llm-compare-providers.mjs');
@@ -311,18 +319,25 @@ describe('runCompareCalls (call loop, injected callOne)', () => {
 });
 
 // 2026-10-24 (O7): 무료 반복 루프 — 운영과 같은 프롬프트를 파일로 내보내고, 서브에이전트가 만든 플랜을 같은 판정기로 채점.
-describe('free loop: --dump-prompts / --judge-plan (model calls 0, no keys, no --confirm-cost)', () => {
-  const env: NodeJS.ProcessEnv = { ...process.env, LLM_KILL_SWITCH: '1' }; // 혹시 모델을 부르면 실패하게
-  for (const k of ['GEMINI_API_KEY', 'ANTHROPIC_API_KEY', 'LLM_PROVIDER']) delete env[k];
-  const run = (...a: string[]) => spawnSync(process.execPath, [SCRIPT, ...a], { cwd: ROOT, env, encoding: 'utf8', timeout: 90_000 });
+// 2026-10-24: in-process — 오프라인 guard 가 child_process 를 막으므로 spawn 하지 않는다. CLI 는 같은 함수를 부를 뿐(소스 검사).
+describe('free loop: runDumpPrompts / runJudgePlan (model calls 0, no keys, no --confirm-cost)', () => {
   const tmp = mkdtempSync(join(tmpdir(), 'llm-compare-free-'));
+  beforeEach(() => { llm.createLlmModel.mockClear(); });
 
-  it('--dump-prompts writes system/user prompts per scenario + manifest, with zero model calls', () => {
+  it('the CLI free modes only call these functions', () => {
+    const src = readFileSync(SCRIPT, 'utf8');
+    expect(src).toMatch(/const r = await runDumpPrompts\(\{ dir: String\(args\['dump-prompts'\]\), scenarios: SCEN \}\);/);
+    expect(src).toMatch(/const r = await runJudgePlan\(\{ file: String\(args\['judge-plan'\]\), scenarioId: SCEN\.length === 1 \? SCEN\[0\] : '' \}\);/);
+  });
+
+  it('runDumpPrompts writes system/user prompts per scenario + manifest, with zero model calls; offline flag restored', async () => {
     const dir = join(tmp, 'dump');
-    const r = run(`--dump-prompts=${dir}`, '--scenarios=jeju-vegan,seoul-busan-halal');
-    expect(r.status, r.stderr).toBe(0);
-    expect(r.stdout).toMatch(/model calls 0/);
-    expect(`${r.stdout}${r.stderr}`).not.toMatch(/\[LLM_USAGE\]/);
+    const before = process.env.LLM_COMPARE_OFFLINE;
+    const r = await runDumpPrompts({ dir, scenarios: ['jeju-vegan', 'seoul-busan-halal'] });
+    expect(r.exitCode).toBe(0);
+    expect(r.message).toMatch(/model calls 0/);
+    expect(llm.createLlmModel).not.toHaveBeenCalled();
+    expect(process.env.LLM_COMPARE_OFFLINE).toBe(before);
     expect(readdirSync(dir).sort()).toEqual(['jeju-vegan.system.txt', 'jeju-vegan.user.txt', 'manifest.json', 'seoul-busan-halal.system.txt', 'seoul-busan-halal.user.txt']);
     const manifest = JSON.parse(readFileSync(join(dir, 'manifest.json'), 'utf8'));
     expect(Object.keys(manifest.scenarios)).toEqual(['jeju-vegan', 'seoul-busan-halal']);
@@ -342,52 +357,54 @@ describe('free loop: --dump-prompts / --judge-plan (model calls 0, no keys, no -
     duration_days: 2, styles: ['culture', 'food'], area: 'jeju', regions: ['jeju'], arrival_airport: 'CJU', departure_airport: 'CJU',
     arrival_time: '14:00', departure_time: '10:00', arrival_ready_time: arrivalReadyHHMM('14:00', 'CJU', 'jeju'), diet_preferences: ['vegan'], tour_start_time: '09:00',
   }) + '\n=== VARIATION ===' });
-  const judge = (name: string, text: string) => {
+  const judge = async (name: string, text: string) => {
     const file = join(tmp, name);
     writeFileSync(file, text);
-    const r = run(`--judge-plan=${file}`, '--scenario=jeju-vegan');
-    const rowLine = r.stdout.split('\n').find((l) => l.startsWith('{"scenarioId"'));
-    return { r, row: rowLine ? JSON.parse(rowLine) : null };
+    const r = await runJudgePlan({ file, scenarioId: 'jeju-vegan' });
+    type JudgeRow = Record<string, unknown> & { parsed?: boolean; dietaryCritical?: boolean; nameCompliance?: unknown; mealCoverage: { checked: boolean; missing: string[] } };
+    return { r, row: r.row as JudgeRow, out: r.lines.join('\n') };
   };
   const clone = () => JSON.parse(JSON.stringify(plan));
 
-  it('a compliant plan → row passes, exit 0, provider subagent at $0', () => {
-    const { r, row } = judge('ok.json', JSON.stringify(plan));
-    expect(r.status, r.stdout + r.stderr).toBe(0);
+  it('a compliant plan → row passes, exit 0, provider subagent at $0, no model call', async () => {
+    const { r, row, out } = await judge('ok.json', JSON.stringify(plan));
+    expect(r.exitCode, out).toBe(0);
     expect(row).toMatchObject({ provider: 'subagent', providerActual: 'subagent', usd: 0, parsed: true, dietaryCritical: false, duplicateStops: 0, mealCoverage: { checked: true, missing: [] } });
     expect(row.nameCompliance).toEqual({ exact: 2, aliasOnly: 0, unmatched: 0 });
-    expect(r.stdout).toMatch(/outcome=PASS/);
+    expect(row).not.toHaveProperty('plan');
+    expect(out).toMatch(/outcome=PASS/);
+    expect(llm.createLlmModel).not.toHaveBeenCalled();
   });
 
-  it('a fenced answer (```json … ```) is parsed by the same repair path', () => {
-    const { r, row } = judge('fenced.txt', '```json\n' + JSON.stringify(plan, null, 2) + '\n```');
-    expect(r.status).toBe(0);
+  it('a fenced answer (```json … ```) is parsed by the same repair path', async () => {
+    const { r, row } = await judge('fenced.txt', '```json\n' + JSON.stringify(plan, null, 2) + '\n```');
+    expect(r.exitCode).toBe(0);
     expect(row.parsed).toBe(true);
   });
 
-  it('a non-vegan restaurant → dietary critical, exit 1', () => {
+  it('a non-vegan restaurant → dietary critical, exit 1', async () => {
     const p = clone();
     const food = p.days.flatMap((d: { stops: Array<Record<string, unknown>> }) => d.stops).find((s: Record<string, unknown>) => s.category === 'food');
     food.name = '돼지국밥 맛집'; food.display_name = 'Pork soup'; delete food.dietary_tags;
-    const { r, row } = judge('diet.json', JSON.stringify(p));
-    expect(r.status).toBe(1);
+    const { r, row, out } = await judge('diet.json', JSON.stringify(p));
+    expect(r.exitCode).toBe(1);
     expect(row.dietaryCritical).toBe(true);
-    expect(r.stdout).toMatch(/subagent jeju-vegan: .*dietary_critical_or_unknown/);
+    expect(out).toMatch(/subagent jeju-vegan: .*dietary_critical_or_unknown/);
   });
 
-  it('the 10:00-departure breakfast removed → meal coverage missing, exit 1', () => {
+  it('the 10:00-departure breakfast removed → meal coverage missing, exit 1', async () => {
     const p = clone();
     p.days[p.days.length - 1].stops = p.days[p.days.length - 1].stops.filter((s: { category: string }) => s.category !== 'food');
-    const { r, row } = judge('meal.json', JSON.stringify(p));
-    expect(r.status).toBe(1);
+    const { r, row, out } = await judge('meal.json', JSON.stringify(p));
+    expect(r.exitCode).toBe(1);
     expect(row.mealCoverage.missing).toEqual([expect.stringMatching(/^Day 2 \(출국일\): departure_time=10:00 이른 출국 — 조식/)]);
-    expect(r.stdout).toMatch(/meal_coverage_missing/);
+    expect(out).toMatch(/meal_coverage_missing/);
   });
 
-  it('--judge-plan needs exactly one known --scenario (exit 5) and a readable file (exit 4)', () => {
-    expect(run(`--judge-plan=${join(tmp, 'ok.json')}`).status).toBe(5);
-    expect(run(`--judge-plan=${join(tmp, 'ok.json')}`, '--scenario=nope').status).toBe(5);
-    expect(run(`--judge-plan=${join(tmp, 'missing.json')}`, '--scenario=jeju-vegan').status).toBe(4);
+  it('runJudgePlan needs exactly one known scenario (exit 5) and a readable file (exit 4)', async () => {
+    expect((await runJudgePlan({ file: join(tmp, 'ok.json'), scenarioId: '' })).exitCode).toBe(5);
+    expect((await runJudgePlan({ file: join(tmp, 'ok.json'), scenarioId: 'nope' })).exitCode).toBe(5);
+    expect((await runJudgePlan({ file: join(tmp, 'missing.json'), scenarioId: 'jeju-vegan' })).exitCode).toBe(4);
   });
 });
 
@@ -450,7 +467,10 @@ describe('CLI exit codes (no LLM calls)', () => {
     expect(src).toMatch(/row\.modelActual = model\.modelId;/);
     expect(src).toMatch(/costFieldsFromUsage\(\{ providerActual: row\.providerActual, modelActual: row\.modelActual, usageMetadata: result\.response && result\.response\.usageMetadata, price: estimateGeminiCostUsd \}\)/);
     expect(src).not.toMatch(/extractCacheMetadata/); // 누락을 0 으로 바꾸는 추출기를 비용에 쓰지 않는다
-    expect(src).toMatch(/validatePatternStructure\(plan, \{[^}]*\.\.\.trip \}\)/);
-    expect(src).toMatch(/runDuplicateStopGate\(plan\)/);
+    // 판정기는 무료 루프와 공용(llm-compare-free.mjs judgePlanInto) — 유료 callOne 이 그것을 부른다.
+    expect(fn).toMatch(/judgePlanInto\(row, gp\.extractTextFromResponse\(result\.response\)\.trim\(\), p, DEPS\)/);
+    const freeSrc = readFileSync(join(ROOT, 'scripts', 'integration', 'llm-compare-free.mjs'), 'utf8');
+    expect(freeSrc).toMatch(/validatePatternStructure\(plan, \{[^}]*\.\.\.trip \}\)/);
+    expect(freeSrc).toMatch(/runDuplicateStopGate\(plan\)/);
   });
 });

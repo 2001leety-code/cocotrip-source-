@@ -20,6 +20,7 @@ import { buildDietarySafetyBlock } from '../../api/_ai_core/userMessageBuilder.j
 import { checkRequiredMeals } from '../../api/_ai_core/responseValidator.js';
 import { runFinalItineraryValidation, buildFinalGateError, tripTimesFrom, failureDetailsOf, FINAL_GATE_MEAL_CODE, FINAL_GATE_DIETARY_CODE } from '../../api/_ai_core/finalItineraryGate.js';
 import { summarizeSafety, formatOutcome, evaluateCompareRun, foodNameCompliance } from '../../scripts/integration/llm-compare-outcome.mjs';
+import { SCENARIOS } from '../../scripts/integration/llm-compare-free.mjs';
 
 const read = (p: string) => readFileSync(resolve(process.cwd(), p), 'utf8');
 
@@ -323,16 +324,17 @@ describe('P3 — required meals (B-MEAL) shared with the final gate', () => {
 });
 
 describe('P4 — compare harness scenarios and safety tally', () => {
-  const src = read('scripts/llm-compare-providers.mjs');
+  // 2026-10-24: 시나리오·입력 조립은 scripts/integration/llm-compare-free.mjs (유료 하네스와 무료 루프 공용).
+  const freeSrc = read('scripts/integration/llm-compare-free.mjs');
   it('exactly the four dietary scenarios, with regions and entry/exit wired through the production list builder', () => {
-    const allBlock = src.slice(src.indexOf('const ALL = {'), src.indexOf('};', src.indexOf('const ALL = {')));
-    expect([...allBlock.matchAll(/^\s+'([a-z-]+)':/gm)].map((m) => m[1])).toEqual(['busan-halal-local', 'seoul-busan-halal', 'seoul-ja', 'jeju-vegan']);
-    expect(allBlock).toMatch(/'busan-halal-local':[^\n]*arrival_airport: 'PUS', departure_airport: 'PUS'/);
-    expect(allBlock).toMatch(/'seoul-busan-halal':[^\n]*regions: \['seoul', 'busan'\][^\n]*arrival_airport: 'ICN_T1', departure_airport: 'PUS', arrivalCity: 'seoul', departureCity: 'busan'/);
-    expect(allBlock).toMatch(/'jeju-vegan':[^\n]*arrivalTime: '14:00', departureTime: '10:00', arrival_airport: 'CJU', departure_airport: 'CJU'/);
-    expect(src).toMatch(/buildTripFoodContext\(\{ cities: mealCities,/);
-    expect(src).not.toMatch(/getFoodContext\(/);
-    expect(src).not.toMatch(/regions: \[p\.s\.area\]/);
+    expect(Object.keys(SCENARIOS)).toEqual(['busan-halal-local', 'seoul-busan-halal', 'seoul-ja', 'jeju-vegan']);
+    expect(SCENARIOS['busan-halal-local']).toMatchObject({ arrival_airport: 'PUS', departure_airport: 'PUS' });
+    expect(SCENARIOS['seoul-busan-halal']).toMatchObject({ regions: ['seoul', 'busan'], arrival_airport: 'ICN_T1', departure_airport: 'PUS', arrivalCity: 'seoul', departureCity: 'busan' });
+    expect(SCENARIOS['jeju-vegan']).toMatchObject({ arrivalTime: '14:00', departureTime: '10:00', arrival_airport: 'CJU', departure_airport: 'CJU' });
+    expect(freeSrc).toMatch(/buildTripFoodContext\(\{ cities: mealCities,/);
+    expect(freeSrc).not.toMatch(/getFoodContext\(/);
+    expect(freeSrc).not.toMatch(/regions: \[p\.s\.area\]/);
+    expect(read('scripts/llm-compare-providers.mjs')).toMatch(/const ALL = SCENARIOS;/);
   });
 
   it('summarizeSafety tallies exact / alias-only / unmatched names, dietary-violation and missing-meal rows per provider', () => {

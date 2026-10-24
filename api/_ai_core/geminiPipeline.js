@@ -885,7 +885,7 @@ const PLAN_RESPONSE_SCHEMA = {
 
 // Export for unit testing (회귀 검증).
 export { PLAN_RESPONSE_SCHEMA };
-// 2026-10-24: 응답 자료형·required 검사용(schemaTypeIssues) — 정리 함수 전에 쓴다.
+// 2026-10-24: 응답 자료형 검사용(schemaTypeIssues, required:false) — 정리 함수 전에 쓴다.
 const PLAN_JSON_SCHEMA = geminiSchemaToJsonSchema(PLAN_RESPONSE_SCHEMA);
 
 /**
@@ -907,7 +907,8 @@ function reenterDietaryReplacement(itinerary, { dietaryArr, foodIndex, area, lan
  */
 export function planSchemaTypeIssues(itinerary) {
   if (itinerary && typeof itinerary === 'object' && itinerary.__repair_minimal_fallback) return [];
-  return schemaTypeIssues(itinerary, PLAN_JSON_SCHEMA);
+  // required 누락은 보지 않는다 — 기존 pattern 검증·self-heal(P161 guide 보강 등)이 처리. 자료형·최상위 비객체만.
+  return schemaTypeIssues(itinerary, PLAN_JSON_SCHEMA, { required: false });
 }
 
 // Per-instance sliding-window retry counter. Vercel containers don't share
