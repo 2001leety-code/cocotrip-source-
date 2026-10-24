@@ -10,7 +10,10 @@ describe('chat ownership and server-side limits', () => {
   it('does not trust body userId and resolves a signed server session', () => {
     expect(chatApi).not.toMatch(/const\s*\{[^}]*\buserId\b[^}]*\}\s*=\s*body/);
     expect(chatApi).toContain('resolveChatSessionForPost');
-    expect(chatApi).toMatch(/checkRateLimit\s*\(\s*uid\s*,\s*ip\s*\)/);
+    // 2026-10-24: 세 번째 인자 = 서버가 서명 쿠키로 확정한 게스트 sessionId(body 값 아님), 로그인은 ''.
+    expect(chatApi).toMatch(/checkRateLimit\s*\(\s*uid\s*,\s*ip\s*,\s*uid \? '' : sessionId\s*\)/);
+    expect(chatApi).toMatch(/const sessionId = chatSession\.sessionId;/);
+    expect(chatApi).not.toMatch(/checkRateLimit\([^)]*body\./);
   });
 
   it('protects polling with ownership verification and a server-side counter', () => {

@@ -1,4 +1,4 @@
-import { AIRPORT_TRANSFER_PRICES, DAILY_TOUR_PRICES } from '@/data/charterPricing';
+import { AIRPORT_TRANSFER_PRICES, AIRPORTS_CATALOG, CITIES_CATALOG, DAILY_TOUR_PRICES } from '@/data/charterPricing';
 
 type CharterLanguage = 'ko' | 'en' | 'ja' | 'zh';
 type JaZhLabel = Record<'ja' | 'zh', string>;
@@ -153,6 +153,46 @@ export function resolveDestinationKeyLabel(
     return dayTourDestinationLabel(key, language === 'ko' ? dayTourBase.ko : dayTourBase.en, language);
   }
   return fallback ?? key;
+}
+
+// 카탈로그(pricing_spec.json)는 가격 SSOT 라 name_ko/name_en 2종뿐 — ja/zh 표기가 없다.
+// 가격 데이터를 건드리지 않고 표시용으로만 덮는 정적 매핑 (Step1 노출 코드 12개 전부).
+// zh 는 사이트 표준인 간체(首尔·济州·丽水·机场). 2026-10-24: Step1Origin → 여기로 이동(결제 요약 출발 행과 공용).
+const ORIGIN_NAME_JA_ZH: Record<string, JaZhLabel> = {
+  ICN: { ja: '仁川国際空港', zh: '仁川国际机场' },
+  GMP: { ja: '金浦国際空港', zh: '金浦国际机场' },
+  PUS: { ja: '金海国際空港', zh: '金海国际机场' },
+  CJU: { ja: '済州国際空港', zh: '济州国际机场' },
+  TAE: { ja: '大邱国際空港', zh: '大邱国际机场' },
+  CJJ: { ja: '清州国際空港', zh: '清州国际机场' },
+  MWX: { ja: '務安国際空港', zh: '务安国际机场' },
+  KWJ: { ja: '光州空港', zh: '光州机场' },
+  RSU: { ja: '麗水空港', zh: '丽水机场' },
+  USN: { ja: '蔚山空港', zh: '蔚山机场' },
+  SEL_METRO: { ja: 'ソウル市内', zh: '首尔市区' },
+  BUS_METRO: { ja: '釜山市内', zh: '釜山市区' },
+};
+
+// 매핑에 없는 코드(향후 카탈로그 추가분)는 기존 안전 동작 그대로 name_en 폴백.
+export function localizedOriginName(code: string, language: CharterLanguage, nameKo: string, nameEn: string): string {
+  if (language === 'ko') return nameKo;
+  if (language === 'en') return nameEn;
+  return ORIGIN_NAME_JA_ZH[code]?.[language] || nameEn;
+}
+
+// 결제 요약 출발 행 — Step1 카드와 같은 이름(공항/도시 카탈로그 + ja/zh 보완), 그다음 목적지 사전,
+// 둘 다 모르는 코드는 fallback. 'CUSTOM' 은 자유 주소 표식이라 이름이 아니다.
+export function originCodeLabel(
+  code: string | null | undefined,
+  language: CharterLanguage,
+  fallback?: string | null,
+): string {
+  if (!code || code === 'CUSTOM') return fallback || '-';
+  type CatalogEntry = { name_ko: string; name_en: string } | undefined;
+  // Step1Origin.labelFor 와 같은 순서 — 공항 먼저, 그다음 도시.
+  const entry = (AIRPORTS_CATALOG as Record<string, CatalogEntry>)[code] || (CITIES_CATALOG as Record<string, CatalogEntry>)[code];
+  if (entry) return localizedOriginName(code, language, entry.name_ko, entry.name_en);
+  return resolveDestinationKeyLabel(code, language, fallback);
 }
 
 export function kpopVenueLabel(

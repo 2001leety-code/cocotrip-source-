@@ -16,6 +16,9 @@ import { useLanguage } from '@/hooks/useLanguage';
 import type { CartItemBooking } from '@/lib/cart-types';
 import { SLOT_REJECT_LABELS } from '@/lib/tourSlotBooking';
 import { authFetch } from '@/lib/authFetch';
+import { useGuestSignup } from '@/hooks/useGuestSignup';
+import { GuestSignupNudge } from '@/components/GuestSignupNudge';
+import type { Language } from '@/i18n';
 import { usePaymentRecovery, reconcilePayment, classifyCaptureResponse, recoveryCopy, recoveryHeadline, type CaptureOutcome } from '@/lib/paymentRecovery';
 
 type PaypalButtonsApi = { Buttons: (cfg: Record<string, unknown>) => { render: (sel: string) => void } };
@@ -88,8 +91,15 @@ export function CartCheckout({ onClose, onBack }: { onClose: () => void; onBack?
   const captureInFlight = useRef(false);
   const [reconciling, setReconciling] = useState(false);
   const rc = recoveryCopy(language);
+  // 2026-10-24: 결제 성공 화면 게스트 → 회원 전환 넛지 (PayPalBookingButton 과 같은 훅). 결제 상태와 별개.
+  const { signupLoading, signupError, handleGuestSignup } = useGuestSignup();
+  const [payerEmail, setPayerEmail] = useState<string | null>(null);
   async function applyOutcome(outcome: CaptureOutcome, orderId: string, fresh: boolean) {
-    if (outcome.kind === 'final') { clearRecovery(orderId); setStatus('success'); await clear(); return; }
+    if (outcome.kind === 'final') {
+      // 표시 전용 — 서버 확정 응답(captureCartOrder data.payerEmail)의 결제자 이메일.
+      setPayerEmail(typeof outcome.data.payerEmail === 'string' && outcome.data.payerEmail ? outcome.data.payerEmail : null);
+      clearRecovery(orderId); setStatus('success'); await clear(); return;
+    }
     if (outcome.kind === 'review') { remember({ orderID: orderId, flow: 'cart', paymentStatus: outcome.captured ? 'CAPTURED' : 'NOT_CAPTURED', review: true }); setStatus('review'); await clear(); return; }
     if (outcome.kind === 'pending') { remember({ orderID: orderId, flow: 'cart', paymentStatus: outcome.status, review: false }); setStatus('idle'); return; }
     if (outcome.kind === 'auth_required') {
@@ -261,6 +271,18 @@ export function CartCheckout({ onClose, onBack }: { onClose: () => void; onBack?
         <div className="text-4xl mb-3 customer-checkout-success-icon">✅</div>
         <p className="text-white font-semibold mb-1 customer-checkout-state-title">{c.checkoutDone || 'Booking confirmed!'}</p>
         <p className="text-white/55 text-sm mb-5">{c.checkoutDoneSub || 'Confirmation emails are on the way.'}</p>
+        {/* 게스트 전용(!user) — 로그인 사용자에겐 렌더 안 함. PayPalBookingButton 성공 오버레이와 같은 넛지. */}
+        {!user && (
+          <div className="mb-5 text-left">
+            <GuestSignupNudge
+              language={language as Language}
+              email={payerEmail}
+              onGoogleLogin={handleGuestSignup}
+              authLoading={signupLoading}
+              authError={signupError}
+            />
+          </div>
+        )}
         <button onClick={onClose} className="px-5 py-2.5 rounded-xl text-sm font-semibold bg-[#7C5CFC] text-white">
           {c.close || 'Done'}
         </button>

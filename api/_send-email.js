@@ -500,7 +500,7 @@ export function buildDefaultConfirmationEmail(booking, walletUrl = null, itinera
     <!-- 푸터 -->
     <p style="text-align:center;color:#9ca3af;font-size:13px;margin-top:24px;">
       ${L.footer}<br>
-      <a href="https://cocotripkr.com" style="color:#C4956A;text-decoration:none;font-weight:bold;">cocotripkr.com</a>
+      <a href="https://cocotripkr.com/?utm_source=email&utm_medium=footer&utm_campaign=transactional" style="color:#C4956A;text-decoration:none;font-weight:bold;">cocotripkr.com</a>
     </p>
   </div>
 </body>

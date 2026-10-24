@@ -204,6 +204,17 @@ function asLang(language: string): WizardLang {
   return 'en';
 }
 
+// 2026-10-24: 결제 요약 서비스 행 — Step2Service 카드와 같은 라벨. 모르는 키만 기존 폴백(`_` → 공백).
+export function serviceModeLabel(service: string | null | undefined, language: string): string | undefined {
+  if (!service) return undefined;
+  const i18n = getWizardI18n(language);
+  const labels: Record<string, string> = {
+    airport_transfer: i18n.svcAirport, day_tour: i18n.svcDayTour, multi_day: i18n.svcMultiDay,
+    kpop_shuttle: i18n.svcKpop, transfer: i18n.svcTransfer,
+  };
+  return labels[service] || service.replace(/_/g, ' ');
+}
+
 export function getWizardI18n(language: string): WizardI18n {
   const lang = asLang(language);
   // 중앙 번역 객체에서 charterWizard namespace 를 가져온다. 1306 한국어 fallback.

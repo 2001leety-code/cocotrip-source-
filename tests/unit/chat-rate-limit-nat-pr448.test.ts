@@ -77,6 +77,8 @@ describe('PR #448 W-H14 — handler-level invariants', () => {
 
 describe('PR #448 W-H14 — checkRateLimit signature still threads ip', () => {
   it('checkRateLimit accepts an ip param (now used as the guest rate key)', () => {
-    expect(src).toMatch(/async\s+function\s+checkRateLimit\s*\(\s*userId\s*,\s*_?ip\s*\)/);
+    // 2026-10-24: 세 번째 인자(게스트 서명 세션 sessionId — 무료 문답 한도)가 추가됐다. ip 는 여전히 두 번째, 게스트 IP 키.
+    expect(src).toMatch(/async\s+function\s+checkRateLimit\s*\(\s*userId\s*,\s*_?ip\s*(,\s*guestSessionId\s*=\s*''\s*)?\)/);
+    expect(src).toMatch(/if \(isGuest\) userId = `ip:\$\{hashIp\(ip\)\}`;/);
   });
 });
