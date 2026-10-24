@@ -59,7 +59,7 @@
  * ══════════════════════════════════════════════════════════════════════════
  */
 import { SCHEDULE_BUFFER_MIN, AIRPORT_ARRIVE_BEFORE_MIN } from './constants.js';
-import { judgeRepeats, stopDuplicateKey as revisitStopDuplicateKey } from './revisitPolicy.js';
+import { judgeRepeats } from './revisitPolicy.js';
 
 // ── Configuration ──────────────────────────────────────────────────────────
 // Weights are applied to per-stop violation rates (or absolute counts for
@@ -245,8 +245,13 @@ function countBadAddressPrefix(stopsList) {
  * 블록 선택 보정(blockMode repairRepeatedBlockSelections)도 같은 규칙을 쓴다 — 2026-10-23, 서로 다른
  * DMZ 블록 둘이 "임진각 평화누리공원" 을 공유해 이 게이트에서 ×2 로 막힌 사례.
  */
-// 2026-10-24: 규칙 SSOT = revisitPolicy.stopDuplicateKey (같은 규칙 — 재방문 판정기와 공유).
-export const stopDuplicateKey = revisitStopDuplicateKey;
+export function stopDuplicateKey(stop) {
+  if (isLodging(stop)) return '';
+  return String(stopLabel(stop)).trim().toLowerCase();
+}
+
+// 2026-10-24 재방문 판정기 ctx — 행 미식별 stop 은 이 파일의 키(레거시 name_ko 폴백 포함)로 묶는다(순환 import 없음: 주입).
+const withLegacyLabel = (ctx) => ({ ...ctx, labelOf: stopDuplicateKey });
 
 function groupNonLodgingStopCounts(stopsList) {
   const counted = stopsList.filter(({ stop }) => !isLodging(stop));
@@ -270,7 +275,7 @@ export function countDuplicateStops(stopsList, ctx, itinerary) {
   const { counted, seen } = groupNonLodgingStopCounts(stopsList);
   let dups = 0;
   if (ctx && itinerary) {
-    for (const d of judgeRepeats(itinerary, ctx).duplicates) dups += (d.count - 1);
+    for (const d of judgeRepeats(itinerary, withLegacyLabel(ctx)).duplicates) dups += (d.count - 1);
     return { total: counted.length, count: dups };
   }
   for (const n of seen.values()) if (n > 1) dups += (n - 1);
@@ -279,7 +284,7 @@ export function countDuplicateStops(stopsList, ctx, itinerary) {
 
 /** 판정기가 승인한 재방문 목록(ctx 없으면 []). */
 export function findRevisits(itinerary, ctx) {
-  return ctx ? judgeRepeats(itinerary, ctx).revisits : [];
+  return ctx ? judgeRepeats(itinerary, withLegacyLabel(ctx)).revisits : [];
 }
 
 /**
@@ -292,7 +297,7 @@ export function findRevisits(itinerary, ctx) {
  * @returns {Array<{name: string, count: number}>}
  */
 export function findDuplicateStops(itinerary, ctx) {
-  if (ctx) return judgeRepeats(itinerary, ctx).duplicates;
+  if (ctx) return judgeRepeats(itinerary, withLegacyLabel(ctx)).duplicates;
   const stopsList = flattenStops(itinerary);
   const { seen, labels } = groupNonLodgingStopCounts(stopsList);
   const out = [];

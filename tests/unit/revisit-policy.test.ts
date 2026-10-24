@@ -34,10 +34,21 @@ describe('building blocks', () => {
   it('city keys: suffix and localized aliases', () => {
     for (const v of ['seoul', 'Seoul', 'seoul_city', '서울', 'ソウル', '首尔']) expect(cityKeyOf(v)).toBe('seoul');
   });
-  it('duplicate key is the single rule shared with qualityMetrics', () => {
-    expect(qmKey).toBe(stopDuplicateKey);
+  // 2026-10-24 r3: revisitPolicy 키는 신 스키마(name/display_name)만(CLAUDE.md B-2). 레거시 name_ko 폴백은
+  //   qualityMetrics.stopDuplicateKey(원래 구현)가 갖고, 판정기에는 ctx.labelOf 로 주입된다.
+  it('duplicate keys: new-schema key here, legacy-fallback key in qualityMetrics (injected via ctx.labelOf)', () => {
     expect(stopDuplicateKey({ category: 'lodging', name: 'Hotel' })).toBe('');
     expect(stopDuplicateKey({ category: 'food', name: '  Foo ' })).toBe('foo');
+    expect(stopDuplicateKey({ category: 'culture', name_ko: '경복궁' })).toBe('');
+    expect(qmKey({ category: 'culture', name_ko: ' 경복궁 ' })).toBe('경복궁');
+    expect(qmKey({ category: 'lodging', name_ko: '호텔' })).toBe('');
+  });
+  it('legacy name_ko-only stops repeated across days are still duplicates (no ctx, and with ctx via labelOf)', () => {
+    const legacy = { days: [day(1, [{ category: 'culture', name_ko: '경복궁', start_time: '10:00' }]), day(2, [{ category: 'culture', name_ko: '경복궁', start_time: '10:00' }])] };
+    expect(findDuplicateStops(legacy)).toEqual([{ name: '경복궁', count: 2 }]);
+    expect(runDuplicateStopGate(legacy).duplicates).toEqual([{ name: '경복궁', count: 2 }]);
+    expect(findDuplicateStops(legacy, halal([A]))).toEqual([{ name: '경복궁', count: 2 }]);
+    expect(runDuplicateStopGate(legacy, halal([A])).ok).toBe(false);
   });
   it('eligible rows: trusted + all requested diets + not avoided + uniquely resolvable', () => {
     expect(eligibleRows([A, B, U], 'seoul', ['halal'])).toEqual([A, B]);

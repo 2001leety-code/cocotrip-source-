@@ -46,12 +46,17 @@ export function parseStrictHHMM(value) {
 
 /**
  * 종단 중복 판정 키 — 숙소·빈 이름은 ''(비교 제외). 이름은 신·구 필드 폴백 → trim → 소문자.
- * qualityMetrics.stopDuplicateKey 가 이 함수를 그대로 쓴다(블록 선택 보정과 같은 규칙 — 단일 소스).
+ * 신 스키마(name/display_name)만 본다(CLAUDE.md B-2). 레거시 필드 폴백은 qualityMetrics.stopDuplicateKey 가 갖고,
+ * 그 키는 ctx.labelOf 로 주입된다(qualityMetrics → revisitPolicy 단방향 — 순환 import 없음).
  */
 export function stopDuplicateKey(stop) {
   if (!stop || stop.category === 'lodging') return '';
-  return String(stop.name || stop.name_ko || stop.display_name || stop.name_en || '').trim().toLowerCase();
+  return String(stop.name || stop.display_name || '').trim().toLowerCase();
 }
+
+/** ctx.labelOf(키 함수)가 있으면 그것, 없으면 신 스키마 키. 행 식별(findSelectedFoodRow)이 항상 우선. */
+const keyFnOf = (ctx) => (ctx && typeof ctx.labelOf === 'function' ? ctx.labelOf : stopDuplicateKey);
+const displayLabel = (stop, key) => String(stop.name || stop.display_name || '').trim() || key;
 
 const rowName = (row) => String((row && row.name) || '').split('|')[0].trim();
 
@@ -121,7 +126,7 @@ export function orderedFoodStops(itinerary) {
 }
 
 /** 걷기 공용 상태 — judge/normalize 가 같은 정의를 쓰게 한 곳에. */
-function makeWalker(c) {
+function makeWalker(c, keyFn = stopDuplicateKey) {
   const eligibleCache = new Map();
   const eligibleFor = (city) => {
     if (!c) return [];
@@ -134,7 +139,7 @@ function makeWalker(c) {
       if (!rowIndex.has(row)) rowIndex.set(row, rowIndex.size);
       return `row:${rowIndex.get(row)}`;
     }
-    return stopDuplicateKey(entry.stop);
+    return keyFn(entry.stop);
   };
   return { eligibleFor, keyFor };
 }
@@ -150,23 +155,25 @@ function isApprovedRevisit(entry, row, state, eligible) {
 /**
  * 최종 일정 판정.
  * @param {object} itinerary
- * @param {{foodIndex?: object[], dietary?: string[], avoidStopNames?: string[]}} [ctx]
+ * @param {{foodIndex?: object[], dietary?: string[], avoidStopNames?: string[], labelOf?: (stop: object) => string}} [ctx]
+ *   labelOf — 행 미식별 stop 의 그룹 키 함수(qualityMetrics 가 레거시 폴백 키를 넘긴다). 없으면 신 스키마 키.
  * @returns {{duplicates: Array<{name: string, count: number}>, revisits: Array<{name: string, day: number}>}}
  */
 export function judgeRepeats(itinerary, ctx) {
   const c = validCtx(ctx);
-  const { eligibleFor, keyFor } = makeWalker(c);
+  const keyFn = keyFnOf(ctx);
+  const { eligibleFor, keyFor } = makeWalker(c, keyFn);
   const groups = new Map();
   const revisits = [];
   const state = { visitedBefore: new Set(), visitedToday: new Set() };
   let currentDay = -1;
   for (const entry of orderedStops(itinerary)) {
     if (entry.dayIndex !== currentDay) { currentDay = entry.dayIndex; state.visitedToday = new Set(); }
-    const nameKey = stopDuplicateKey(entry.stop);
+    const nameKey = keyFn(entry.stop);
     if (!nameKey) continue;
     const row = c && entry.stop.category === 'food' ? resolveRow(entry.stop, c.foodIndex, entry.day && entry.day.city) : null;
     const key = keyFor(entry, row);
-    const g = groups.get(key) || { label: String(entry.stop.name || entry.stop.name_ko || entry.stop.display_name || entry.stop.name_en || '').trim(), count: 0, approved: 0 };
+    const g = groups.get(key) || { label: displayLabel(entry.stop, nameKey), count: 0, approved: 0 };
     g.count += 1;
     if (g.count > 1 && c && row && isApprovedRevisit(entry, row, state, eligibleFor(entry.dayCity))) {
       g.approved += 1;
@@ -259,7 +266,7 @@ export function normalizeRevisits(itinerary, ctx, { mode = 'replace' } = {}) {
     }
     const isFood = stop.category === 'food';
     const row = c && isFood ? resolveRow(stop, c.foodIndex, entry.day.city) : null;
-    const nameKey = stopDuplicateKey(stop);
+    const nameKey = keyFnOf(ctx)(stop);
     const repeat = row ? seenRows.has(row) : (nameKey && seenNames.has(nameKey));
     let finalRow = row;
     if (isFood && !repeat) {
@@ -311,7 +318,7 @@ export function normalizeRevisits(itinerary, ctx, { mode = 'replace' } = {}) {
 
 /**
  * 재방문(revisit: true) food stop tip 끝에 안내 1문장(R6) — planPersister.applyRevisitNotes 로도 내보낸다.
- * 먼저 모든 stop 의 tip·tip_en 에서 기존 안내(4개 언어 + 저장된 revisit_note)를 떼고, 정규화 결과 revisit===true 인
+ * 먼저 모든 stop 의 tip 에서 기존 안내(4개 언어 + 저장된 revisit_note)를 떼고, 정규화 결과 revisit===true 인
  * food stop 에만 다시 붙인다 → 언어 바뀜·표시 해제·pass3 tip 덮어쓰기 뒤에도 문장 1회·정확한 언어. revisit_note 에 저장.
  * @returns {number} 안내가 붙은 stop 수
  */
@@ -322,9 +329,8 @@ export function applyRevisitNotes(itinerary, { language } = {}) {
     for (const stop of Array.isArray(day && day.stops) ? day.stops : []) {
       if (!stop || typeof stop !== 'object') continue;
       const prior = stop.revisit_note;
-      for (const f of ['tip', 'tip_en']) {
-        if (typeof stop[f] === 'string') stop[f] = stripRevisitNote(stop[f], prior);
-      }
+      // 신 스키마 tip 만(CLAUDE.md B-2) — 렌더러는 tip 우선이라 안내가 붙는 곳도 tip 뿐.
+      if (typeof stop.tip === 'string') stop.tip = stripRevisitNote(stop.tip, prior);
       if (stop.category === 'food' && stop.revisit === true) {
         const tip = typeof stop.tip === 'string' ? stop.tip.trim() : '';
         stop.tip = tip ? `${tip} ${note}` : note;

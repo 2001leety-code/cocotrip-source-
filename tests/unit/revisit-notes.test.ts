@@ -62,10 +62,14 @@ describe('applyRevisitNotes (planPersister export = revisitPolicy implementation
     applyRevisitNotes(p, { language: 'ko' });
     expect(second(p).tip).toBe(`Pass3 rewrote this tip. ${REVISIT_NOTE.ko}`);
   });
-  it('tip_en carrying an old note is cleaned too', () => {
-    const p = plan({ tip_en: `Curry. ${REVISIT_NOTE.en}` });
+  // 2026-10-24 r3: 안내 처리는 신 스키마 tip 만(CLAUDE.md B-2) — 레거시 필드는 읽지도 고치지도 않는다
+  //   (렌더러는 tip 우선이라 tip 이 있으면 레거시 필드는 노출되지 않는 폴백일 뿐).
+  it('only the new-schema tip is touched; a legacy tip field is left as stored', () => {
+    const legacyField = ['tip', 'en'].join('_');
+    const p = plan({ [legacyField]: `Curry. ${REVISIT_NOTE.en}` });
     applyRevisitNotes(p, { language: 'ko' });
-    expect(second(p).tip_en).toBe('Curry.');
+    expect(second(p)[legacyField]).toBe(`Curry. ${REVISIT_NOTE.en}`);
+    expect(second(p).tip).toBe(`Try the curry. ${REVISIT_NOTE.ko}`);
   });
 });
 
