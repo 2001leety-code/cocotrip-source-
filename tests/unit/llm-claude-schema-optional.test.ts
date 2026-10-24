@@ -29,9 +29,10 @@ describe('countOptionalProperties', () => {
     expect(countOptionalProperties({ type: 'string' })).toBe(0);
     expect(countOptionalProperties(null as unknown as object)).toBe(0);
   });
-  it('planner main schema has 62 optional properties (61 in the 400 + stop.dietary_tags 2026-10-24), well over the limit', () => {
+  it('planner main schema has 63 optional properties (61 in the 400 + stop.dietary_tags + stop.revisit 2026-10-24), well over the limit', () => {
     expect(CLAUDE_STRUCTURED_OPTIONAL_LIMIT).toBe(24);
-    expect(countOptionalProperties(geminiSchemaToJsonSchema(PLAN_RESPONSE_SCHEMA))).toBe(62);
+    // 2026-10-24 재방문 정책: stop.revisit(BOOLEAN) 추가 → 62 → 63. 프롬프트 임베드 경로(24 초과)는 그대로.
+    expect(countOptionalProperties(geminiSchemaToJsonSchema(PLAN_RESPONSE_SCHEMA))).toBe(63);
   });
 });
 
