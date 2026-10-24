@@ -2,6 +2,8 @@
  * Pure/browser-safe: no database, environment, or network access.
  * Known private-string filtering supplements the schema; it cannot detect paraphrases.
  */
+import { departureBreakfastNote } from './departureBreakfastNote.js';
+
 const S = 'string';
 const N = 'number';
 const B = 'boolean';
@@ -160,11 +162,11 @@ function projectStop(stop, privateEndpoint, language, terms) {
     result.category = 'lodging';
     result.name = genericStay[language] || genericStay.en;
     result.display_name = result.name;
-    // 2026-10-24: 숙소 tip 원문(호텔 고유 메모)은 비공개 그대로 — 백엔드가 붙인 고정 출국일 조식 안내만 공개.
+    // 2026-10-24: 숙소 tip 원문(호텔 고유 메모)은 비공개 그대로 — 백엔드가 붙인 출국일 조식 안내만 공개.
+    //   문구는 저장값이 아니라 보는 사람 언어의 고정 문구(언어 전환 재투영에서 원문 언어로 되돌아가지 않게).
     //   breakfast_note 도 남겨 재투영해도 같은 결과(멱등).
-    if (typeof stop.breakfast_note === 'string' && stop.breakfast_note) {
-      result.tip = stop.breakfast_note;
-      result.breakfast_note = stop.breakfast_note;
+    if ((typeof stop.breakfast_note === 'string' && stop.breakfast_note) || stop._breakfast_note === true) {
+      result.tip = result.breakfast_note = departureBreakfastNote(language);
     }
     return result;
   }

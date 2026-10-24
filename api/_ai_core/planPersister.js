@@ -10,6 +10,7 @@ import { SCHEDULE_BUFFER_MIN } from './constants.js';
 import { throttledTelegramAlert } from '../_shared/telegram-throttle.js';
 import { detectPaymentSource, isAdminBypassOrderId, isOperatorTestEmail } from '../_shared/admin-bypass-detector.js';
 import { beginPlanCommit, finalizePlanIssuance } from '../_shared/plan-issuance.js';
+import { departureBreakfastNote } from '../../src/lib/departureBreakfastNote.js';
 
 /**
  * P112 (2026-05-20): end_time backfill. plan 4792076e dump 결과 29/29 stops 의
@@ -260,13 +261,7 @@ function lodgingBookendTip(role, lang) {
 
 // 2026-10-24 (운영자 결정): 출국 11:00 전은 식당 조식 면제(responseValidator B-MEAL) — 대신 손님이 화면에서 보도록
 // 체크아웃 stop tip 에 안내를 결정론적으로 붙인다(departure_guide 는 렌더러가 안 그리고, 블록·Inngest 경로는 프롬프트가
-// 안 닿음). 제공 보장 문구 없음 — 운영시간·식이 적합성은 손님 확인.
-const DEPARTURE_BREAKFAST_NOTE = {
-  ko: '출국일 조식은 이른 비행 때문에 일정에 넣지 않았습니다. 호텔 또는 공항에서 준비해 주세요 — 운영시간과 식이 요건을 확인하세요.',
-  en: 'Breakfast on departure day is not in the itinerary because of the early flight. Please arrange it at your hotel or the airport — check opening hours and dietary requirements.',
-  ja: '出国日の朝食は早朝便のため日程に入れていません。ホテルまたは空港でご用意ください — 営業時間と食事制限への対応をご確認ください。',
-  zh: '因航班较早，离境日早餐未列入行程。请在酒店或机场自行安排 — 请确认营业时间及饮食要求。',
-};
+// 안 닿음). 문구 SSOT = src/lib/departureBreakfastNote.js (공개 공유 투영과 공용).
 
 /**
  * 출국 11:00 전 + 마지막 날(days ≥ 2) food stop 0개일 때만 그 날 첫 lodging stop(없으면 첫 stop) tip 끝에 안내 1문장.
@@ -282,7 +277,7 @@ export function applyDepartureBreakfastNote(itinerary, { departureTime, language
   if (stops.length === 0 || stops.some((s) => s?.category === 'food')) return false;
   const target = stops.find((s) => s?.category === 'lodging') || stops[0];
   if (!target || typeof target !== 'object' || target._breakfast_note === true) return false;
-  const note = DEPARTURE_BREAKFAST_NOTE[language] || DEPARTURE_BREAKFAST_NOTE.en;
+  const note = departureBreakfastNote(language);
   const tip = typeof target.tip === 'string' ? target.tip.trim() : '';
   target.tip = tip ? `${tip} ${note}` : note;
   // 고정 안내만 따로 — 공개 공유 투영(publicPlanProjection)은 숙소 tip 원문을 버리고 이 값만 보인다.

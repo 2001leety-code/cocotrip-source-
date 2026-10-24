@@ -9,6 +9,7 @@
  */
 import { describe, it, expect } from 'vitest';
 import { applyDepartureBreakfastNote } from '../../api/_ai_core/planPersister.js';
+import { DEPARTURE_BREAKFAST_NOTE } from '../../src/lib/departureBreakfastNote.js';
 import { applyBackfillsAndTmoney } from '../../api/_ai_core/postResponsePipeline.js';
 import { validatePatternStructure } from '../../api/_ai_core/responseValidator.js';
 import { runFinalItineraryValidation } from '../../api/_ai_core/finalItineraryGate.js';
@@ -16,12 +17,8 @@ import { runFinalItineraryValidation } from '../../api/_ai_core/finalItineraryGa
 type Stop = { category: string; name: string; start_time: string; tip?: string; breakfast_note?: string; _breakfast_note?: boolean; [k: string]: unknown };
 type Day = { day: number; city: string; stops: Stop[] };
 
-const NOTE = {
-  ko: '출국일 조식은 이른 비행 때문에 일정에 넣지 않았습니다. 호텔 또는 공항에서 준비해 주세요 — 운영시간과 식이 요건을 확인하세요.',
-  en: 'Breakfast on departure day is not in the itinerary because of the early flight. Please arrange it at your hotel or the airport — check opening hours and dietary requirements.',
-  ja: '出国日の朝食は早朝便のため日程に入れていません。ホテルまたは空港でご用意ください — 営業時間と食事制限への対応をご確認ください。',
-  zh: '因航班较早，离境日早餐未列入行程。请在酒店或机场自行安排 — 请确认营业时间及饮食要求。',
-};
+// 문구 SSOT = src/lib/departureBreakfastNote.js (백엔드·공개 공유 투영 공용).
+const NOTE = DEPARTURE_BREAKFAST_NOTE;
 
 const arrivalDay = (): Day => ({ day: 1, city: 'seoul', stops: [
   { category: 'lodging', name: 'Hotel', start_time: '15:00' },

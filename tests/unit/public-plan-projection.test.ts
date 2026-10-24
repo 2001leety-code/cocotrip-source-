@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { projectPublicPlan } from '../../api/_shared/public-plan-projection.js';
 import { resolvePlanAccess } from '../../api/get-plan.js';
+import { DEPARTURE_BREAKFAST_NOTE } from '../../src/lib/departureBreakfastNote.js';
 
 const secret = 'PRIVATE-FIXTURE-ALPHA';
 const hotel = 'Secret Lantern Hotel';
@@ -93,19 +94,47 @@ describe('shared public plan projection', () => {
     expect(day.stops[2].transit_from_prev?.steps_detail?.[0].fromPoint).toEqual({ lat: 37.58, lng: 126.98, name: 'Palace' });
   });
 
-  // 2026-10-24: 출국일 조식 안내(planPersister.applyDepartureBreakfastNote 가 저장한 고정 문구)만 공개, 호텔 고유 tip 은 계속 비공개.
-  it('a lodging stop shows only the fixed breakfast notice as its public tip; without it, no tip (unchanged)', () => {
-    const note = 'Breakfast on departure day is not in the itinerary because of the early flight. Please arrange it at your hotel or the airport — check opening hours and dietary requirements.';
-    const plan = makePlan();
-    Object.assign(plan.itinerary.days[0].stops[0], { tip: '호텔 고유 메모 ' + note, breakfast_note: note });
-    const projected = projectPublicPlan(plan) as ReturnType<typeof makePlan>;
-    const stay = projected.itinerary.days[0].stops[0] as Record<string, unknown>;
-    expect(stay.tip).toBe(note);
-    expect(JSON.stringify(projected)).not.toContain('호텔 고유 메모');
-    expect(JSON.stringify(projected)).not.toContain(hotel);
-    expect(projectPublicPlan(projected)).toEqual(projected); // 재투영 멱등
-    const plain = projectPublicPlan(makePlan()) as ReturnType<typeof makePlan>;
-    expect((plain.itinerary.days[0].stops[0] as Record<string, unknown>).tip).toBeUndefined();
+  // 2026-10-24: 출국일 조식 안내(planPersister.applyDepartureBreakfastNote)만 공개, 호텔 고유 tip 은 계속 비공개.
+  //   문구는 저장값이 아니라 보는 사람 언어(투영 language)의 고정 문구 — 공유 화면 언어 전환(useAutoTranslate 재투영) 회귀 방지.
+  describe('departure breakfast notice on a lodging stop', () => {
+    const stayOf = (p: unknown) => (p as ReturnType<typeof makePlan>).itinerary.days[0].stops[0] as Record<string, unknown>;
+    const withNote = (fields: Record<string, unknown>) => {
+      const plan = makePlan();
+      Object.assign(plan.itinerary.days[0].stops[0], fields);
+      return plan;
+    };
+    const koStored = { tip: '호텔 고유 메모 ' + DEPARTURE_BREAKFAST_NOTE.ko, breakfast_note: DEPARTURE_BREAKFAST_NOTE.ko, _breakfast_note: true };
+
+    it('(a) a ko notice projected for an en viewer → the EN fixed notice only (no ko text, no hotel memo)', () => {
+      const projected = projectPublicPlan(withNote(koStored), { language: 'en' });
+      expect(stayOf(projected)).toMatchObject({ tip: DEPARTURE_BREAKFAST_NOTE.en, breakfast_note: DEPARTURE_BREAKFAST_NOTE.en });
+      const wire = JSON.stringify(projected);
+      expect(wire).not.toContain(DEPARTURE_BREAKFAST_NOTE.ko);
+      expect(wire).not.toContain('호텔 고유 메모');
+      expect(wire).not.toContain(hotel);
+    });
+
+    it('(b) re-projection: same language is idempotent; switching to ja gives the JA notice (shared-view language switch)', () => {
+      const en = projectPublicPlan(withNote(koStored), { language: 'en' });
+      expect(projectPublicPlan(en, { language: 'en' })).toEqual(en);
+      const ja = projectPublicPlan(en, { language: 'ja' });
+      expect(stayOf(ja)).toMatchObject({ tip: DEPARTURE_BREAKFAST_NOTE.ja, breakfast_note: DEPARTURE_BREAKFAST_NOTE.ja });
+      expect(JSON.stringify(ja)).not.toContain(DEPARTURE_BREAKFAST_NOTE.en);
+    });
+
+    it('(c) an unknown viewer language → EN', () => {
+      expect(stayOf(projectPublicPlan(withNote(koStored), { language: 'fr' })).tip).toBe(DEPARTURE_BREAKFAST_NOTE.en);
+    });
+
+    it('(d) only the _breakfast_note flag (no stored string) still shows the notice', () => {
+      expect(stayOf(projectPublicPlan(withNote({ tip: '호텔 고유 메모', _breakfast_note: true }), { language: 'zh' })).tip).toBe(DEPARTURE_BREAKFAST_NOTE.zh);
+    });
+
+    it('without a notice, the public lodging stop has no tip (unchanged)', () => {
+      const stay = stayOf(projectPublicPlan(makePlan()));
+      expect(stay.tip).toBeUndefined();
+      expect(stay.breakfast_note).toBeUndefined();
+    });
   });
 
   it.each([['ko', '숙소'], ['en', 'Stay'], ['ja', '宿泊先'], ['zh', '住宿']])('uses generic %s hotel labels', (language, label) => {
