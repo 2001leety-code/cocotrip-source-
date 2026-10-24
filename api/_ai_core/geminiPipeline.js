@@ -1371,7 +1371,15 @@ export async function runGeminiPipeline({ apiKey, systemPrompt, userMessage, are
     }
     console.log('[planner] Pass 1 done:', Date.now() - geminiStart, 'ms');
 
-    itinerary = repairAndParseJSON(rawText);
+    // 2026-10-24 (O8): 첫 응답이 JSON 이 아니면 바로 500 대신 null 로 두고 아래 기존 구조 재시도(1회)에 합류 — 추가 호출 0.
+    let firstParseError3pass = null;
+    try {
+      itinerary = repairAndParseJSON(rawText);
+    } catch (err) {
+      itinerary = null;
+      firstParseError3pass = err.message;
+      console.warn('[planner] 🚨 first response was not valid JSON (3pass) — joining the structure retry:', err.message);
+    }
     // 2026-10-24: 자료형·required(최상위 null/원시값 포함) 검사를 첫 속성 접근 전에. 깨졌으면 정리·Pass2/3·식이 분기를
     //   건너뛰고 아래 **기존 구조 재시도(1회)** 의 오류 목록으로 보낸다(별도 재시도 없음 — 추가 호출 0).
     const typeIssues3pass = planSchemaTypeIssues(itinerary);
@@ -1477,7 +1485,8 @@ export async function runGeminiPipeline({ apiKey, systemPrompt, userMessage, are
     // retry 는 plan 을 통째로 새로 받아 구조만 재검증하므로 되돌릴 원본을 떠 둔다.
     const lastDietValid3pass = typeOk3pass ? snapshotItinerary(itinerary, dietaryArr) : null;
     // 자료형 오류도 같은 구조 오류 목록 — 재시도는 이 한 번뿐.
-    let patternErrors = typeOk3pass ? validatePatternStructure(itinerary, body || {}) : typeIssues3pass;
+    let patternErrors = typeOk3pass ? validatePatternStructure(itinerary, body || {})
+      : (firstParseError3pass ? ['Response was not valid JSON (' + firstParseError3pass + '). Return exactly one JSON object and nothing else.'] : typeIssues3pass);
     if (patternErrors.length > 0) {
       console.warn('[planner] 🚨 pattern violation detected (3pass) — retrying with reinforced prompt:', patternErrors);
       recordRetryAttempt('pattern-3pass');
@@ -1651,8 +1660,16 @@ export async function runGeminiPipeline({ apiKey, systemPrompt, userMessage, are
     console.log('[ai-planner-full] Gemini raw (first 200):', rawText.substring(0, 200));
     console.log('[ai-planner-full] Gemini raw length:', rawText.length);
 
-    itinerary = repairAndParseJSON(rawText);
-    // P201 (2026-05-26): minimal fallback 감지 시 Pro escalate (ENV gate + circuit breaker).
+    // 2026-10-24 (O8): 첫 응답이 JSON 이 아니면 바로 500 대신 null 로 두고 아래 기존 구조 재시도(1회)에 합류 — 추가 호출 0.
+    let firstParseError = null;
+    try {
+      itinerary = repairAndParseJSON(rawText);
+    } catch (err) {
+      itinerary = null;
+      firstParseError = err.message;
+      console.warn('[planner] 🚨 first response was not valid JSON — joining the structure retry:', err.message);
+    }
+    // P201 (2026-05-26): minimal fallback 감지 시 Pro escalate (ENV gate + circuit breaker). itinerary null 이면 건너뜀.
     // default ENV OFF — 머지 자체 영향 0. 활성화는 운영자 명시 (`P181_PRO_ESCALATE_ENABLED=true`).
     if (itinerary && itinerary.__repair_minimal_fallback && isProEscalateEnabled() && !checkProEscalateCircuit()) {
       try {
@@ -1774,7 +1791,8 @@ export async function runGeminiPipeline({ apiKey, systemPrompt, userMessage, are
     // 3pass 와 동일 — pattern retry 가 식이 검증 통과본을 밀어낼 수 있으므로 원본 스냅샷.
     const lastDietValidLegacy = typeOk ? snapshotItinerary(itinerary, dietaryArr) : null;
     // 자료형 오류도 같은 구조 오류 목록 — 재시도는 이 한 번뿐.
-    let patternErrors = typeOk ? validatePatternStructure(itinerary, body || {}) : typeIssues;
+    let patternErrors = typeOk ? validatePatternStructure(itinerary, body || {})
+      : (firstParseError ? ['Response was not valid JSON (' + firstParseError + '). Return exactly one JSON object and nothing else.'] : typeIssues);
     if (patternErrors.length > 0) {
       console.warn('[planner] 🚨 pattern violation detected (legacy) — retrying with reinforced prompt:', patternErrors);
       recordRetryAttempt('pattern-legacy');

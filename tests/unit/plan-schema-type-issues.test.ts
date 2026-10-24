@@ -134,4 +134,27 @@ describe('runGeminiPipeline — type-broken response joins the existing structur
     expect(systems).toHaveLength(2);
     noCrash(err);
   });
+
+  // 2026-10-24 (O8): 첫 응답이 JSON 이 아니면(유료 5차 Claude 1/9) 바로 500 대신 같은 구조 재시도(1회)에 합류.
+  const prose = 'Sure! Here is the plan: {"days": [';
+  it.each(['legacy', '3pass'])('%s: prose first answer, valid retry → succeeds with 2 calls; the retry prompt says "not valid JSON"', async (mode) => {
+    queueModel([prose, validPlan(), prose]);
+    const out = await run(mode);
+    expect(out.err).toBeUndefined();
+    expect((out.ok as unknown as { days?: unknown[] } | undefined)?.days?.length).toBeGreaterThan(0); // runGeminiPipeline 은 itinerary 자체를 돌려준다
+    expect(systems).toHaveLength(2);
+    expect(systems[0]).not.toContain('not valid JSON');
+    expect(systems[1]).toContain('not valid JSON');
+  });
+
+  it.each(['legacy', '3pass'])('%s: prose on both calls → PLAN_VALIDATION_FAILED after 2 calls, cause in details, raw parser message not exposed', async (mode) => {
+    queueModel([prose, prose, prose]);
+    const { err } = await run(mode);
+    expect(err).toMatchObject({ code: 'PLAN_VALIDATION_FAILED', statusCode: 500 });
+    expect(err?.details?.[0]).toContain('not valid JSON');
+    expect(String(err?.message)).not.toContain('Gemini returned invalid JSON');
+    expect(systems).toHaveLength(2);
+    expect(systems[1]).toContain('not valid JSON');
+    noCrash(err);
+  });
 });
