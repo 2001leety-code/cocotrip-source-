@@ -322,10 +322,11 @@ const KNOWN_HOTEL_CHAINS = [
 /**
  * 필수 끼니 판정(B-MEAL — 도착일 1끼·중간일 점심+저녁·P137 출국일 시각별 조식/점심) 공용 진입점 (2026-10-24).
  * 판정은 validatePatternStructure 의 B-MEAL 규칙 그대로(복제하지 않는다) — 그 결과에서 B-MEAL 오류만 고른다.
- * 종단 게이트(finalItineraryGate)가 출국일 조식 누락을 다시 확인할 때 쓴다. VALIDATOR_BMEAL_ENABLED=false 면 [].
+ * 종단 게이트(finalItineraryGate)가 출국일 끼니 누락을 다시 확인할 때 쓴다. VALIDATOR_BMEAL_ENABLED=false 면 [].
+ * 출국 11:00 전은 식당 조식 면제(2026-10-24) — 안내는 planPersister.applyDepartureBreakfastNote.
  * @param {object} itinerary
  * @param {{departure_time?: string, departureTime?: string}} [request]
- * @returns {string[]} 예: 'Day 2 (출국일): departure_time=10:00 이른 출국 — 조식(06-10시) 누락 (B-MEAL, P137)'
+ * @returns {string[]} 예: 'Day 2 (출국일): departure_time=13:00 낮 출국 — 조식(06-10시)/오후식사(11-16시) 모두 누락 (B-MEAL, P137)'
  */
 export function checkRequiredMeals(itinerary, request = {}) {
   if (!itinerary || !Array.isArray(itinerary.days)) return [];
@@ -678,16 +679,12 @@ export function validatePatternStructure(itinerary, request = {}) {
           //   B-EARLY-DEPARTURE 는 red-eye 시 마지막날 stops ≤ 2 (체크아웃 + 공항) 만 허용.
           //   동시에 B-MEAL 이 조식(food stop) 1건을 강제하면 stops=3 → B-EARLY-DEPARTURE fail,
           //   조식 빼면 B-MEAL fail → "넣어도 빼도 실패" trap. red-eye 손님은 새벽 출국으로
-          //   조식 먹을 시간 자체가 없으므로 조식 요구를 면제한다 (depHour >= 9 인 이른 출국만 조식 강제).
-          const isRedEyeDeparture = depHour < 9;
+          //   조식 먹을 시간 자체가 없으므로 조식 요구를 면제한다.
+          // 2026-10-24 (운영자 결정): 면제를 출국 11:00 전 전체로 넓힌다. 모든 stop ≤ 출국 −180분(3시간 버퍼)이라
+          //   10:00 출국이면 조식은 06~07시 식당뿐 — 검증된 할랄/비건 식당은 그 시각에 영업하지 않아 생성 실패.
+          //   대신 공용 후처리(planPersister.applyDepartureBreakfastNote)가 체크아웃 tip 에 호텔/공항 조식 안내를 넣는다.
           if (depHour < 11) {
-            // 이른 출국 (09:00-10:59): breakfast slot [06,11) 1건 필수.
-            // red-eye (< 09:00) 는 조식 면제 (B-EARLY-DEPARTURE 2-stop 룰과 정합).
-            if (breakfastCount === 0 && !isRedEyeDeparture) {
-              errors.push(
-                `Day ${dayNum} (출국일): departure_time=${request.departure_time || request.departureTime} 이른 출국 — 조식(06-10시) 누락 (B-MEAL, P137)`
-              );
-            }
+            // 이른 출국 (< 11:00): 식당 조식 면제 (B-EARLY-DEPARTURE 2-stop 룰과 정합).
           } else if (depHour < 17) {
             // 낮 출국 (11:00-16:59): breakfast OR lunch/snack 최소 1건
             if (breakfastCount === 0 && afternoonMealCount === 0) {

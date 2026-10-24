@@ -8,7 +8,9 @@
  * Fix:
  *   1. buildPrompt.js MEAL PLANNING 섹션 — departure_time 기준 3-tier 분류 표 + GOOD/BAD 예시
  *   2. responseValidator.js isLast 분기 — departure_time 기준 strict validator
- *      - departure_time < 11:00 → breakfast 의무
+ *      - departure_time < 11:00 → 식당 조식 면제 (2026-10-24 운영자 결정 — 출국 −180분 버퍼와 모순, 검증 식당 새벽 영업 없음.
+ *        안내는 planPersister.applyDepartureBreakfastNote 가 체크아웃 tip 에 결정론적으로)
+ *        모델은 안내 문장을 쓰지 않는다(프롬프트가 금지 — 후처리 단일 책임).
  *      - departure_time 11:00-16:59 → breakfast OR lunch/snack 중 최소 1건
  *      - departure_time >= 17:00 → breakfast + lunch/snack 둘 다 의무
  *      - departure_time 미제공 → 기존 로직 (3개 slot 모두 0이면 에러)
@@ -88,7 +90,7 @@ function makePlan(departureDay: Day, departureTime?: string): { itinerary: Itine
 
 // ─── 1. 이른 출국 (departure_time < 11:00) ─────────────────────────────────
 
-describe('P137 — departure < 11:00 (이른 출국): breakfast 의무', () => {
+describe('P137 — departure < 11:00 (이른 출국): 식당 조식 면제 (2026-10-24)', () => {
   it('breakfast at 08:00 → no B-MEAL error (GOOD 패턴)', () => {
     const { itinerary, request } = makePlan(departureDayWithFood(5, ['08:00']), '09:00');
     const errors = validatePatternStructure(itinerary, request);
@@ -101,24 +103,24 @@ describe('P137 — departure < 11:00 (이른 출국): breakfast 의무', () => {
     expect(errors.filter((e) => e.includes('B-MEAL') && e.includes('Day 5'))).toEqual([]);
   });
 
-  it('food stop 0건 + departure 09:00 → B-MEAL fires (plan ba10d29b 회귀 시나리오)', () => {
-    const { itinerary, request } = makePlan(departureDayWithFood(5, []), '09:00');
+  it.each(['08:30', '09:00', '10:00', '10:59'])('food stop 0건 + departure %s → B-MEAL 0 (식당 조식 면제)', (dep) => {
+    const { itinerary, request } = makePlan(departureDayWithFood(5, []), dep);
     const errors = validatePatternStructure(itinerary, request);
-    const bmealErrors = errors.filter((e) => e.includes('B-MEAL') && e.includes('Day 5'));
-    expect(bmealErrors.length).toBeGreaterThan(0);
-    expect(bmealErrors[0]).toMatch(/departure.*09:00|breakfast.*의무|조식.*누락/);
+    expect(errors.filter((e) => e.includes('B-MEAL') && e.includes('Day 5'))).toEqual([]);
   });
 
-  it('afternoon snack at 15:00 (wrong slot for early departure) → B-MEAL fires (breakfast 필요)', () => {
-    // #7 (2026-06-20): departure 를 10:00 (non-red-eye, depHour=10<11) 로 사용 — 09:00 이상은
-    //   조식 의무 유지. (이전엔 07:00 = red-eye 였으나 red-eye 는 조식 면제로 정책 변경되어
-    //   조식 의무 테스트로 부적합. 10:00 으로 교체해 "이른 출국 = 조식 의무" 의도 보존.)
-    const { itinerary, request } = makePlan(departureDayWithFood(5, ['15:00']), '10:00');
-    // 15:00은 departure 10:00 buffer 위반이라 B-EARLY-DEPARTURE로도 잡히지만
-    // B-MEAL도 별도로 확인 (breakfast count=0)
+  it('경계: food stop 0건 + departure 11:00 → B-MEAL 1건 (낮 출국 규칙)', () => {
+    const { itinerary, request } = makePlan(departureDayWithFood(5, []), '11:00');
     const errors = validatePatternStructure(itinerary, request);
-    // departure 10:00이면 breakfast [06-11) = 0 → B-MEAL fires
-    expect(errors.some((e) => e.includes('B-MEAL') && e.includes('Day 5') && e.includes('조식'))).toBe(true);
+    const bmealErrors = errors.filter((e) => e.includes('B-MEAL') && e.includes('Day 5'));
+    expect(bmealErrors).toHaveLength(1);
+    expect(bmealErrors[0]).toMatch(/departure_time=11:00 낮 출국/);
+  });
+
+  it('afternoon snack at 15:00 + departure 10:00 → B-MEAL 0 (조식 면제 — 끼니 규칙은 슬롯을 요구하지 않는다)', () => {
+    const { itinerary, request } = makePlan(departureDayWithFood(5, ['15:00']), '10:00');
+    const errors = validatePatternStructure(itinerary, request);
+    expect(errors.filter((e) => e.includes('B-MEAL') && e.includes('Day 5'))).toEqual([]);
   });
 
   it('departure 06:00 (red-eye) + breakfast at 06:30 → no B-MEAL (breakfast slot 수용)', () => {
@@ -276,15 +278,15 @@ describe('P137 — source invariants (buildPrompt + responseValidator)', () => {
     expect(buildPromptSrc).toMatch(/P137|departure_time.*이른 출국|departure.*STRICT/i);
   });
 
-  it('buildPrompt.js — departure day food 0건 금지 명시', () => {
-    expect(buildPromptSrc).toMatch(/0 food stops|departure day with 0/i);
+  it('buildPrompt.js — departure day food 0건 금지 명시 (11:00 이후 출국만)', () => {
+    expect(buildPromptSrc).toMatch(/출국 11:00 이후인데 0 food stops → reject/);
   });
 
   it('buildPrompt.js — GOOD/BAD 예시 포함', () => {
     expect(buildPromptSrc).toMatch(/GOOD.*departure|BAD.*departure|GOOD \(departure/i);
   });
 
-  it('responseValidator.js — P137 departure_time < 11 breakfast 분기 포함', () => {
+  it('responseValidator.js — P137 departure_time < 11 분기 포함(식당 조식 면제)', () => {
     expect(validatorSrc).toMatch(/P137|depHour < 11|departure.*breakfast.*의무/);
   });
 

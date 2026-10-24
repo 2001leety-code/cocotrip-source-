@@ -112,17 +112,10 @@ function daySkeleton({ isSingle, isFirst, isLast, startMin, depMin }) {
   // 출국일
   if (depMin === null) return full(false, false, 'airport'); // 공항 stop 이 있으면 끼니 면제
   const maxAct = depMin - 180; // 출국 3시간 전 이후 활동 금지
-  if (depMin < 9 * 60) {
-    // red-eye — 체크아웃 + 공항 2 stop 만, 조식 면제
-    return [{ kind: 'lodging', min: Math.max(0, depMin - 210) }, { kind: 'airport', min: Math.max(0, maxAct) }];
-  }
   if (depMin < 11 * 60) {
-    const breakfast = Math.max(6 * 60, maxAct - 30);
-    return [
-      { kind: 'lodging', min: breakfast - 30 },
-      { kind: 'meal', min: breakfast, required: true },
-      { kind: 'airport', min: maxAct },
-    ];
+    // 출국 11:00 전(red-eye 포함, 2026-10-24 운영자 결정) — 체크아웃 + 공항 2 stop 만, 식당 조식 면제
+    //   (안내는 postResponsePipeline → planPersister.applyDepartureBreakfastNote 가 체크아웃 tip 에).
+    return [{ kind: 'lodging', min: Math.max(0, depMin - 210) }, { kind: 'airport', min: Math.max(0, maxAct) }];
   }
   if (depMin < 17 * 60) {
     const meal = maxAct - 30;

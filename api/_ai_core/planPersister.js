@@ -10,6 +10,7 @@ import { SCHEDULE_BUFFER_MIN } from './constants.js';
 import { throttledTelegramAlert } from '../_shared/telegram-throttle.js';
 import { detectPaymentSource, isAdminBypassOrderId, isOperatorTestEmail } from '../_shared/admin-bypass-detector.js';
 import { beginPlanCommit, finalizePlanIssuance } from '../_shared/plan-issuance.js';
+import { departureBreakfastNote } from '../../src/lib/departureBreakfastNote.js';
 
 /**
  * P112 (2026-05-20): end_time backfill. plan 4792076e dump 결과 29/29 stops 의
@@ -256,6 +257,33 @@ const LODGING_BOOKEND_TIP = {
 function lodgingBookendTip(role, lang) {
   const t = LODGING_BOOKEND_TIP[role] || LODGING_BOOKEND_TIP.return;
   return t[lang] || t.en;
+}
+
+// 2026-10-24 (운영자 결정): 출국 11:00 전은 식당 조식 면제(responseValidator B-MEAL) — 대신 손님이 화면에서 보도록
+// 체크아웃 stop tip 에 안내를 결정론적으로 붙인다(departure_guide 는 렌더러가 안 그리고, 블록·Inngest 경로는 프롬프트가
+// 안 닿음). 문구 SSOT = src/lib/departureBreakfastNote.js (공개 공유 투영과 공용).
+
+/**
+ * 출국 11:00 전 + 마지막 날(days ≥ 2) food stop 0개일 때만 그 날 첫 lodging stop(없으면 첫 stop) tip 끝에 안내 1문장.
+ * food stop 이 있으면 no-op(배정된 식당이 있는데 "미배정" 표시 금지). 멱등(`_breakfast_note`).
+ * @returns {boolean} 붙였으면 true
+ */
+export function applyDepartureBreakfastNote(itinerary, { departureTime, language } = {}) {
+  const days = Array.isArray(itinerary?.days) ? itinerary.days : [];
+  if (days.length < 2) return false;
+  const m = /^(\d{1,2}):(\d{2})$/.exec(String(departureTime || '').slice(0, 5));
+  if (!m || Number(m[1]) > 23 || Number(m[2]) > 59 || Number(m[1]) >= 11) return false;
+  const stops = Array.isArray(days[days.length - 1]?.stops) ? days[days.length - 1].stops : [];
+  if (stops.length === 0 || stops.some((s) => s?.category === 'food')) return false;
+  const target = stops.find((s) => s?.category === 'lodging') || stops[0];
+  if (!target || typeof target !== 'object' || target._breakfast_note === true) return false;
+  const note = departureBreakfastNote(language);
+  const tip = typeof target.tip === 'string' ? target.tip.trim() : '';
+  target.tip = tip ? `${tip} ${note}` : note;
+  // 고정 안내만 따로 — 공개 공유 투영(publicPlanProjection)은 숙소 tip 원문을 버리고 이 값만 보인다.
+  target.breakfast_note = note;
+  target._breakfast_note = true;
+  return true;
 }
 
 // P156 (2026-05-22): 동네/랜드마크 → 도시 매핑. P152 의 도시명 매칭이 못 잡는
