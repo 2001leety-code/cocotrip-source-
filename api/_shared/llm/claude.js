@@ -5,7 +5,14 @@
 // Gemini 전용 설정 대응(계획서 ②):
 //   temperature → 삭제 (Haiku/Sonnet 5.5 는 1 이외 400) · thinkingConfig → 삭제(adaptive 기본)
 //   responseSchema → output_config.format json_schema · maxOutputTokens → max_tokens(상한 LLM_MAX_TOKENS_CAP)
-import { geminiSchemaToJsonSchema, stripNullKeysFromJsonText } from './schema.js';
+import { geminiSchemaToJsonSchema, countOptionalProperties } from './schema.js';
+
+// 2026-10-24 실측 400 두 종류(claude-sonnet-5-5, 플래너 메인 스키마):
+//   "Schemas contains too many optional parameters (61) … (limit: 24)" — 원래 스키마
+//   "too many parameters with union types (61 parameters with type arrays or anyOf) … (limit: 16 …)" — nullable 전환 후
+// → 선택 속성이 이 한도를 넘는 스키마는 구조화 출력을 쓰지 않고, 스키마를 system 에 넣어 JSON 만 받는다
+//   (Gemini 가 responseSchema 없는 역할에서 쓰는 방식 — 하류 repairAndParseJSON + 검증기가 처리).
+export const CLAUDE_STRUCTURED_OPTIONAL_LIMIT = 24;
 
 const STOP_MAP = { end_turn: 'STOP', stop_sequence: 'STOP', max_tokens: 'MAX_TOKENS', refusal: 'SAFETY' };
 
@@ -41,19 +48,20 @@ export function buildClaudeRequest({ modelId, role, config = {}, request, maxTok
   };
   if (systemText) out.system = systemText;
   if (gen.responseSchema) {
-    // 선택 속성 한도(24) — 전부 required + null 허용으로 바꿔 보낸다. 응답의 null 키는 claudeMessageToGeminiResponse 가 지운다.
-    out.output_config.format = { type: 'json_schema', schema: geminiSchemaToJsonSchema(gen.responseSchema, { nullableOptionals: true }) };
+    const schema = geminiSchemaToJsonSchema(gen.responseSchema);
+    if (countOptionalProperties(schema) <= CLAUDE_STRUCTURED_OPTIONAL_LIMIT) {
+      out.output_config.format = { type: 'json_schema', schema };
+    } else {
+      out.system = `${systemText ? `${systemText}\n\n` : ''}Return exactly one JSON object and nothing else (no markdown fences, no commentary). `
+        + `It must conform to this JSON Schema:\n${JSON.stringify(schema)}`;
+    }
   }
   return out;
 }
 
-/**
- * Claude Message → Gemini `generateContent` 반환 모양 ({ response }).
- * stripNulls: 구조화 출력(json_schema) 요청이면 true — nullable 로 바꾼 선택 속성의 null 키를 지워 Gemini 모양으로.
- */
-export function claudeMessageToGeminiResponse(message, { stripNulls = false } = {}) {
-  const rawText = (message?.content || []).filter((b) => b && b.type === 'text').map((b) => b.text).join('');
-  const text = stripNulls ? stripNullKeysFromJsonText(rawText) : rawText;
+/** Claude Message → Gemini `generateContent` 반환 모양 ({ response }). */
+export function claudeMessageToGeminiResponse(message) {
+  const text = (message?.content || []).filter((b) => b && b.type === 'text').map((b) => b.text).join('');
   const u = message?.usage || {};
   const cached = Number(u.cache_read_input_tokens) || 0;
   const prompt = (Number(u.input_tokens) || 0) + cached + (Number(u.cache_creation_input_tokens) || 0);
@@ -76,39 +84,27 @@ export function createClaudeModel(config, ctx) {
   const build = (request) => buildClaudeRequest({ modelId, role, config, request, maxTokensCap, plannerRoles });
   const reqOpts = (opts) => ({ timeout: timeoutMs, ...(opts && opts.signal ? { signal: opts.signal } : {}) });
 
-  const isStructured = (params) => !!(params.output_config && params.output_config.format);
-
   async function generateContent(request, opts) {
     const started = Date.now();
-    const params = build(request);
-    const message = await client.messages.create(params, reqOpts(opts));
-    const out = claudeMessageToGeminiResponse(message, { stripNulls: isStructured(params) });
+    const message = await client.messages.create(build(request), reqOpts(opts));
+    const out = claudeMessageToGeminiResponse(message);
     onUsage && onUsage(out.response.usageMetadata, Date.now() - started);
     return out;
   }
 
   async function generateContentStream(request, opts) {
     const started = Date.now();
-    const params = build(request);
-    const structured = isStructured(params);
-    const stream = client.messages.stream(params, reqOpts(opts));
+    const stream = client.messages.stream(build(request), reqOpts(opts));
     const chunkOf = (text) => ({ text: () => text, candidates: [{ content: { role: 'model', parts: [{ text }] } }] });
     async function* iterate() {
-      // ponytail: 구조화 출력은 null 키 제거가 완성된 JSON 에서만 가능 → 전부 모아 끝에 1 chunk 로 낸다.
-      //   (Claude 경로만 점진 Firestore write 가 사라짐 — 필요하면 부분 JSON null 정리를 추가)
-      let buffered = '';
       for await (const ev of stream) {
-        if (ev?.type === 'content_block_delta' && ev.delta?.type === 'text_delta' && ev.delta.text) {
-          if (structured) buffered += ev.delta.text;
-          else yield chunkOf(ev.delta.text);
-        }
+        if (ev?.type === 'content_block_delta' && ev.delta?.type === 'text_delta' && ev.delta.text) yield chunkOf(ev.delta.text);
       }
-      if (structured && buffered) yield chunkOf(stripNullKeysFromJsonText(buffered));
     }
     // response 는 stream 소진 후 resolve — Gemini SDK 와 동일한 사용 순서(for await → await response).
     let finalPromise = null;
     const responsePromise = () => (finalPromise ||= stream.finalMessage().then((m) => {
-      const out = claudeMessageToGeminiResponse(m, { stripNulls: structured });
+      const out = claudeMessageToGeminiResponse(m);
       onUsage && onUsage(out.response.usageMetadata, Date.now() - started);
       return out.response;
     }));
