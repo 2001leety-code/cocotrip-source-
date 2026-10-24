@@ -207,23 +207,55 @@ describe('Lighthouse CI wiring source contracts', () => {
     expect(config.ci.upload).toBeUndefined();
   });
 
-  it('preserves the existing score policy and does not put credentials in Lighthouse settings', () => {
+  // 2026-10-24: lighthouse:recommended preset 제거 — 9/8 #1381 이후 90+ run 전부 LHCI_ASSERT_FAILED(image/LCP/unused
+  //   insight 들이 preset 으로 error). 원래 의도대로 접근성 ≥0.85 만 error, 나머지는 warn. 예산 재설정은 별도.
+  it('score policy: no preset, accessibility is the only error, credentials never in Lighthouse settings', () => {
     expect(config.ci.assert).toEqual({
-      preset: 'lighthouse:recommended',
       assertions: {
         'categories:performance': ['warn', { minScore: 0.5 }],
         'categories:accessibility': ['error', { minScore: 0.85 }],
-        'categories:best-practices': ['warn', { minScore: 0.8 }],
-        'categories:seo': ['warn', { minScore: 0.85 }],
+        'categories:best-practices': ['warn', { minScore: 0.5 }],
+        'categories:seo': ['warn', { minScore: 0.5 }],
         'first-contentful-paint': ['warn', { maxNumericValue: 3000 }],
         'largest-contentful-paint': ['warn', { maxNumericValue: 4000 }],
         'cumulative-layout-shift': ['warn', { maxNumericValue: 0.15 }],
         'total-blocking-time': ['warn', { maxNumericValue: 600 }],
+        // 범주 점수가 기준을 넘어도 개별 결함은 보이게 — warn(차단 아님)
+        'errors-in-console': ['warn', { minScore: 0.9 }],
+        'color-contrast': ['warn', { minScore: 0.9 }],
         'uses-rel-preconnect': 'off', 'uses-text-compression': 'off', 'csp-xss': 'off',
-        'bf-cache': 'off', 'third-party-cookies': 'off', 'is-crawlable': 'warn',
+        'bf-cache': 'off', 'third-party-cookies': 'off',
+        // preview 는 색인 차단(noindex)이라 항상 실패 — 신호 아님
+        'is-crawlable': 'off',
+        // 2026-10-24 정리: preset 시절 상시 실패하던 audit — 예산 재설정 전까지 끔(별도 작업)
+        'image-delivery-insight': 'off', 'lcp-discovery-insight': 'off', 'network-dependency-tree-insight': 'off',
+        'prioritize-lcp-image': 'off', 'total-byte-weight': 'off', 'uses-passive-event-listeners': 'off',
+        'unused-css-rules': 'off', 'unused-javascript': 'off', 'uses-responsive-images': 'off',
       },
     });
+    expect(config.ci.assert).not.toHaveProperty('preset');
+    expect(config.ci.assert).not.toHaveProperty('presets');
+    const level = (v: unknown) => (Array.isArray(v) ? v[0] : v);
+    const errors = Object.entries(config.ci.assert.assertions).filter(([, v]) => level(v) === 'error').map(([k]) => k);
+    expect(errors).toEqual(['categories:accessibility']);
+    for (const [k, v] of Object.entries(config.ci.assert.assertions)) expect(['error', 'warn', 'off'], k).toContain(level(v));
+    // Astra r1 P2: 콘솔 오류·색 대비 개별 경고는 설정에 남아 있고 warn 이다
+    for (const id of ['errors-in-console', 'color-contrast']) expect(level(config.ci.assert.assertions[id]), id).toBe('warn');
     expect(config.ci.collect).toEqual({ numberOfRuns: 1, puppeteerScript: './scripts/lighthouse-preview-auth.cjs', settings: { preset: 'desktop', skipAudits: ['uses-http2'] } });
     expect(JSON.stringify(config)).not.toMatch(/extraHeaders|protection-bypass|SECRET/);
+  });
+
+  it('verify-lighthouse-preview policy rules match the config exactly (no drift between the two)', async () => {
+    const { SAFE_CATEGORY_RULES, SAFE_MAX_NUMERIC_WARN_RULES, SAFE_MIN_SCORE_WARN_RULES } = await import('../../scripts/verify-lighthouse-preview.mjs');
+    const asserted = Object.entries(config.ci.assert.assertions as Record<string, unknown>)
+      .filter(([, v]) => Array.isArray(v)) as Array<[string, [string, Record<string, number>]]>;
+    const fromConfig = asserted.map(([id, [lvl, opts]]) => [id, lvl, opts]);
+    const fromVerifier = [
+      ...[...SAFE_CATEGORY_RULES].map(([cat, r]) => [`categories:${cat}`, r.level, { minScore: r.expected }]),
+      ...[...SAFE_MAX_NUMERIC_WARN_RULES].map(([id, max]) => [id, 'warn', { maxNumericValue: max }]),
+      ...[...SAFE_MIN_SCORE_WARN_RULES].map(([id, min]) => [id, 'warn', { minScore: min }]),
+    ];
+    const byId = (a: unknown[], b: unknown[]) => String(a[0]).localeCompare(String(b[0]));
+    expect([...fromVerifier].sort(byId)).toEqual([...fromConfig].sort(byId));
   });
 });
