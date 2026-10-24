@@ -120,7 +120,8 @@ describe('courseCandidateCatalog — 서버 소유 identity (관광지 + 추천 
     const status = getCourseCandidateCatalogStatus();
     expect(status.healthy).toBe(true);
     expect(status.attractions).toBeGreaterThan(0);
-    expect(status.food).toBeGreaterThan(2_000);
+    // 2026-10-24 식이 태그 복구로 일반 추천 후보 2064→1851; 하한만 잠금.
+    expect(status.food).toBeGreaterThan(1_500);
     expect(status.unavailable).toEqual([]);
   });
 
@@ -154,8 +155,9 @@ describe('courseCandidateCatalog — 서버 소유 identity (관광지 + 추천 
   it('general 태그가 잘못 붙어도 이름·분류에 식이 표현이 있으면 후보에서 제외', () => {
     const rows = JSON.parse(readFileSync(resolve(process.cwd(), 'api/_food_index.json'), 'utf8'));
     const eligible = rows.filter(isRecommendationGradeFood);
-    expect(eligible.length).toBeGreaterThan(2_000);
-    expect(eligible).toHaveLength(2_064);
+    // 2026-10-24 식이 태그 복구(general→halal/vegan 217행)로 2064→1851.
+    expect(eligible.length).toBeGreaterThan(1_500);
+    expect(eligible).toHaveLength(1_851);
   });
 
   it.each([
