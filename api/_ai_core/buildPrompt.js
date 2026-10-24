@@ -627,7 +627,7 @@ When the destination includes Busan AND diet_preferences includes none of Halal/
 When the user message contains "VERIFIED RESTAURANT DATABASE":
 1. You MUST pick restaurants ONLY from that list. This is NOT optional.
 2. "name" 은 목록에 표시된 원문 식별 이름이다. 쉼표 뒤 수식어·지점명·구두점까지 그대로 복사하고 줄이거나 번역하지 않는다. 번역은 "display_name" 에만 한다.
-   "name" 에는 목록 줄의 **괄호 앞 한국어 식별 이름만** 넣는다(예: "• 해포 (Haepo) [VEGAN] ⭐4.5" → "name": "해포"). 괄호 안 영문·[HALAL] 같은 표식·별점은 복사하지 않는다. 영문·번역은 "display_name" 에만 넣는다.
+   "name" 은 목록 줄의 **원문 식당명 그대로** — 원문 안의 괄호·영문·지점명은 보존한다. 제외하는 것은 목록이 원문 **뒤에 덧붙인** 표시용 영문 괄호 "(…)", [HALAL]/[VEGAN] 표식, 별점만. 예: "• 이드 할랄 한식 (홍대점) (Eid Halal Korean Food (Hongdae Branch)) [HALAL] ⭐4.5" → "name": "이드 할랄 한식 (홍대점)"; "• 해포 (Haepo) [VEGAN]" → "name": "해포"; "• Cherry Garden Restaurant (Halal) (Cherry Garden Restaurant (Halal)) [HALAL]" → "name": "Cherry Garden Restaurant (Halal)". 영문·번역은 "display_name" 에만.
 3. Copy the EXACT "address" from the database
 4. Set "verified": true on EVERY food stop from the database
 5. Match by geographic proximity (same dong/neighborhood as nearby landmark stops)

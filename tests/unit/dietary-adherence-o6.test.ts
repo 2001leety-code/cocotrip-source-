@@ -246,6 +246,54 @@ describe('r5 — identifier-first matching: stop.name decides before display_nam
     expect(findSelectedFoodRow({ name: '해포 망원점', display_name: 'Haepo' }, [haepo], { dayCity: 'seoul' })).toBe(haepo);
     expect(findSelectedFoodRow({ name: '', display_name: 'Namaste Haeundae' }, [naver, google], { dayCity: 'busan' })).toBe(google);
   });
+
+  // Astra r5 ① — 의도된 변경: 이름이 한 행을 정하면 display_name 의 모순(다른 행 nameEn)은 무시한다.
+  //   이전 매처는 두 이름을 한 집합으로 봐서 A·B 둘 다 후보 → 모호 → null 이었다.
+  it('name decides: stop {name:"해포 (Haepo)", display_name:"Alpha"} → B (the contradicting display_name is ignored, by design)', () => {
+    const a = { name: '가', nameEn: 'Alpha', city: 'seoul', address: '서울특별시 중구 1' };
+    const b = { name: '해포', nameEn: 'Haepo', city: 'seoul', address: '서울특별시 중구 2' };
+    expect(findSelectedFoodRow({ name: '해포 (Haepo)', display_name: 'Alpha' }, [a, b], { dayCity: 'seoul' })).toBe(b);
+    expect(findSelectedFoodRow({ name: '해포 (Haepo)', display_name: 'Alpha' }, [b, a], { dayCity: 'seoul' })).toBe(b);
+  });
+});
+
+// ── r6: DB 원문 이름에 괄호가 든 실제 행 모양(api/_food_index.json 의 name·nameEn·city 그대로, 주소는 합성) ──
+describe('r6 — raw DB names containing parentheses', () => {
+  const eid = { name: '이드 할랄 한식 (홍대점)', nameEn: 'Eid Halal Korean Food (Hongdae Branch)', city: 'seoul', tag: 'halal', verification_status: 'muslim_friendly', address: '서울특별시 마포구 1' };
+  const sammimi = { name: '(삼미미식당)', nameEn: 'SAMMiMi KBBQ - HALAL Hanwoo KBBQ & Handon', city: 'seoul', tag: 'halal', verification_status: 'muslim_friendly', address: '서울특별시 강남구 1' };
+  const cherry = { name: 'Cherry Garden Restaurant (Halal)', nameEn: 'Cherry Garden Restaurant (Halal)', city: 'seoul', tag: 'halal', verification_status: 'muslim_friendly', address: '서울특별시 종로구 1' };
+  const rows = [eid, sammimi, cherry];
+  const find = (name: string) => findSelectedFoodRow({ name }, rows, { dayCity: 'seoul' });
+  const planOf = (name: string) => ({ days: [{ day: 1, city: 'seoul', stops: [{ category: 'food', start_time: '12:00', name }] }] });
+
+  it('raw name as listed → match, counted exact', () => {
+    for (const row of rows) {
+      expect(find(row.name)).toBe(row);
+      expect(foodNameCompliance(planOf(row.name), rows, 'seoul', findSelectedFoodRow)).toEqual({ exact: 1, aliasOnly: 0, unmatched: 0 });
+    }
+  });
+
+  // Cherry Garden 은 nameEn == name 이라 합성 별칭이 없다 — 원문 그대로 매칭만 위에서 검사.
+  it.each([
+    ['이드 할랄 한식 (홍대점) (Eid Halal Korean Food (Hongdae Branch))', eid],
+    ['(삼미미식당) (SAMMiMi KBBQ - HALAL Hanwoo KBBQ & Handon)', sammimi],
+  ])('whole list-line copy %s → matched through the DB-side alias, counted aliasOnly', (copied, row) => {
+    expect(find(copied)).toBe(row);
+    expect(foodNameCompliance(planOf(copied), rows, 'seoul', findSelectedFoodRow)).toEqual({ exact: 0, aliasOnly: 1, unmatched: 0 });
+  });
+
+  it('a name cut before the raw parenthesis ("이드 할랄 한식") → null, so the dietary check reports a violation', () => {
+    expect(find('이드 할랄 한식')).toBeNull();
+    expect(foodNameCompliance(planOf('이드 할랄 한식'), rows, 'seoul', findSelectedFoodRow)).toEqual({ exact: 0, aliasOnly: 0, unmatched: 1 });
+    const result = runFinalItineraryValidation({ days: [{ day: 1, city: 'seoul', stops: [
+      { name: 'Synthetic Culture A', category: 'culture', start_time: '10:00' },
+      { name: '이드 할랄 한식', category: 'food', start_time: '12:00', stay_min: 60 },
+      { name: 'Synthetic Culture B', category: 'culture', start_time: '14:00' },
+      { name: 'Synthetic Culture C', category: 'culture', start_time: '16:00' },
+    ] }] }, { language: 'en', dietary: ['Halal'], foodIndex: rows });
+    expect(result.ok).toBe(false);
+    expect(result.code).toBe(FINAL_GATE_DIETARY_CODE);
+  });
 });
 
 describe('P1 — prompt contract', () => {
@@ -259,10 +307,11 @@ describe('P1 — prompt contract', () => {
     expect(sys).toContain('"name" 은 목록에 표시된 원문 식별 이름이다. 쉼표 뒤 수식어·지점명·구두점까지 그대로 복사하고 줄이거나 번역하지 않는다. 번역은 "display_name" 에만 한다.');
     expect(sys).not.toMatch(/REUSE a DB restaurant/);
   });
-  it('r5: "name" takes only the Korean identity name before the parenthesis (source string)', () => {
-    const src = read('api/_ai_core/buildPrompt.js');
-    expect(src).toContain('"name" 에는 목록 줄의 **괄호 앞 한국어 식별 이름만** 넣는다(예: "• 해포 (Haepo) [VEGAN] ⭐4.5" → "name": "해포"). 괄호 안 영문·[HALAL] 같은 표식·별점은 복사하지 않는다. 영문·번역은 "display_name" 에만 넣는다.');
-    expect(sys).toContain('괄호 앞 한국어 식별 이름만');
+  it('r6: "name" keeps the raw DB name (its own parentheses included); only the list-appended "(nameEn)", markers and rating are dropped (source string)', () => {
+    const rule = '"name" 은 목록 줄의 **원문 식당명 그대로** — 원문 안의 괄호·영문·지점명은 보존한다. 제외하는 것은 목록이 원문 **뒤에 덧붙인** 표시용 영문 괄호 "(…)", [HALAL]/[VEGAN] 표식, 별점만. 예: "• 이드 할랄 한식 (홍대점) (Eid Halal Korean Food (Hongdae Branch)) [HALAL] ⭐4.5" → "name": "이드 할랄 한식 (홍대점)"; "• 해포 (Haepo) [VEGAN]" → "name": "해포"; "• Cherry Garden Restaurant (Halal) (Cherry Garden Restaurant (Halal)) [HALAL]" → "name": "Cherry Garden Restaurant (Halal)". 영문·번역은 "display_name" 에만.';
+    expect(read('api/_ai_core/buildPrompt.js')).toContain(rule);
+    expect(sys).toContain(rule);
+    expect(sys).not.toContain('괄호 앞 한국어 식별 이름만');
   });
   it('nationwide-chain exception and Busan signature dishes are conditioned on NO safety diet', () => {
     expect(sys).toMatch(/If NO "VERIFIED RESTAURANT DATABASE" appears in the message AND diet_preferences includes none of Halal\/Vegan\/Vegetarian/);

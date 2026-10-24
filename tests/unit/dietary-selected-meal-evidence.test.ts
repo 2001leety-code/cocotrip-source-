@@ -93,6 +93,11 @@ describe('selected meal evidence', () => {
       const rows = reverse ? [general, trusted] : [trusted, general];
       expect(check(meal({ display_name: 'Namaste Garden' }), rows)).toBe(true);
     });
+    it('keeps parentheses that belong to the raw DB name: "합성 식당 (본점)" matches as is, the cut "합성 식당" is rejected', () => {
+      const branchRow = { ...trusted, name: '합성 식당 (본점)' };
+      expect(check(meal({ name: '합성 식당 (본점)' }), [branchRow])).toBe(true);
+      expect(check(meal({ name: '합성 식당' }), [branchRow])).toBe(false);
+    });
     it('a name exactly matching two rows is still rejected', () => {
       expect(check(meal({ name: '합성 식당 (Synthetic Garden)' }), [trusted, { ...trusted }])).toBe(false);
     });
