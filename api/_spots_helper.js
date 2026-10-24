@@ -10,6 +10,13 @@ import { resolveUiCityKey } from './_shared/cityResolver.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
+// 2026-10-24 — 엄격 도시 후보(getExactCitySpotCandidates)에서 뺄 식음료 category 토큰. 실데이터 값은
+// food·cafe·culture·shopping·activity 와 "food|shopping" 같은 복합값뿐 — `|` 로 쪼갠 토큰 중 하나라도 여기 있으면 제외.
+// 소비처(빠른 미리보기·mock)가 후보를 관광지로 취급하므로, 남겨 두면 비검증 식당이 식이 손님 일정에 관광지로 들어간다.
+const FOOD_SPOT_CATEGORIES = new Set(['food', 'cafe']);
+const isFoodSpotCategory = (category) => String(category || '').toLowerCase().split('|')
+  .some((t) => FOOD_SPOT_CATEGORIES.has(t.trim()));
+
 let _spots = null;
 function getSpots() {
   if (!_spots) {
@@ -122,8 +129,9 @@ export function getSpotContext(destination, maxLocations = 3) {
 // ── Strict exact-city candidates (2026-08-24, planner-trust-course #8) ────
 // getSpotContext() above relaxes to a Seoul fallback when nothing matched —
 // unusable for the quick preview's zero-cross-city-substitution rule. This
-// reader is the opposite: NO relaxation, and never matches on the bare
-// `city` field — _korea_spots.json tags Suwon-Hwaseong, Incheon Songdo, Nami
+// reader is the opposite: NO relaxation, and never matches on a non-UI
+// `city` field (2026-10-24: a city that IS a UI key — seoul/busan/… — is used,
+// see groupToUiCityKey) — _korea_spots.json tags Suwon-Hwaseong, Incheon Songdo, Nami
 // Island, DMZ/Paju, and Gapyeong all under city:"gyeonggi", so matching that
 // field alone would blur five unrelated places together. Each group's
 // `district` text (e.g. "Suwon-si", "Incheon") is the real signal, resolved
@@ -136,7 +144,22 @@ function districtToUiCityKey(district) {
 }
 
 /**
- * Exact-city Korea-spots place candidates — for thin cities where the
+ * 그룹 → UI 도시 키 (2026-10-24). `city` 가 UI 도시로 바로 풀리면 그것을 쓴다 — district 만 보던 때는
+ * {city:"seoul", district:"Mapo-gu"}·{city:"busan", district:"Haeundae-gu"} 처럼 구 이름이 도시 별칭이 아닌
+ * 서울·부산 그룹이 전부 0건이었다. `city` 가 "gyeonggi"·빈값·미지 토큰이면 위 district 판정(뭉개기 방지 의도 유지).
+ * city 와 district 가 **서로 다른** UI 도시로 풀리면 모순 데이터 — 어느 쪽에도 넣지 않는다(null).
+ */
+export function groupToUiCityKey(group) {
+  const fromCity = resolveUiCityKey(group && group.city);
+  const fromDistrict = districtToUiCityKey(group && group.district);
+  if (!fromCity) return fromDistrict;
+  if (fromDistrict && fromDistrict !== fromCity) return null;
+  return fromCity;
+}
+
+/**
+ * Exact-city Korea-spots place candidates (attractions only — food/cafe places
+ * are skipped, see FOOD_SPOT_CATEGORIES) — for thin cities where the
  * attraction/food indexes have too few rows (e.g. Suwon: 1 attraction row, 0
  * food rows). Normalized to a minimal, stable shape: only name/nameEn/
  * address/category and a deterministic server-owned key — the source JSON
@@ -150,9 +173,10 @@ export function getExactCitySpotCandidates(cityKey) {
   const spots = getSpots();
   const out = [];
   for (const group of spots) {
-    if (districtToUiCityKey(group.district) !== cityKey) continue;
+    if (groupToUiCityKey(group) !== cityKey) continue;
     for (const p of group.places || []) {
       if (!p.nameEn && !p.name) continue;
+      if (isFoodSpotCategory(p.category)) continue;
       const slug = String(p.nameEn || p.name).toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '').slice(0, 60);
       out.push({
         key: `spot_${cityKey}_${slug}`,
