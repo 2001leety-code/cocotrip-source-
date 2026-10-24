@@ -16,7 +16,7 @@ export const GEMINI_PRICING = {
   // Claude (LLM 공급자 전환 2026-10-13) — platform.claude.com/docs/en/about-claude/pricing 2026-10-13 확인.
   // haiku 는 ≤100K 프롬프트 단가(초과 시 5배 — 트래커는 보수적으로 기본 단가 사용 안 함: 초과 프롬프트 없음).
   'claude-haiku-5-5':      { input: 0.10, output: 0.50,  cached: 0.01 },
-  'claude-sonnet-5-5':     { input: 2.00, output: 10.00, cached: 0.10 },
+  'claude-sonnet-5-5':     { input: 2.00, output: 10.00, cached: 0.20 }, // 2026-10-24: cache read $0.20 (Astra 단가표 재확인)
   'claude-opus-5-5':       { input: 4.00, output: 20.00, cached: 0.20 },
 };
 

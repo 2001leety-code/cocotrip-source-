@@ -3,7 +3,7 @@
   "providers": ["gemini", "claude"],
   "expectedScenarios": ["seoul-meat"],
   "results": [
-    { "scenarioId": "seoul-meat", "scenario": "seoul-2d-Meat-ko", "provider": "gemini", "model": "fixture-gemini", "parsed": true, "requiredKeys": [], "days": 2, "daysMatch": true, "structureErrors": [], "dietaryCritical": false, "languageOk": true, "usd": 0 },
+    { "scenarioId": "seoul-meat", "scenario": "seoul-2d-Meat-ko", "provider": "gemini", "model": "fixture-gemini", "providerActual": "gemini", "modelActual": "fixture-gemini", "fallback": false, "duplicateStops": 0, "mealCoverage": { "checked": true, "missing": [] }, "parsed": true, "requiredKeys": [], "days": 2, "daysMatch": true, "structureErrors": [], "dietaryCritical": false, "languageOk": true, "usd": 0 },
     { "scenarioId": "seoul-meat", "scenario": "seoul-2d-Meat-ko", "provider": "claude", "error": "ANTHROPIC_API_KEY not configured (LLM_PROVIDER=claude)" }
   ]
 }

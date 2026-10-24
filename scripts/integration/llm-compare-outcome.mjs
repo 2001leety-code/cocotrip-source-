@@ -9,14 +9,98 @@
  * (하네스가 SCEN 을 그대로 기록). 없거나 비면 실패 — 무엇을 돌렸어야 하는지 모르면 통과시킬 수 없다.
  * 공급자 목록도 같다: 산출물의 `providers`(하네스 PROVIDERS)가 없거나 비었거나 잘못됐거나 중복이면 실패.
  * 결과 행에서 공급자를 추론하지 않는다.
+ *
+ * 2026-10-24 (O3): 행마다 실제 사용 공급자(providerActual — 어댑터가 Claude 초기화 실패 시 Gemini 로 폴백),
+ * 종단 중복 게이트(duplicateStops), 필수 끼니(mealCoverage)도 판정한다 — 없으면 실패(누락 ≠ 통과).
+ * 실제 누적 비용이 --max-usd 를 넘어 중단된 실행(budgetStop)은 exitCode 3. 비용 불명 행(usdUnknown — 예외로
+ * 과금 여부 모름)은 실패이고, 누적에는 호출 전 예약 비용(usdReserved)으로 남는다.
  */
-export const OUTCOME_EXIT = { ok: 0, failed: 1 };
+export const OUTCOME_EXIT = { ok: 0, failed: 1, budget: 3 };
+
+/**
+ * 행 하나가 누적 비용에 더하는 값. 실측 usd(숫자)가 있으면 그것, 없으면(예외로 과금 여부 불명) 호출 전 잡아 둔
+ * 보수적 예약 비용 usdReserved — 비용 불명을 0 으로 치지 않는다. 둘 다 없으면 호출 전 단계에서 끝난 행 = 0.
+ */
+export function rowSpendUsd(row) {
+  const r = row && typeof row === 'object' ? row : {};
+  if (typeof r.usd === 'number' && Number.isFinite(r.usd)) return r.usd;
+  if (typeof r.usdReserved === 'number' && Number.isFinite(r.usdReserved)) return r.usdReserved;
+  return 0;
+}
+
+/**
+ * 실제 누적 비용 상한 — 하네스가 **매 호출 전**과 **최종 저장 전**에 부른다. 합(rowSpendUsd)이 상한을 넘으면 stop.
+ * @param {object[]} results @param {number} maxUsd
+ * @returns {{stop: boolean, spentUsd: number, maxUsd: number}}
+ */
+export function budgetStop(results, maxUsd) {
+  const spentUsd = (Array.isArray(results) ? results : []).reduce((a, r) => a + rowSpendUsd(r), 0);
+  return { stop: spentUsd > maxUsd, spentUsd: +spentUsd.toFixed(4), maxUsd };
+}
+
+/**
+ * 응답 사용량 → 행 비용 필드 (2026-10-24 r2). 실제 공급자가 mock 이면 $0 정상. 그 외에 usageMetadata 가 없거나
+ * 입력·출력 토큰이 둘 다 0 이면 **비용 불명** — 0 으로 확정하지 않고 usd=null·usdUnknown=true(누적엔 예약 유지).
+ * @param {{providerActual?: string, modelActual?: string, usageMetadata?: object|null, price: (model: string, cm: {cached:number,total:number,output:number}) => number}} a
+ * @returns {{tokens: {cached:number,total:number,output:number}, usd: number|null, usdUnknown: boolean}}
+ */
+export function costFieldsFromUsage({ providerActual, modelActual, usageMetadata, price }) {
+  const um = usageMetadata && typeof usageMetadata === 'object' ? usageMetadata : null;
+  const tokens = {
+    cached: Number(um && um.cachedContentTokenCount) || 0,
+    total: Number(um && um.promptTokenCount) || 0,
+    output: Number(um && um.candidatesTokenCount) || 0,
+  };
+  if (providerActual === 'mock') return { tokens, usd: 0, usdUnknown: false };
+  if (!um || (tokens.total === 0 && tokens.output === 0)) return { tokens, usd: null, usdUnknown: true };
+  return { tokens, usd: +price(modelActual, tokens).toFixed(4), usdUnknown: false };
+}
+
+/**
+ * 하네스 호출 루프 — callOne(p, provider) 는 행을 돌려주고 던지지 않는다(예외는 행의 error/usdUnknown 으로).
+ * 방침: **비용을 모르면 더 호출하지 않는다.** 매 호출 전 누적 상한 검사, 비용 불명 행이 나오면 즉시 중단.
+ * @returns {Promise<{results: object[], stopped: object|null}>}
+ */
+export async function runCompareCalls({ prepared, providers, maxUsd, callOne }) {
+  const results = [];
+  for (const p of prepared) {
+    for (const prov of providers) {
+      const budget = budgetStop(results, maxUsd);
+      if (budget.stop) return { results, stopped: budget };
+      const row = await callOne(p, prov);
+      results.push(row);
+      if (row && row.usdUnknown === true) {
+        const { spentUsd } = budgetStop(results, maxUsd);
+        return { results, stopped: { stop: true, reason: 'unknown_cost', scenarioId: row.scenarioId, provider: row.provider, spentUsd, maxUsd } };
+      }
+    }
+  }
+  return { results, stopped: null };
+}
+
+/**
+ * 하네스 마지막 단계 — 루프 중 중단(stopped)이 없어도 마지막 행까지 더한 합을 다시 검사해, 넘었으면 budgetStop 을
+ * 기록하고 판정한다(마지막 호출에서 초과해도 exit 3).
+ */
+export function finalizeCompareRun({ providers, expectedScenarios, results, maxUsd, stopped }) {
+  const finalCheck = budgetStop(results, maxUsd);
+  const recorded = stopped || (finalCheck.stop ? finalCheck : null);
+  return { budgetStop: recorded, outcome: evaluateCompareRun({ providers, expectedScenarios, results, maxUsd, budgetStop: recorded }) };
+}
 
 /** @param {object} row llm-compare-providers 의 결과 행 @returns {string[]} 실패 사유(빈 배열 = 통과) */
 export function rowFailures(row) {
   const r = row && typeof row === 'object' ? row : {};
   const reasons = [];
   if (r.error) reasons.push('error');
+  if (r.usdUnknown === true) reasons.push('cost_unknown');
+  if (typeof r.providerActual !== 'string' || !r.providerActual) reasons.push('provider_actual_unknown');
+  else if (r.fallback === true || r.providerActual !== r.provider) reasons.push('provider_fallback');
+  if (!Number.isInteger(r.duplicateStops) || r.duplicateStops < 0) reasons.push('duplicate_stops_unknown');
+  else if (r.duplicateStops > 0) reasons.push('duplicate_stops');
+  const mc = r.mealCoverage;
+  if (!mc || typeof mc !== 'object' || mc.checked !== true || !Array.isArray(mc.missing)) reasons.push('meal_coverage_unknown');
+  else if (mc.missing.length > 0) reasons.push('meal_coverage_missing');
   if (r.parsed !== true) reasons.push('not_parsed');
   if (!Array.isArray(r.requiredKeys)) reasons.push('required_keys_unknown');
   else if (r.requiredKeys.length > 0) reasons.push('missing_required_keys');
@@ -90,10 +174,14 @@ export function evaluateCompareRun(run) {
   }
   // 시나리오 통째 누락 = 어떤 공급자 행도 없음 (missingPairs 에도 포함, 별도 표기).
   const missingScenarios = expected.filter((s) => !providers.some((p) => seen.has(`${s}\u0000${p}`)));
+  // 기록된 중단 객체 또는, 산출물에 maxUsd 가 있으면 저장된 행 합 재계산 — --evaluate 도 같은 판정.
+  const capHit = typeof (run && run.maxUsd) === 'number' && budgetStop(results, run.maxUsd).stop;
+  const budgetStopped = !!(run && run.budgetStop) || capHit;
+  if (budgetStopped) runErrors.push('budget_exceeded');
   const ok = runErrors.length === 0 && results.length > 0 && failures.length === 0 && missingPairs.length === 0;
   return {
     ok,
-    exitCode: ok ? OUTCOME_EXIT.ok : OUTCOME_EXIT.failed,
+    exitCode: budgetStopped ? OUTCOME_EXIT.budget : ok ? OUTCOME_EXIT.ok : OUTCOME_EXIT.failed,
     total: results.length,
     passed: results.length - failures.length,
     runErrors,
