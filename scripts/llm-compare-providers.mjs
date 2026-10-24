@@ -7,9 +7,13 @@
  *
  * 사용:
  *   node --env-file=<GEMINI 키 있는 .env> --env-file=.env.local scripts/llm-compare-providers.mjs --confirm-cost
- *   옵션: --providers=gemini,claude  --scenarios=seoul-meat,jeju-vegan  --max-usd=5  --out=<json 경로>
- *   --scenarios (식이 여부): seoul-meat(비식이) · busan-halal(식이 Halal) · jeju-vegan(식이 Vegan) ·
- *     seoul-ja(식이 Vegetarian) · seoul-zh(비식이)
+ *   옵션: --providers=gemini,claude  --scenarios=busan-halal-local,jeju-vegan  --max-usd=5  --out=<json 경로>
+ *   --scenarios (2026-10-24, 전부 식이): busan-halal-local(Halal, PUS→PUS) · seoul-busan-halal(Halal, ICN 서울→PUS 부산) ·
+ *     seoul-ja(Vegetarian, ja) · jeju-vegan(Vegan, CJU→CJU 14:00/10:00)
+ *   판정 요약에 안전 집계(정확 이름 / 별칭으로만 회복 / 이름 못 찾음 / 식이 위반 / 필수끼니 누락)를 따로 낸다.
+ *   무료 반복 루프(2026-10-24, 모델 호출 0 · 키·--confirm-cost 불필요):
+ *     --dump-prompts=<dir> [--scenarios=…]  운영과 같은 system/user 프롬프트 → <dir>/<id>.system.txt·.user.txt + manifest.json
+ *     --judge-plan=<plan.json> --scenario=<id>  저장된 플랜(원문·펜스 허용)을 같은 판정기로 → 행 1개(provider 'subagent') + 종료 코드
  *
  * 평가 항목(계획서 4-b): JSON 파싱 · 필수 키(days/arrival_guide/departure_guide) · 일수 일치 · 구조(B-10/12/14/15,
  *   도착·출국 시각·공항 반영 B-MEAL 포함) · 필수 끼니(mealCoverage) · 종단 중복 게이트(duplicateStops) ·
@@ -30,6 +34,7 @@ import { performance } from 'node:perf_hooks';
 import { writeFileSync, mkdirSync, readFileSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { evaluateCompareRun, formatOutcome, budgetStop, finalizeCompareRun, runCompareCalls, costFieldsFromUsage, OUTCOME_EXIT } from './integration/llm-compare-outcome.mjs';
+import { SCENARIOS, loadCompareDeps, buildScenarioInputs, judgePlanInto, scenarioLabel, runDumpPrompts, runJudgePlan } from './integration/llm-compare-free.mjs';
 
 const args = Object.fromEntries(process.argv.slice(2).map((a) => { const m = a.match(/^--([^=]+)(?:=(.*))?$/); return m ? [m[1], m[2] === undefined ? true : m[2]] : [a, true]; }));
 if (args.evaluate) {
@@ -42,24 +47,24 @@ if (args.evaluate) {
   console.log(formatOutcome(outcome));
   process.exit(outcome.exitCode);
 }
-if (!args['confirm-cost']) {
+// 2026-10-24 (O7): 무료 반복 루프 — --dump-prompts(운영과 같은 프롬프트 저장) / --judge-plan(저장된 플랜 판정).
+//   둘 다 모델 호출 0 · 키 불필요라 --confirm-cost 를 요구하지 않는다. 유료 경로는 그대로.
+const FREE_MODE = Boolean(args['dump-prompts'] || args['judge-plan']);
+// 무료 모드는 오프라인 — 검증기 경로의 외부 알림(throttledTelegramAlert)을 로그로만 (api 모듈 import 전에 세운다).
+if (FREE_MODE) process.env.LLM_COMPARE_OFFLINE = '1';
+if (!FREE_MODE && !args['confirm-cost']) {
   console.error('유료 호출입니다. 비용 확인 후 --confirm-cost 를 붙여 다시 실행하세요.');
   process.exit(2);
 }
 const PROVIDERS = String(args.providers || 'gemini,claude').split(',').map((s) => s.trim()).filter(Boolean);
 const MAX_USD = Number(args['max-usd'] || 5);
-const FUTURE = new Date(Date.now() + 14 * 86400000).toISOString().slice(0, 10);
 
-// 식이 여부: seoul-meat·seoul-zh = 비식이 / busan-halal·jeju-vegan·seoul-ja(Vegetarian) = 식이.
-const ALL = {
-  'seoul-meat':  { area: 'seoul', durationDays: 2, pax: 2, dietPrefs: ['Meat'],       priceRange: 'Moderate', language: 'ko', arrivalTime: '14:00', departureTime: '10:00', arrival_airport: 'ICN_T1', departure_airport: 'ICN_T1' },
-  'busan-halal': { area: 'busan', durationDays: 3, pax: 4, dietPrefs: ['Halal'],      priceRange: 'Moderate', language: 'en', arrivalTime: '14:00', departureTime: '10:00', arrival_airport: 'ICN_T1', departure_airport: 'ICN_T1' },
-  'jeju-vegan':  { area: 'jeju',  durationDays: 2, pax: 2, dietPrefs: ['Vegan'],      priceRange: 'Budget',   language: 'en', arrivalTime: '14:00', departureTime: '10:00' },
-  'seoul-ja':    { area: 'seoul', durationDays: 3, pax: 2, dietPrefs: ['Vegetarian'], priceRange: 'Moderate', language: 'ja' },
-  'seoul-zh':    { area: 'seoul', durationDays: 1, pax: 3, dietPrefs: ['Meat'],       priceRange: 'Premium',  language: 'zh' },
-};
+// 시나리오·입력 조립·판정기 = scripts/integration/llm-compare-free.mjs (유료·무료 공용, 정적 import 는 api 를 안 끌어온다).
+const ALL = SCENARIOS;
 // 시나리오 ID = ALL 키. 모르는 ID 를 조용히 버리면 "요청한 시나리오 통째 누락"이 통과로 보인다 → 호출 전 중단.
-const REQUESTED = String(args.scenarios || Object.keys(ALL).join(',')).split(',').map((s) => s.trim()).filter(Boolean);
+// --judge-plan 은 --scenario=<id> 한 개.
+const REQUESTED = String((args['judge-plan'] ? args.scenario : args.scenarios) || (args['judge-plan'] ? '' : Object.keys(ALL).join(',')))
+  .split(',').map((s) => s.trim()).filter(Boolean);
 const UNKNOWN = REQUESTED.filter((k) => !Object.prototype.hasOwnProperty.call(ALL, k));
 const SCEN = [...new Set(REQUESTED)];
 if (!SCEN.length || UNKNOWN.length || SCEN.length !== REQUESTED.length) {
@@ -67,36 +72,24 @@ if (!SCEN.length || UNKNOWN.length || SCEN.length !== REQUESTED.length) {
   process.exit(5);
 }
 
-const { buildSystemPrompt } = await import('../api/_ai_core/buildPrompt.js');
-const { buildUserMessage } = await import('../api/_ai_core/userMessageBuilder.js');
-const { shapeRequest } = await import('../api/_ai_core/requestShaper.js');
-const { getSpotContext } = await import('../api/_spots_helper.js');
-const { getFoodContext } = await import('../api/_food_helper.js');
-const { getAttractionsContext } = await import('../api/_attractions_helper.js');
+// ── 무료 모드 (O7) — 모델 호출 0. 로직은 llm-compare-free.mjs(테스트는 in-process), 여기선 호출·출력·종료만. ──
+if (args['dump-prompts']) {
+  const r = await runDumpPrompts({ dir: String(args['dump-prompts']), scenarios: SCEN });
+  console.log(r.message);
+  process.exit(r.exitCode);
+}
+if (args['judge-plan']) {
+  const r = await runJudgePlan({ file: String(args['judge-plan']), scenarioId: SCEN.length === 1 ? SCEN[0] : '' });
+  for (const line of r.lines) (r.exitCode === 4 || r.exitCode === 5 ? console.error : console.log)(line);
+  process.exit(r.exitCode);
+}
+
 const gp = await import('../api/_ai_core/geminiPipeline.js');
-const { repairAndParseJSON, validateResponse, validatePatternStructure, hasCriticalDietaryViolation } = await import('../api/_ai_core/responseValidator.js');
-const { runDuplicateStopGate } = await import('../api/_ai_core/finalItineraryGate.js');
 const { runWithLlmContext, resolveLlmModel } = await import('../api/_shared/llm/index.js');
 const { estimateGeminiCostUsd } = await import('../api/_shared/apiPricing.js');
+const DEPS = await loadCompareDeps(); // 운영 모듈(프롬프트·목록·검증기) — 무료 모드와 같은 것
+const buildInputs = (key) => buildScenarioInputs(key, DEPS);
 
-const LANG_RE = { ko: /[가-힣]/, en: /[A-Za-z]{3,}/, ja: /[぀-ヿ]/, zh: /[一-鿿]/ };
-
-function buildInputs(key) {
-  const s = ALL[key];
-  const body = {
-    guestName: 'Compare-Test', pax: s.pax, styles: ['Food', 'Culture'], area: s.area, durationDays: s.durationDays,
-    duration: `${s.durationDays}day`, startDate: FUTURE, language: s.language, dietPrefs: s.dietPrefs, priceRange: s.priceRange,
-    arrivalTime: s.arrivalTime, departureTime: s.departureTime, arrival_airport: s.arrival_airport, departure_airport: s.departure_airport,
-    vehicle: 'public', mobility: 'walking', email: 'compare@example.com',
-  };
-  const shaped = shapeRequest(body, body.email, false, null);
-  const dietaryAll = [...new Set([...(shaped.dietPrefs || []), ...(shaped.dietaryRestrictions || [])])].filter((d) => d && d !== 'None');
-  let spotContext = ''; try { spotContext = getSpotContext(s.area, 6) || ''; } catch { /* ignore */ }
-  let foodContext = ''; try { foodContext = getFoodContext(s.area, dietaryAll, s.priceRange, Math.min(40, Math.max(10, s.durationDays * 4))) || ''; } catch { /* ignore */ }
-  let attractionsContext = ''; try { attractionsContext = getAttractionsContext({ city: s.area, styles: body.styles, language: s.language, maxLocations: 6 }) || ''; } catch { /* ignore */ }
-  const userMessage = buildUserMessage({ shaped, body, spotContext, foodContext, attractionsContext, mountainContext: '', runningContext: '' });
-  return { id: key, s, body, shaped, dietaryAll, systemPrompt: buildSystemPrompt(s.language), userMessage };
-}
 
 // 호출 1건 추정 비용 (입력 chars/4 ≈ 토큰, 출력 8K 토큰 가정) — 사전 추정과 행별 예약(usdReserved)이 같은 공식.
 // ponytail: 출력 8K 는 상한이 아니라 가정치 — 최대 출력까지 막으려면 모델별 maxOutputTokens 로 바꿀 것.
@@ -113,7 +106,7 @@ if (est > MAX_USD) { console.error('추정 비용이 상한을 넘습니다. 중
 // 호출 1건 → 행. 던지지 않는다(예외는 row.error / 비용 불명). 루프·중단 규칙 = runCompareCalls.
 async function callOne(p, prov) {
   // scenarioId = 판정 키(ALL 키), scenario = 표시 라벨(기존 산출물 호환).
-  const row = { scenarioId: p.id, scenario: p.s.area + '-' + p.s.durationDays + 'd-' + p.s.dietPrefs[0] + '-' + p.s.language, provider: prov };
+  const row = { scenarioId: p.id, scenario: scenarioLabel(p), provider: prov };
   try {
     await runWithLlmContext({ provider: prov }, async () => {
       row.model = resolveLlmModel('main');
@@ -134,30 +127,7 @@ async function callOne(p, prov) {
       // 단가 = apiPricing 표(gemini·claude 공용, 미등록 모델은 보수적 기본값) — 실제 모델 기준.
       // 사용량 누락(비 mock)은 $0 확정이 아니라 비용 불명 → runCompareCalls 가 즉시 중단.
       Object.assign(row, costFieldsFromUsage({ providerActual: row.providerActual, modelActual: row.modelActual, usageMetadata: result.response && result.response.usageMetadata, price: estimateGeminiCostUsd }));
-      const raw = gp.extractTextFromResponse(result.response).trim();
-      row.chars = raw.length;
-      const plan = repairAndParseJSON(raw);
-      row.parsed = !!plan && !plan.__repair_minimal_fallback;
-      row.requiredKeys = ['days', 'arrival_guide', 'departure_guide'].filter((k) => !(plan && plan[k]));
-      row.days = plan?.days?.length || 0;
-      row.daysMatch = row.days === p.s.durationDays;
-      row.stopsPerDay = (plan?.days || []).map((d) => (d.stops || []).length);
-      row.foodPerDay = (plan?.days || []).map((d) => (d.stops || []).filter((x) => x.category === 'food').length);
-      // 도착·출국 시각·공항 = 시나리오 값 그대로(없으면 미전달 → 검증기 기본 규칙). B-MEAL 출국일 규칙이 departureTime 을 본다.
-      const trip = { arrivalTime: p.s.arrivalTime, departureTime: p.s.departureTime, arrival_airport: p.s.arrival_airport, departure_airport: p.s.departure_airport };
-      row.structureErrors = validatePatternStructure(plan, { durationDays: p.s.durationDays, regions: [p.s.area], area: p.s.area, ...trip });
-      // 필수 끼니 = validatePatternStructure 의 B-MEAL 결과. 검사가 꺼져 있으면(VALIDATOR_BMEAL_ENABLED=false) checked:false → 판정 실패.
-      row.mealCoverage = { checked: process.env.VALIDATOR_BMEAL_ENABLED !== 'false', missing: row.structureErrors.filter((e) => /\(B-MEAL/.test(String(e))) };
-      const gate = runDuplicateStopGate(plan);
-      row.duplicateStops = gate.duplicates.length;
-      row.duplicateStopNames = gate.duplicates.map((d) => `${d.name}×${d.count}`);
-      const issues = validateResponse(plan, { dietary: p.dietaryAll, language: p.s.language, area: p.s.area, regions: [p.s.area], ...trip }, await gp.loadFoodIndex());
-      row.dietaryCritical = hasCriticalDietaryViolation(issues);
-      row.unverifiedRestaurants = issues.filter((i) => i.type === 'unverified_restaurant').length;
-      const sample = [plan?.tour_title, ...(plan?.days || []).map((d) => d.theme), ...(plan?.days || []).flatMap((d) => (d.stops || []).map((x) => x.tip))].filter(Boolean).join(' ');
-      row.languageOk = LANG_RE[p.s.language].test(sample);
-      row.titleSample = String(plan?.tour_title || '').slice(0, 60);
-      row.plan = plan;
+      judgePlanInto(row, gp.extractTextFromResponse(result.response).trim(), p, DEPS);
     });
   } catch (e) {
     row.error = String(e && e.message || e).slice(0, 300);

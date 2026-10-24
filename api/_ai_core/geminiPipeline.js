@@ -13,6 +13,7 @@
  *   - Other Gemini errors               → re-thrown with code GEMINI_ERROR if missing.
  */
 import { createLlmModel, resolveLlmModel, resolveLlmProvider } from '../_shared/llm/index.js';
+import { geminiSchemaToJsonSchema, schemaTypeIssues } from '../_shared/llm/schema.js';
 import { repairAndParseJSON, cleanAddresses, sanitizeStops, validateResponse, hasCriticalDietaryViolation, validatePatternStructure, checkSoftQualityWarnings } from './responseValidator.js';
 import { applyDBMatcher } from './dbMatcher.js';
 import { captureError } from '../_shared/sentry.js';
@@ -769,7 +770,9 @@ const PLAN_RESPONSE_SCHEMA = {
               //   P183 phase 2(5/24) 이후 모든 Gemini plan 이 local_tag 0% 확정(소프트경고 B-18
               //   매 plan 발화). required 추가 X (P196 lesson) — '' = standard 는 생략과 동치라
               //   optional 이 프롬프트 의미와 일치.
-              propertyOrdering: ['order', 'start_time', 'name', 'display_name', 'category', 'stay_min', 'address', 'tip', 'local_tag', 'lat', 'lng', 'entry_fee_krw', 'verified'],
+              // 2026-10-24 (식이 준수 P1): dietary_tags — 프롬프트가 식이 stop 에 요구하지만 스키마에 없어 구조화출력이
+              //   못 냈다. 설명용 선택 필드일 뿐, 식이 신뢰 근거는 계속 매칭된 DB 행(검증기 변경 없음).
+              propertyOrdering: ['order', 'start_time', 'name', 'display_name', 'category', 'stay_min', 'address', 'tip', 'local_tag', 'lat', 'lng', 'entry_fee_krw', 'verified', 'dietary_tags'],
               required: ['name', 'category', 'start_time'],
               properties: {
                 order: { type: 'INTEGER' },
@@ -785,6 +788,7 @@ const PLAN_RESPONSE_SCHEMA = {
                 lng: { type: 'NUMBER' },
                 entry_fee_krw: { type: 'NUMBER' },
                 verified: { type: 'BOOLEAN' },
+                dietary_tags: { type: 'ARRAY', items: { type: 'STRING' } },
               },
             },
           },
@@ -881,6 +885,31 @@ const PLAN_RESPONSE_SCHEMA = {
 
 // Export for unit testing (회귀 검증).
 export { PLAN_RESPONSE_SCHEMA };
+// 2026-10-24: 응답 자료형 검사용(schemaTypeIssues, required:false) — 정리 함수 전에 쓴다.
+const PLAN_JSON_SCHEMA = geminiSchemaToJsonSchema(PLAN_RESPONSE_SCHEMA);
+
+/**
+ * 2026-10-24 (r1): 첫 응답의 자료형이 깨져 식이 검증·결정론적 교체를 건너뛴 경우, 구조 재시도 성공본을 그 단계에
+ * 재진입시킨다 — 위반 food stop 을 trusted DB 후보로 교체(모델 호출 0). 남은 위반은 종단 게이트가 막는다(완화 없음).
+ */
+function reenterDietaryReplacement(itinerary, { dietaryArr, foodIndex, area, language, styles, stage }) {
+  if (!dietaryArr.length) return;
+  const issues = validateResponse(itinerary, { lang: language, dietary: dietaryArr, styles }, foodIndex);
+  if (!hasCriticalDietaryViolation(issues)) return;
+  const rep = replaceViolatingFoodStops(itinerary, issues, foodIndex, dietaryArr, area, language);
+  if (rep.replaced > 0) console.log(`[planner] dietary deterministic replacement after structure retry (${stage}):`, rep.detail.join(' | '));
+}
+
+/**
+ * 파싱된 플랜의 자료형 오류 목록 — 최상위 null·원시값·배열도 '(root): expected object, got …' 로 잡는다(첫 속성 접근 전에
+ * 호출). minimal fallback(repairAndParseJSON 이 코드로 만든 모양)만 검사 대상이 아니다.
+ * @returns {string[]}
+ */
+export function planSchemaTypeIssues(itinerary) {
+  if (itinerary && typeof itinerary === 'object' && itinerary.__repair_minimal_fallback) return [];
+  // required 누락은 보지 않는다 — 기존 pattern 검증·self-heal(P161 guide 보강 등)이 처리. 자료형·최상위 비객체만.
+  return schemaTypeIssues(itinerary, PLAN_JSON_SCHEMA, { required: false });
+}
 
 // Per-instance sliding-window retry counter. Vercel containers don't share
 // state, but a single hot container handling many requests will surface a
@@ -1343,31 +1372,40 @@ export async function runGeminiPipeline({ apiKey, systemPrompt, userMessage, are
     console.log('[planner] Pass 1 done:', Date.now() - geminiStart, 'ms');
 
     itinerary = repairAndParseJSON(rawText);
-    cleanAddresses(itinerary);
-    sanitizeStops(itinerary, language);
+    // 2026-10-24: 자료형·required(최상위 null/원시값 포함) 검사를 첫 속성 접근 전에. 깨졌으면 정리·Pass2/3·식이 분기를
+    //   건너뛰고 아래 **기존 구조 재시도(1회)** 의 오류 목록으로 보낸다(별도 재시도 없음 — 추가 호출 0).
+    const typeIssues3pass = planSchemaTypeIssues(itinerary);
+    const typeOk3pass = typeIssues3pass.length === 0;
+    if (typeOk3pass) {
+      cleanAddresses(itinerary);
+      sanitizeStops(itinerary, language);
 
-    console.log('[planner] Pass 2/3: DB resolution...');
-    const pass2Start = Date.now();
-    itinerary = pass2Resolve(itinerary, foodIndex, area);
-    console.log('[planner] Pass 2 done:', Date.now() - pass2Start, 'ms');
+      console.log('[planner] Pass 2/3: DB resolution...');
+      const pass2Start = Date.now();
+      itinerary = pass2Resolve(itinerary, foodIndex, area);
+      console.log('[planner] Pass 2 done:', Date.now() - pass2Start, 'ms');
 
-    // P168 (2026-05-23): Pass3 background 분기.
-    // isPass3BackgroundEnabled() = true 일 때 Pass3 를 handlerCore 에서 Firestore 저장 후
-    // background job 으로 trigger. 사용자 응답에는 Pass3 미포함 (tip 은 몇 초 후 등장).
-    // _pass3_pending = true 마커 → handlerCore 가 planId 확정 후 triggerPass3Background 호출.
-    // default false = legacy 동작 (sync Pass3). 단도시/legacy mode 영향 0.
-    if (isPass3BackgroundEnabled()) {
-      console.log('[planner] P168 Pass3 deferred to background (PLANNER_PASS3_BACKGROUND=true)');
-      itinerary._pass3_pending = true;
+      // P168 (2026-05-23): Pass3 background 분기.
+      // isPass3BackgroundEnabled() = true 일 때 Pass3 를 handlerCore 에서 Firestore 저장 후
+      // background job 으로 trigger. 사용자 응답에는 Pass3 미포함 (tip 은 몇 초 후 등장).
+      // _pass3_pending = true 마커 → handlerCore 가 planId 확정 후 triggerPass3Background 호출.
+      // default false = legacy 동작 (sync Pass3). 단도시/legacy mode 영향 0.
+      if (isPass3BackgroundEnabled()) {
+        console.log('[planner] P168 Pass3 deferred to background (PLANNER_PASS3_BACKGROUND=true)');
+        itinerary._pass3_pending = true;
+      } else {
+        console.log('[planner] Pass 3/3: Narrative enrichment...');
+        const pass3Start = Date.now();
+        itinerary = await pass3Enrich(model, itinerary, language);
+        console.log('[planner] Pass 3 done:', Date.now() - pass3Start, 'ms');
+      }
     } else {
-      console.log('[planner] Pass 3/3: Narrative enrichment...');
-      const pass3Start = Date.now();
-      itinerary = await pass3Enrich(model, itinerary, language);
-      console.log('[planner] Pass 3 done:', Date.now() - pass3Start, 'ms');
+      console.warn('[planner] 🚨 schema type issues (3pass) — joining the structure retry:', typeIssues3pass);
     }
 
     // P0-3: dietary 전달 + violation 시 retry. 3pass 는 retry 비용 큼 — pass1 만 재호출.
-    let issues = validateResponse(itinerary, { lang: language, dietary: dietaryArr, styles: body?.styles }, foodIndex);
+    // 자료형이 깨진 plan 은 식이 검증 대상이 아니다(구조 재시도본은 아래 종단 게이트가 검증 — 되돌릴 원본 없음 → fail-closed).
+    let issues = typeOk3pass ? validateResponse(itinerary, { lang: language, dietary: dietaryArr, styles: body?.styles }, foodIndex) : [];
     // 2026-07-11 (3단계-C): legacy 경로와 동일한 결정론적 교체 — 두 경로 다 (block_mode 사각 교훈).
     if (hasCriticalDietaryViolation(issues) && dietaryArr.length > 0) {
       const _rep = replaceViolatingFoodStops(itinerary, issues, foodIndex, dietaryArr, body?.area || area, language);
@@ -1434,11 +1472,12 @@ export async function runGeminiPipeline({ apiKey, systemPrompt, userMessage, are
     // P160 (2026-05-22): self-heal lodging bookend BEFORE pattern validation.
     // Gemini 가 가끔 stops[0]=food 시작 → B-10 throw → customer 500.
     // synthetic lodging prepend/append → validation 통과 + alert.
-    selfHealLodgingBookend(itinerary, { language });
+    if (typeOk3pass) selfHealLodgingBookend(itinerary, { language });
     // 여기까지의 itinerary 는 식이 검증(위 dietary 분기)을 통과한 마지막 상태다. 아래 pattern
     // retry 는 plan 을 통째로 새로 받아 구조만 재검증하므로 되돌릴 원본을 떠 둔다.
-    const lastDietValid3pass = snapshotItinerary(itinerary, dietaryArr);
-    let patternErrors = validatePatternStructure(itinerary, body || {});
+    const lastDietValid3pass = typeOk3pass ? snapshotItinerary(itinerary, dietaryArr) : null;
+    // 자료형 오류도 같은 구조 오류 목록 — 재시도는 이 한 번뿐.
+    let patternErrors = typeOk3pass ? validatePatternStructure(itinerary, body || {}) : typeIssues3pass;
     if (patternErrors.length > 0) {
       console.warn('[planner] 🚨 pattern violation detected (3pass) — retrying with reinforced prompt:', patternErrors);
       recordRetryAttempt('pattern-3pass');
@@ -1446,17 +1485,24 @@ export async function runGeminiPipeline({ apiKey, systemPrompt, userMessage, are
       try {
         // PR #461 (X-H2): retryModel — temperature 0.1.
         const retryRaw = await withTimeout((signal) => pass1Intent(retryModel, reinforced, userMessage, signal), GEMINI_TIMEOUT_MS, 'pass1-retry-pattern');
-        itinerary = repairAndParseJSON(retryRaw);
-        cleanAddresses(itinerary);
-        sanitizeStops(itinerary, language);
-        itinerary = pass2Resolve(itinerary, foodIndex, area);
-        // P168: pattern retry 경로에서도 background 분기 적용.
-        if (isPass3BackgroundEnabled()) {
-          itinerary._pass3_pending = true;
+        const retried = repairAndParseJSON(retryRaw);
+        const retriedTypeIssues = planSchemaTypeIssues(retried);
+        if (retriedTypeIssues.length > 0) {
+          patternErrors = retriedTypeIssues; // 재시도본도 자료형이 깨짐 — 정리 함수에 넣지 않는다
         } else {
-          itinerary = await pass3Enrich(model, itinerary, language);
+          itinerary = retried;
+          cleanAddresses(itinerary);
+          sanitizeStops(itinerary, language);
+          itinerary = pass2Resolve(itinerary, foodIndex, area);
+          // P168: pattern retry 경로에서도 background 분기 적용.
+          if (isPass3BackgroundEnabled()) {
+            itinerary._pass3_pending = true;
+          } else {
+            itinerary = await pass3Enrich(model, itinerary, language);
+          }
+          if (!typeOk3pass) reenterDietaryReplacement(itinerary, { dietaryArr, foodIndex, area: body?.area || area, language, styles: body?.styles, stage: '3pass' });
+          patternErrors = validatePatternStructure(itinerary, body || {});
         }
-        patternErrors = validatePatternStructure(itinerary, body || {});
       } catch (retryErr) {
         if (isPass2CandidatesExhausted(retryErr)) throw retryErr;
         console.error('[planner] pattern retry failed:', retryErr.message);
@@ -1482,7 +1528,8 @@ export async function runGeminiPipeline({ apiKey, systemPrompt, userMessage, are
         }).catch(() => {});
         // 2026-05-19: admin Test Mode 는 hard throw 다운그레이드. customer 는 그대로 throw.
         // SAFETY-CRITICAL (dietary) 는 위쪽 분기에서 admin 도 throw — 여기는 구조 검증만.
-        if (!isAdminBypass) {
+        // 2026-10-24: 자료형이 깨진 plan 은 저장·후처리를 못 하므로 admin 도 throw.
+        if (!isAdminBypass || planSchemaTypeIssues(itinerary).length > 0) {
           const e = new Error(
             'AI 응답이 구조 검증을 통과하지 못했습니다 (재시도 후에도 실패). ' +
             '잠시 후 다시 시도해주시면 새 플랜이 생성됩니다. 운영팀에 알림이 전송됐습니다.'
@@ -1629,12 +1676,21 @@ export async function runGeminiPipeline({ apiKey, systemPrompt, userMessage, are
         console.warn('[P201] Pro escalate threw:', escErr.message);
       }
     }
-    console.log('[ai-planner-full] Parsed OK, days:', (itinerary.days || []).length);
+    // 2026-10-24: 자료형·required(최상위 null/원시값 포함) 검사를 첫 속성 접근·정리 함수 **전에** — Claude 가 구조화 출력
+    //   없이(프롬프트 스키마) 답하면 `null`·`{"days":{}}`·숫자 address 가 cleanAddresses/sanitizeStops 를 예외로 터뜨려
+    //   일반 500 이 됐다. 깨졌으면 정리·식이 분기를 건너뛰고 아래 **기존 구조 재시도(1회)** 의 오류 목록으로 보낸다
+    //   (별도 재시도 없음 — 추가 호출 0). Gemini 구조화 출력은 사실상 0건.
+    const typeIssues = planSchemaTypeIssues(itinerary);
+    const typeOk = typeIssues.length === 0;
+    console.log('[ai-planner-full] Parsed OK, days:', typeOk ? (itinerary.days || []).length : `type issues ${typeIssues.length}`);
 
-    cleanAddresses(itinerary);
-    sanitizeStops(itinerary, language);
+    if (typeOk) {
+      cleanAddresses(itinerary);
+      sanitizeStops(itinerary, language);
+    }
     // P0-3 SAFETY-CRITICAL: dietary 전달 + violation 시 1회 retry → 그래도 violation 시 throw.
-    let issues = validateResponse(itinerary, { lang: language, dietary: dietaryArr, styles: body?.styles }, foodIndex);
+    // 자료형이 깨진 plan 은 식이 검증 대상이 아니다(구조 재시도본은 종단 게이트가 검증 — 되돌릴 원본 없음 → fail-closed).
+    let issues = typeOk ? validateResponse(itinerary, { lang: language, dietary: dietaryArr, styles: body?.styles }, foodIndex) : [];
     // 2026-07-11 (3단계-C): 재생성 의존 전에 결정론적 교체 — 위반 food stop 만
     // 검증된(unverified 제외) DB 후보로 교체 후 재검증. 후보 부족 시 완화 없이
     // 기존 retry→throw 경로 유지 (교체는 검증 완화가 아님 — 재검증 필수).
@@ -1714,10 +1770,11 @@ export async function runGeminiPipeline({ apiKey, systemPrompt, userMessage, are
     // P160 (2026-05-22): self-heal lodging bookend BEFORE pattern validation.
     // Gemini 가 가끔 stops[0]=food 시작 → B-10 throw → customer 500.
     // synthetic lodging prepend/append → validation 통과 + alert.
-    selfHealLodgingBookend(itinerary, { language });
+    if (typeOk) selfHealLodgingBookend(itinerary, { language });
     // 3pass 와 동일 — pattern retry 가 식이 검증 통과본을 밀어낼 수 있으므로 원본 스냅샷.
-    const lastDietValidLegacy = snapshotItinerary(itinerary, dietaryArr);
-    let patternErrors = validatePatternStructure(itinerary, body || {});
+    const lastDietValidLegacy = typeOk ? snapshotItinerary(itinerary, dietaryArr) : null;
+    // 자료형 오류도 같은 구조 오류 목록 — 재시도는 이 한 번뿐.
+    let patternErrors = typeOk ? validatePatternStructure(itinerary, body || {}) : typeIssues;
     if (patternErrors.length > 0) {
       console.warn('[planner] 🚨 pattern violation detected (legacy) — retrying with reinforced prompt:', patternErrors);
       recordRetryAttempt('pattern-legacy');
@@ -1740,10 +1797,17 @@ export async function runGeminiPipeline({ apiKey, systemPrompt, userMessage, are
         const retryCm = extractCacheMetadata(retryResult.response);
         cacheMetadata = accumulateCacheMetadata(cacheMetadata, retryCm);
         logCacheMetrics('pattern-retry', retryCm, retryModel.modelId);
-        itinerary = repairAndParseJSON(retryRaw);
-        cleanAddresses(itinerary);
-        sanitizeStops(itinerary, language);
-        patternErrors = validatePatternStructure(itinerary, body || {});
+        const retried = repairAndParseJSON(retryRaw);
+        const retriedTypeIssues = planSchemaTypeIssues(retried);
+        if (retriedTypeIssues.length > 0) {
+          patternErrors = retriedTypeIssues; // 재시도본도 자료형이 깨짐 — 정리 함수에 넣지 않는다
+        } else {
+          itinerary = retried;
+          cleanAddresses(itinerary);
+          sanitizeStops(itinerary, language);
+          if (!typeOk) reenterDietaryReplacement(itinerary, { dietaryArr, foodIndex, area: body?.area || area, language, styles: body?.styles, stage: 'legacy' });
+          patternErrors = validatePatternStructure(itinerary, body || {});
+        }
       } catch (retryErr) {
         console.error('[planner] pattern retry failed:', retryErr.message);
       }
@@ -1768,7 +1832,8 @@ export async function runGeminiPipeline({ apiKey, systemPrompt, userMessage, are
         }).catch(() => {});
         // 2026-05-19: admin Test Mode 는 hard throw 다운그레이드. customer 는 그대로 throw.
         // SAFETY-CRITICAL (dietary) 는 위쪽 분기에서 admin 도 throw — 여기는 구조 검증만.
-        if (!isAdminBypass) {
+        // 2026-10-24: 자료형이 깨진 plan 은 저장·후처리를 못 하므로 admin 도 throw.
+        if (!isAdminBypass || planSchemaTypeIssues(itinerary).length > 0) {
           const e = new Error(
             'AI 응답이 구조 검증을 통과하지 못했습니다 (재시도 후에도 실패). ' +
             '잠시 후 다시 시도해주시면 새 플랜이 생성됩니다. 운영팀에 알림이 전송됐습니다.'

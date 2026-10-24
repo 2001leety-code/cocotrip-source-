@@ -18,7 +18,7 @@
  *
  * 식이 요구가 없는 손님에겐 완전 no-op (기존 동작 byte-identical).
  */
-import { validateResponse, hasCriticalDietaryViolation } from './responseValidator.js';
+import { validateResponse, hasCriticalDietaryViolation, checkRequiredMeals } from './responseValidator.js';
 import { findDuplicateStops } from './qualityMetrics.js';
 
 export const FINAL_GATE_DIETARY_CODE = 'DIETARY_VIOLATION';
@@ -79,13 +79,18 @@ export function checkZeroFoodDays(itinerary, dietary) {
 /**
  * 종단 검증 — 이 함수가 각 경로의 **마지막 mutation 뒤** 정확히 한 번 돈다.
  *
+ * 2026-10-24 (식이 준수 P3): ctx.tripTimes 가 있으면(운영 호출부는 항상 넘긴다) responseValidator 의 필수 끼니
+ *   판정(B-MEAL — 09:00–10:59 출국 조식 등)을 여기서도 돌린다. 활동 3개 미만 면제(checkZeroFoodDays)로 빠지던
+ *   출국일 조식 누락을 종단에서 막는다. tripTimes 없는 호출(구버전·합성 테스트)은 기존 판정 그대로.
+ *
  * @param {object} itinerary
- * @param {{language?: string, dietary?: string[], styles?: string[], foodIndex?: Array}} ctx
- * @returns {{ok: boolean, code: string|null, issues: Array, violations: Array, zeroFoodDays: Array}}
+ * @param {{language?: string, dietary?: string[], styles?: string[], foodIndex?: Array,
+ *   tripTimes?: {departure_time?: string, arrival_time?: string}}} ctx
+ * @returns {{ok: boolean, code: string|null, issues: Array, violations: Array, zeroFoodDays: Array, requiredMealIssues: string[]}}
  */
 export function runFinalItineraryValidation(itinerary, ctx = {}) {
   const dietary = Array.isArray(ctx.dietary) ? ctx.dietary : [];
-  const empty = { ok: true, code: null, issues: [], violations: [], zeroFoodDays: [] };
+  const empty = { ok: true, code: null, issues: [], violations: [], zeroFoodDays: [], requiredMealIssues: [] };
   if (!itinerary || typeof itinerary !== 'object') return empty;
   if (!hasSafetyDiet(dietary)) return empty; // 식이 요구 없음 → no-op
 
@@ -96,14 +101,40 @@ export function runFinalItineraryValidation(itinerary, ctx = {}) {
   );
   const violations = issues.filter((i) => i && i.type === 'dietary_violation' && i.severity === 'critical');
   const zeroFoodDays = checkZeroFoodDays(itinerary, dietary);
+  const requiredMealIssues = ctx.tripTimes && typeof ctx.tripTimes === 'object'
+    ? checkRequiredMeals(itinerary, ctx.tripTimes) : [];
 
   if (hasCriticalDietaryViolation(issues)) {
-    return { ok: false, code: FINAL_GATE_DIETARY_CODE, issues, violations, zeroFoodDays };
+    return { ok: false, code: FINAL_GATE_DIETARY_CODE, issues, violations, zeroFoodDays, requiredMealIssues };
   }
-  if (zeroFoodDays.length > 0) {
-    return { ok: false, code: FINAL_GATE_MEAL_CODE, issues, violations, zeroFoodDays };
+  if (zeroFoodDays.length > 0 || requiredMealIssues.length > 0) {
+    return { ok: false, code: FINAL_GATE_MEAL_CODE, issues, violations, zeroFoodDays, requiredMealIssues };
   }
-  return { ok: true, code: null, issues, violations, zeroFoodDays };
+  return { ok: true, code: null, issues, violations, zeroFoodDays, requiredMealIssues };
+}
+
+/**
+ * 2026-10-24: 오류 객체의 구조화 상세(e.details — 예: 종단 게이트의 날짜·끼니·사유 목록)를 HTTP 응답·실패 문서용으로
+ * 정리한다. 문자열 배열(최대 5개, 각 300자)만 — 그 외 모양은 버린다. 없으면 undefined.
+ * (planCloseout·Inngest onFailure 공용 — 순수 모듈이라 여기 둔다.)
+ * @returns {string[]|undefined}
+ */
+export function failureDetailsOf(error) {
+  // details 우선, 없으면 cause.details(Inngest 직렬화를 거친 오류 — 위 buildFinalGateError 참고).
+  const raw = error && (error.details || (error.cause && typeof error.cause === 'object' ? error.cause.details : undefined));
+  const list = Array.isArray(raw) ? raw : (typeof raw === 'string' && raw ? [raw] : []);
+  const out = list.filter((d) => typeof d === 'string' && d).slice(0, 5).map((d) => d.slice(0, 300));
+  return out.length ? out : undefined;
+}
+
+/** 운영 호출부용 — body/shaped 어느 쪽이든 출국·도착 시각을 snake 키로 (HH:MM). */
+export function tripTimesFrom(source) {
+  const s = source && typeof source === 'object' ? source : {};
+  const hhmm = (v) => (typeof v === 'string' && v ? v.slice(0, 5) : undefined);
+  return {
+    departure_time: hhmm(s.departure_time || s.departureTime),
+    arrival_time: hhmm(s.arrival_time || s.arrivalTime),
+  };
 }
 
 /**
@@ -170,8 +201,11 @@ export function buildFinalGateError(result, dietary, stage) {
   e.statusCode = 422;
   e.stage = stage;
   e.details = result.code === FINAL_GATE_MEAL_CODE
-    ? result.zeroFoodDays.slice(0, 5).map((f) => f.message)
+    ? [...result.zeroFoodDays.map((f) => f.message), ...(result.requiredMealIssues || [])].slice(0, 5)
     : result.violations.slice(0, 5).map((v) => `${v.diet}:${v.stop}`);
+  // 2026-10-24 (r2): Inngest 는 오류를 넘길 때 name/message/stack/code/cause 만 보존한다(inngest/helpers/errors.js
+  //   copiedErrorProperties) → worker 실패 문서에서 details 가 사라졌다. cause 에 같은 값을 실어 보존.
+  e.cause = { details: e.details };
   return e;
 }
 

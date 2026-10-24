@@ -33,7 +33,7 @@ import { calcPrice } from './vehicleAndPrice.js';
 import { throttledTelegramAlert } from '../_shared/telegram-throttle.js';
 import { applyBlockModeDietaryWarnings, normalizeRegionKey } from './responseValidator.js';
 import { applyDepartureDayFlightCap } from './blockMode.js';
-import { assertFinalItineraryValid, assertNoDuplicateStops } from './finalItineraryGate.js';
+import { assertFinalItineraryValid, assertNoDuplicateStops, tripTimesFrom } from './finalItineraryGate.js';
 import { assertNoAvoidedStopsRemain, filterAvoidedRestaurantBuckets } from './avoidStops.js';
 
 // P203 (2026-05-26): routeEnrich 180s wall-clock cap.
@@ -339,6 +339,12 @@ export function applyBackfillsAndTmoney(itinerary, ctx) {
  */
 export async function applyRecommendedRestaurants(itinerary, ctx) {
   const { area, dietPrefs, regions, blockModeUsed, language, styles, avoidStopNames } = ctx;
+  // 2026-10-24 (식이 준수 P3): 종단 게이트의 필수 끼니 판정에 출국·도착 시각 — sync 경로는 shaped 값,
+  //   worker 경로는 body(camel/snake) 에서 같은 방식으로 읽는다.
+  const tripTimes = tripTimesFrom({
+    departureTime: ctx.departureTime || ctx.body?.departureTime || ctx.body?.departure_time,
+    arrivalTime: ctx.arrivalTime || ctx.body?.arrivalTime || ctx.body?.arrival_time,
+  });
   // 동선 5km 이내 + plan 미포함 식당 중 rating × log(reviews) 상위 10개씩.
   // dietPrefs 기준 per-style bucket: { general, vegan?, halal? } — 섞지 않음.
   // 2026-05-05 regression fix: 이전엔 general만 노출 → vegan/halal 사용자도
@@ -387,7 +393,7 @@ export async function applyRecommendedRestaurants(itinerary, ctx) {
 
   assertFinalItineraryValid(
     itinerary,
-    { language, dietary: dietPrefs, styles, foodIndex: foodIndexForQuality },
+    { language, dietary: dietPrefs, styles, foodIndex: foodIndexForQuality, tripTimes },
     blockModeUsed ? 'block_mode' : 'post_response',
   );
   // ── 종단 중복 게이트 — 식이 요구 유무와 무관하게 항상 (2026-08-24) ─────────

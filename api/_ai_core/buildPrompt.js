@@ -159,6 +159,10 @@ The output language must match the user's language setting. Do NOT mix languages
 - ✅ stop이 있는 정확한 동·구 또는 지역명만 사용.
 - 'Food', 'Restaurant', 'Place' 같은 영어 단어를 한국어/일본어/중국어 응답에 섞지 말 것.
 
+## DIETARY SAFETY — TOP RULE (Halal / Vegan / Vegetarian)
+- Halal/Vegan/Vegetarian 요청은 식이 안전이 지역 대표 음식·특별 요청·다양성보다 우선한다. 해당 식사 도시의 제공 목록에서 모든 요청 식이 조건을 충족하는 식당만 선택한다. 목록이 없거나 부족해도 일반 체인·범주형 식당·호텔·편의점으로 대체하지 않는다.
+- Food stops for these guests come ONLY from the restaurant list given for THAT day's city. Do not add a city that has no list (an arrival airport alone, e.g. ICN, is not a meal city).
+
 ## OUTPUT FORMAT — STRICT JSON ONLY
 No markdown. No code blocks. No explanation. Pure JSON only.
 
@@ -596,6 +600,7 @@ If "special_request" is present in the user message, treat it as HIGHEST PRIORIT
 - Full day = middle days. 필수: lunch/snack (11-16:59) ≥1 + dinner (17-21:59) ≥1. Breakfast (06-10:59) bonus.
 - Backend B-MEAL-LUNCH/DINNER validator: 누락 시 즉시 reject + retry.
 - Arrival day: ≥1 meal. Departure day (P137): <11:00→breakfast; 11-16:59→breakfast OR lunch; ≥17:00→breakfast+lunch 둘 다.
+- 09:00–10:59 출국일에는 조식이 필요하다. 제공된 신뢰 후보로 해결할 수 없으면 식당·영업시간·호텔 조식·편의점 대안을 지어내지 말고 해당 끼니를 미충족으로 남겨라. 다른 category 로 바꾸어 숨기지 말라. DB 신뢰 등급은 아침 영업을 보장하지 않는다.
 - GOOD (departure 20:00): breakfast 08:00 + lunch 12:30. BAD (departure day): 출국일 0 food stops → IMMEDIATE reject.
 - 3-5 signature menu items with KRW prices. reservation_required + phone for popular spots.
 
@@ -604,7 +609,8 @@ If "special_request" is present in the user message, treat it as HIGHEST PRIORIT
 - If user requests 5 days, output 5 day objects with stops[] populated. NEVER output 4 with last-day narration.
 
 ### BUSAN SIGNATURE DISHES — MANDATORY (부산 일정 시 필수)
-When the destination includes Busan:
+When the destination includes Busan AND diet_preferences includes none of Halal/Vegan/Vegetarian
+(dietary guests: skip this whole dish rule — dietary safety overrides it):
 - Recommend at least ONE Busan signature dish per day from:
   밀면 (Milmyeon, ₩8,000-12,000) / 돼지국밥 (Pork soup rice, ₩8,000-11,000) /
   자갈치 회 (Sashimi at Jagalchi market) / 어묵 (Fish cake, Nampo street) /
@@ -620,14 +626,16 @@ When the destination includes Busan:
 ### ⚠️ RESTAURANT SELECTION — MANDATORY RULES (READ 3 TIMES)
 When the user message contains "VERIFIED RESTAURANT DATABASE":
 1. You MUST pick restaurants ONLY from that list. This is NOT optional.
-2. Copy the EXACT "name" from the database as your stop's "name" field
+2. "name" 은 목록에 표시된 원문 식별 이름이다. 쉼표 뒤 수식어·지점명·구두점까지 그대로 복사하고 줄이거나 번역하지 않는다. 번역은 "display_name" 에만 한다.
+   "name" 은 목록 줄의 **원문 식당명 그대로** — 원문 안의 괄호·영문·지점명은 보존한다. 제외하는 것은 목록이 원문 **뒤에 덧붙인** 표시용 영문 괄호 "(…)", [HALAL]/[VEGAN] 표식, 별점만. 예: "• 이드 할랄 한식 (홍대점) (Eid Halal Korean Food (Hongdae Branch)) [HALAL] ⭐4.5" → "name": "이드 할랄 한식 (홍대점)"; "• 해포 (Haepo) [VEGAN]" → "name": "해포"; "• Cherry Garden Restaurant (Halal) (Cherry Garden Restaurant (Halal)) [HALAL]" → "name": "Cherry Garden Restaurant (Halal)". 영문·번역은 "display_name" 에만.
 3. Copy the EXACT "address" from the database
 4. Set "verified": true on EVERY food stop from the database
 5. Match by geographic proximity (same dong/neighborhood as nearby landmark stops)
 6. Create recommended_items with 3-5 realistic menu items + KRW prices
-7. If fewer DB restaurants than needed for the trip, REUSE a DB restaurant for a second meal before inventing one
+7. Each restaurant at most once per trip (the backend rejects repeated stops). If the list is too short, leave that meal out — never invent one.
 
-If NO "VERIFIED RESTAURANT DATABASE" appears in the message:
+If NO "VERIFIED RESTAURANT DATABASE" appears in the message AND diet_preferences includes none of Halal/Vegan/Vegetarian
+(this chain exception NEVER applies to Halal/Vegan/Vegetarian guests — see DIETARY SAFETY):
 - The city is not yet in our database
 - Use ONLY these nationwide chains: 본죽, 교촌치킨, bhc, 명륜진사갈비, 스타벅스, 투썸플레이스, 설빙, 파리바게뜨, 이삭토스트, 김밥천국, 맘스터치, 빽다방
 - OR use category description: "전통시장 내 분식집", "해변가 해산물 맛집"
@@ -638,7 +646,7 @@ If NO "VERIFIED RESTAURANT DATABASE" appears in the message:
 - ❌ "명동교자 본점" — unless this EXACT name appears in the database
 - ❌ "해산물 전문점 (할랄-프렌들리)" — vague category, not a real name
 - ✅ Copying "토속촌|Tosokchon" exactly from the database → verified: true
-- ✅ "김밥천국" (nationwide chain) → verified: false
+- ✅ "김밥천국" (nationwide chain) → verified: false — only for guests without Halal/Vegan/Vegetarian
 
 ### ⚠️ STREET/ALLEY NAMES ARE NOT RESTAURANTS (common mistake)
 - Do NOT use street names, alley names, or food market areas as category:"food" stops.
@@ -658,6 +666,11 @@ If diet_preferences includes "Vegan":
 - If verified vegan restaurants are provided, use ONLY those
 - For EVERY vegan food stop, add "dietary_tags": ["vegan"] to the stop object AND include the word "vegan" in the tip text
 - NEVER recommend dishes with fish sauce or anchovy stock
+
+If diet_preferences includes "Vegetarian":
+- ONLY recommend restaurants from the provided list whose line is marked [VEGETARIAN] or [VEGAN] (same contract as Halal/Vegan — list only, no chains, no categories).
+- For EVERY vegetarian food stop, add "dietary_tags": ["vegetarian"] to the stop object AND include the word "vegetarian" in the tip text
+- NEVER recommend meat, poultry or seafood dishes
 
 If diet_preferences includes "Seafood":
 - Prioritize seafood restaurants: 회(sashimi), 해산물(seafood), 조개구이(grilled shellfish), 새우(shrimp), 게(crab)
@@ -705,7 +718,7 @@ Use daily_tour_hours value as the actual budget — fit stop durations + transit
 - Jagalchi → 자갈치시장(부산), lunch slot 회/조개구이.
 - Gamcheon → 감천문화마을(부산), 2h photo.
 - Haeundae → 해운대해변(부산), sunset ideal.
-- BusanFood → 밀면/돼지국밥/어묵, 1 meal.
+- BusanFood → 밀면/돼지국밥/어묵, 1 meal (not for Halal/Vegan/Vegetarian guests — dietary list only).
 - OlleTrail → 제주올레길, half-day.
 - Hallasan → 한라산, full-day (replaces other stops). **SAFETY-CRITICAL: Trekking/Hallasan — check trail conditions; Witseoreum open Apr–Nov only. Alert user of altitude/weather risk.**
 - Haenyeo → 해녀박물관/해녀식당, lunch. **ALL Haenyeo stops MUST be in Jeju (제주도). NEVER place Seoul, Busan, or non-Jeju stops when Haenyeo style is selected. BAD: "임진각 (파주)" or "동대문 (서울)" on Haenyeo day — P248 alert fires.** Use EXACT names from VERIFIED HAENYEO DATABASE if present in the message.
@@ -790,6 +803,7 @@ If meal_budget is "Premium":
 ### ⚠️ SAFETY-CRITICAL (OVERRIDE ALL)
 - Halal → ONLY verified halal restaurants. ZERO pork/alcohol/lard.
 - Vegan → ZERO animal products. Watch: 멸치육수, 젓갈, 계란, 김치(often 젓갈)
+- Vegetarian → ONLY listed [VEGETARIAN]/[VEGAN] restaurants. ZERO meat/poultry/seafood.
 
 ### PRICING (2026)
 - Palace: ₩3,000 (free with hanbok), N서울타워: ₩21,000

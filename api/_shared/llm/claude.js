@@ -5,7 +5,14 @@
 // Gemini 전용 설정 대응(계획서 ②):
 //   temperature → 삭제 (Haiku/Sonnet 5.5 는 1 이외 400) · thinkingConfig → 삭제(adaptive 기본)
 //   responseSchema → output_config.format json_schema · maxOutputTokens → max_tokens(상한 LLM_MAX_TOKENS_CAP)
-import { geminiSchemaToJsonSchema } from './schema.js';
+import { geminiSchemaToJsonSchema, countOptionalProperties } from './schema.js';
+
+// 2026-10-24 실측 400 두 종류(claude-sonnet-5-5, 플래너 메인 스키마):
+//   "Schemas contains too many optional parameters (61) … (limit: 24)" — 원래 스키마
+//   "too many parameters with union types (61 parameters with type arrays or anyOf) … (limit: 16 …)" — nullable 전환 후
+// → 선택 속성이 이 한도를 넘는 스키마는 구조화 출력을 쓰지 않고, 스키마를 system 에 넣어 JSON 만 받는다
+//   (Gemini 가 responseSchema 없는 역할에서 쓰는 방식 — 하류 repairAndParseJSON + 검증기가 처리).
+export const CLAUDE_STRUCTURED_OPTIONAL_LIMIT = 24;
 
 const STOP_MAP = { end_turn: 'STOP', stop_sequence: 'STOP', max_tokens: 'MAX_TOKENS', refusal: 'SAFETY' };
 
@@ -41,7 +48,13 @@ export function buildClaudeRequest({ modelId, role, config = {}, request, maxTok
   };
   if (systemText) out.system = systemText;
   if (gen.responseSchema) {
-    out.output_config.format = { type: 'json_schema', schema: geminiSchemaToJsonSchema(gen.responseSchema) };
+    const schema = geminiSchemaToJsonSchema(gen.responseSchema);
+    if (countOptionalProperties(schema) <= CLAUDE_STRUCTURED_OPTIONAL_LIMIT) {
+      out.output_config.format = { type: 'json_schema', schema };
+    } else {
+      out.system = `${systemText ? `${systemText}\n\n` : ''}Return exactly one JSON object and nothing else (no markdown fences, no commentary). `
+        + `It must conform to this JSON Schema:\n${JSON.stringify(schema)}`;
+    }
   }
   return out;
 }

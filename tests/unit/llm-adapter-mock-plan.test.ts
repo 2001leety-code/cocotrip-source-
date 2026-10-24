@@ -166,6 +166,12 @@ describe('buildMockPlan — 식이 후보 부족(foodPool 로 풀 고정): 부�
       const pattern = validatePatternStructure(plan, healthBody(s));
       expect(pattern).toHaveLength(1);
       expect(pattern[0]).toMatch(new RegExp(`^Day ${s.durationDays} \\(출국일\\): departure_time=10:00 이른 출국 — 조식\\(06-10시\\) 누락 \\(B-MEAL, P137\\)$`));
+
+      // 2026-10-24 (식이 준수 P3): 운영 종단 게이트는 여행 시각을 받는다 → 이 빈 조식이 저장 전에 막힌다
+      //   (예전엔 출국일 활동 3개 미만 면제로 통과). 같은 끼니가 details 로 남는다.
+      const final = runFinalItineraryValidation(plan, { dietary: s.dietPrefs, language: s.language, foodIndex: await loadFoodIndex(), tripTimes: { departure_time: s.departureTime, arrival_time: s.arrivalTime } });
+      expect(final).toMatchObject({ ok: false, code: 'DIETARY_MEAL_COVERAGE_FAILED' });
+      expect(final.requiredMealIssues).toEqual([pattern[0]]);
     });
   }
 });

@@ -319,6 +319,20 @@ const KNOWN_HOTEL_CHAINS = [
   'mercure', 'fraser', 'oakwood', 'somerset', 'ascott',
 ];
 
+/**
+ * 필수 끼니 판정(B-MEAL — 도착일 1끼·중간일 점심+저녁·P137 출국일 시각별 조식/점심) 공용 진입점 (2026-10-24).
+ * 판정은 validatePatternStructure 의 B-MEAL 규칙 그대로(복제하지 않는다) — 그 결과에서 B-MEAL 오류만 고른다.
+ * 종단 게이트(finalItineraryGate)가 출국일 조식 누락을 다시 확인할 때 쓴다. VALIDATOR_BMEAL_ENABLED=false 면 [].
+ * @param {object} itinerary
+ * @param {{departure_time?: string, departureTime?: string}} [request]
+ * @returns {string[]} 예: 'Day 2 (출국일): departure_time=10:00 이른 출국 — 조식(06-10시) 누락 (B-MEAL, P137)'
+ */
+export function checkRequiredMeals(itinerary, request = {}) {
+  if (!itinerary || !Array.isArray(itinerary.days)) return [];
+  const req = { departure_time: request.departure_time || request.departureTime };
+  return validatePatternStructure(itinerary, req).filter((e) => /\(B-MEAL/.test(String(e)));
+}
+
 export function validatePatternStructure(itinerary, request = {}) {
   const errors = [];
   if (!itinerary || !Array.isArray(itinerary.days)) {

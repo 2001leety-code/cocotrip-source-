@@ -16,6 +16,7 @@ import { PLAN_ISSUANCE_COLLECTION } from '../_shared/plan-issuance.js';
 import { CORS } from './constants.js';
 import { restoreAiPlanCoupon } from './paymentGate.js';
 import { plannerFailureAlertMessage } from './plannerFailureAlert.js';
+import { failureDetailsOf } from './finalItineraryGate.js';
 
 /**
  * streaming 중인 plan 문서를 error 로 닫는다. **절대 throw 하지 않는다.**
@@ -51,6 +52,8 @@ export async function closeStreamingPlanOnFailure({ adminDb, planId, error, stag
         _streaming_error: 'handler_catch',
         _streaming_error_code: error?.code || 'INTERNAL_ERROR',
         _streaming_error_message: String(error?.message || '').slice(0, 300),
+        // 2026-10-24: 날짜·끼니·사유 등 구조화 상세(있을 때만) — message 는 그대로 둔다.
+        ...(failureDetailsOf(error) ? { _streaming_error_details: failureDetailsOf(error) } : {}),
         _streaming_failed_at: FieldValue.serverTimestamp(),
         _streaming_failed_stage: stage,
       });
@@ -82,6 +85,8 @@ export async function runHandlerFailureCleanup({
       error: 'Planner failed',
       code,
       details: error.message || 'Unknown error',
+      // 2026-10-24: 구조화 상세(예: 종단 끼니 실패의 날짜·끼니·사유) — details(message) 는 기존 그대로.
+      ...(failureDetailsOf(error) ? { failureDetails: failureDetailsOf(error) } : {}),
       // batch 9 fix (PR-N): root cause 진단 위해 prod 에서도 stack head 일부 노출.
       // 운영자 본인 + Test Mode 케이스라 사용자에게 stack 노출 위험 낮음. 진단
       // 완료 후 dev only 로 좁힐 것.
