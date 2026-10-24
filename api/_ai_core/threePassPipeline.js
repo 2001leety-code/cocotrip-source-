@@ -15,6 +15,8 @@ import { extractTextFromResponse } from './geminiPipeline.js';
 import { recordGeminiUsage } from '../_shared/apiUsageRecorder.js';
 import { resolveLlmModel } from '../_shared/llm/index.js';
 import { FINAL_GATE_DUPLICATE_CODE } from './finalItineraryGate.js';
+import { eligibleRows, cityKeyOf, safetyDiets } from './revisitPolicy.js';
+import { avoidKey } from '../_shared/plannerIntentV1.js';
 
 // 사용량 실측 기록 — fire-and-forget, 절대 throw 안 함(recorder 내부 완전 guard).
 // 3-pass 는 legacy(logCacheMetrics 경유)와 달리 기록이 전혀 없었음(2026-07-09 비용 가시화).
@@ -92,8 +94,24 @@ function isFoodSlot(stop) {
   return Boolean(stop.food_intent) || stop.name === 'FOOD_SLOT';
 }
 
-export function pass2Resolve(itinerary, foodIndex, area) {
+/**
+ * @param {object} itinerary
+ * @param {object[]} foodIndex
+ * @param {string} area
+ * @param {{dietary?: string[], avoidStopNames?: string[]}} [ctx] — 2026-10-24 재방문 정책 G: 안전 식이가 있으면
+ *   후보 = 그 날 도시의 적격 행(revisitPolicy.eligibleRows — 검증·요청 식이 전부·avoid 제외)로 **강제 필터**.
+ *   전부 이미 쓰였으면 오늘 미사용 적격 행 중 최근접으로 다른 날 재방문(revisit: true), 그것도 없을 때만 기존 throw.
+ */
+export function pass2Resolve(itinerary, foodIndex, area, ctx) {
   if (!foodIndex || foodIndex.length === 0) return itinerary;
+  const diets = safetyDiets(ctx && ctx.dietary);
+  const avoidKeys = (ctx && Array.isArray(ctx.avoidStopNames) ? ctx.avoidStopNames : []).map((n) => avoidKey(n)).filter(Boolean);
+  const eligibleCache = new Map();
+  const eligibleFor = (day) => {
+    const city = cityKeyOf(day && day.city) || cityKeyOf(area);
+    if (!eligibleCache.has(city)) eligibleCache.set(city, eligibleRows(foodIndex, city, diets, { avoidKeys }));
+    return eligibleCache.get(city);
+  };
 
   const matchCity = (area || '').replace(/_.*$/, '').toLowerCase();
   // prevent duplicates within same plan — 이미 확정된 food stop(현재 + legacy 필드)도 예약 (Busan #1438)
@@ -117,8 +135,11 @@ export function pass2Resolve(itinerary, foodIndex, area) {
       let bestMatch = null;
       let bestScore = -1;
       let reservedSkipped = 0;
+      let revisit = false;
+      // 식이 손님: 후보 = 그 날 도시 적격 행만(강제 필터). 그 외: 기존 전체 index.
+      const pool = diets.length > 0 ? eligibleFor(day) : foodIndex;
 
-      for (const entry of foodIndex) {
+      for (const entry of pool) {
         if (identityKeys([entry.name, entry.nameEn]).some((k) => usedNames.has(k))) { reservedSkipped++; continue; }
 
         let score = 0;
@@ -156,6 +177,20 @@ export function pass2Resolve(itinerary, foodIndex, area) {
         }
       }
 
+      // 2026-10-24 재방문 정책: 적격 후보가 전부 이미 일정에 있으면 → 오늘 미사용 적격 행 중 최근접(다른 날 재방문).
+      if (!bestMatch && reservedSkipped > 0 && diets.length > 0) {
+        const todayKeys = new Set((day.stops || []).filter((s) => s !== stop && s && s.category === 'food')
+          .flatMap((s) => identityKeys([s.name, s.display_name, s.name_ko, s.name_en])));
+        const prev = (day.stops || []).slice(0, (day.stops || []).indexOf(stop)).reverse()
+          .find((s) => s && Number.isFinite(Number(s.lat)) && Number.isFinite(Number(s.lng)) && s.lat !== null && s.lng !== null);
+        const dist = (r) => (prev && Number.isFinite(Number(r.lat)) && Number.isFinite(Number(r.lng))
+          ? Math.hypot(Number(r.lat) - Number(prev.lat), (Number(r.lng) - Number(prev.lng)) * Math.cos((Number(prev.lat) * Math.PI) / 180))
+          : Infinity);
+        const todayFree = pool.filter((r) => !identityKeys([r.name, r.nameEn]).some((k) => todayKeys.has(k)))
+          .sort((a, b) => dist(a) - dist(b) || (Number(b.rating) || 0) - (Number(a.rating) || 0));
+        if (todayFree[0]) { bestMatch = todayFree[0]; bestScore = 0; revisit = true; }
+      }
+
       if (bestMatch) {
         const resolvedName = (bestMatch.name || '').split('|')[0].trim();
         for (const k of identityKeys([bestMatch.name, bestMatch.nameEn])) usedNames.add(k);
@@ -175,6 +210,7 @@ export function pass2Resolve(itinerary, foodIndex, area) {
         stop._dbMatchedName = resolvedName;
         stop._resolvedFrom = 'pass2';
         stop._intentScore = bestScore;
+        if (revisit) stop.revisit = true; else delete stop.revisit;
 
         console.log(`[pass2] Resolved: "${stop.food_intent}" → "${resolvedName}" (score: ${bestScore})`);
       } else if (reservedSkipped > 0) {

@@ -988,7 +988,7 @@ export function reorderArrivalStopsByLodgingProximity(blockStops, opts = {}) {
   return result;
 }
 
-export function matchFoodPlaceholder(placeholderStop, foodIndex, city, userDietPrefs = [], excludeNames = null, recentNames = null) {
+export function matchFoodPlaceholder(placeholderStop, foodIndex, city, userDietPrefs = [], excludeNames = null, recentNames = null, todayNames = null) {
   if (!placeholderStop || !placeholderStop.placeholder) return null;
   if (!Array.isArray(foodIndex) || foodIndex.length === 0) return null;
   const cityLc = String(city || '').trim().toLowerCase();
@@ -1113,6 +1113,25 @@ export function matchFoodPlaceholder(placeholderStop, foodIndex, city, userDietP
       return nm && !excludeNames.has(nm);
     })
     : candidates[0];
+  // 2026-10-24 재방문 정책(식이 손님만): 좁힌 후보가 소진되면 → 도시 전체 미사용 안전 후보 중 최근접 →
+  //   그것도 없으면 **오늘 미사용** 안전 후보 중 최근접 + 반환 복사본에 revisit: true(다른 날 재방문 — 같은 날 금지).
+  //   최종 정확성(소진 증명·검증 행·같은 날 금지)은 공용 후처리 revisitPolicy 가 다시 판정한다. 식이 필터는 그대로(완화 아님).
+  if (!currentFresh && dietRequired.length > 0) {
+    const nameOf = (c) => String((c && (c.name || c.name_ko || c.display_name)) || '').trim();
+    const byDistance = (rows) => (hasAnchor
+      ? rows.slice().sort((a, b) => {
+        const da = Number.isFinite(Number(a.lat)) && Number(a.lat) !== 0 ? foodDistanceKm(aLat, aLng, Number(a.lat), Number(a.lng)) : Infinity;
+        const db = Number.isFinite(Number(b.lat)) && Number(b.lat) !== 0 ? foodDistanceKm(aLat, aLng, Number(b.lat), Number(b.lng)) : Infinity;
+        return da - db || (Number(b.rating) || 0) - (Number(a.rating) || 0);
+      })
+      : rows.slice().sort((a, b) => scoreOf(b) - scoreOf(a)));
+    const used = excludeNames instanceof Set ? excludeNames : new Set();
+    const cityFresh = byDistance(safetyCandidates.filter((c) => nameOf(c) && !used.has(nameOf(c))))[0];
+    if (cityFresh) return decorate(cityFresh);
+    const today = todayNames instanceof Set ? todayNames : new Set();
+    const todayFree = byDistance(safetyCandidates.filter((c) => nameOf(c) && !today.has(nameOf(c))))[0];
+    if (todayFree) return { ...decorate(todayFree), revisit: true };
+  }
   const baseline = currentFresh || candidates[0];
   const baselineName = String((baseline && (baseline.name || baseline.name_ko || baseline.display_name)) || '').trim();
   if (!(recentNames instanceof Set) || recentNames.size === 0 || !baselineName || !recentNames.has(baselineName)) {
@@ -1329,6 +1348,8 @@ export function expandBlocksToItinerary(blockSelections, blocks, userInput) {
     //   좌표를 앵커로 넘겨 "그날 동선 위 식당"을 고르게 한다. SAFETY(dietRequired) 필터는 불변.
     let lastAnchorLat = null;
     let lastAnchorLng = null;
+    // 2026-10-24 재방문 정책: 하루 단위 사용 식당 — 소진 시 "오늘 미사용" 후보만 재방문(같은 날 두 번 금지).
+    const todayFoodNames = new Set();
     for (const bs of orderedStops) {
       const offsetMin = Number(bs.start_time_offset_min) || 0;
       const startTime = addMinutesToHHMM(dayStart, offsetMin) || dayStart;
@@ -1343,6 +1364,7 @@ export function expandBlocksToItinerary(blockSelections, blocks, userInput) {
       // verified 는 "DB 에 실재하는 장소" 라는 뜻만 유지한다(식이 안전과 무관 — AGENTS.md §1-4).
       //   식이 근거는 등급이 실린 이 필드로만 말한다.
       let dietaryEvidence = null;
+      let revisit = false;
       if (bs.placeholder && !resolvedName) {
         // 앵커 주입: placeholder 자체 좌표 없으면 직전 명소(landmark) 좌표를 넘겨 근접 매칭 활성화.
         const _phLat = Number(bs.lat);
@@ -1350,14 +1372,15 @@ export function expandBlocksToItinerary(blockSelections, blocks, userInput) {
         const anchorBs = (!_phHasOwn && lastAnchorLat != null)
           ? { ...bs, lat: lastAnchorLat, lng: lastAnchorLng }
           : bs;
-        const matched = matchFoodPlaceholder(anchorBs, foodIndex, area, dietPrefs, usedFoodNames, recentFoodNames);
+        const matched = matchFoodPlaceholder(anchorBs, foodIndex, area, dietPrefs, usedFoodNames, recentFoodNames, todayFoodNames);
         if (matched) {
           resolvedName = matched.name || matched.name_ko || matched.display_name || '';
           resolvedDisplay = matched.display_name || matched.name_en || resolvedName;
           resolvedAddress = matched.address || resolvedAddress;
           resolvedCoord = stopCoord(matched) || resolvedCoord;
           verified = true;
-          if (resolvedName) usedFoodNames.add(String(resolvedName).trim());
+          revisit = matched.revisit === true;
+          if (resolvedName) { usedFoodNames.add(String(resolvedName).trim()); todayFoodNames.add(String(resolvedName).trim()); }
           // 매칭된 식당의 실제 dietary 태그(r.tag/r.dietary_tags)를 stop 에 전파 — seed 의
           // soft preferred_dietary 보다 매칭 식당의 검증된 속성이 정확.
           const mTags = dietaryTagsOf(matched);
@@ -1417,6 +1440,7 @@ export function expandBlocksToItinerary(blockSelections, blocks, userInput) {
         // 등급 증거 (halal_certified / muslim_friendly / vegan_restaurant / vegan_options).
         //   verified(=DB 실재) 와 별개 필드 — 둘을 섞으면 "친화" 가 "인증" 으로 승격된다.
         dietary_evidence: dietaryEvidence || undefined,
+        ...(revisit ? { revisit: true } : {}), // 2026-10-24: 후보 소진 시 다른 날 재방문 표시(판정은 revisitPolicy)
         personalization_reasoning: sel.tweak_notes
           ? sel.tweak_notes
           : `Pre-curated ${block.zone} block — ${block.theme}`,
@@ -2010,6 +2034,7 @@ export function expandBlocksToItineraryMultiCity(blockSelections, cityBlocksList
     //   (단도시만 고치고 누락 시 다도시 plan 식당 여전히 도시 전체 1등=먼 식당. plan 550fb532 Day3).
     let lastAnchorLat = null;
     let lastAnchorLng = null;
+    const todayFoodNames = new Set(); // 2026-10-24 재방문 정책 — 단도시와 동일(하루 단위 사용 식당)
     for (const bs of blockStops) {
       const offsetMin = Number(bs.start_time_offset_min) || 0;
       const startTime = addMinutesToHHMM(dayStart, offsetMin) || dayStart;
@@ -2021,6 +2046,7 @@ export function expandBlocksToItineraryMultiCity(blockSelections, cityBlocksList
       let verified = false;
       let dietaryTags = Array.isArray(bs.preferred_dietary) ? bs.preferred_dietary.slice() : [];
       let dietaryEvidence = null; // 단도시와 동일 — 등급 증거는 verified 와 분리해 전파.
+      let revisit = false;
 
       if (bs.placeholder && !resolvedName) {
         // 앵커 주입: placeholder 좌표 없으면 직전 명소 좌표로 근접 매칭 활성화 (단도시와 동일).
@@ -2029,14 +2055,15 @@ export function expandBlocksToItineraryMultiCity(blockSelections, cityBlocksList
         const anchorBs = (!_phHasOwn && lastAnchorLat != null)
           ? { ...bs, lat: lastAnchorLat, lng: lastAnchorLng }
           : bs;
-        const matched = matchFoodPlaceholder(anchorBs, foodIndex, dayCityKey, dietPrefs, usedFoodNames, recentFoodNames);
+        const matched = matchFoodPlaceholder(anchorBs, foodIndex, dayCityKey, dietPrefs, usedFoodNames, recentFoodNames, todayFoodNames);
         if (matched) {
           resolvedName = matched.name || matched.name_ko || matched.display_name || '';
           resolvedDisplay = matched.display_name || matched.name_en || resolvedName;
           resolvedAddress = matched.address || resolvedAddress;
           resolvedCoord = stopCoord(matched) || resolvedCoord;
           verified = true;
-          if (resolvedName) usedFoodNames.add(String(resolvedName).trim());
+          revisit = matched.revisit === true;
+          if (resolvedName) { usedFoodNames.add(String(resolvedName).trim()); todayFoodNames.add(String(resolvedName).trim()); }
           // SAFETY (단도시 L868 정합): 매칭 식당의 dietary 태그를 dietaryTagsOf(r.tag 문자열 +
           //   r.dietary_tags 배열 정규화)로 전파. 이전엔 matched.dietary_tags(배열)만 읽어
           //   프로덕션(r.tag=문자열)에선 항상 undefined → halal/vegan 검증태그가 stop 에 미전파.
@@ -2089,6 +2116,7 @@ export function expandBlocksToItineraryMultiCity(blockSelections, cityBlocksList
         verified,
         dietary_tags: dietaryTags.length > 0 ? dietaryTags : undefined,
         dietary_evidence: dietaryEvidence || undefined,
+        ...(revisit ? { revisit: true } : {}), // 2026-10-24 재방문 표시 — 단도시와 동일
         personalization_reasoning: sel.tweak_notes
           ? sel.tweak_notes
           : `Pre-curated ${block.zone} block — ${block.theme}`,

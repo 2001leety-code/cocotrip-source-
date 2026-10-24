@@ -376,13 +376,27 @@ describe('Busan #1438 B — replaceViolatingFoodStops reserves identities alread
     expect(runDuplicateStopGate(p).ok).toBe(true);
   });
 
-  it('all eligible rows already used (case-variant) => failed, violating stop and index untouched', () => {
+  // 2026-10-24 재방문 정책(운영자 결정): 적격 행이 전부 다른 날 쓰였으면 실패 대신 **다른 날 재방문**(revisit: true, 가장 가까운 행).
+  //   같은 날 이미 쓴 행은 여전히 후보가 아니다 → 오늘 전부 썼으면 failed(이름 생성·완화 금지 그대로).
+  it('all eligible rows already used on another day (case-variant) => revisit of the nearest one, flagged; index untouched', () => {
     const index = fresh([BUSAN.royal, BUSAN.thai]);
     const before = fresh(index);
     const p = busanPlan([
       royalAt({ name: 'Royal India Haeundae', display_name: 'Royal India Haeundae' }),
       royalAt({ name: ' thai house ', display_name: 'THAI HOUSE', start_time: '18:00' }),
     ], porkStop(PORK));
+    const r = replace(p, index);
+    expect(r).toMatchObject({ replaced: 1, failed: 0 });
+    expect(r.detail).toEqual([`replaced halal:${PORK} -> ${ROYAL} [revisit-other-day]`]); // Royal 이 돼지집 좌표에 더 가깝다(~0.24km vs ~0.28km)
+    expect(p.days[1].stops[2]).toMatchObject({ name: ROYAL, revisit: true, verified: true });
+    expect(index).toEqual(before);
+  });
+
+  it('all eligible rows already used on the SAME day => failed, violating stop and index untouched', () => {
+    const index = fresh([BUSAN.royal, BUSAN.thai]);
+    const before = fresh(index);
+    const p = busanPlan([], porkStop(PORK));
+    p.days[1].stops.push(royalAt({ name: ROYAL, start_time: '18:00' }), royalAt({ name: 'Thai House', start_time: '20:00' }));
     const targetBefore = fresh(p.days[1].stops[2]);
     const r = replace(p, index);
     expect(r).toMatchObject({ replaced: 0, failed: 1 });
@@ -397,12 +411,16 @@ describe('Busan #1438 B — replaceViolatingFoodStops reserves identities alread
     expect(p.days[1].stops[2].name).toBe(ROYAL);
   });
 
-  it('guard: general / unverified / cross-city / address-mismatch / >8km rows never become candidates', () => {
+  // 2026-10-24 (재방문 정책 F): 8km 는 이제 **1단계** — 8km 안 미사용 적격 행이 있으면 그게 이기고(동선 보존),
+  //   없을 때만 같은 도시의 먼 행(2단계 city-unused)을 쓴다. 일반·미검증·타도시·주소모순 행은 어느 단계에서도 후보 아님.
+  it('guard: general / unverified / cross-city / address-mismatch rows never become candidates; a >8km row only when nothing is near', () => {
     const all = fresh([...Object.values(CONTROLS), BUSAN.thai]);
     const p = busanPlan([], porkStop(PORK));
     replace(p, all);
     expect(p.days[1].stops[2].name).toBe('Thai House');
-    for (const [key, row] of Object.entries(CONTROLS)) {
+    const far = busanPlan([], porkStop(PORK));
+    expect(replace(far, fresh([CONTROLS.beyond8km])).detail).toEqual([`replaced halal:${PORK} -> 합성 기장 [city-unused]`]);
+    for (const [key, row] of Object.entries(CONTROLS).filter(([k]) => k !== 'beyond8km')) {
       const q = busanPlan([], porkStop(PORK));
       const r = replace(q, fresh([row]));
       expect({ key, ...r }).toMatchObject({ key, replaced: 0, failed: 1 });

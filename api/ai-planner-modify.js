@@ -34,6 +34,8 @@ import {
 import { loadFoodIndex } from './_ai_core/geminiPipeline.js';
 import { backfillStopEndTimes } from './_ai_core/planPersister.js';
 import { validatePatternStructure } from './_ai_core/responseValidator.js';
+import { normalizeRevisits, applyRevisitNotes } from './_ai_core/revisitPolicy.js';
+import { runDuplicateStopGate } from './_ai_core/finalItineraryGate.js';
 
 export const maxDuration = 30;
 export const config = { runtime: 'nodejs' };
@@ -392,6 +394,10 @@ export function applyStopSwap({ itinerary, classified, dietPrefs, foodIndex, are
     tip: matched.tip || oldStop.tip,
     personalization_reasoning: `Swap (user-requested): ${classified.raw_text.slice(0, 60)}`,
   };
+  // 2026-10-24 재방문 정책: 옛 stop 의 재방문 표시·안내는 새 식당에 넘기지 않는다 — 저장 전 전체 일정 재정규화가 다시 판정.
+  delete swapped.revisit;
+  delete swapped.revisit_note;
+  delete swapped._revisit_note;
   const dietCheck = checkDietary(swapped, dietPrefs);
   if (!dietCheck.ok) {
     return { ok: false, code: 'DIETARY_UNSATISFIED', message: `Dietary preference (${dietCheck.missing}) not met by candidate.` };
@@ -765,6 +771,24 @@ export default async function handler(req, res) {
         'PATTERN_VIOLATION',
         { violations: patternErrors.slice(0, 5) },
       )));
+    }
+
+    // ── 2026-10-24 재방문 정책: 저장 전 전체 일정 재정규화(동선 계산 뒤라 교체 없이 표시만 — R2) + 안내 재부착 + 같은 판정.
+    //   첫 방문이 지워지면 뒤 stop 의 표시가 빠지고, 승인되지 않는 반복은 기존처럼 422(저장 안 함).
+    {
+      const revisitCtx = { foodIndex, dietary: dietPrefs, language };
+      normalizeRevisits(itinerary, revisitCtx, { mode: 'markOnly' });
+      applyRevisitNotes(itinerary, { language });
+      const dupGate = runDuplicateStopGate(itinerary, revisitCtx);
+      if (!dupGate.ok) {
+        try { itinerary.days = JSON.parse(originalDaysJson); } catch {}
+        res.writeHead(422, JSON_CORS);
+        return res.end(JSON.stringify(_err(
+          'Modification would repeat a stop in your itinerary — request rejected.',
+          dupGate.code,
+          { duplicates: dupGate.duplicates.slice(0, 5) },
+        )));
+      }
     }
 
     // ── persist

@@ -59,6 +59,7 @@
  * ══════════════════════════════════════════════════════════════════════════
  */
 import { SCHEDULE_BUFFER_MIN, AIRPORT_ARRIVE_BEFORE_MIN } from './constants.js';
+import { judgeRepeats, stopDuplicateKey as revisitStopDuplicateKey } from './revisitPolicy.js';
 
 // ── Configuration ──────────────────────────────────────────────────────────
 // Weights are applied to per-stop violation rates (or absolute counts for
@@ -244,10 +245,8 @@ function countBadAddressPrefix(stopsList) {
  * 블록 선택 보정(blockMode repairRepeatedBlockSelections)도 같은 규칙을 쓴다 — 2026-10-23, 서로 다른
  * DMZ 블록 둘이 "임진각 평화누리공원" 을 공유해 이 게이트에서 ×2 로 막힌 사례.
  */
-export function stopDuplicateKey(stop) {
-  if (isLodging(stop)) return '';
-  return String(stopLabel(stop)).trim().toLowerCase();
-}
+// 2026-10-24: 규칙 SSOT = revisitPolicy.stopDuplicateKey (같은 규칙 — 재방문 판정기와 공유).
+export const stopDuplicateKey = revisitStopDuplicateKey;
 
 function groupNonLodgingStopCounts(stopsList) {
   const counted = stopsList.filter(({ stop }) => !isLodging(stop));
@@ -263,21 +262,37 @@ function groupNonLodgingStopCounts(stopsList) {
   return { counted, seen, labels };
 }
 
-function countDuplicateStops(stopsList) {
+/**
+ * 중복 지표. ctx(식이 손님 — foodIndex + 안전 식이)가 있으면 재방문 판정기(revisitPolicy.judgeRepeats)를 써서
+ * 허용 재방문(소진 증명된 다른 날 재방문)은 중복에서 뺀다 — 종단 게이트와 같은 판정(2026-10-24). 없으면 현행.
+ */
+export function countDuplicateStops(stopsList, ctx, itinerary) {
   const { counted, seen } = groupNonLodgingStopCounts(stopsList);
   let dups = 0;
+  if (ctx && itinerary) {
+    for (const d of judgeRepeats(itinerary, ctx).duplicates) dups += (d.count - 1);
+    return { total: counted.length, count: dups };
+  }
   for (const n of seen.values()) if (n > 1) dups += (n - 1);
   return { total: counted.length, count: dups };
+}
+
+/** 판정기가 승인한 재방문 목록(ctx 없으면 []). */
+export function findRevisits(itinerary, ctx) {
+  return ctx ? judgeRepeats(itinerary, ctx).revisits : [];
 }
 
 /**
  * 종단(terminal) 중복 게이트용 — 중복된 stop 이름·건수 그대로 반환한다.
  * countDuplicateStops 와 같은 groupNonLodgingStopCounts 를 써서 점수 지표와
  * 종단 게이트가 절대 다른 결과를 내지 않는다(분류·식별 로직 단일 소스).
+ * ctx 가 있으면 둘 다 revisitPolicy.judgeRepeats(허용 재방문 제외) — 2026-10-24.
  * @param {object} itinerary
+ * @param {{foodIndex?: object[], dietary?: string[], avoidStopNames?: string[]}} [ctx]
  * @returns {Array<{name: string, count: number}>}
  */
-export function findDuplicateStops(itinerary) {
+export function findDuplicateStops(itinerary, ctx) {
+  if (ctx) return judgeRepeats(itinerary, ctx).duplicates;
   const stopsList = flattenStops(itinerary);
   const { seen, labels } = groupNonLodgingStopCounts(stopsList);
   const out = [];
@@ -478,7 +493,8 @@ export function computeQualityScore(itinerary, dietary, _area, foodIndex, opts =
     unverified_restaurant: countUnverifiedRestaurants(stopsList, foodLookup),
     language_mismatch:     countLanguageMismatch(stopsList, lang),
     bad_address_prefix:    countBadAddressPrefix(stopsList),
-    duplicate_stops:       countDuplicateStops(stopsList),
+    // 2026-10-24: 식이 손님이면 종단 게이트와 같은 재방문 판정(허용 재방문은 중복 아님).
+    duplicate_stops:       countDuplicateStops(stopsList, Array.isArray(foodIndex) && foodIndex.length ? { foodIndex, dietary } : null, itinerary),
     tight_schedule:        sched.tight,
     loose_schedule:        sched.loose,
     route_failure:         countRouteFailures(itinerary),

@@ -487,6 +487,7 @@ describe('CLI exit codes (no LLM calls)', () => {
     expect(src.indexOf('const out = String(args.out')).toBeLessThan(src.indexOf('async function callOne('));
     const freeSrc = readFileSync(join(ROOT, 'scripts', 'integration', 'llm-compare-free.mjs'), 'utf8');
     expect(freeSrc).toMatch(/validatePatternStructure\(plan, \{[^}]*\.\.\.trip \}\)/);
-    expect(freeSrc).toMatch(/runDuplicateStopGate\(plan\)/);
+    // 2026-10-24 재방문 정책: 운영 종단 게이트와 같은 ctx(foodIndex + 요청 식이)를 넘긴다 — 허용 재방문만 중복에서 빠짐.
+    expect(freeSrc).toMatch(/runDuplicateStopGate\(plan, \{ foodIndex: d\.foodIndex, dietary: p\.dietaryAll \}\)/);
   });
 });

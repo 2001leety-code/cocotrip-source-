@@ -664,6 +664,16 @@ for (const d of days) {
     if (tag && validLocalTags.includes(tag)) localTagCount++;
   }
 }
+// 2026-10-24: 검증 식당 재방문 정책 — 판정기(revisitPolicy.judgeRepeats)가 **승인한** 재방문만 unique 분모에서 뺀다
+//   (stop.revisit 원시 플래그는 무시 — 소진 증명·같은 날 금지·검증 식당 조건을 판정기가 본다). 식이 없는 시나리오는 0건.
+{
+  const { judgeRepeats } = await import('../api/_ai_core/revisitPolicy.js');
+  const foodIndex = JSON.parse(readFileSync(join(root, 'api', '_food_index.json'), 'utf8'));
+  for (const rv of judgeRepeats(itin, { foodIndex, dietary: SCENARIO_DIETARY }).revisits) {
+    const idx = allNames.lastIndexOf(rv.name);
+    if (idx >= 0) allNames.splice(idx, 1);
+  }
+}
 const totalNames = allNames.length;
 const uniqueNames = new Set(allNames).size;
 const uniqueRatio = totalNames > 0 ? uniqueNames / totalNames : 0;

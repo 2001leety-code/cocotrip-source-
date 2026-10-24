@@ -20,7 +20,7 @@
  *     기존 retry→throw(DIETARY_VIOLATION) 경로로 진행.
  *   - 검증 완화 아님: 교체 후 validateResponse 를 다시 통과해야 한다 (caller 책임).
  */
-import { isDietaryTrusted, acceptTagsForDiet, dietaryEvidenceFor, describeDietaryEvidence } from '../_shared/dietary-trust.js';
+import { isDietaryTrusted, dietaryEvidenceFor, describeDietaryEvidence } from '../_shared/dietary-trust.js';
 import { resolveCityCode } from '../_food_helper.js';
 import { isRowCityConsistent } from '../_shared/food-row-provenance.js';
 import { resolveUiCityKey } from '../_shared/cityResolver.js';
@@ -69,8 +69,6 @@ function collectPlanNames(itinerary) {
   return names;
 }
 
-/** 위반 diet 하나를 커버하는 태그 목록 — 규칙 SSOT = dietary-trust.acceptTagsForDiet. */
-const acceptTagsFor = acceptTagsForDiet;
 
 /**
  * 위반 food stop 들을 교체 시도.
@@ -88,45 +86,63 @@ export function replaceViolatingFoodStops(itinerary, issues, foodIndex, dietaryA
 
   const usedNames = collectPlanNames(itinerary);
   const fallbackCity = resolveCityCode(area);
+  // 2026-10-24 (재방문 정책 F): stop 별로 **요청 안전 식이 전부**를 한 행이 만족해야 후보(위반 식이 하나만 보던 것 →
+  //   Halal+Vegan 손님에게 halal 만 맞는 행으로 바꿔 vegan 위반을 새로 만들던 구멍). 같은 stop 의 위반 여러 건은 한 번만.
+  const safety = [...new Set((Array.isArray(dietaryArr) ? dietaryArr : []).map((d) => String(d).toLowerCase())
+    .filter((d) => d === 'halal' || d === 'vegan' || d === 'vegetarian'))];
+  const handled = new Set();
 
   for (const v of violations) {
+    if (handled.has(v.stop)) continue;
+    handled.add(v.stop);
     // 위반 stop 찾기 (label 매칭 — validateResponse 와 동일 라벨 규칙)
     let target = null;
+    let targetDay = null;
     let dayCity = null; // UI city key of the day that owns the stop; null when unknown (no seoul fallback)
     for (const day of itinerary?.days || []) {
       for (const s of day?.stops || []) {
         const label = (s?.name || s?.display_name || '').split('|')[0].trim();
-        if (label && label === v.stop) { target = s; dayCity = resolveUiCityKey(day?.city) || resolveUiCityKey(area); break; }
+        if (label && label === v.stop) { target = s; targetDay = day; dayCity = resolveUiCityKey(day?.city) || resolveUiCityKey(area); break; }
       }
       if (target) break;
     }
     if (!target || target.category !== 'food') { result.failed++; continue; }
 
-    const accept = acceptTagsFor(v.diet);
+    const diets = safety.length > 0 ? safety : [String(v.diet || '').toLowerCase()];
     const hasCoord = Number.isFinite(target.lat) && Number.isFinite(target.lng);
-    const candidates = foodIndex.filter((r) => {
-      if (!accept.includes(String(r.tag || '').toLowerCase())) return false;
+    // 공통 자격: 요청 식이 전부(신뢰 등급 포함 — unverified 절대 금지) + 주소-도시 정합 + 그 날 도시.
+    const eligible = foodIndex.filter((r) => {
+      if (!r || typeof r !== 'object') return false;
+      if (!diets.every((d) => dietaryEvidenceFor(r, d))) return false;
       if (!isDietaryTrusted(r)) return false; // unverified 절대 금지
       if (!isRowCityConsistent(r)) return false; // 주소가 city 필드와 모순 — 좌표/도시 근거 불신
       // 2026-10-10: the 8km radius alone trusted the MODEL's coordinates — a Busan day with Seoul coords pulled
       // Seoul restaurants (final gate then blocked → paid retry). A candidate must belong to the day's city.
-      if (dayCity && String(r.city || '').toLowerCase() !== dayCity) return false;
-      if (rowIdentityKeys(r).some((k) => usedNames.has(k))) return false;
-      if (hasCoord && Number.isFinite(r.lat) && Number.isFinite(r.lng)) {
-        return distanceKm(target.lat, target.lng, r.lat, r.lng) <= MAX_KM;
-      }
-      // 좌표 비교 불가 시 도시 일치 요구
+      if (dayCity) return String(r.city || '').toLowerCase() === dayCity;
       return r.city === fallbackCity;
     });
+    const unused = eligible.filter((r) => !rowIdentityKeys(r).some((k) => usedNames.has(k)));
+    const todayNames = new Set((targetDay?.stops || []).filter((s) => s !== target).flatMap((s) => stopIdentityKeys(s)));
+    const byRating = (a, b) => (b.rating || 0) - (a.rating || 0) || (b.reviewCount || 0) - (a.reviewCount || 0);
+    const byNearest = (a, b) => {
+      const da = hasCoord && Number.isFinite(a.lat) && Number.isFinite(a.lng) ? distanceKm(target.lat, target.lng, a.lat, a.lng) : Infinity;
+      const db = hasCoord && Number.isFinite(b.lat) && Number.isFinite(b.lng) ? distanceKm(target.lat, target.lng, b.lat, b.lng) : Infinity;
+      return da - db || byRating(a, b);
+    };
+    // 단계: 8km 내 미사용 → 도시 전체 미사용 → 오늘 미사용(다른 날 재방문, revisit: true) → 실패.
+    const near = hasCoord
+      ? unused.filter((r) => Number.isFinite(r.lat) && Number.isFinite(r.lng) && distanceKm(target.lat, target.lng, r.lat, r.lng) <= MAX_KM).sort(byRating)
+      : [];
+    let stage = 'near-8km';
+    let pick = near[0];
+    if (!pick) { stage = 'city-unused'; pick = unused.slice().sort(byNearest)[0]; }
+    if (!pick) { stage = 'revisit-other-day'; pick = eligible.filter((r) => !rowIdentityKeys(r).some((k) => todayNames.has(k))).sort(byNearest)[0]; }
 
-    if (!candidates.length) {
+    if (!pick) {
       result.failed++;
-      result.detail.push(`no-candidate ${v.diet}:${v.stop}`);
+      result.detail.push(`no-candidate ${diets.join('+')}:${v.stop}`);
       continue; // 이름 생성·완화 금지 — caller 가 retry→throw
     }
-
-    candidates.sort((a, b) => (b.rating || 0) - (a.rating || 0) || (b.reviewCount || 0) - (a.reviewCount || 0));
-    const pick = candidates[0];
     const pickName = String(pick.name || '').split('|')[0].trim();
 
     // stop 교체 — 검증된 DB 값으로 (스키마: name=한국어, display_name=표시)
@@ -140,9 +156,11 @@ export function replaceViolatingFoodStops(itinerary, issues, foodIndex, dietaryA
     const tagSet = new Set((Array.isArray(target.dietary_tags) ? target.dietary_tags : []).map((t) => String(t).toLowerCase()));
     tagSet.add(String(pick.tag).toLowerCase());
     target.dietary_tags = [...tagSet];
-    // 등급 증거를 stop 에 전파 — verified(=DB 실재) 와 별개 필드. (2026-08-24)
-    const evidence = dietaryEvidenceFor(pick, v.diet);
-    if (evidence) target.dietary_evidence = [evidence];
+    // 등급 증거를 stop 에 전파 — verified(=DB 실재) 와 별개 필드. (2026-08-24) 2026-10-24: 요청 식이 전부의 증거.
+    const allEvidence = diets.map((d) => dietaryEvidenceFor(pick, d)).filter(Boolean);
+    const evidence = allEvidence[0] || null;
+    if (allEvidence.length) target.dietary_evidence = allEvidence;
+    if (stage === 'revisit-other-day') target.revisit = true; else delete target.revisit;
     // tip: 시간·메뉴 확언 없이 **등급을 숨기지 않는** 문구로 대체 (영업시간 데이터 없음 — 확언 금지).
     //   🔴 이전 문구 "Verified <tag> listing" 은 muslim_friendly(친화, 인증 아님)까지 "검증된 할랄"
     //   로 읽혔다 — 등급 분리의 의미를 문구가 무효화. 등급별 문구는 dietary-trust SSOT.
@@ -153,7 +171,7 @@ export function replaceViolatingFoodStops(itinerary, issues, foodIndex, dietaryA
 
     for (const k of rowIdentityKeys(pick)) usedNames.add(k);
     result.replaced++;
-    result.detail.push(`replaced ${v.diet}:${v.stop} -> ${pickName}`);
+    result.detail.push(`replaced ${v.diet}:${v.stop} -> ${pickName} [${stage}]`);
   }
   return result;
 }

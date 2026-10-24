@@ -772,7 +772,9 @@ const PLAN_RESPONSE_SCHEMA = {
               //   optional 이 프롬프트 의미와 일치.
               // 2026-10-24 (식이 준수 P1): dietary_tags — 프롬프트가 식이 stop 에 요구하지만 스키마에 없어 구조화출력이
               //   못 냈다. 설명용 선택 필드일 뿐, 식이 신뢰 근거는 계속 매칭된 DB 행(검증기 변경 없음).
-              propertyOrdering: ['order', 'start_time', 'name', 'display_name', 'category', 'stay_min', 'address', 'tip', 'local_tag', 'lat', 'lng', 'entry_fee_krw', 'verified', 'dietary_tags'],
+              // 2026-10-24 (재방문 정책 H): revisit — 도시 검증 목록이 끼니 수보다 적을 때만 다른 날 같은 식당 표시.
+              //   판정은 revisitPolicy(소진 증명·같은 날 금지·검증 행)가 최종 일정에서 다시 한다 — 모델 값을 신뢰하지 않음.
+              propertyOrdering: ['order', 'start_time', 'name', 'display_name', 'category', 'stay_min', 'address', 'tip', 'local_tag', 'lat', 'lng', 'entry_fee_krw', 'verified', 'dietary_tags', 'revisit'],
               required: ['name', 'category', 'start_time'],
               properties: {
                 order: { type: 'INTEGER' },
@@ -789,6 +791,7 @@ const PLAN_RESPONSE_SCHEMA = {
                 entry_fee_krw: { type: 'NUMBER' },
                 verified: { type: 'BOOLEAN' },
                 dietary_tags: { type: 'ARRAY', items: { type: 'STRING' } },
+                revisit: { type: 'BOOLEAN' },
               },
             },
           },
@@ -1390,7 +1393,7 @@ export async function runGeminiPipeline({ apiKey, systemPrompt, userMessage, are
 
       console.log('[planner] Pass 2/3: DB resolution...');
       const pass2Start = Date.now();
-      itinerary = pass2Resolve(itinerary, foodIndex, area);
+      itinerary = pass2Resolve(itinerary, foodIndex, area, { dietary: dietaryArr });
       console.log('[planner] Pass 2 done:', Date.now() - pass2Start, 'ms');
 
       // P168 (2026-05-23): Pass3 background 분기.
@@ -1432,7 +1435,7 @@ export async function runGeminiPipeline({ apiKey, systemPrompt, userMessage, are
         itinerary = repairAndParseJSON(retryRaw);
         cleanAddresses(itinerary);
         sanitizeStops(itinerary, language);
-        itinerary = pass2Resolve(itinerary, foodIndex, area);
+        itinerary = pass2Resolve(itinerary, foodIndex, area, { dietary: dietaryArr });
         // P168: retry 경로에서도 background 분기 적용.
         if (isPass3BackgroundEnabled()) {
           itinerary._pass3_pending = true;
@@ -1502,7 +1505,7 @@ export async function runGeminiPipeline({ apiKey, systemPrompt, userMessage, are
           itinerary = retried;
           cleanAddresses(itinerary);
           sanitizeStops(itinerary, language);
-          itinerary = pass2Resolve(itinerary, foodIndex, area);
+          itinerary = pass2Resolve(itinerary, foodIndex, area, { dietary: dietaryArr });
           // P168: pattern retry 경로에서도 background 분기 적용.
           if (isPass3BackgroundEnabled()) {
             itinerary._pass3_pending = true;

@@ -39,8 +39,9 @@ const AIRPORT_NAME = { ICN: 'Incheon International Airport', GMP: 'Gimpo Interna
 //   finalItineraryGate.runDuplicateStopGate — 키 = name 소문자 trim). 예전엔 풀을 순환해 같은 이름이
 //   반복됐다(부산 스팟 풀 0 → "Busan Landmark"×4, 부산 할랄 trusted 3 → 6끼 중 반복) → daily-health 의
 //   validate 실행이 매일 422 + plan 'streaming' 고착 + sweep 알림.
-//   식당 규칙: 식이(halal/vegan/vegetarian) 손님은 trusted DB 행만 쓴다 — 풀이 바닥나면 **지어내지도
-//   반복하지도 않고 그 끼니를 뺀다**(dietary-safety.md "완화 금지"; 빠진 필수 끼니는 B-MEAL 경고로 남는다).
+//   식당 규칙: 식이(halal/vegan/vegetarian) 손님은 trusted DB 행만 쓴다 — 풀이 바닥나면 **지어내지 않는다**.
+//   2026-10-24 재방문 정책: 앞선 다른 날 쓴 행을 한 번 더(revisit: true), 같은 날만 남으면 그 끼니를 뺀다
+//   (dietary-safety.md "완화 금지"; 빠진 필수 끼니는 B-MEAL 경고로 남는다. 판정 = revisitPolicy).
 //   식이 요구가 없으면 general 풀 → 유일 합성 이름(unverified, 비-critical) 순.
 const SAFETY_DIETS = ['halal', 'vegan', 'vegetarian'];
 
@@ -77,6 +78,8 @@ function foodStop(row, time, order) {
     order, start_time: time, name: row.name, display_name: row.nameEn || row.name, category: 'food',
     address: row.address || '', lat: row.lat, lng: row.lng, stay_min: 60, tip: 'mock',
     ...(row.tag && row.tag !== 'general' ? { dietary_tags: [row.tag] } : {}),
+    // 2026-10-24: 다른 날 재방문 — trusted DB 행이라 verified(=DB 실재) true. 판정은 revisitPolicy.
+    ...(row.revisit === true ? { revisit: true, verified: true } : {}),
   };
 }
 
@@ -177,12 +180,25 @@ export function buildMockPlan({ userText, foodPool }) {
     return { name: claim(n), display_name: n, category: 'culture', address: cityName };
   };
   let fi = 0; let restaurantN = 0;
-  const nextFoodRow = () => {
+  // 2026-10-24 재방문 정책: 식이 손님 trusted 소진 시 끼니를 빼는 대신 **앞선 다른 날** 쓴 행을 한 번 더(revisit: true).
+  //   같은 날 이미 쓴 행만 남으면 여전히 뺀다(같은 날 두 번 금지 — 부족 테스트 의미 유지). 지어내지 않는다.
+  const firstDayOf = new Map(); // nameKey → 처음 배정된 day index
+  const dayUsed = new Map(); // day index → Set(nameKey)
+  //   재방문은 **필수 끼니**를 빼는 대신에만 — 선택 끼니는 예전처럼 빼고 반복하지 않는다(풀이 남았는데 재방문 금지와 같은 뜻).
+  const nextFoodRow = (di, required) => {
+    const today = dayUsed.get(di) || new Set();
+    dayUsed.set(di, today);
     while (fi < foods.length) {
       const r = foods[fi++];
-      if (!used.has(nameKey(r.name))) { claim(r.name); return r; }
+      if (!used.has(nameKey(r.name))) { claim(r.name); firstDayOf.set(nameKey(r.name), di); today.add(nameKey(r.name)); return r; }
     }
-    if (diets.length) return null; // 식이 손님 — trusted 소진 시 지어내지 않는다(빈 끼니).
+    if (diets.length) {
+      if (!required) return null; // 선택 끼니 — 소진이면 그냥 뺀다
+      const again = foods.find((r) => firstDayOf.has(nameKey(r.name)) && firstDayOf.get(nameKey(r.name)) < di && !today.has(nameKey(r.name)));
+      if (!again) return null; // 같은 날만 남음 — 빈 끼니(지어내지 않는다)
+      today.add(nameKey(again.name));
+      return { ...again, revisit: true };
+    }
     let n;
     do { restaurantN += 1; n = `${cityName} Local Restaurant ${restaurantN}`; } while (used.has(nameKey(n)));
     return { name: claim(n), address: cityName };
@@ -198,7 +214,7 @@ export function buildMockPlan({ userText, foodPool }) {
   for (const wantRequired of [true, false]) {
     skeletons.forEach((sk, di) => sk.forEach((slot, si2) => {
       if (slot.kind !== 'meal' || Boolean(slot.required) !== wantRequired) return;
-      const row = nextFoodRow();
+      const row = nextFoodRow(di, wantRequired);
       if (row) mealRows.set(`${di}:${si2}`, row);
     }));
   }

@@ -52,7 +52,10 @@ export function buildDietarySafetyBlock(dietPreferences) {
   return '\n\n--- DIETARY SAFETY FOR THIS REQUEST (' + diets.join(' + ') + ') ---\n'
     + '- Every food stop must be a restaurant from the VERIFIED RESTAURANT DATABASE list for that day\'s city that satisfies ALL of: ' + diets.join(', ') + '.\n'
     + '- The nationwide-chain / category fallback does NOT apply to this request. No chains, no category descriptions, no hotel or convenience-store meals.\n'
-    + '- Copy "name" exactly as listed (including text after commas). If the list cannot cover a meal, leave that meal out.\n---';
+    + '- Copy "name" exactly as listed (including text after commas). If the list cannot cover a meal, leave that meal out.\n'
+    // 2026-10-24 재방문 정책(운영자 결정): 목록이 끼니보다 적을 때만 다른 날 한 번 더 — 같은 날 두 번·목록 밖 금지.
+    + '- Only when that city\'s list has fewer restaurants than that city\'s meals: you may use a listed restaurant once more on a DIFFERENT day '
+    + '(pick the one closest to that day\'s other stops) and set "revisit": true on that stop. Never the same restaurant twice on the same day; never a restaurant outside the list.\n---';
 }
 
 export function buildUserMessage({
