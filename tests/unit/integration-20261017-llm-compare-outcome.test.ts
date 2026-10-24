@@ -468,7 +468,11 @@ describe('CLI exit codes (no LLM calls)', () => {
     expect(src).toMatch(/costFieldsFromUsage\(\{ providerActual: row\.providerActual, modelActual: row\.modelActual, usageMetadata: result\.response && result\.response\.usageMetadata, price: estimateGeminiCostUsd \}\)/);
     expect(src).not.toMatch(/extractCacheMetadata/); // 누락을 0 으로 바꾸는 추출기를 비용에 쓰지 않는다
     // 판정기는 무료 루프와 공용(llm-compare-free.mjs judgePlanInto) — 유료 callOne 이 그것을 부른다.
-    expect(fn).toMatch(/judgePlanInto\(row, gp\.extractTextFromResponse\(result\.response\)\.trim\(\), p, DEPS\)/);
+    expect(fn).toMatch(/raw = gp\.extractTextFromResponse\(result\.response\)\.trim\(\);\s+judgePlanInto\(row, raw, p, DEPS\)/);
+    // 2026-10-24 (O8): 판정 중 예외(JSON 파싱 실패 등) 행은 모델 원문을 <out>.<id>.<prov>.raw.txt 로 남긴다.
+    expect(fn).toMatch(/const rawPath = out \+ '\.' \+ p\.id \+ '\.' \+ prov \+ '\.raw\.txt';/);
+    expect(fn).toMatch(/row\.rawDump = rawPath;/);
+    expect(src.indexOf('const out = String(args.out')).toBeLessThan(src.indexOf('async function callOne('));
     const freeSrc = readFileSync(join(ROOT, 'scripts', 'integration', 'llm-compare-free.mjs'), 'utf8');
     expect(freeSrc).toMatch(/validatePatternStructure\(plan, \{[^}]*\.\.\.trip \}\)/);
     expect(freeSrc).toMatch(/runDuplicateStopGate\(plan\)/);

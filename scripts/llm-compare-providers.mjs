@@ -28,6 +28,7 @@
  *   산출물에 expectedScenarios(실행한 시나리오 ID 목록)와 행별 scenarioId 를 기록한다.
  *   실패해도 결과 JSON 은 먼저 저장한다. 판정 = scripts/integration/llm-compare-outcome.mjs.
  *   --evaluate=<결과 json> : 호출 0회, 저장된 결과만 다시 판정해 같은 종료 코드를 낸다.
+ *   판정 중 예외 행(예: JSON 파싱 실패)은 모델 원문을 <out>.<시나리오>.<공급자>.raw.txt 로 저장하고 row.rawDump 에 경로 기록(2026-10-24).
  * ⚠️ 누적 상한은 **호출 사이**에서만 검사한다 — 진행 중인 호출 1건(최대 출력 토큰분)만큼은 넘을 수 있다.
  */
 import { performance } from 'node:perf_hooks';
@@ -103,10 +104,14 @@ for (const p of prepared) for (const prov of PROVIDERS) {
 console.log(`[compare] scenarios=${SCEN.length} providers=${PROVIDERS.join(',')} 사전 추정 비용 ≈ $${est.toFixed(3)} (상한 $${MAX_USD})`);
 if (est > MAX_USD) { console.error('추정 비용이 상한을 넘습니다. 중단.'); process.exit(3); }
 
+const out = String(args.out || `scripts/plan-local/outputs/llm-compare-${Date.now()}.json`);
+mkdirSync(dirname(out), { recursive: true });
+
 // 호출 1건 → 행. 던지지 않는다(예외는 row.error / 비용 불명). 루프·중단 규칙 = runCompareCalls.
 async function callOne(p, prov) {
   // scenarioId = 판정 키(ALL 키), scenario = 표시 라벨(기존 산출물 호환).
   const row = { scenarioId: p.id, scenario: scenarioLabel(p), provider: prov };
+  let raw = null;
   try {
     await runWithLlmContext({ provider: prov }, async () => {
       row.model = resolveLlmModel('main');
@@ -127,10 +132,16 @@ async function callOne(p, prov) {
       // 단가 = apiPricing 표(gemini·claude 공용, 미등록 모델은 보수적 기본값) — 실제 모델 기준.
       // 사용량 누락(비 mock)은 $0 확정이 아니라 비용 불명 → runCompareCalls 가 즉시 중단.
       Object.assign(row, costFieldsFromUsage({ providerActual: row.providerActual, modelActual: row.modelActual, usageMetadata: result.response && result.response.usageMetadata, price: estimateGeminiCostUsd }));
-      judgePlanInto(row, gp.extractTextFromResponse(result.response).trim(), p, DEPS);
+      raw = gp.extractTextFromResponse(result.response).trim();
+      judgePlanInto(row, raw, p, DEPS);
     });
   } catch (e) {
     row.error = String(e && e.message || e).slice(0, 300);
+    // 2026-10-24 (O8): 응답은 받았는데 판정 중 예외 → 모델 원문을 옆 파일로(키 없음). 저장 실패는 행을 깨지 않는다.
+    if (raw !== null) {
+      const rawPath = out + '.' + p.id + '.' + prov + '.raw.txt';
+      try { writeFileSync(rawPath, raw); row.rawDump = rawPath; } catch (dumpErr) { row.rawDumpError = String(dumpErr && dumpErr.message || dumpErr).slice(0, 200); }
+    }
     // 실측 전 예외 = 과금 여부 불명 → 판정 실패(cost_unknown), 누적엔 usdReserved 유지. 실측 뒤 예외면 usd 그대로.
     if (typeof row.usd !== 'number') { row.usd = null; row.usdUnknown = true; }
   }
@@ -141,8 +152,6 @@ async function callOne(p, prov) {
 
 const { results, stopped } = await runCompareCalls({ prepared, providers: PROVIDERS, maxUsd: MAX_USD, callOne });
 
-const out = String(args.out || `scripts/plan-local/outputs/llm-compare-${Date.now()}.json`);
-mkdirSync(dirname(out), { recursive: true });
 // 마지막 행까지 더한 합을 저장 전에 다시 검사 — 마지막 호출에서 넘어도 exit 3.
 const final = finalizeCompareRun({ providers: PROVIDERS, expectedScenarios: SCEN, results, maxUsd: MAX_USD, stopped });
 const outcome = final.outcome;
