@@ -724,6 +724,30 @@ export function reorderStopsByProximity(stops) {
     return validCandidates[0].stops;
 }
 
+/**
+ * 2026-10-25 meal floor: Time Stitch 가 food stop 을 Gemini/블록 원본 시각보다 **앞당기지** 않게 한다.
+ * stop 이 적거나 stay 가 짧은 날은 순차 재계산으로 하루가 압축돼 저녁 18:00 식당이 15:12 로 당겨졌다
+ * (종단 게이트 B-MEAL-DINNER: 중간일 저녁 17–22시 필수 → DIETARY_MEAL_COVERAGE_FAILED 로 저장 거부).
+ * 늦추지는 않는다 — current 가 원본보다 늦으면 그대로. 원본이 없거나(NaN) 자정 이후 값이면 그대로.
+ * @param {number} currentMin — stitch 가 계산한 시각(분)
+ * @param {number} originMin — food stop 의 원본 시각(분, 없으면 NaN)
+ * @returns {number}
+ */
+export function applyMealFloor(currentMin, originMin) {
+    if (Number.isFinite(originMin) && originMin < 24 * 60 && currentMin < originMin) return originMin;
+    return currentMin;
+}
+
+/** food stop 의 원본 시각(분). category 가 food 이고 start_time 이 엄격한 HH:MM(00:00~23:59)일 때만, 아니면 NaN. */
+export function parseMealOriginMin(place) {
+    if (String(place?.category || '').toLowerCase() !== 'food') return NaN;
+    const m = /^(\d{1,2}):(\d{2})$/.exec(String(place?.start_time || '').trim());
+    if (!m) return NaN;
+    const h = Number(m[1]), mi = Number(m[2]);
+    if (h > 23 || mi > 59) return NaN;
+    return h * 60 + mi;
+}
+
 export class RouteAgent extends BaseAgent {
     constructor(apiKey) {
         super(apiKey, "route");
@@ -1387,6 +1411,8 @@ export class RouteAgent extends BaseAgent {
             // Gemini 값이 [arrival+30, arrival+cap] 범위 안이면 통과, 밖이면 clamp.
             // P150 (2026-05-22): Gemini 원본 시각 저장. wrap 발생 시 22:30 cascade 대신 Gemini 시각 fallback.
             const _p150GeminiTimes = places.map(p => this._parseTime(p.start_time || '09:00'));
+            // 2026-10-25 meal floor: food stop 원본 시각(엄격한 HH:MM 인 food 만, 아니면 NaN — _parseTime 은 잘못된 문자열도 숫자로 만든다).
+            const _mealOriginMins = places.map((p) => parseMealOriginMin(p));
             let currentTime;
             if (isCityChangeDay && dayPlan.intercity_transit?.arrival_at) {
                 const arrivalMin = this._parseTime(dayPlan.intercity_transit.arrival_at);
@@ -1889,6 +1915,13 @@ export class RouteAgent extends BaseAgent {
                     if (i === 1 && Number.isFinite(dayPlan._p239TourStartMin) && currentTime < dayPlan._p239TourStartMin) {
                         console.log(`  [Route] Day 1: P239 tour_start_time floor — ${this._formatTime(currentTime)} → ${this._formatTime(dayPlan._p239TourStartMin)} (lodging→첫 활동 시각 명시 lift)`);
                         currentTime = dayPlan._p239TourStartMin;
+                    }
+
+                    // 2026-10-25 meal floor: food stop 은 Gemini/블록 원본 시각보다 앞당기지 않는다(압축된 날 저녁 18:00 → 15:12 방지, B-MEAL-DINNER).
+                    const mealFloored = applyMealFloor(currentTime, _mealOriginMins[i]);
+                    if (mealFloored !== currentTime) {
+                        console.log(`  [Route] Day ${dayPlan.day || '?'}: meal floor — ${place.name} ${this._formatTime(currentTime)} → ${this._formatTime(mealFloored)} (food stop 원본 시각 유지)`);
+                        currentTime = mealFloored;
                     }
 
                     // P150 (2026-05-22): 24h wrap → Gemini 원본 시각 fallback (P136 22:30 cascade 차단).
