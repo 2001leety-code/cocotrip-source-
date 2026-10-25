@@ -45,6 +45,15 @@ const AIRPORT_NAME = { ICN: 'Incheon International Airport', GMP: 'Gimpo Interna
 //   식이 요구가 없으면 general 풀 → 유일 합성 이름(unverified, 비-critical) 순.
 const SAFETY_DIETS = ['halal', 'vegan', 'vegetarian'];
 
+// mock 전용 호텔 앵커 — 도시청사 주소·좌표(공개 정보). RouteAgent 지오코딩·ODsay 가 실제로 돌게 해 B-11 을 의미 있게 만든다.
+const MOCK_HOTEL_ANCHOR = {
+  seoul: { address: '서울특별시 중구 세종대로 110', lat: 37.5663, lng: 126.9779 },
+  busan: { address: '부산광역시 연제구 중앙대로 1001', lat: 35.1798, lng: 129.0750 },
+  jeju: { address: '제주특별자치도 제주시 광양9길 10', lat: 33.4996, lng: 126.5312 },
+  incheon: { address: '인천광역시 남동구 정각로 29', lat: 37.4563, lng: 126.7052 },
+  gyeongju: { address: '경상북도 경주시 양정로 260', lat: 35.8562, lng: 129.2247 },
+};
+
 function hhmmToMin(s) {
   const m = /^(\d{1,2}):(\d{2})$/.exec(String(s || ''));
   if (!m) return null;
@@ -77,6 +86,7 @@ function foodStop(row, time, order) {
   return {
     order, start_time: time, name: row.name, display_name: row.nameEn || row.name, category: 'food',
     address: row.address || '', lat: row.lat, lng: row.lng, stay_min: 60, tip: 'mock',
+    local_tag: 'Local Pick', // B-18 다양성 지표용 — Gemini 가 내는 것과 같은 필드, mock 표식 tip:'mock' 유지
     ...(row.tag && row.tag !== 'general' ? { dietary_tags: [row.tag] } : {}),
     // 2026-10-24: 다른 날 재방문 — trusted DB 행이라 verified(=DB 실재) true. 판정은 revisitPolicy.
     ...(row.revisit === true ? { revisit: true, verified: true } : {}),
@@ -105,7 +115,8 @@ function daySkeleton({ isSingle, isFirst, isLast, startMin, depMin }) {
     if (t > 21 * 60) return [{ kind: 'lodging', min: Math.min(t, 23 * 60) }, { kind: 'lodging', min: Math.min(t + 30, 23 * 60 + 30) }];
     const out = [{ kind: 'lodging', min: t }];
     let cursor = t;
-    if (t <= 16 * 60) { out.push({ kind: 'spot', min: t + 30, stay: 60 }); cursor = t + 30 + 90; }
+    // B-12: 14:00 도착(ready 16:30)도 4 stop. 18:00 이후 도착은 B-LATE-ARRIVAL 대로 lodging+저녁+lodging 유지.
+    if (t <= 18 * 60) { out.push({ kind: 'spot', min: t + 30, stay: 60 }); cursor = t + 30 + 90; }
     const dinner = Math.max(18 * 60, cursor);
     out.push({ kind: 'meal', min: dinner, required: true });
     out.push({ kind: 'lodging', min: dinner + 75 });
@@ -155,7 +166,8 @@ export function buildMockPlan({ userText, foodPool }) {
   const depCode = String(u.departure_airport || arrCode).split('_')[0];
   const arrName = AIRPORT_NAME[arrCode] || `${arrCode} Airport`;
   const depName = AIRPORT_NAME[depCode] || `${depCode} Airport`;
-  const lodging = { name: `${cityName} Mock Hotel`, category: 'lodging', address: `${cityName}`, stay_min: 0 };
+  const anchor = MOCK_HOTEL_ANCHOR[city];
+  const lodging = { name: `${cityName} Mock Hotel`, category: 'lodging', address: anchor ? anchor.address : `${cityName}`, ...(anchor ? { lat: anchor.lat, lng: anchor.lng } : {}), stay_min: 0 };
 
   // 활동 시작 = max(tour_start_time, arrival_ready_time) — userMessageBuilder 가 넘긴 값(검증기와 같은 기준).
   const tourStartMin = hhmmToMin(u.tour_start_time) === null ? 9 * 60 : hhmmToMin(u.tour_start_time);

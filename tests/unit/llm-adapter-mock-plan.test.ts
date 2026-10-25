@@ -196,6 +196,44 @@ describe('buildMockPlan — 식이 후보 부족(foodPool 로 풀 고정): 다�
   });
 });
 
+// 2026-10-25 주간 시나리오 매트릭스(mock:main) 품질 — B-12 도착일 4 stop · B-11 호텔 좌표(지오코딩 대상) · B-18 local_tag.
+describe('buildMockPlan — matrix quality: 14:00 ICN arrival keeps 4 arrival-day stops, anchored hotel, tagged meals', () => {
+  type QStop = { category?: string; name: string; lat?: number; lng?: number; address?: string; local_tag?: string };
+  const s: HealthScenario = { id: 'seoul-halal-3d-1400', area: 'seoul', durationDays: 3, pax: 2, dietPrefs: ['Halal'], language: 'en', arrivalTime: '14:00', departureTime: '15:00', arrival_airport: 'ICN_T1', departure_airport: 'ICN_T1' };
+
+  it('arrival day ≥ 4 stops bookended by lodging; meals tagged Local Pick; Seoul lodging has coords + 세종대로; validators still pass', async () => {
+    const plan = buildMockPlan({ userText: healthUserText(s) });
+    const d1 = plan.days[0].stops as QStop[];
+    expect(d1.length).toBeGreaterThanOrEqual(4);
+    expect(d1[0].category).toBe('lodging');
+    expect(d1[d1.length - 1].category).toBe('lodging');
+    const all = plan.days.flatMap((d: { stops: QStop[] }) => d.stops);
+    const foods = all.filter((x: QStop) => x.category === 'food');
+    expect(foods.length).toBeGreaterThan(0);
+    for (const f of foods) expect(f.local_tag, f.name).toBe('Local Pick');
+    const lodgings = all.filter((x: QStop) => x.category === 'lodging');
+    expect(lodgings.length).toBeGreaterThan(0);
+    for (const l of lodgings) {
+      expect(Number.isFinite(l.lat) && Number.isFinite(l.lng), l.name).toBe(true);
+      expect(l.address).toContain('세종대로');
+    }
+    // 스팟 추가가 B-LATE-ARRIVAL / B-MEAL 을 깨지 않는다.
+    expect(validatePatternStructure(plan, healthBody(s))).toEqual([]);
+    expect(hasCriticalDietaryViolation(validateResponse(plan, { dietary: s.dietPrefs, language: s.language }, await loadFoodIndex()))).toBe(false);
+  });
+
+  it('unknown city key (daegu): lodging keeps the old shape — no lat/lng, address = city name', () => {
+    const plan = buildMockPlan({ userText: healthUserText({ id: 'daegu-2d', area: 'daegu', durationDays: 2, pax: 2, dietPrefs: ['Meat'], language: 'en' }) });
+    const lodgings = plan.days.flatMap((d: { stops: QStop[] }) => d.stops).filter((x: QStop) => x.category === 'lodging');
+    expect(lodgings.length).toBeGreaterThan(0);
+    for (const l of lodgings) {
+      expect(l).not.toHaveProperty('lat');
+      expect(l).not.toHaveProperty('lng');
+      expect(l.address).toBe('Daegu');
+    }
+  });
+});
+
 describe('buildMockPlan — daily-health 비식이 시나리오: 실제 요청 시각으로 구조 검증 이슈 0', () => {
   for (const s of NON_DIET) {
     it(`${s.id}: zero duplicates, zero dietary critical, zero structural issues`, async () => {
