@@ -7,10 +7,17 @@ import { stripRevisitNote } from './revisitNote.js';
 import { arrivalRestNote, hasArrivalRestNote, stripArrivalRestText } from './arrivalRestNote.js';
 import { departureBreakfastNote, hasBreakfastNote, stripBreakfastNoteText } from './departureBreakfastNote.js';
 
-/** 번역 입력용 tip — 고정 안내(재방문·도착 휴식·출국 조식, 4개 언어 + 저장값)를 뗀 본문. 원본 무변. */
+/**
+ * 번역 입력용 tip — 고정 안내를 뗀 본문. 원본 무변. 재방문 문장은 종전대로 항상 떼고(번역 후 applyRevisitNotes 가 판정),
+ * 휴식·조식 문장은 **표식이 있는 stop 에서만** 뗀다(표식이 없으면 번역 후 다시 붙일 근거가 없어 안내가 사라지므로 —
+ * 그때는 문장을 본문 그대로 번역기에 맡긴다, 이전 동작).
+ */
 export function stripFixedTipNotes(tip, stop = {}) {
   if (typeof tip !== 'string') return tip;
-  return stripBreakfastNoteText(stripArrivalRestText(stripRevisitNote(tip, stop.revisit_note), stop.arrival_rest_note), stop.breakfast_note);
+  let out = stripRevisitNote(tip, stop.revisit_note);
+  if (hasArrivalRestNote(stop)) out = stripArrivalRestText(out, stop.arrival_rest_note);
+  if (hasBreakfastNote(stop)) out = stripBreakfastNoteText(out, stop.breakfast_note);
+  return out;
 }
 
 /**

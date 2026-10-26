@@ -137,6 +137,8 @@ export function DayTimeline({ day, dayIndex, editMode, isRecalculating, onDelete
   const planDays = (plan?.itinerary?.days || []) as PlanDay[];
   const showArrivalRestCard = (day.day === 1 || dayIndex === 0) && isArrivalRestDay1(stops, {
     inputRestDay: (plan?.input as { arrival_rest_day?: unknown } | undefined)?.arrival_rest_day,
+    inputArrivalTime: (plan?.input as { arrival_time?: unknown; arrivalTime?: unknown } | undefined)?.arrival_time
+      || (plan?.input as { arrivalTime?: unknown } | undefined)?.arrivalTime,
     totalDays: planDays.length,
   });
   const nextStart = nextDayStartTime(planDays, dayIndex);

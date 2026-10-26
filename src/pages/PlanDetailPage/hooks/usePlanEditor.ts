@@ -9,6 +9,7 @@ import { db } from '@/lib/firebase';
 import { authFetch } from '@/lib/authFetch';
 import type { PlanDocument, PlanDay, PlanStop, SetPlanFn } from '../types';
 import { stripArrivalRestNoteIfDay1Active } from '@/lib/arrivalRestNote.js';
+import { stripBreakfastNoteIfLastDayHasMeal } from '@/lib/departureBreakfastNote.js';
 
 interface StopData {
   name: string;
@@ -107,6 +108,7 @@ export function usePlanEditor(
     nextDays[dayIdx].stops = stops;
 
     stripArrivalRestNoteIfDay1Active({ days: nextDays }); // 2026-10-26: Day1 에 식당·관광이 생기면 휴식 안내 제거(저장 전)
+    stripBreakfastNoteIfLastDayHasMeal({ days: nextDays }); // 2026-10-26: 출국일에 식당이 생기면 조식 안내 제거(저장 전)
     setPlan((prev) => prev ? ({
       ...prev,
       itinerary: { ...prev.itinerary, days: nextDays },
@@ -145,6 +147,7 @@ export function usePlanEditor(
     nextDays[dayIdx].stops = stops;
 
     stripArrivalRestNoteIfDay1Active({ days: nextDays }); // 2026-10-26: Day1 에 식당·관광이 생기면 휴식 안내 제거(저장 전)
+    stripBreakfastNoteIfLastDayHasMeal({ days: nextDays }); // 2026-10-26: 출국일에 식당이 생기면 조식 안내 제거(저장 전)
     setPlan((prev) => prev ? ({
       ...prev,
       itinerary: { ...prev.itinerary, days: nextDays },
@@ -176,6 +179,7 @@ export function usePlanEditor(
     nextDays[dayIdx].stops = stops;
 
     stripArrivalRestNoteIfDay1Active({ days: nextDays }); // 2026-10-26: Day1 에 식당·관광이 생기면 휴식 안내 제거(저장 전)
+    stripBreakfastNoteIfLastDayHasMeal({ days: nextDays }); // 2026-10-26: 출국일에 식당이 생기면 조식 안내 제거(저장 전)
     setPlan((prev) => prev ? ({
       ...prev,
       itinerary: { ...prev.itinerary, days: nextDays },
@@ -207,6 +211,7 @@ export function usePlanEditor(
     nextDays[dayIdx].stops = reordered;
 
     stripArrivalRestNoteIfDay1Active({ days: nextDays }); // 2026-10-26: Day1 에 식당·관광이 생기면 휴식 안내 제거(저장 전)
+    stripBreakfastNoteIfLastDayHasMeal({ days: nextDays }); // 2026-10-26: 출국일에 식당이 생기면 조식 안내 제거(저장 전)
     setPlan((prev) => prev ? ({
       ...prev,
       itinerary: { ...prev.itinerary, days: nextDays },

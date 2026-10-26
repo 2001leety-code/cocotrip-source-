@@ -4,6 +4,8 @@
  * Day1 숙소 tip 에 붙인다. 공개 공유 투영(publicPlanProjection)은 보는 사람 언어로 다시 고른다.
  * 순수·브라우저 안전(의존 0). 근처 식당 추천·제공 보장 문구 금지.
  */
+import { strictHHMMToMin, REST_DAY_LATE_ARRIVAL_MIN } from './arrivalRestRules.js';
+
 export const ARRIVAL_REST_NOTE = {
   ko: '도착이 늦어 첫날은 호텔에서 쉬는 일정이에요. 첫날 저녁 식사는 일정에 넣지 않았어요.',
   en: 'You arrive late, so Day 1 is a rest evening at the hotel. No dinner stop is scheduled for Day 1.',
@@ -60,14 +62,34 @@ export function stripArrivalRestNoteIfDay1Active(itinerary) {
 /**
  * 2026-10-26: 실제 도착 휴식일 Day1 인가 — 2일 이상 여행 + Day1 이 숙소·공항·이동뿐 + (휴식 안내가 붙은 stop 이 있거나
  * 저장된 input.arrival_rest_day === true). 장소 수만 보지 않는다(식당 하나인 날은 휴식일이 아니다).
+ * 예전 플랜(표식·플래그가 생기기 전 저장 — input.arrival_rest_day 필드 자체가 없음)만: 브라우저 안전 규칙 (i)
+ * (저장된 도착 시각 엄격 HH:MM ≥ 18:00)로 대체 판정. 필드가 false 면 대체 판정하지 않는다.
  * @param {Array<object>} day1Stops
- * @param {{inputRestDay?: unknown, totalDays?: number}} opts
+ * @param {{inputRestDay?: unknown, inputArrivalTime?: unknown, totalDays?: number}} opts
  */
-export function isArrivalRestDay1(day1Stops, { inputRestDay, totalDays } = {}) {
+export function isArrivalRestDay1(day1Stops, { inputRestDay, inputArrivalTime, totalDays } = {}) {
   const stops = Array.isArray(day1Stops) ? day1Stops : [];
   if (!(Number(totalDays) > 1)) return false;
   if (!stops.every((s) => STRUCTURAL.has(s?.category))) return false;
-  return stops.some(hasArrivalRestNote) || inputRestDay === true;
+  if (stops.some(hasArrivalRestNote) || inputRestDay === true) return true;
+  if (inputRestDay !== undefined) return false;
+  const arr = strictHHMMToMin(inputArrivalTime);
+  return arr !== null && arr >= REST_DAY_LATE_ARRIVAL_MIN;
+}
+
+/**
+ * 휴식 카드 제목 — 화면 카드(planDetail.day1ArrivalOnlyTitle)와 같은 문구. PDF 는 locale JSON 대신 이 표를 쓴다
+ * (카드 제목에 안내 문장을 쓰면 바로 아래 숙소 Tip 의 같은 문장과 중복 출력된다).
+ */
+export const ARRIVAL_REST_TITLE = {
+  ko: '늦게 도착한 날은 숙소에서 쉬세요',
+  en: 'Rest at your stay after a late arrival',
+  ja: '到着が遅い日は宿で休みましょう',
+  zh: '抵达较晚时请先在住宿处休息',
+};
+
+export function arrivalRestTitle(language) {
+  return ARRIVAL_REST_TITLE[language] || ARRIVAL_REST_TITLE.en;
 }
 
 /** 휴식 카드의 "다음날 시작" 줄 — {time} 치환. */

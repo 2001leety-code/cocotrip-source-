@@ -2,8 +2,8 @@
  * Pure/browser-safe: no database, environment, or network access.
  * Known private-string filtering supplements the schema; it cannot detect paraphrases.
  */
-import { departureBreakfastNote } from './departureBreakfastNote.js';
-import { arrivalRestNote } from './arrivalRestNote.js';
+import { departureBreakfastNote, hasBreakfastNote, stripBreakfastNoteText } from './departureBreakfastNote.js';
+import { arrivalRestNote, hasArrivalRestNote, stripArrivalRestText } from './arrivalRestNote.js';
 import { revisitNote, stripRevisitNote } from './revisitNote.js';
 
 const S = 'string';
@@ -170,11 +170,11 @@ function projectStop(stop, privateEndpoint, language, terms) {
     //   breakfast_note 도 남겨 재투영해도 같은 결과(멱등).
     // 2026-10-26: 도착 휴식일 안내도 같은 방식(보는 사람 언어 고정 문구) — 둘 다 있으면 도착 안내 → 조식 안내 순서로 공백 연결.
     const notes = [];
-    if ((typeof stop.arrival_rest_note === 'string' && stop.arrival_rest_note) || stop._arrival_rest_note === true) {
+    if (hasArrivalRestNote(stop)) {
       result.arrival_rest_note = arrivalRestNote(language);
       notes.push(result.arrival_rest_note);
     }
-    if ((typeof stop.breakfast_note === 'string' && stop.breakfast_note) || stop._breakfast_note === true) {
+    if (hasBreakfastNote(stop)) {
       result.breakfast_note = departureBreakfastNote(language);
       notes.push(result.breakfast_note);
     }
@@ -190,6 +190,18 @@ function projectStop(stop, privateEndpoint, language, terms) {
     const body = String(stripRevisitNote(result.tip || result.tip_en || '', stop.revisit_note) || '').trim();
     result.revisit_note = note;
     result.tip = body ? `${body} ${note}` : note;
+  }
+  // 2026-10-26: 숙소가 아닌 stop(블록모드 출국일 공항/이동 stop 등)에 붙은 휴식·조식 안내 — 표식이 있으면 저장 언어
+  //   문장을 떼고 보는 사람 언어 고정 문구로(숙소 분기와 같은 순서: 도착 휴식 → 조식). 표식 필드도 남겨 재투영 멱등.
+  {
+    const rest = hasArrivalRestNote(stop);
+    const breakfast = hasBreakfastNote(stop);
+    if (rest || breakfast) {
+      let body = stripBreakfastNoteText(stripArrivalRestText(typeof result.tip === 'string' ? result.tip : '', stop.arrival_rest_note), stop.breakfast_note);
+      if (rest) { result.arrival_rest_note = arrivalRestNote(language); body = body ? `${body} ${result.arrival_rest_note}` : result.arrival_rest_note; }
+      if (breakfast) { result.breakfast_note = departureBreakfastNote(language); body = body ? `${body} ${result.breakfast_note}` : result.breakfast_note; }
+      result.tip = body;
+    }
   }
   if (Array.isArray(stop.recommended_items)) {
     result.recommended_items = stop.recommended_items.map((item) => project(item,

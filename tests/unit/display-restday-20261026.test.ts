@@ -124,9 +124,9 @@ describe('D5② — PDF rest card only on a real rest day', () => {
   });
   it('pdfGenerator uses the predicate and the shared 4-language copy (no hard-coded English, no stop-count rule)', () => {
     const src = read('src/pages/PlanDetailPage/pdfGenerator.ts');
-    expect(src).toContain("import { arrivalRestNote, arrivalRestTomorrowLine, isArrivalRestDay1, nextDayStartTime } from '@/lib/arrivalRestNote.js';");
+    expect(src).toContain("import { arrivalRestTitle, arrivalRestTomorrowLine, isArrivalRestDay1, nextDayStartTime } from '@/lib/arrivalRestNote.js';");
     expect(src).toMatch(/\(day\.day === 1 \|\| di === 0\) && isArrivalRestDay1\(day\.stops \|\| \[\], \{/);
-    expect(src).toContain('${arrivalRestNote(lang)}');
+    expect(src).toContain('${arrivalRestTitle(lang)}'); // r2: 제목 ≠ 안내 문장(숙소 Tip 과 중복 금지)
     expect(src).toContain('const nextStart = nextDayStartTime(days, di);');
     expect(src).toContain('${nextStart ? `<p');
     expect(src).not.toContain('Late arrival? Rest at your hotel');
@@ -167,7 +167,7 @@ describe('r1-1 — screen edit save path re-judges the rest note', () => {
     expect(hasArrivalRestNote(p.days[0].stops[0])).toBe(false);
   });
   it('the leaf is the single implementation (planPersister re-exports it) and every editor save calls it before setPlan/commit', () => {
-    expect(read('api/_ai_core/planPersister.js')).toContain("import { arrivalRestNote, stripArrivalRestNote } from '../../src/lib/arrivalRestNote.js';");
+    expect(read('api/_ai_core/planPersister.js')).toMatch(/import \{ arrivalRestNote, stripArrivalRestNote[^}]*\} from '\.\.\/\.\.\/src\/lib\/arrivalRestNote\.js';/);
     expect(read('api/_ai_core/planPersister.js')).not.toMatch(/export function stripArrivalRestNote/);
     const editor = read('src/pages/PlanDetailPage/hooks/usePlanEditor.ts');
     expect((editor.match(/stripArrivalRestNoteIfDay1Active\(\{ days: nextDays \}\);/g) || []).length).toBe(4);
@@ -177,9 +177,12 @@ describe('r1-1 — screen edit save path re-judges the rest note', () => {
 
 describe('r1-2 — translation keeps fixed notes out of the model and re-attaches them in the target language', () => {
   it('stripFixedTipNotes removes revisit / rest / breakfast sentences (any language) without mutating the stop', () => {
-    const stop: Stop = { tip: `Nice view. ${ARRIVAL_REST_NOTE.ko} ${DEPARTURE_BREAKFAST_NOTE.en}`, arrival_rest_note: ARRIVAL_REST_NOTE.ko, _arrival_rest_note: true };
+    const stop: Stop = { tip: `Nice view. ${ARRIVAL_REST_NOTE.ko} ${DEPARTURE_BREAKFAST_NOTE.en}`, arrival_rest_note: ARRIVAL_REST_NOTE.ko, _arrival_rest_note: true, _breakfast_note: true };
     expect(stripFixedTipNotes(stop.tip as string, stop)).toBe('Nice view.');
     expect(stop.tip).toContain(ARRIVAL_REST_NOTE.ko);
+    // r2: 표식이 없는 안내 문장은 떼지 않는다(번역 후 다시 붙일 근거가 없음 — 번역기에 맡김).
+    const unmarked: Stop = { tip: `Nice view. ${DEPARTURE_BREAKFAST_NOTE.en}` };
+    expect(stripFixedTipNotes(unmarked.tip as string, unmarked)).toBe(`Nice view. ${DEPARTURE_BREAKFAST_NOTE.en}`);
   });
   it('reattachFixedTipNotes: translated body + target-language rest then breakfast note; unmarked stops untouched', () => {
     const it = { days: [
@@ -208,7 +211,7 @@ describe('C r1-4a — no-meal notice: always visible on the intro slide, causes 
     expect(noMealStopsInfo(noMeals, { arrival_rest_day: true, departure_time: '10:00' })).toEqual({ show: true, lateArrival: true, earlyDeparture: true });
     expect(noMealStopsInfo(noMeals, {})).toEqual({ show: true, lateArrival: false, earlyDeparture: false });
     expect(noMealStopsInfo(noMeals, { arrival_rest_day: 'yes', departure_time: '11:00' })).toEqual({ show: true, lateArrival: false, earlyDeparture: false });
-    expect(noMealStopsInfo(noMeals, { departure_time: '10:00:00' })).toMatchObject({ earlyDeparture: true });
+    expect(noMealStopsInfo(noMeals, { arrival_rest_day: true, departure_time: '10:00:00' })).toMatchObject({ earlyDeparture: true });
     expect(noMealStopsInfo({ days: [{ stops: [lodging('23:00')] }, { stops: [food('A', '08:00')] }] }, {})).toMatchObject({ show: false });
     expect(noMealStopsInfo({ days: [{ stops: [lodging('09:00')] }] }, {})).toMatchObject({ show: false });
     expect(noMealStopsInfo(null, null)).toMatchObject({ show: false });

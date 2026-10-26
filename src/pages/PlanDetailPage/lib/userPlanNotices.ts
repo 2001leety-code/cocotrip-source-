@@ -29,5 +29,9 @@ export function noMealStopsInfo(
   if (days.length < 2) return none;
   if (days.some((d) => (Array.isArray(d?.stops) ? d.stops : []).some((s) => s?.category === 'food'))) return none;
   const depMin = strictHHMMToMin(input?.departure_time || input?.departureTime);
-  return { show: true, lateArrival: input?.arrival_rest_day === true, earlyDeparture: depMin !== null && depMin < EARLY_DEPARTURE_NO_BREAKFAST_MIN };
+  const lateArrival = input?.arrival_rest_day === true;
+  const earlyDeparture = depMin !== null && depMin < EARLY_DEPARTURE_NO_BREAKFAST_MIN;
+  // 원인은 식사 없는 **모든** 날이 휴식일 Day1 또는 11:00 전 출국일(마지막 날)로 설명될 때만(3일+ 의 중간날, 11:00 이후 출국 등은 설명 불가 → 원인 생략).
+  const explained = days.every((_, i) => (i === 0 && lateArrival) || (i === days.length - 1 && earlyDeparture));
+  return explained ? { show: true, lateArrival, earlyDeparture } : { show: true, lateArrival: false, earlyDeparture: false };
 }

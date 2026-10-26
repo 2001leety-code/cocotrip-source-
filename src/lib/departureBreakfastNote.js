@@ -19,6 +19,28 @@ export function hasBreakfastNote(stop) {
   return !!stop && ((typeof stop.breakfast_note === 'string' && !!stop.breakfast_note) || stop._breakfast_note === true);
 }
 
+/** 붙였던 조식 안내만 뗀다 — tip 의 고정 문장 + breakfast_note·_breakfast_note. 나머지 tip 보존. 표식 없으면 무변. @returns {boolean} */
+export function stripBreakfastNote(stop) {
+  if (!hasBreakfastNote(stop)) return false;
+  const tip = stripBreakfastNoteText(typeof stop.tip === 'string' ? stop.tip : '', stop.breakfast_note);
+  if (tip) stop.tip = tip;
+  else delete stop.tip;
+  delete stop.breakfast_note;
+  delete stop._breakfast_note;
+  return true;
+}
+
+/** 2일 이상 여행의 마지막 날(출국일)에 식당이 생기면 그날 조식 안내를 뗀다(화면 편집 저장 직전 재판정). @returns {boolean} */
+export function stripBreakfastNoteIfLastDayHasMeal(itinerary) {
+  const days = Array.isArray(itinerary?.days) ? itinerary.days : [];
+  if (days.length < 2) return false;
+  const stops = Array.isArray(days[days.length - 1]?.stops) ? days[days.length - 1].stops : [];
+  if (!stops.some((s) => s?.category === 'food')) return false;
+  let changed = false;
+  for (const s of stops) changed = stripBreakfastNote(s) || changed;
+  return changed;
+}
+
 /** tip 문자열에서 조식 안내 고정 문장(4개 언어 + extra)만 뗀 결과(양끝 공백 정리). 원본 무변(순수). */
 export function stripBreakfastNoteText(tip, extra) {
   if (typeof tip !== 'string') return tip;

@@ -11,7 +11,7 @@ import { throttledTelegramAlert } from '../_shared/telegram-throttle.js';
 import { detectPaymentSource, isAdminBypassOrderId, isOperatorTestEmail } from '../_shared/admin-bypass-detector.js';
 import { beginPlanCommit, finalizePlanIssuance } from '../_shared/plan-issuance.js';
 import { departureBreakfastNote } from '../../src/lib/departureBreakfastNote.js';
-import { arrivalRestNote, stripArrivalRestNote } from '../../src/lib/arrivalRestNote.js';
+import { arrivalRestNote, stripArrivalRestNote, hasArrivalRestNote } from '../../src/lib/arrivalRestNote.js';
 
 /**
  * P112 (2026-05-20): end_time backfill. plan 4792076e dump 결과 29/29 stops 의
@@ -308,8 +308,10 @@ export function applyArrivalRestNote(itinerary, { restDay, arrivalTime, arrivalA
   const stops = Array.isArray(days[0]?.stops) ? days[0].stops : [];
   // Day1 이 전부 숙소/공항/이동일 때만(식당·관광이 남은 날엔 "쉬는 날" 안내 금지).
   if (stops.length === 0 || !stops.every((s) => ['lodging', 'airport', 'travel'].includes(s?.category))) return stripStale();
+  // 멱등: Day1 stop 중 하나라도 이미 안내를 갖고 있으면 no-op(숙소 순서를 바꾼 뒤 재호출해도 2개가 되지 않게).
+  if (stops.some(hasArrivalRestNote)) return false;
   const target = stops.find((s) => s?.category === 'lodging') || stops[0];
-  if (!target || typeof target !== 'object' || target._arrival_rest_note === true) return false;
+  if (!target || typeof target !== 'object') return false;
   const note = arrivalRestNote(language);
   const tip = typeof target.tip === 'string' ? target.tip.trim() : '';
   target.tip = tip ? `${tip} ${note}` : note;

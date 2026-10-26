@@ -5,7 +5,8 @@ import { db } from '@/lib/firebase';
 import { projectPublicPlan } from '@/lib/publicPlanProjection.js';
 import type { PlanDocument, SetPlanFn } from './types';
 
-const EXPECTED_TRANSLATOR_VERSION = 2;
+// 2026-10-26: 3 — api/translate-plan.js TRANSLATOR_VERSION 과 같이(고정 안내 번역 처리 변경 → v2 캐시 재번역).
+const EXPECTED_TRANSLATOR_VERSION = 3;
 
 /** SHA-256 of the exact translation source, stored instead of a source copy.
  * Resolves null when Web Crypto is unavailable or fails; callers then bypass the cache. */
