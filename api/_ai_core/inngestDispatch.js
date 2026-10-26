@@ -122,6 +122,7 @@ export function buildPlanAiCompletePayload(args) {
     //   the itinerary, so it was never touched by the pre-dispatch removal).
     avoidStopNames,
     plannerIntent,    // planner-intent-v1: normalized intent — worker's persistPlan persists it verbatim.
+    arrivalRestDay,   // 2026-10-26: handlerCore 계산 도착 휴식일(boolean)
   } = args;
 
   // P256 (2026-05-28): zone_id 도출 — Inngest worker 의 4번째 layer fix.
@@ -165,6 +166,9 @@ export function buildPlanAiCompletePayload(args) {
       forceGuestToken: !!forceGuestToken,
       avoidStopNames: Array.isArray(avoidStopNames) ? avoidStopNames : [],
       ...(plannerIntent ? { plannerIntent } : {}),
+      // 2026-10-26: handlerCore 가 한 번 계산한 도착 휴식일 여부 — worker 는 재계산 없이 이 값(arrivalRestDayFromCtx).
+      //   boolean 아닐 때(옛 이벤트)만 worker 가 같은 식으로 재계산.
+      ...(typeof arrivalRestDay === 'boolean' ? { arrivalRestDay } : {}),
       // P266: P195 cache instrumentation persistence — measure marker survives reconstruction layer.
       //   null = block_mode / 3pass / non-Gemini path. numeric object = legacy 1-pass measurement.
       ...(cacheMetadata ? { cacheMetadata } : {}),
@@ -274,6 +278,8 @@ export async function dispatchOrInlineForHandlerCore({
   //   avoidStopNames 없이 recommended_restaurants 필터 + 최종 assert 를 건너뛴다.
   avoidStopNames = [],
   plannerIntent = null,
+  // 2026-10-26: 같은 이유의 구조분해 시그니처 — 명시 안 하면 worker 가 휴식일을 재계산한다.
+  arrivalRestDay = null,
 }) {
   return tryDispatchAndLog({
     streamingResponseSent, itinerary, streamingPlanId, skeletonCtx: skeletonCtx || undefined,
@@ -284,6 +290,6 @@ export async function dispatchOrInlineForHandlerCore({
     plannerMode: blockModeUsed ? 'block_mode' : PLANNER_MODE,
     abReason: abDecision.reason, abBucket: abDecision.bucket,
     blocksUsed: blockModeUsed ? blocksUsed : null,
-    isAdminBypass, identifierForBucketing, forceGuestToken, issuanceClaim, avoidStopNames, plannerIntent,
+    isAdminBypass, identifierForBucketing, forceGuestToken, issuanceClaim, avoidStopNames, plannerIntent, arrivalRestDay,
   }, handlerStart);
 }

@@ -76,11 +76,13 @@ const baseSelections = {
 };
 const baseInput = { language: 'en', area: 'seoul', dietPrefs: [], foodIndex: [], startDate: '2026-06-15' };
 
-// ICN 18:00 도착 → ready = 18:00 + 90(입국) + 90(인천이동) = 21:00. tour_end 21:30 →
-//   dayStart=21:00 (짧은 저녁 window), 관광 슬롯 21:00 / 22:00 → 22:00 은 cutoff 로 trim.
+// ICN 17:00 도착 → ready = 17:00 + 90(입국) + 90(인천이동) = 20:00. tour_end 21:30 →
+//   dayStart=20:00 (짧은 저녁 window), 관광 슬롯 20:00 / 21:00 — 이른 슬롯(20:00)에 가까운 stop 이 와야 한다.
+//   2026-10-26: 옛 픽스처(ICN 18:00, ready 21:00)는 운영자 승인 휴식일(도착 ≥18:00 / 준비 ≥ 종료−60분)이라
+//   이제 Day1 관광 0 이 정답 — 짧은 window 이면서 휴식일이 아닌 17:00(ready 20:00 < 21:30 − 60)으로 옮겼다.
 const lateArrivalInput = {
   ...baseInput,
-  arrival_time: '18:00',
+  arrival_time: '17:00',
   arrival_airport: 'ICN',
   tour_start_time: '09:00',
   tour_end_time: '21:30',
@@ -131,10 +133,21 @@ describe('#arrival-needle end-to-end — 밤도착 도착일에 가까운 stop �
     const sights = stops.filter(
       (s: TestStop) => s.category !== 'lodging' && s.category !== 'airport' && s.category !== 'travel'
     );
-    // 짧은 window(21:00~21:30) 에 관광 1개만 생존 — 그게 가까운 Jogyesa 여야 함.
-    expect(sights.length, '관광 stop 1개만 생존(22:00 trim)').toBe(1);
-    expect(sights[0].name, '생존 관광 = 숙소 근처 Jogyesa (먼 Gangnam 아님)').toBe('Jogyesa Near');
+    // 짧은 window(20:00~21:30) — 이른 슬롯(20:00)의 관광 = 가까운 Jogyesa 여야 함.
+    const earliest = [...sights].sort((a: TestStop, b: TestStop) => toMin(a.start_time) - toMin(b.start_time));
+    expect(sights.length, '관광 stop 2개 생존(20:00 / 21:00)').toBe(2);
+    expect(earliest[0].name, '이른 슬롯 관광 = 숙소 근처 Jogyesa (먼 Gangnam 아님)').toBe('Jogyesa Near');
     expect(sights.every((s: TestStop) => toMin(s.start_time) <= toMin('21:30')), '생존 stop 이 종료 cap 이내').toBe(true);
+  });
+
+  it('2026-10-26: ICN 18:00 도착(운영자 승인 휴식일, 2일 이상 여행) → Day1 관광 0', async () => {
+    const { expandBlocksToItinerary } = await import('../../api/_ai_core/blockMode.js');
+    const twoDays = { ...baseSelections, day_selections: [...baseSelections.day_selections, { day: 2, block_id: 'T1', tweak_notes: '' }] };
+    const itin = expandBlocksToItinerary(twoDays, makeBlocks(true), { ...lateArrivalInput, arrival_time: '18:00' });
+    const sights = itin.days[0].stops.filter(
+      (s: TestStop) => s.category !== 'lodging' && s.category !== 'airport' && s.category !== 'travel'
+    );
+    expect(sights).toHaveLength(0);
   });
 
   it('좌표 없으면 재정렬 무변 → 큐레이션 첫 관광(먼 Gangnam)이 그대로 생존 (회귀 가드)', async () => {
@@ -143,8 +156,9 @@ describe('#arrival-needle end-to-end — 밤도착 도착일에 가까운 stop �
     const sights = itin.days[0].stops.filter(
       (s: TestStop) => s.category !== 'lodging' && s.category !== 'airport' && s.category !== 'travel'
     );
-    expect(sights.length).toBe(1);
-    expect(sights[0].name, '좌표 없으면 원본 순서 유지').toBe('Gangnam Far');
+    const earliest = [...sights].sort((a: TestStop, b: TestStop) => toMin(a.start_time) - toMin(b.start_time));
+    expect(sights.length).toBe(2);
+    expect(earliest[0].name, '좌표 없으면 원본 순서 유지').toBe('Gangnam Far');
   });
 
   it('도착 없음(낮 시작, arrivalLateStart=false) → 재정렬 안 함, 큐레이션 순서 유지', async () => {

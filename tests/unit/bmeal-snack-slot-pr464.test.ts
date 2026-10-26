@@ -239,7 +239,8 @@ describe('PR #464 X-H6 — source-level invariants', () => {
   it('first/last-day guard uses breakfast+afternoonMeal+dinner (NOT just afternoonMealCount)', () => {
     // 2026-05-17 follow-up: breakfast slot added so ealy-departure days
     // (08:00 breakfast → 09:00 airport flight, no food in [11,22)) pass.
-    expect(src).toMatch(/if\s*\(\s*breakfastCount\s*===\s*0\s*&&\s*afternoonMealCount\s*===\s*0\s*&&\s*dinnerCount\s*===\s*0\s*\)/);
+    // 2026-10-26: 도착일 분기는 휴식일 면제 가드(`!restDayExempt &&`)가 앞에 붙는다 — 세 끼니를 모두 확인하는 불변은 그대로.
+    expect(src).toMatch(/if\s*\(\s*(?:!\w+\s*&&\s*)?breakfastCount\s*===\s*0\s*&&\s*afternoonMealCount\s*===\s*0\s*&&\s*dinnerCount\s*===\s*0\s*\)/);
   });
 
   it('declares NEW breakfastCount with [6, 11) range (early-departure / late-arrival)', () => {

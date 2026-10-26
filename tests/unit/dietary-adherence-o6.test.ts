@@ -413,7 +413,8 @@ describe('P3 — required meals (B-MEAL) shared with the final gate', () => {
 
   it('wiring: post-response gate passes tripTimes; sync and worker callers hand it the times', () => {
     expect(read('api/_ai_core/postResponsePipeline.js')).toMatch(/foodIndex: foodIndexForQuality, tripTimes \}/);
-    expect(read('api/_ai_core/handlerCore.js')).toMatch(/applyRecommendedRestaurants\(itinerary, \{[^}]*departureTime, arrivalTime \}\)/);
+    // 2026-10-26: 도착 휴식일 판정 입력(arrival_airport·tourEndTime)도 함께 넘긴다.
+    expect(read('api/_ai_core/handlerCore.js')).toMatch(/applyRecommendedRestaurants\(itinerary, \{[^}]*\bdepartureTime, arrivalTime\b[^}]*\}\)/);
     expect(read('api/_inngest/functions/processPlanAfterAI.js')).toMatch(/applyRecommendedRestaurants\(itinAfterBackfill, \{[\s\S]*?body: ctx\.body,[\s\S]*?\}\);/);
   });
 });

@@ -167,7 +167,8 @@ describe('modify API and translation wiring', () => {
     expect(computeQualityScore(p, ['Halal'], 'seoul', [A, B], { avoidStopNames: ['합성B'] }).metrics.duplicate_stops.count).toBe(0);
     const bg = read('api/_ai_core/backgroundPipelines.js');
     expect(bg).toMatch(/const revisitCtx = \{ foodIndex: bgFoodIndex, dietary, language, avoidStopNames: Array\.isArray\(avoidStopNames\) \? avoidStopNames : \[\] \};/);
-    expect(read('api/_ai_core/handlerCore.js')).toMatch(/triggerPass3BackgroundIfPending\(\{[^}]*\}, avoidStopNames \}\);/);
+    // 2026-10-26: tripTimes 는 tripTimesFrom({...}) — 그 뒤에 avoidStopNames 가 이어진다.
+    expect(read('api/_ai_core/handlerCore.js')).toMatch(/triggerPass3BackgroundIfPending\(\{[^\n]*tripTimes: tripTimesFrom\(\{[^}]*\}\), avoidStopNames \}\);/);
     expect(read('api/_ai_core/planPersister.js')).toMatch(/avoidStopNames: Array\.isArray\(plannerIntent\?\.revision\?\.avoidStopNames\)/);
     expect(read('api/_ai_core/geminiPipeline.js').match(/pass2Resolve\(itinerary, foodIndex, area, \{ dietary: dietaryArr, avoidStopNames: avoidArr \}\)/g)).toHaveLength(3);
   });

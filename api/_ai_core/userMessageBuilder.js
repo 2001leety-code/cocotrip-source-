@@ -33,9 +33,9 @@ import { getActivityContextForPrompt } from '../_activity_helper.js'; // P241
 import { getHotelContextForPrompt } from '../_hotel_helper.js';       // P241
 
 // 도착일 "투어 시작 가능" 시각 — block_mode 와 **같은 계산**을 쓴다(constants 단일 원천).
-import { arrivalReadyHHMM } from './constants.js';
-// 도시 키 정규화(한글 '부산' → 'busan'). responseValidator 는 constants·헬퍼만 import 하므로 순환 없음.
-import { normalizeRegionKey } from './responseValidator.js';
+import { arrivalReadyHHMM, arrivalRestDayInfo } from './constants.js';
+// 도시 키(한글 '부산' → 'busan', arrival_city → regions[0] → area). responseValidator 는 constants·헬퍼만 import 하므로 순환 없음.
+import { arrivalRestDayCityKey } from './responseValidator.js';
 
 // P241: Kbeauty/DMZ/Haenyeo/Jjimjilbang/HangangBike
 const P241_ACTIVITY_STYLES = new Set(['Kbeauty', 'Dmz', 'Haenyeo', 'Jjimjilbang', 'HangangBike']);
@@ -66,6 +66,8 @@ export function buildUserMessage({
   attractionsContext = '',
   mountainContext = '',  // P191: SAFETY-CRITICAL — Trekking/Hallasan 검증 DB
   runningContext = '',   // P237: Running/HangangRun 코스 16개 검증 DB
+  // 2026-10-26: handlerCore 가 한 번 계산한 도착 휴식일 여부(boolean) — 있으면 그대로 싣고, 없을 때(옛 호출부)만 여기서 계산.
+  arrivalRestDay = null,
 }) {
   const {
     guestName, pax, startDate, durationDays, styles, area, regions, duration,
@@ -161,9 +163,16 @@ export function buildUserMessage({
     arrival_ready_time: arrivalReadyHHMM(
       arrivalTime,
       arrival_airport,
-      normalizeRegionKey(arrivalCity || '')
-        || normalizeRegionKey((Array.isArray(regions) && regions[0]) || area || ''),
+      arrivalRestDayCityKey({ arrivalCity, regions, area }),
     ) || undefined,
+    // 2026-10-26 운영자 승인: 도착 휴식일 여부를 서버가 계산해 넘긴다(모델이 18:00 / 종료−60분 공식을 계산하지 않게).
+    //   검증기·게이트·mock·블록모드·안내와 같은 arrivalRestDayInfo + 같은 도시 키.
+    arrival_rest_day: typeof arrivalRestDay === 'boolean' ? arrivalRestDay : (arrivalRestDayInfo({
+      arrivalTime,
+      arrivalAirport: arrival_airport,
+      cityKey: arrivalRestDayCityKey({ arrivalCity, regions, area }),
+      tourEndTime,
+    }).rest && Number(durationDays) > 1), // 1일 여행은 휴식일 없음 — handlerCore 플래그와 같은 조건
     // P239 (2026-05-27): tour_start_time — 운영자 architectural fix.
     // arrival_time 무관하게 Day1 stops 시작 시각 고정 (default '09:00').
     // 새벽 도착 시 호텔만 transit + tour_start_time 부터 stops 작성.

@@ -33,7 +33,8 @@ import {
 } from './_ai_core/blockMode.js';
 import { loadFoodIndex } from './_ai_core/geminiPipeline.js';
 import { backfillStopEndTimes } from './_ai_core/planPersister.js';
-import { validatePatternStructure } from './_ai_core/responseValidator.js';
+import { validatePatternStructure, arrivalRestDayCityKey } from './_ai_core/responseValidator.js';
+import { arrivalRestDayInfo, resolveTourEndTime } from './_ai_core/constants.js';
 import { normalizeRevisits, applyRevisitNotes, clearReplacedLegs } from './_ai_core/revisitPolicy.js';
 import { runDuplicateStopGate } from './_ai_core/finalItineraryGate.js';
 
@@ -740,6 +741,17 @@ export default async function handler(req, res) {
       arrival_airport: planData.input?.arrival_airport || '',
       departure_airport: planData.input?.departure_airport || '',
       durationDays: itinerary.days.length,
+      // 2026-10-26: 도착 휴식일 여부만(시각 자체는 넘기지 않는다) — 휴식일 플랜(첫날 숙소만)의 다른 날 수정이 B-MEAL/B-12 로 422 나지 않게.
+      //   생성 시 저장한 input.arrival_rest_day(boolean) 우선 — 옛 플랜(필드 없음)만 재계산(2일 이상 여행일 때만).
+      arrival_rest_day: typeof planData.input?.arrival_rest_day === 'boolean'
+        ? planData.input.arrival_rest_day
+        : (itinerary.days.length > 1 && arrivalRestDayInfo({
+          arrivalTime: planData.input?.arrival_time,
+          arrivalAirport: planData.input?.arrival_airport,
+          // 2026-10-26: 저장된 요청 입력(arrival_city → regions[0] → area) — 모델이 쓴 Day1 city 무관(생성 경로와 같은 키).
+          cityKey: arrivalRestDayCityKey({ arrivalCity: planData.input?.arrival_city, regions: planData.input?.regions, area: planData.input?.area }),
+          tourEndTime: resolveTourEndTime({ tourEndTime: planData.input?.tour_end_time }),
+        }).rest),
     });
     if (patternErrors.length > 0) {
       // rollback

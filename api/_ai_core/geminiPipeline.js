@@ -1300,7 +1300,7 @@ function buildPatternReinforcedPrompt(systemPrompt, patternErrors) {
     'STRICT RULES (NO EXCEPTIONS):',
     '- EVERY day MUST start with a stop where category="lodging" (departure from hotel/zone).',
     '- EVERY day MUST end with a stop where category="lodging" (return to hotel/zone). On the LAST day with a departure airport, the final stop may instead use category="travel" or category="airport".',
-    '- EVERY day MUST contain AT LEAST 4 stops total.',
+    '- EVERY day MUST contain AT LEAST 4 stops total (except Day 1 when userInput.arrival_rest_day is true: lodging only, 1-2 stops).',
     '- EVERY stop start_time MUST be a 24h "HH:MM" value with hour 0-23 (NEVER 24:00 or higher).',
     '- For MULTI-CITY plans (regions.length >= 2), the first lodging stop of EACH day MUST mention day.city via ONE of these acceptable forms (any single match passes validator):',
     '   (a) lodging name OR address contains city token (Seoul/서울, Busan/부산, Jeju/제주, etc.),',
@@ -1311,7 +1311,7 @@ function buildPatternReinforcedPrompt(systemPrompt, patternErrors) {
     '- The LAST day MUST include either a category="travel"/"airport" stop, a stop whose name/address mentions the airport (공항/airport/ICN/GMP/PUS/CJU), OR day-level "return_to_airport": true.',
     '- The TOP-LEVEL response MUST include either `arrival_guide.airport` OR `departure_guide.airport` (non-empty string, e.g. "ICN T1" / "GMP" / "PUS"). NEVER omit BOTH — the PDF first/last page renders blank without them (B-16). Prefer including `departure_guide` always; include `arrival_guide` whenever `arrival_airport != "already_in_korea"`.',
     '- The itinerary.days array MUST contain EXACTLY the requested duration_days count. NEVER drop or truncate the last day. If user requests 5 days, output 5 day objects (B-DC). Each day must be a full entry with stops[], NOT a placeholder.',
-    '- EVERY full day (middle days — neither arrival nor departure day) MUST contain at least 1 lunch food stop (category="food", start_time hour ∈ [11:00, 14:59]) AND at least 1 dinner food stop (category="food", start_time hour ∈ [17:00, 21:59]). Arrival day (Day 1, often 15:00 check-in) and departure day may have ≥1 meal total. NEVER end a full day at hotel before 17:00 without a dinner stop (B-MEAL).',
+    '- EVERY full day (middle days — neither arrival nor departure day) MUST contain at least 1 lunch food stop (category="food", start_time hour ∈ [11:00, 14:59]) AND at least 1 dinner food stop (category="food", start_time hour ∈ [17:00, 21:59]). Arrival day (Day 1, often 15:00 check-in) and departure day may have ≥1 meal total (if userInput.arrival_rest_day is true, Day 1 may be lodging only with one optional dinner after arrival_ready_time; if false, ≥1 meal — do not compute it yourself). NEVER end a full day at hotel before 17:00 without a dinner stop (B-MEAL).',
     '',
     'Regenerate the FULL itinerary respecting the structure above.',
     'Same JSON schema as before. Same `days[].stops[]` structure.',
@@ -1487,7 +1487,8 @@ export async function runGeminiPipeline({ apiKey, systemPrompt, userMessage, are
     // P160 (2026-05-22): self-heal lodging bookend BEFORE pattern validation.
     // Gemini 가 가끔 stops[0]=food 시작 → B-10 throw → customer 500.
     // synthetic lodging prepend/append → validation 통과 + alert.
-    if (typeOk3pass) selfHealLodgingBookend(itinerary, { language });
+    // 2026-10-26: 휴식일 빈 Day1 → 검증 전에 체크인 숙소로 보정(body.arrival_rest_day = handlerCore 공통 판정).
+    if (typeOk3pass) selfHealLodgingBookend(itinerary, { language, arrivalRestDay: body?.arrival_rest_day === true });
     // 여기까지의 itinerary 는 식이 검증(위 dietary 분기)을 통과한 마지막 상태다. 아래 pattern
     // retry 는 plan 을 통째로 새로 받아 구조만 재검증하므로 되돌릴 원본을 떠 둔다.
     const lastDietValid3pass = typeOk3pass ? snapshotItinerary(itinerary, dietaryArr) : null;
@@ -1794,7 +1795,7 @@ export async function runGeminiPipeline({ apiKey, systemPrompt, userMessage, are
     // P160 (2026-05-22): self-heal lodging bookend BEFORE pattern validation.
     // Gemini 가 가끔 stops[0]=food 시작 → B-10 throw → customer 500.
     // synthetic lodging prepend/append → validation 통과 + alert.
-    if (typeOk) selfHealLodgingBookend(itinerary, { language });
+    if (typeOk) selfHealLodgingBookend(itinerary, { language, arrivalRestDay: body?.arrival_rest_day === true }); // 2026-10-26: 휴식일 빈 Day1 보정
     // 3pass 와 동일 — pattern retry 가 식이 검증 통과본을 밀어낼 수 있으므로 원본 스냅샷.
     const lastDietValidLegacy = typeOk ? snapshotItinerary(itinerary, dietaryArr) : null;
     // 자료형 오류도 같은 구조 오류 목록 — 재시도는 이 한 번뿐.

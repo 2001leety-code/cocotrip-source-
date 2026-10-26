@@ -86,6 +86,8 @@ export async function runOfflinePlan({ blocks, selection, userInput }) {
     recommendedZones: userInput.recommendedZones || {},
     recommendedZone: userInput.recommendedZone || '',
     luggage: userInput.luggage || null,
+    // 2026-10-26: 휴식일 판정(1일 여행 제외)이 운영과 같게 — arrivalRestDayFromCtx 가 body.durationDays 를 본다.
+    durationDays: userInput.durationDays,
   };
 
   // 3) RouteAgent enrichment — transit = 캐시 transit_matrix (live ODsay/Naver 0).

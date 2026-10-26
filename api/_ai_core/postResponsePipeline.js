@@ -26,15 +26,39 @@ import {
   // 발동 안 됨 → 운영자 의도 ("호텔=동선 anchor, Day 마지막 호텔 복귀") 위반.
   selfHealLodgingBookend,
   applyDepartureBreakfastNote,
+  applyArrivalRestNote,
 } from './planPersister.js';
 import { pickRecommendedRestaurantsByStyle } from './recommendedRestaurants.js';
 import { loadFoodIndex } from './geminiPipeline.js';
 import { enrichItineraryWithRoute } from './routeEnrichment.js';
 import { calcPrice } from './vehicleAndPrice.js';
 import { throttledTelegramAlert } from '../_shared/telegram-throttle.js';
-import { applyBlockModeDietaryWarnings, normalizeRegionKey } from './responseValidator.js';
+import { applyBlockModeDietaryWarnings, normalizeRegionKey, arrivalRestDayCityKey } from './responseValidator.js';
 import { applyDepartureDayFlightCap } from './blockMode.js';
 import { assertFinalItineraryValid, assertNoDuplicateStops, tripTimesFrom } from './finalItineraryGate.js';
+import { resolveTourEndTime, arrivalRestDayInfo } from './constants.js';
+
+/**
+ * 2026-10-26 운영자 승인: 도착 휴식일 여부 — **요청 입력**으로만 계산(모델이 쓴 Day1 city 무관).
+ *   sync 경로는 handlerCore 가 계산한 ctx.arrivalRestDay(boolean)를 그대로, worker 경로는 ctx.body + shaped
+ *   공항·도시로 같은 식(arrivalRestDayInfo + arrivalRestDayCityKey + resolveTourEndTime)을 다시 계산한다.
+ */
+export function arrivalRestDayFromCtx(ctx = {}) {
+  if (typeof ctx.arrivalRestDay === 'boolean') return ctx.arrivalRestDay;
+  const b = ctx.body || {};
+  // 1일 여행은 휴식일 없음 — handlerCore 플래그(`&& Number(durationDays) > 1`)와 같은 조건.
+  if (!(Number(ctx.durationDays || b.durationDays) > 1)) return false;
+  return arrivalRestDayInfo({
+    arrivalTime: String(ctx.arrivalTime || b.arrivalTime || b.arrival_time || '').slice(0, 5),
+    arrivalAirport: ctx.arrival_airport || b.arrival_airport || b.arrivalAirport,
+    cityKey: arrivalRestDayCityKey({
+      arrivalCity: ctx.arrivalCity || b.arrival_city || b.arrivalCity,
+      regions: Array.isArray(ctx.regions) ? ctx.regions : b.regions,
+      area: ctx.area || b.area,
+    }),
+    tourEndTime: ctx.tourEndTime || resolveTourEndTime(b),
+  }).rest;
+}
 import { assertNoAvoidedStopsRemain, filterAvoidedRestaurantBuckets } from './avoidStops.js';
 import { normalizeRevisits, applyRevisitNotes } from './revisitPolicy.js';
 
@@ -342,6 +366,8 @@ export function applyBackfillsAndTmoney(itinerary, ctx) {
     // P-launch (2026-05-31): 합성 호텔 stop 4lang tip + block_mode 정상 bookend 표시 suppress.
     language: ctx.language,
     blockMode: ctx.blockMode,
+    // 2026-10-26: 블록모드 휴식일 빈 Day1 → 체크인 숙소 1개(이후 cap → applyArrivalRestNote 가 이 숙소에 안내).
+    arrivalRestDay: arrivalRestDayFromCtx(ctx),
   });
 
   // ── #tour-end (2026-06-05): 종료 시각 cap — selfHealLodgingBookend "후" 적용 (권위 enforcer) ──
@@ -350,7 +376,16 @@ export function applyBackfillsAndTmoney(itinerary, ctx) {
   //   [호텔, 잔여 관광(20:00), 호텔] 로 bookend 재구성 → cap 빠져나감. bookend 추가 "후" 여기서 최종 trim.
   //   관광 start_time >= tour_end_time 제거, lodging/airport/travel 보존. RouteAgent stitch + selfHeal 후
   //   최종 시각 기준이라 9f9f37a1(20:15 인사동) + f80d7219(20:00 경복궁) 모두 enforce. T-money 전 호출 = 정합.
-  applyTourEndCap(itinerary, ctx.body?.tourEndTime);
+  //   2026-10-26: 종료 시각 = constants.resolveTourEndTime(camel 우선 + snake) — 게이트·안내와 같은 값.
+  applyTourEndCap(itinerary, resolveTourEndTime(ctx.body || {}));
+
+  // ── 2026-10-26 (운영자 승인): 도착 휴식일 안내 — cap "바로 뒤"(cap 으로 저녁이 빠진 경우 포함). Day1 food 0 일 때만.
+  //   휴식일 판정 = arrivalRestDayFromCtx(요청 입력 — 게이트 tripTimes 와 같은 값).
+  applyArrivalRestNote(itinerary, {
+    restDay: arrivalRestDayFromCtx(ctx),
+    tourEndTime: resolveTourEndTime(ctx.body || {}),
+    language: ctx.language,
+  });
 
   // ── T-money 서버 계산 ─────────────────────────────────────────────────
   calculateTmoney(itinerary);
@@ -364,9 +399,15 @@ export async function applyRecommendedRestaurants(itinerary, ctx) {
   const { area, dietPrefs, regions, blockModeUsed, language, styles, avoidStopNames } = ctx;
   // 2026-10-24 (식이 준수 P3): 종단 게이트의 필수 끼니 판정에 출국·도착 시각 — sync 경로는 shaped 값,
   //   worker 경로는 body(camel/snake) 에서 같은 방식으로 읽는다.
+  //   2026-10-26: 도착 휴식일 판정 입력(공항·도시·투어 종료) — 모든 실행 경로가 같은 값을 넘긴다.
   const tripTimes = tripTimesFrom({
     departureTime: ctx.departureTime || ctx.body?.departureTime || ctx.body?.departure_time,
     arrivalTime: ctx.arrivalTime || ctx.body?.arrivalTime || ctx.body?.arrival_time,
+    arrivalAirport: ctx.arrival_airport || ctx.body?.arrival_airport || ctx.body?.arrivalAirport,
+    area: ctx.area || ctx.body?.area,
+    regions: ctx.regions,
+    tourEndTime: ctx.tourEndTime || resolveTourEndTime(ctx.body || {}),
+    arrival_rest_day: arrivalRestDayFromCtx(ctx), // 2026-10-26: 게이트 휴식일 판정 = 요청 입력 기준 플래그
   });
   // 동선 5km 이내 + plan 미포함 식당 중 rating × log(reviews) 상위 10개씩.
   // dietPrefs 기준 per-style bucket: { general, vegan?, halal? } — 섞지 않음.

@@ -85,7 +85,7 @@ export function checkZeroFoodDays(itinerary, dietary) {
  *
  * @param {object} itinerary
  * @param {{language?: string, dietary?: string[], styles?: string[], foodIndex?: Array,
- *   tripTimes?: {departure_time?: string, arrival_time?: string}}} ctx
+ *   tripTimes?: {departure_time?: string, arrival_time?: string, arrival_airport?: string, area?: string, tour_end_time?: string}}} ctx
  * @returns {{ok: boolean, code: string|null, issues: Array, violations: Array, zeroFoodDays: Array, requiredMealIssues: string[]}}
  */
 export function runFinalItineraryValidation(itinerary, ctx = {}) {
@@ -127,13 +127,24 @@ export function failureDetailsOf(error) {
   return out.length ? out : undefined;
 }
 
-/** 운영 호출부용 — body/shaped 어느 쪽이든 출국·도착 시각을 snake 키로 (HH:MM). */
+/**
+ * 운영 호출부용 — body/shaped 어느 쪽이든 필수 끼니 판정 입력을 snake 키로.
+ *   departure_time / arrival_time / tour_end_time: HH:MM(앞 5자). arrival_airport: 그대로. area: area 또는 regions[0].
+ *   2026-10-26: 도착 휴식일(constants.arrivalRestDayInfo) 판정에 공항·도시·투어 종료 시각이 필요하다.
+ * @returns {{departure_time?: string, arrival_time?: string, arrival_airport?: string, area?: string, tour_end_time?: string}}
+ */
 export function tripTimesFrom(source) {
   const s = source && typeof source === 'object' ? source : {};
   const hhmm = (v) => (typeof v === 'string' && v ? v.slice(0, 5) : undefined);
+  const str = (v) => (typeof v === 'string' && v ? v : undefined);
   return {
     departure_time: hhmm(s.departure_time || s.departureTime),
     arrival_time: hhmm(s.arrival_time || s.arrivalTime),
+    arrival_airport: str(s.arrival_airport || s.arrivalAirport),
+    area: str(s.area || (Array.isArray(s.regions) ? s.regions[0] : undefined)),
+    tour_end_time: hhmm(s.tour_end_time || s.tourEndTime),
+    // 2026-10-26: 호출부가 요청 입력으로 계산한 휴식일 여부(boolean 일 때만) — validatePatternStructure 의 플래그 우선 경로.
+    ...(typeof s.arrival_rest_day === 'boolean' ? { arrival_rest_day: s.arrival_rest_day } : {}),
   };
 }
 

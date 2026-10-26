@@ -236,7 +236,7 @@ export function StopCard({ stop, lodgingRole, isOwner }: { stop: PlanStop; lodgi
       role="button"
       tabIndex={0}
       aria-expanded={expanded}
-      aria-label={`${cleanDisplayName || UNNAMED[lng] || 'Unnamed stop'}, ${stop.start_time}`}
+      aria-label={`${cleanDisplayName || UNNAMED[lng] || 'Unnamed stop'}${stop.start_time ? `, ${stop.start_time}` : ''}`}
       className="plan-night-stop ec-card relative cursor-pointer overflow-hidden p-0 transition-colors hover:border-ec-line-3"
       onClick={toggle}
       onKeyDown={(e) => {

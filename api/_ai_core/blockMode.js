@@ -38,9 +38,9 @@ import {
   // 도착·출국 계산 — buildPrompt(Gemini 경로)와 같은 값을 쓰기 위해 constants 로 옮겼다.
   // 거리 보정판(estimateAirportTransitMinFrom)은 출국일에만 배선돼 있었는데 도착일도
   // 같이 쓰게 되면서 leaf 로 올렸다(2026-08-04).
-  estimateAirportTransitMinFrom, hhmmToMin, arrivalReadyMinutes,
+  estimateAirportTransitMinFrom, hhmmToMin, arrivalReadyMinutes, arrivalRestDayInfo,
 } from './constants.js';
-import { repairAndParseJSON, normalizeRegionKey } from './responseValidator.js';
+import { repairAndParseJSON, normalizeRegionKey, arrivalRestDayCityKey } from './responseValidator.js';
 import { stopDuplicateKey } from './qualityMetrics.js';
 import { buildCityPerDayWithBookends } from '../_shared/plannerIntentV1.js';
 import { recordGeminiUsage } from '../_shared/apiUsageRecorder.js';
@@ -1289,6 +1289,12 @@ export function expandBlocksToItinerary(blockSelections, blocks, userInput) {
   // 출국 공항 — 출국일 컷과 공항 stop 생성에 쓴다. 미입력이면 입국 공항으로 왕복 가정
   // (departure_guide 를 만드는 아래 :1147 과 같은 폴백).
   const departureAirportInput = String(userInput?.departure_airport || arrivalAirportInput).trim();
+  // 2026-10-26 운영자 승인 휴식일 — handlerCore 공통 판정(userInput.arrival_rest_day) 우선, 없으면 같은 식(요청 도시 키)으로.
+  //   블록 도시로 따로 계산하지 않는다. 1일 여행은 휴식일 없음.
+  const totalDays = blockSelections.day_selections.length;
+  const restFlag = totalDays > 1 && (typeof userInput?.arrival_rest_day === 'boolean'
+    ? userInput.arrival_rest_day
+    : arrivalRestDayInfo({ arrivalTime, arrivalAirport: arrivalAirportInput, cityKey: arrivalRestDayCityKey({ arrivalCity: userInput?.arrival_city, regions: userInput?.regions, area }), tourEndTime }).rest);
 
   const days = [];
   for (const sel of blockSelections.day_selections) {
@@ -1317,7 +1323,9 @@ export function expandBlocksToItinerary(blockSelections, blocks, userInput) {
       const tourStartMin = hhmmToMin(tourStartTime);
       const capMin = hhmmToMin(tourEndTime);
       const effMin = readyMin === null ? tourStartMin : Math.max(tourStartMin, readyMin);
-      if (effMin >= capMin) {
+      // 2026-10-26 운영자 승인 휴식일 정의(도착 ≥18:00 또는 준비 ≥ 종료−60분, constants.arrivalRestDayInfo)와 통일 —
+      //   해당하면 기존 arrivalRestDay 경로(관광 0)를 그대로 탄다.
+      if (effMin >= capMin || (totalDays > 1 && restFlag)) {
         // 수속+이동 후 종료시간까지 투어 시간 없음 → Day1 = 호텔 휴식 (아래 cutoff 가 관광 stop 전부 trim).
         dayStart = tourEndTime;
         arrivalRestDay = true;
@@ -1981,6 +1989,12 @@ export function expandBlocksToItineraryMultiCity(blockSelections, cityBlocksList
   const activityDays = [];
   // 중복 식당 방지 (2026-06-02 plan 4d214e83): plan 전체 배정 식당명 추적 (단도시 expand 와 동일).
   const usedFoodNames = new Set();
+  // 2026-10-26 운영자 승인 휴식일 — 단도시 expand 와 같은 공통 판정(userInput.arrival_rest_day 우선, 없으면 요청 도시 키).
+  //   Day1 블록 도시(dayCityKey)로 따로 계산하지 않는다 — 다도시에서 공통 판정과 갈리던 것. 1일 여행은 휴식일 없음.
+  const totalDays = blockSelections.day_selections.length;
+  const restFlag = totalDays > 1 && (typeof userInput?.arrival_rest_day === 'boolean'
+    ? userInput.arrival_rest_day
+    : arrivalRestDayInfo({ arrivalTime, arrivalAirport: mcArrivalAirport, cityKey: arrivalRestDayCityKey({ arrivalCity: userInput?.arrival_city, regions: userInput?.regions, area: userInput?.area }), tourEndTime }).rest);
 
   const days = [];
   for (const sel of blockSelections.day_selections) {
@@ -2018,7 +2032,8 @@ export function expandBlocksToItineraryMultiCity(blockSelections, cityBlocksList
       const tourStartMin = hhmmToMin(tourStartTime);
       const capMin = hhmmToMin(tourEndTime);
       const effMin = readyMin === null ? tourStartMin : Math.max(tourStartMin, readyMin);
-      if (effMin >= capMin) {
+      // 2026-10-26 운영자 승인 휴식일 정의(constants.arrivalRestDayInfo)와 통일 — 단도시 expand 와 같은 조건.
+      if (effMin >= capMin || (totalDays > 1 && restFlag)) {
         dayStart = tourEndTime;
         arrivalRestDay = true;
       } else {

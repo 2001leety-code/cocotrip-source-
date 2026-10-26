@@ -1075,7 +1075,7 @@ export async function generatePDF(
         <table style="width:100%;border-collapse:collapse;">
           <tr>
             <td style="vertical-align:top;padding:0;">
-              <p style="font-size:13px;font-weight:700;color:${C.heading};margin:0;"><span style="color:${catBar};font-size:12px;">${stop.start_time || ''}</span> \u00B7 ${stop.display_name || stop.name_en || stop.name || stop.name_ko || ''}</p>
+              <p style="font-size:13px;font-weight:700;color:${C.heading};margin:0;">${stop.start_time ? `<span style="color:${catBar};font-size:12px;">${stop.start_time}</span> \u00B7 ` : ''}${stop.display_name || stop.name_en || stop.name || stop.name_ko || ''}</p>
               ${(stop.name || stop.name_ko) && (stop.display_name || stop.name_en) && (stop.name || stop.name_ko) !== (stop.display_name || stop.name_en) ? `<p style="font-size:10px;color:${C.muted};margin:2px 0 0;">${stop.name || stop.name_ko}</p>` : ''}
             </td>
             <td style="vertical-align:top;text-align:right;padding:0 0 0 8px;white-space:nowrap;">
