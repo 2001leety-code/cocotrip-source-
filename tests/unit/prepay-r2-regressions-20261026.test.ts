@@ -517,7 +517,7 @@ describe('r3 B/J/D/F — paid orders: owner → pinned input → coverage → cl
     const { checkStartDateTooSoon } = await import('../../api/_ai_core/validateStartDate.js');
     expect(checkStartDateTooSoon(body, false)).not.toBeNull(); // 면제 없으면 400 이던 상황
     expect(checkStartDateTooSoon(body, gate.isRevision || gate.prepayVerified === true)).toBeNull();
-    expect(read('api/_ai_core/handlerCore.js')).toContain('const tooSoon = checkStartDateTooSoon(body, gate.isRevision || gate.prepayVerified === true);');
+    expect(read('api/_ai_core/handlerCore.js')).toContain('checkStartDateTooSoon(body, gate.isRevision || gate.prepayVerified === true');
   });
   it('D: an OLD paid order pinned on first use is also verified; an un-normalizable legacy request is not', async () => {
     paidOrderFetch();
@@ -580,6 +580,35 @@ describe('r4 — legacy pin after coverage, atomic MANUAL use, coupon start date
     const codes = [a, b].map((r) => (r.rejection ? r.rejection.code : 'PASS')).sort();
     expect(codes).toEqual(['DUPLICATE_ORDER', 'PASS']);
   });
+  it('r5-3 (H1 repro): gate passes at KST 23:59:59.95, the coupon transaction crosses midnight → generation is not refused (coupon not lost)', async () => {
+    const realNow = Date.now.bind(Date);
+    let fake = Date.UTC(2026, 10, 1, 14, 59, 59, 950); // KST 2026-11-01 23:59:59.950
+    const spy = vi.spyOn(Date, 'now').mockImplementation(() => fake);
+    try {
+      const coupon: Dict = { code: 'FREE1', productScope: 'ai-plan', type: 'free', isUsed: false };
+      const ref = { __path: 'users/uid1/coupons/c1' };
+      const db = {
+        collection: () => ({ doc: () => ({ collection: () => ({ where: () => ({ limit: () => ({ get: async () => ({ empty: false, docs: [{ id: 'c1', ref, data: () => ({ ...coupon }) }] }) }) }) }) }) }),
+        runTransaction: async (fn: (tx: Dict) => Promise<unknown>) => {
+          fake += 100; // 쿠폰 커밋 중 자정 넘김
+          return fn({ get: async () => ({ exists: true, data: () => ({ ...coupon }) }), update: (_r: unknown, d: Dict) => { Object.assign(coupon, d); } });
+        },
+      };
+      const body = { ...input({ startDate: '2026-11-02', durationDays: 1 }), aiCouponCode: 'FREE1' };
+      const gate = await enforcePaymentAndRevision(body, db, 'u@e.x', 'uid1', { loadFoodIndex: async () => [HALAL_SEOUL] });
+      expect(gate.rejection).toBeUndefined();
+      expect(gate.isFreeAiCoupon).toBe(true);
+      // @ts-expect-error — JS 모듈
+      const { checkStartDateTooSoon } = await import('../../api/_ai_core/validateStartDate.js');
+      expect(checkStartDateTooSoon(body, false)).not.toBeNull(); // 면제가 없으면 400 + 쿠폰 소실이던 상황
+      expect(checkStartDateTooSoon(body, gate.isRevision || gate.prepayVerified === true || gate.isFreeAiCoupon === true)).toBeNull();
+      expect(read('api/_ai_core/handlerCore.js')).toContain('const tooSoon = checkStartDateTooSoon(body, gate.isRevision || gate.prepayVerified === true || gate.isFreeAiCoupon === true);');
+    } finally {
+      spy.mockRestore();
+      void realNow;
+    }
+  });
+
   it('r4-5 (couponday repro): free coupon with a start date of today → 400 before the coupon is touched', async () => {
     const db = memDb();
     const r = await enforcePaymentAndRevision({ ...input({ startDate: todayKST() }), aiCouponCode: 'FREE1' }, db, 'u@e.x', 'uid1', { loadFoodIndex: async () => [HALAL_SEOUL] });

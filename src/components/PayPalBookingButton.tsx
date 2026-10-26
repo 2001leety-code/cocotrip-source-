@@ -214,10 +214,16 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
   //   order is reconciled through the capture endpoint ({orderID} only). Cleared only on durable success or
   //   provider-proven nonpayment. While present: no new order, no SDK reload, no QR fallback.
   // 결제 뒤 이행(플랜 발급)까지 포인터를 유지하는 상품(AI 플래너)은 전용 범위 — 다른 상품 결제 버튼을 막지 않는다(r3).
-  const { recovery, remember, clearRecovery } = usePaymentRecovery('single', keepRecoveryUntilFulfilled ? PLANNER_RECOVERY_SCOPE : undefined);
+  const { recovery, pendingRef: recoveryRef, remember, clearRecovery } = usePaymentRecovery('single', keepRecoveryUntilFulfilled ? PLANNER_RECOVERY_SCOPE : undefined);
   const captureInFlight = useRef(false);
   const [reconciling, setReconciling] = useState(false);
   const rc = recoveryCopy(lang);
+  // r5: 결과를 기다리는 포인터 저장 — 새로 시작한 결제(fresh)만 이 화면의 상품·단건 흐름. 같은 주문 확인(복원 포인터)은 포인터의
+  //   원래 상품·흐름을 그대로 둔다(중간 단계 pending·review·auth·오류가 다른 상품 주문을 이 화면 상품으로 덮어 썼다 → final 때 거짓 확정).
+  function keepWaiting(orderID: string, fresh: boolean, state: { paymentStatus: 'CAPTURED' | 'CAPTURE_UNKNOWN' | 'NOT_CAPTURED'; review: boolean; authRequired?: boolean }) {
+    const restored = !fresh && recoveryRef.current && recoveryRef.current.orderID === orderID ? recoveryRef.current : null;
+    remember({ orderID, flow: restored ? restored.flow : 'single', productType: restored ? restored.productType : productType, ...state });
+  }
   async function applyCaptureOutcome(outcome: CaptureOutcome, orderID: string, fresh: boolean) {
     if (outcome.kind === 'final') {
       const result = outcome.data as { payerName?: string; payerEmail?: string; amount?: string };
@@ -252,22 +258,24 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
       return;
     }
     if (outcome.kind === 'review') {
-      remember({ orderID, flow: 'single', paymentStatus: outcome.captured ? 'CAPTURED' : 'NOT_CAPTURED', review: true, productType });
+      keepWaiting(orderID, fresh, { paymentStatus: outcome.captured ? 'CAPTURED' : 'NOT_CAPTURED', review: true });
       setPaymentReview({ orderID, captureID: outcome.captureID, paymentCaptured: outcome.captured });
       setShowPaypal(false); setLoading(false); setRateInfo(null);
       return;
     }
-    if (outcome.kind === 'pending') { remember({ orderID, flow: 'single', paymentStatus: outcome.status, review: false, productType }); setShowPaypal(false); setRateInfo(null); return; }
+    if (outcome.kind === 'pending') { keepWaiting(orderID, fresh, { paymentStatus: outcome.status, review: false }); setShowPaypal(false); setRateInfo(null); return; }
     if (outcome.kind === 'auth_required') {
       // 403 is answered before the provider is called: no money moved. A fresh order from this page session
       // must not lock the whole flow (2026-10-10 R2); only a restored pointer keeps the "same device" notice.
       if (fresh) { clearRecovery(orderID); setError(rc.authRequired); setShowPaypal(false); buttonsRendered.current = false; return; }
-      remember({ orderID, flow: 'single', paymentStatus: 'CAPTURE_UNKNOWN', review: false, authRequired: true, productType }); setShowPaypal(false); setRateInfo(null); return;
+      keepWaiting(orderID, fresh, { paymentStatus: 'CAPTURE_UNKNOWN', review: false, authRequired: true }); setShowPaypal(false); setRateInfo(null); return;
     }
     if (outcome.kind === 'not_captured') {
       const prepayMsg = plannerPrepayMessage(p, outcome.preCaptureCode, outcome.message);
       clearRecovery(orderID);
-      if (prepayMsg && qrSession) setError(rc.warn); // r4: QR 노출 뒤 — 미결제 단정·신고 경로 숨김 금지
+      // r4/r5: QR 을 한 번 보여 준 흐름이면 별도 SDK 주문의 어떤 '미결제' 응답(사전 거부·order-VOIDED·no_attempt_record …)도
+      //   "다시 결제할 수 있어요/결제 안 됨" 으로 안내하지 않는다 — 손님이 QR 로 송금했을 수 있다. 다시 결제 금지 + QR 신고 경로 유지.
+      if (qrSession) setError(rc.warn);
       else { setError(prepayMsg || outcome.message); setQrBlocked(!!prepayMsg); }
       setShowPaypal(false); buttonsRendered.current = false; return;
     }
@@ -282,7 +290,7 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
       if (evidence.kind === 'not_captured') { clearRecovery(orderID); return; }
       if (evidence.kind === 'final' || evidence.kind === 'review' || evidence.kind === 'refunded') { await applyCaptureOutcome(evidence, orderID, false); return; }
     }
-    remember({ orderID, flow: 'single', paymentStatus: 'CAPTURE_UNKNOWN', review: false, productType });
+    keepWaiting(orderID, fresh, { paymentStatus: 'CAPTURE_UNKNOWN', review: false });
   }
   async function checkSameOrder() {
     if (!recovery || reconciling) return;

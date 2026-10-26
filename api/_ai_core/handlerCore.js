@@ -173,8 +173,8 @@ export default async function handler(req, res) {
     issuance.adopt(gate);  // P0: 게이트가 선점한 발급권 흡수 (유료 PayPal 경로만)
 
     // ── AI 플래너 출발일 검증 (day1=오늘 불가, 내일 이후만). 로직=validateStartDate.js (P129 handlerCore 슬림). ──
-    //   결제·소유자·고정 지문이 검증된 주문(gate.prepayVerified)은 면제 — 출발일은 결제 전 create·capture 가 검사했다(자정 넘김 결제 주문 보호).
-    const tooSoon = checkStartDateTooSoon(body, gate.isRevision || gate.prepayVerified === true);
+    //   면제: 결제·소유자·고정 지문 검증 주문(prepayVerified — create·capture 가 검사), 무료 쿠폰(isFreeAiCoupon — 게이트가 소비 직전 검사, 자정 경합 시 쿠폰 소실 방지).
+    const tooSoon = checkStartDateTooSoon(body, gate.isRevision || gate.prepayVerified === true || gate.isFreeAiCoupon === true);
     if (tooSoon) {
       console.warn('[ai-planner-full] day1 today rejected:', tooSoon.reqStartDate, 'today KST:', tooSoon.todayKST);
       await issuance.releaseIfUnused(adminDb, false, 'start-date-rejected');  // P0: 생성 전 거부 → 재시도 가능
