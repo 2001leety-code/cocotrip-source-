@@ -13,3 +13,17 @@ export const DEPARTURE_BREAKFAST_NOTE = {
 export function departureBreakfastNote(language) {
   return DEPARTURE_BREAKFAST_NOTE[language] || DEPARTURE_BREAKFAST_NOTE.en;
 }
+
+/** 2026-10-26: 이 stop 에 출국 조식 안내가 붙어 있나(planPersister.applyDepartureBreakfastNote 표식). */
+export function hasBreakfastNote(stop) {
+  return !!stop && ((typeof stop.breakfast_note === 'string' && !!stop.breakfast_note) || stop._breakfast_note === true);
+}
+
+/** tip 문자열에서 조식 안내 고정 문장(4개 언어 + extra)만 뗀 결과(양끝 공백 정리). 원본 무변(순수). */
+export function stripBreakfastNoteText(tip, extra) {
+  if (typeof tip !== 'string') return tip;
+  const notes = [...new Set([extra, ...Object.values(DEPARTURE_BREAKFAST_NOTE)])].filter((n) => typeof n === 'string' && n);
+  let out = tip;
+  for (const n of notes) out = out.split(` ${n}`).join('').split(n).join('');
+  return out.trim();
+}

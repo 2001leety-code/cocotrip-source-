@@ -8,6 +8,7 @@ import { formatKRW } from '../constants';
 import { useLanguage } from '@/hooks/useLanguage';
 import type { PlanDocument } from '../types';
 import { getPlanDetailDict } from '../types';
+import { noMealStopsInfo } from '../lib/userPlanNotices';
 
 // 차량 내부키 → 고객용 라벨 (vehicleLabel[백엔드 humanize] 없을 때만 폴백 — staria_8 같은 raw 키 노출 방지).
 const VEHICLE_LABELS: Record<string, string> = {
@@ -61,6 +62,17 @@ export function IntroSlide({ plan, planId, isTranslating, translationError, isOw
     ? [whatsAppLabel.slice(0, whatsAppSplitAt), whatsAppLabel.slice(whatsAppSplitAt)]
     : null;
 
+  // 2026-10-26: 2일+ 여행 식사 stop 0 — 접히지 않는 안내(자동 보정 패널과 별개). 원인은 확인될 때만 붙인다.
+  const noMeal = noMealStopsInfo(it as never, input as never);
+  const nm = ((pd as unknown as { noMealNotice?: Record<string, string> }).noMealNotice) || {};
+  const noMealReasons = [
+    noMeal.lateArrival ? (nm.lateArrival || 'late arrival') : '',
+    noMeal.earlyDeparture ? (nm.earlyDeparture || 'early departure') : '',
+  ].filter(Boolean).join(nm.joiner || ' · ');
+  const noMealText = noMealReasons
+    ? String(nm.withReasons || 'This itinerary has no meal stops ({{reasons}}).').replace('{{reasons}}', noMealReasons)
+    : (nm.plain || 'This itinerary has no meal stops.');
+
   const tMoneyLoad = Number(it.t_money_recommended_load);
   const hasTMoneyLoad = Number.isFinite(tMoneyLoad) && tMoneyLoad > 0;
 
@@ -87,6 +99,11 @@ export function IntroSlide({ plan, planId, isTranslating, translationError, isOw
         {localizedRegions.length > 1 && (
           <p className="mt-1.5 text-[14px] font-semibold tracking-wide text-ec-ink-2">
             {localizedRegions.join('  →  ')}
+          </p>
+        )}
+        {noMeal.show && (
+          <p className="mt-3 border-l-2 border-ec-line-2 bg-ec-sunken px-3 py-2.5 text-[13px] leading-relaxed text-ec-ink-2" role="note" data-testid="plan-intro-no-meal">
+            {noMealText}
           </p>
         )}
       </div>

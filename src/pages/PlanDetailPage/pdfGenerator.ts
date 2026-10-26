@@ -22,7 +22,7 @@ import type { PlanDocument, PlanDay, PlanStop, BudgetRow } from './types';
 import { buildActivityMetaHtml } from '@/lib/activityMetaLabels';
 import { buildActivityGuideHtml } from '@/lib/activityGuides';
 import { preparePdfFonts } from '@/lib/pdfFonts';
-import { arrivalRestNote, arrivalRestTomorrowLine, isArrivalRestDay1 } from '@/lib/arrivalRestNote.js';
+import { arrivalRestNote, arrivalRestTomorrowLine, isArrivalRestDay1, nextDayStartTime } from '@/lib/arrivalRestNote.js';
 
 // Sprint 1 Step 4 — 카테고리별 카드 좌측 accent bar 색 (web `CAT_COLORS.bar` parity, #136).
 // PDF는 dark theme 토큰을 못 쓰므로 web bar gradient의 진한 쪽 hex 만 추출.
@@ -757,12 +757,11 @@ export async function generatePDF(
       inputRestDay: (input as { arrival_rest_day?: unknown }).arrival_rest_day,
       totalDays: days.length,
     })) {
-      const tourStart = (input as { tour_start_time?: string; tourStartTime?: string }).tour_start_time
-        || (input as { tour_start_time?: string; tourStartTime?: string }).tourStartTime
-        || '09:00';
+      // "내일 시작" = 다음날 실제 첫 stop 시각(화면 DayTimeline 과 같은 함수). 없으면 줄 생략(기본 09:00 단정 금지).
+      const nextStart = nextDayStartTime(days, di);
       html += `<div style="margin-bottom:14px;background:rgba(124,92,252,0.06);border:1px solid rgba(124,92,252,0.25);border-radius:6px;padding:10px 12px;page-break-inside:avoid;break-inside:avoid;">
         <p style="font-size:12px;font-weight:700;color:${C.accent};margin:0 0 4px;">🌙 ${arrivalRestNote(lang)}</p>
-        <p style="font-size:10.5px;color:${C.muted};margin:0;line-height:1.5;">${arrivalRestTomorrowLine(lang, tourStart)}</p>
+        ${nextStart ? `<p style="font-size:10.5px;color:${C.muted};margin:0;line-height:1.5;">${arrivalRestTomorrowLine(lang, nextStart)}</p>` : ''}
       </div>`;
     }
 

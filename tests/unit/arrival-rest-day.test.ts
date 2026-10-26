@@ -452,11 +452,17 @@ describe('wiring (source)', () => {
     // 2026-10-26 r4: 저장된 input.arrival_rest_day(boolean) 우선, 옛 플랜만 재계산(2일 이상).
     expect(read('api/ai-planner-modify.js')).toMatch(/const arrivalRestDay = typeof planData\.input\?\.arrival_rest_day === 'boolean'[\s\S]*?\? planData\.input\.arrival_rest_day[\s\S]*?: \(itinerary\.days\.length > 1 && arrivalRestDayInfo\(\{[\s\S]*?tourEndTime: resolveTourEndTime\(/);
   });
-  it('the boundary values live only in constants.js (no duplicated 18:00 / −60 rule elsewhere)', () => {
+  it('the boundary values live only in src/lib/arrivalRestRules.js, re-exported by constants.js (no duplicated 18:00 / −60 rule elsewhere)', () => {
     for (const f of ['api/_ai_core/responseValidator.js', 'api/_shared/llm/mock.js', 'api/_ai_core/planPersister.js']) {
       expect(read(f), f).toMatch(/arrivalRestDayInfo\(/);
       expect(read(f), f).not.toMatch(/REST_DAY_TOUR_END_MARGIN_MIN|tourEndMin - 60/);
     }
+    const rules = read('src/lib/arrivalRestRules.js');
+    expect(rules).toContain('export const REST_DAY_LATE_ARRIVAL_MIN = 18 * 60;');
+    expect(rules).toContain('export const REST_DAY_TOUR_END_MARGIN_MIN = 60;');
+    const constants = read('api/_ai_core/constants.js');
+    expect(constants).toContain("from '../../src/lib/arrivalRestRules.js';");
+    expect(constants).not.toMatch(/export const REST_DAY_(LATE_ARRIVAL|TOUR_END_MARGIN)_MIN\s*=/);
   });
 });
 

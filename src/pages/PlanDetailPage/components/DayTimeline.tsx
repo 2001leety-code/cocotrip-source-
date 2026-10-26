@@ -24,7 +24,7 @@ import type { PlanDay, PlanStop, PlanDocument, IntercityTransitSegment } from '.
 import { getPlanDetailDict } from '../types';
 import type { TransitFromPrev } from '@/types/plan';
 import { dayLabelParts, formatDayLabel } from '../lib/dayLabel';
-import { hasArrivalRestNote } from '@/lib/arrivalRestNote.js';
+import { hasArrivalRestNote, isArrivalRestDay1, nextDayStartTime } from '@/lib/arrivalRestNote.js';
 
 interface DayTimelineProps {
   day: PlanDay;
@@ -132,11 +132,17 @@ export function DayTimeline({ day, dayIndex, editMode, isRecalculating, onDelete
   // 'placesUnit' (곳/places) 사용 — pd.transit.stops 는 지하철 정거장 의미라 부적절
   // placesUnit 은 planDetail 이 아닌 planner 네임스페이스에 존재.
   const stopCountLabel = ((t as unknown as { planner?: { placesUnit?: string } }).planner?.placesUnit) || 'places';
-  const tourStartTime = (plan?.input as { tour_start_time?: string; tourStartTime?: string } | undefined)?.tour_start_time
-    || (plan?.input as { tour_start_time?: string; tourStartTime?: string } | undefined)?.tourStartTime
-    || '09:00';
-  const arrivalOnlyHint = String(pd.day1ArrivalOnlyHint || 'Your tour starts tomorrow at {{time}}.')
-    .replace('{{time}}', tourStartTime);
+  // 2026-10-26: 휴식 카드 = PDF 와 같은 공통 판정(isArrivalRestDay1 — 2일+ 여행, Day1 숙소·공항·이동뿐, 휴식 안내 또는
+  //   저장 플래그). "내일 시작" 줄은 기본 09:00 이 아니라 다음날 실제 첫 stop 시각, 없으면 생략.
+  const planDays = (plan?.itinerary?.days || []) as PlanDay[];
+  const showArrivalRestCard = (day.day === 1 || dayIndex === 0) && isArrivalRestDay1(stops, {
+    inputRestDay: (plan?.input as { arrival_rest_day?: unknown } | undefined)?.arrival_rest_day,
+    totalDays: planDays.length,
+  });
+  const nextStart = nextDayStartTime(planDays, dayIndex);
+  const arrivalOnlyHint = nextStart
+    ? String(pd.day1ArrivalOnlyHint || 'Your tour starts tomorrow at {{time}}.').replace('{{time}}', nextStart)
+    : '';
 
   // B9-39 (2026-05-09): 다도시 plan 의 도시 라벨 + 도시 간 이동 카드 데이터.
   // city 가 있으면 Day 헤더에 chip 으로 표시; legacy plan = undefined → 미노출.
@@ -289,9 +295,9 @@ export function DayTimeline({ day, dayIndex, editMode, isRecalculating, onDelete
       )}
 
       {/* P239 (2026-05-27): Day 1 = lodging only 안내 — 운영자 architectural fix.
-          새벽 도착 시 호텔만 transit + 다음날 09:00 (tour_start_time) 부터 stops 시작.
-          첫날의 유일한 stop 이 lodging 일 때만 노출 (일반 1-stop 일정에 허위 안내 금지). */}
-      {(day.day === 1 || dayIndex === 0) && stops.length === 1 && stops[0]?.category === 'lodging' && (
+          2026-10-26: 조건 = 실제 도착 휴식일(isArrivalRestDay1, PDF 와 동일). 장소 수만 보지 않는다
+          (1일 여행·숙소 2개인 휴식일 오판 방지). "내일 시작" 줄은 다음날 실제 첫 stop 시각, 없으면 생략. */}
+      {showArrivalRestCard && (
         <div className="mb-4 border-l-2 border-ec-line-2 bg-ec-sunken px-4 py-3.5">
           <div className="flex items-start gap-2.5">
             <span className="text-lg leading-none">🌙</span>
@@ -299,9 +305,11 @@ export function DayTimeline({ day, dayIndex, editMode, isRecalculating, onDelete
               <p className="mb-1 text-[14px] font-semibold text-ec-ink">
                 {pd.day1ArrivalOnlyTitle || 'Late arrival? Rest at your hotel'}
               </p>
-              <p className="text-[13px] leading-relaxed text-ec-ink-2">
-                {arrivalOnlyHint}
-              </p>
+              {arrivalOnlyHint && (
+                <p className="text-[13px] leading-relaxed text-ec-ink-2">
+                  {arrivalOnlyHint}
+                </p>
+              )}
             </div>
           </div>
         </div>

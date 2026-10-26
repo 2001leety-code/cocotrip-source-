@@ -24,8 +24,8 @@
 import { createLlmModel, runWithLlmContext, wantsLlmMock } from './_shared/llm/index.js';
 import { initAdminDb } from './_shared/firebase-admin.js';
 import { checkIpRateLimit, getClientIp } from './_shared/ip-rate-limit.js';
-import { stripRevisitNote } from '../src/lib/revisitNote.js';
 import { applyRevisitNotes } from './_ai_core/revisitPolicy.js';
+import { stripFixedTipNotes, reattachFixedTipNotes } from '../src/lib/fixedTipNotes.js';
 const _rateDb = initAdminDb('translate-plan');
 
 export const maxDuration = 60;
@@ -123,7 +123,8 @@ async function translateHandler(req, res) {
             TRANSLATE_FIELDS.forEach(f => {
               if (stop[f] && typeof stop[f] === 'string') {
                 // 2026-10-24 재방문 안내(R6): tip 에서 고정 안내를 떼고 본문만 번역 → 아래에서 대상 언어 문장 부착(의역 중복 방지).
-                const text = (f === 'tip' || f === 'tip_en') ? stripRevisitNote(stop[f], stop.revisit_note) : stop[f];
+                // 2026-10-26: 도착 휴식·출국 조식 안내도 같은 방식(번역 전 떼고 → 번역 후 대상 언어 고정 문구 재부착).
+                const text = (f === 'tip' || f === 'tip_en') ? stripFixedTipNotes(stop[f], stop) : stop[f];
                 if (!text) return;
                 descTexts.push(text);
                 descMapping.push({ section: 'stop', dayIdx: di, stopIdx: si, field: f });
@@ -328,6 +329,8 @@ ${JSON.stringify({ descriptive: descTexts, transit: transitTexts })}`;
       }
     } catch (e) { console.warn('[translate-plan] sanitize fail:', e.message); }
 
+    // 2026-10-26: 도착 휴식·출국 조식 안내 — 표식이 있는 stop 만, 번역된 본문 뒤에 대상 언어 고정 문장(휴식 → 조식 순).
+    reattachFixedTipNotes(result_plan, targetLang);
     // 2026-10-24 재방문 안내: 번역된 본문 뒤에 대상 언어 고정 문장(revisit: true food stop 만, 기존 안내는 제거 후).
     applyRevisitNotes(result_plan, { language: targetLang });
 

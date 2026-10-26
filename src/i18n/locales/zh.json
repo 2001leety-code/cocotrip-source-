@@ -1275,6 +1275,7 @@
     "wizardDepartureDifferentNote": "与到达机场不同 — 行程将相应规划",
     "wizardNextGenerate": "下一步: 确认内容",
     "wizardReviewTitle": "确认行程信息",
+    "wizardNoMealHint": "由于是 18:00 后抵达、11:00 前离境的两天行程，行程中可能不包含用餐地点（第一天在酒店休息，离境日早餐请在酒店或机场解决）。",
     "wizardDestination": "目的地",
     "wizardDates": "日期",
     "wizardAirport": "机场",
@@ -1905,8 +1906,14 @@
       "arrivalAirportOverridden": "到达机场航站楼以输入值为准自动校正 (T1/T2 mismatch 防止)",
       "departureAirportOverridden": "出发机场航站楼以输入值为准自动校正 (T1/T2 mismatch 防止)",
       "dietaryCoverageLow": "饮食限制 (清真/纯素/素食) 匹配餐厅不足 — 建议访问前再次确认菜单",
-      "dailyBudgetSelfHealed": "每日预算估算自动生成 (按人数计算)",
-      "noMealStops": "此行程不包含用餐地点（抵达较晚·出发较早）。"
+      "dailyBudgetSelfHealed": "每日预算估算自动生成 (按人数计算)"
+    },
+    "noMealNotice": {
+      "plain": "此行程不包含用餐地点。",
+      "withReasons": "此行程不包含用餐地点（{{reasons}}）。",
+      "lateArrival": "抵达较晚",
+      "earlyDeparture": "出发较早",
+      "joiner": "·"
     }
   },
   "mypage": {

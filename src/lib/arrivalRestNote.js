@@ -20,7 +20,42 @@ export function hasArrivalRestNote(stop) {
   return !!stop && ((typeof stop.arrival_rest_note === 'string' && !!stop.arrival_rest_note) || stop._arrival_rest_note === true);
 }
 
+/** tip 문자열에서 휴식 안내 고정 문장(4개 언어 + extra)만 뗀 결과(양끝 공백 정리). 원본 무변(순수). */
+export function stripArrivalRestText(tip, extra) {
+  if (typeof tip !== 'string') return tip;
+  const notes = [...new Set([extra, ...Object.values(ARRIVAL_REST_NOTE)])].filter((n) => typeof n === 'string' && n);
+  let out = tip;
+  for (const n of notes) out = out.split(` ${n}`).join('').split(n).join('');
+  return out.trim();
+}
+
+/**
+ * 붙였던 도착 휴식일 안내만 정확히 뗀다 — tip 에서 고정 문장(저장된 arrival_rest_note + 4개 언어 문구)만 제거하고
+ * arrival_rest_note·_arrival_rest_note 삭제. 손님/모델이 쓴 나머지 tip 은 그대로(공백 정리는 양끝만). 표식 없는 stop 은 무변.
+ * 서버(planPersister.applyArrivalRestNote)·화면 편집 저장(usePlanEditor)·번역(translate-plan) 공용.
+ * @returns {boolean} 뗐으면 true
+ */
+export function stripArrivalRestNote(stop) {
+  if (!hasArrivalRestNote(stop)) return false;
+  const tip = stripArrivalRestText(typeof stop.tip === 'string' ? stop.tip : '', stop.arrival_rest_note);
+  if (tip) stop.tip = tip;
+  else delete stop.tip;
+  delete stop.arrival_rest_note;
+  delete stop._arrival_rest_note;
+  return true;
+}
+
 const STRUCTURAL = new Set(['lodging', 'airport', 'travel']);
+
+/** Day1 이 숙소·공항·이동뿐이 아니면(식당·관광이 생김) Day1 의 휴식 안내를 뗀다(화면 편집 저장 직전 재판정). @returns {boolean} */
+export function stripArrivalRestNoteIfDay1Active(itinerary) {
+  const day1 = Array.isArray(itinerary?.days) ? itinerary.days[0] : null;
+  const stops = Array.isArray(day1?.stops) ? day1.stops : [];
+  if (stops.every((s) => STRUCTURAL.has(s?.category))) return false;
+  let changed = false;
+  for (const s of stops) changed = stripArrivalRestNote(s) || changed;
+  return changed;
+}
 
 /**
  * 2026-10-26: 실제 도착 휴식일 Day1 인가 — 2일 이상 여행 + Day1 이 숙소·공항·이동뿐 + (휴식 안내가 붙은 stop 이 있거나
@@ -45,4 +80,15 @@ export const ARRIVAL_REST_TOMORROW = {
 
 export function arrivalRestTomorrowLine(language, time) {
   return (ARRIVAL_REST_TOMORROW[language] || ARRIVAL_REST_TOMORROW.en).replace('{time}', String(time || '09:00'));
+}
+
+/**
+ * 다음날 실제 첫 stop 시각(엄격 HH:MM) — 없거나 형식이 다르면 ''(그때 "내일 시작" 줄 생략).
+ * 기본 09:00 을 쓰지 않는다: 다음날이 06:30 숙소·07:00 공항이면 "내일 09:00 시작" 은 틀린 말.
+ */
+export function nextDayStartTime(days, dayIndex) {
+  const next = Array.isArray(days) ? days[Number(dayIndex) + 1] : null;
+  const first = Array.isArray(next?.stops) ? next.stops[0] : null;
+  const t = String(first?.start_time || '').trim();
+  return /^([01]\d|2[0-3]):[0-5]\d$/.test(t) ? t : '';
 }

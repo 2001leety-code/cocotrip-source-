@@ -174,7 +174,9 @@ describe('modify API and translation wiring', () => {
   });
   it('translate-plan: note stripped before translation, target-language note attached after', () => {
     const src = read('api/translate-plan.js');
-    expect(src).toMatch(/\(f === 'tip' \|\| f === 'tip_en'\) \? stripRevisitNote\(stop\[f\], stop\.revisit_note\) : stop\[f\]/);
+    // 2026-10-26: 재방문 + 도착 휴식 + 출국 조식 고정 안내를 한 번에 떼는 stripFixedTipNotes(내부에서 stripRevisitNote 사용).
+    expect(src).toMatch(/\(f === 'tip' \|\| f === 'tip_en'\) \? stripFixedTipNotes\(stop\[f\], stop\) : stop\[f\]/);
+    expect(read('src/lib/fixedTipNotes.js')).toContain('stripRevisitNote(tip, stop.revisit_note)');
     expect(src).toMatch(/applyRevisitNotes\(result_plan, \{ language: targetLang \}\);/);
   });
   it('pipelines: notes follow normalization at the final gate and after background pass3', () => {

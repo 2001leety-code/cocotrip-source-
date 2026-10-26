@@ -11,7 +11,7 @@ import { throttledTelegramAlert } from '../_shared/telegram-throttle.js';
 import { detectPaymentSource, isAdminBypassOrderId, isOperatorTestEmail } from '../_shared/admin-bypass-detector.js';
 import { beginPlanCommit, finalizePlanIssuance } from '../_shared/plan-issuance.js';
 import { departureBreakfastNote } from '../../src/lib/departureBreakfastNote.js';
-import { arrivalRestNote, hasArrivalRestNote, ARRIVAL_REST_NOTE } from '../../src/lib/arrivalRestNote.js';
+import { arrivalRestNote, stripArrivalRestNote } from '../../src/lib/arrivalRestNote.js';
 
 /**
  * P112 (2026-05-20): end_time backfill. plan 4792076e dump 결과 29/29 stops 의
@@ -318,23 +318,8 @@ export function applyArrivalRestNote(itinerary, { restDay, arrivalTime, arrivalA
   return true;
 }
 
-/**
- * 붙였던 도착 휴식일 안내만 정확히 뗀다 — tip 에서 고정 문장(저장된 arrival_rest_note + 4개 언어 문구)만 제거하고
- * arrival_rest_note·_arrival_rest_note 삭제. 손님/모델이 쓴 나머지 tip 은 그대로(공백 정리는 양끝만). 표식 없는 stop 은 무변.
- * @returns {boolean} 뗐으면 true
- */
-export function stripArrivalRestNote(stop) {
-  if (!hasArrivalRestNote(stop)) return false;
-  const notes = [...new Set([stop.arrival_rest_note, ...Object.values(ARRIVAL_REST_NOTE)])].filter((n) => typeof n === 'string' && n);
-  let tip = typeof stop.tip === 'string' ? stop.tip : '';
-  for (const n of notes) tip = tip.split(` ${n}`).join('').split(n).join('');
-  tip = tip.trim();
-  if (tip) stop.tip = tip;
-  else delete stop.tip;
-  delete stop.arrival_rest_note;
-  delete stop._arrival_rest_note;
-  return true;
-}
+// 붙였던 안내만 정확히 떼는 함수 — 화면 편집 저장(usePlanEditor)도 같이 쓰도록 브라우저 안전 leaf 로 옮겼다.
+export { stripArrivalRestNote };
 
 // P156 (2026-05-22): 동네/랜드마크 → 도시 매핑. P152 의 도시명 매칭이 못 잡는
 // "황리단길 호텔" (Gyeongju 동네명만 있고 "경주" 미명시) 같은 케이스 보강.

@@ -1275,6 +1275,7 @@
     "wizardDepartureDifferentNote": "입국과 다른 공항입니다 — 일정에 반영됩니다",
     "wizardNextGenerate": "다음: 내용 확인",
     "wizardReviewTitle": "여행 정보 확인",
+    "wizardNoMealHint": "도착이 18시 이후이고 출국이 11시 전인 2일 일정이라 식사 장소가 일정에 들어가지 않을 수 있어요(첫날은 호텔 휴식, 출국일 조식은 호텔·공항에서).",
     "wizardDestination": "목적지",
     "wizardDates": "일정",
     "wizardAirport": "공항",
@@ -1905,8 +1906,14 @@
       "arrivalAirportOverridden": "도착 공항 터미널 입력값 기준 자동 정정 (T1/T2 mismatch 차단)",
       "departureAirportOverridden": "출발 공항 터미널 입력값 기준 자동 정정 (T1/T2 mismatch 차단)",
       "dietaryCoverageLow": "식이제한 (할랄·비건·채식) 매칭 식당 부족 — 방문 전 메뉴 재확인 권장",
-      "dailyBudgetSelfHealed": "일별 예산 추정값 자동 생성 (인원수 곱셈)",
-      "noMealStops": "이 일정에는 식사 장소가 들어 있지 않아요(늦은 도착·이른 출국)."
+      "dailyBudgetSelfHealed": "일별 예산 추정값 자동 생성 (인원수 곱셈)"
+    },
+    "noMealNotice": {
+      "plain": "이 일정에는 식사 장소가 들어 있지 않아요.",
+      "withReasons": "이 일정에는 식사 장소가 들어 있지 않아요({{reasons}}).",
+      "lateArrival": "늦은 도착",
+      "earlyDeparture": "이른 출국",
+      "joiner": "·"
     }
   },
   "mypage": {
