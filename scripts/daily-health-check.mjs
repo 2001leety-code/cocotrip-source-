@@ -101,6 +101,9 @@ function runValidatePlanner() {
         // diversity 리포트 자체가 없거나(구버전) ok:false 면 통과가 아니라 실패 — skip 은 허용 안 함.
         diversity_ok: diversity ? diversity.ok !== false : false,
         diversity_reason: diversity ? diversity.reason : '다양성 리포트 없음 — validate-planner report 형식 확인 필요',
+        // 2026-10-26: 확인된 mock 실행이면 미평가(실패 판정 제외). 표시는 남긴다.
+        diversity_evaluated: diversity ? diversity.evaluated !== false : true,
+        diversity_note: diversity && diversity.note ? diversity.note : null,
         issue_breakdown: (report.results || []).reduce((acc, r) => {
           for (const iss of (r.issues || [])) {
             acc[iss.type] = (acc[iss.type] || 0) + 1;
@@ -209,6 +212,7 @@ async function main() {
     no_departure_overrun: gate.no_departure_overrun,
     all_generations_succeeded: gate.all_generations_succeeded,
     diversity_ok: gate.diversity_ok,
+    diversity_evaluated: validation.diversity_evaluated !== false,
     fail_reasons: gate.reasons,
   };
 
@@ -221,7 +225,7 @@ async function main() {
   console.log(`${'═'.repeat(50)}`);
   console.log(`  Endpoints: ${pings.filter(p => p.ok).length}/${pings.length} OK`);
   console.log(`  Planner issues: ${validation.total_issues != null ? validation.total_issues : 'N/A'} (threshold: ≤ 9)`);
-  console.log(`  Diversity overlap: ${validation.diversity_overlap != null ? validation.diversity_overlap : 'N/A'}% (threshold: < 30, diversity_ok=${record.diversity_ok})`);
+  console.log(`  Diversity overlap: ${validation.diversity_overlap != null ? validation.diversity_overlap : 'N/A'}% (threshold: < 30, diversity_ok=${record.diversity_ok}${record.diversity_evaluated === false ? ', 미평가 — 가짜 AI 실행' : ''})`);
   // 0 을 'N/A' 로 뭉개면 안 된다 — `|| 'N/A'` 가 아니라 명시 비교.
   console.log(`  출국일 항공 마감 초과: ${validation.departure_overrun_total == null ? 'N/A' : validation.departure_overrun_total}건 (임계값 0)`);
   console.log(`  생성 성공: ${validation.success_count != null ? validation.success_count : 'N/A'}/${validation.total_scenarios != null ? validation.total_scenarios : 'N/A'} (전량 성공 필요)`);

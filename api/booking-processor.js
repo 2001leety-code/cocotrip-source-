@@ -24,6 +24,7 @@ import { appendBooking, updateBookingStatus } from './_google-sheets.js';
 // 직접 호출은 미사용. _telegram.js / _ai-employees.js 의 export 는 다른 파일이 사용하므로 유지.
 import { sendDispatchAlert, sendBookingPaymentAlert, sendErrorAlert } from './_telegram.js';
 import { throttledTelegramAlert } from './_shared/telegram-throttle.js';
+import { escapeTelegram } from './_shared/escape.js';
 import { notify } from './_shared/notify.js';
 import { safeParseAmountUSD } from './_shared/amount-guard.js';
 
@@ -314,10 +315,10 @@ const originalHandler = async (event) => {
     notify('booking', [
       '🟢 <b>어드민 테스트 예약 생성 (결제 우회)</b>',
       '',
-      `<b>orderID:</b> <code>${orderID}</code>`,
-      `<b>상품:</b> ${product || '(미지정)'}`,
-      `<b>날짜:</b> ${tourDate || '(미지정)'}`,
-      `<b>결제자:</b> ${payerEmail}`,
+      `<b>orderID:</b> <code>${escapeTelegram(orderID)}</code>`,
+      `<b>상품:</b> ${escapeTelegram(product || '(미지정)')}`,
+      `<b>날짜:</b> ${escapeTelegram(tourDate || '(미지정)')}`,
+      `<b>결제자:</b> ${escapeTelegram(payerEmail)}`,
       '',
       '<i>ADMIN-BYPASS- prefix — 실제 결제 없이 예약 흐름 E2E 테스트용</i>',
     ].join('\n')).catch((e) => console.warn('[booking-processor] bypass telegram notify 실패:', e.message));
@@ -365,10 +366,10 @@ const originalHandler = async (event) => {
       message: [
         '🚨 <b>booking amount malformed — $0 으로 진행</b>',
         '',
-        `<b>OrderID:</b> <code>${orderID}</code>`,
-        `<b>BookingRef:</b> <code>${bookingRef}</code>`,
+        `<b>OrderID:</b> <code>${escapeTelegram(orderID)}</code>`,
+        `<b>BookingRef:</b> <code>${escapeTelegram(bookingRef)}</code>`,
         `<b>Raw amount:</b> <code>${String(amount).slice(0, 100).replace(/[<>&]/g, '_')}</code>`,
-        `<b>이메일:</b> ${payerEmail || '(none)'}`,
+        `<b>이메일:</b> ${escapeTelegram(payerEmail || '(none)')}`,
         '',
         '→ Sheets/email/voucher 모두 $0 으로 표시. 운영자 수동 보정 필요.',
         `→ /api/admin-update-booking 또는 admin UI 에서 amountUSD 갱신.`,
@@ -599,7 +600,7 @@ const originalHandler = async (event) => {
     results.stepStatus.email = stepFromClaimReason(voucherClaim.reason);
     console.log('[booking-processor] 이메일 스킵:', voucherClaim.reason, orderID);
     if (voucherClaim.reason === CLAIM.OUTCOME_UNKNOWN) {
-      notify('admin', `⚠️ <b>확인메일 발송 결과 미상</b>\n\n주문: <code>${orderID}</code>\n→ 자동 재발송하지 않았습니다. 수신 여부 확인 후 수동 처리하세요.`).catch(() => {});
+      notify('admin', `⚠️ <b>확인메일 발송 결과 미상</b>\n\n주문: <code>${escapeTelegram(orderID)}</code>\n→ 자동 재발송하지 않았습니다. 수신 여부 확인 후 수동 처리하세요.`).catch(() => {});
     }
   } else {
     try {
@@ -661,7 +662,7 @@ const originalHandler = async (event) => {
         }
         results.steps.email = `outcome_unknown: ${err.code || err.message}`;
         results.stepStatus.email = STEP.OUTCOME_UNKNOWN;
-        notify('admin', `⚠️ <b>확인메일 발송 결과 미상</b>\n\n주문: <code>${orderID}</code>\n오류: ${err.code || err.message}\n→ 자동 재발송하지 않았습니다. 수신 여부 확인 후 수동 처리하세요.`).catch(() => {});
+        notify('admin', `⚠️ <b>확인메일 발송 결과 미상</b>\n\n주문: <code>${escapeTelegram(orderID)}</code>\n오류: ${escapeTelegram(err.code || err.message)}\n→ 자동 재발송하지 않았습니다. 수신 여부 확인 후 수동 처리하세요.`).catch(() => {});
       } else {
         // 확실히 안 나갔다 → 마커를 풀어 재발송(재시도 안전).
         results.stepStatus.email = STEP.RETRYABLE;
@@ -728,7 +729,7 @@ const originalHandler = async (event) => {
       key: `booking-processor-fail:${failedKeySig}`,
       channel: 'error',
       severity: 'high',
-      message: `⚠️ <b>booking-processor 일부 단계 실패</b>\n\n예약: <code>${bookingRef || '-'}</code>\n실패:\n${failedSteps.join('\n')}`,
+      message: `⚠️ <b>booking-processor 일부 단계 실패</b>\n\n예약: <code>${escapeTelegram(bookingRef || '-')}</code>\n실패:\n${escapeTelegram(failedSteps.join('\n'))}`,
       context: { bookingRef, orderID, step: failedKeySig },
     }).catch(() => {});
   }

@@ -133,6 +133,8 @@ function extractPlannerDiagnostics(data) {
     blockModeUsed: blockModeUsed === null ? 'unknown' : blockModeUsed,
     plannerMode: plannerMode || 'unknown',
   };
+  // 2026-10-26: 서버가 이 요청을 mock LLM 으로 처리했다고 확인한 경우에만(admin _debug.llmMock === true).
+  if (debug.llmMock === true) diagnostics.llmMock = true;
 
   if (blockModeUsed === true) {
     diagnostics.blocksUsed = Array.isArray(debug.blocksUsed)
@@ -173,14 +175,32 @@ function calcDiversity(results) {
     };
   }
 
+  // 2026-10-26 (Astra A): 둘 다 서버가 mock LLM 실행을 확인했으면 다양성은 "미평가" — mock 은 같은 입력에
+  //   같은 블록을 고르므로(api/_shared/llm/mock.js 결정적 순환) 중복률이 구조적으로 높다. 생성 증거(위 결측 검사)는
+  //   그대로 필수. 한쪽이라도 확인 안 되면(실 LLM·구버전 서버) 종전대로 평가한다. 실 LLM 다양성 = REAL_LLM=1 수동 점검.
+  const mockConfirmed = rep1.planner_diagnostics?.llmMock === true && rep2.planner_diagnostics?.llmMock === true;
   const names1 = new Set(rep1.stops.map(s => s.name));
   const names2 = new Set(rep2.stops.map(s => s.name));
   const shared = [...names1].filter(n => names2.has(n));
   const overlap = shared.length;
   const total = Math.max(names1.size, names2.size);
   const overlap_ratio = total > 0 ? (overlap / total * 100) : 0;
+  if (mockConfirmed) {
+    return {
+      overlap_count: overlap,
+      total_stops: total,
+      overlap_ratio,
+      shared,
+      ok: true,
+      evaluated: false,
+      skip_reason: 'llm_mock',
+      reason: null,
+      note: '가짜 AI(mock) 실행 확인 — 같은 입력은 같은 코스를 내므로 다양성 미평가(실 AI 점검은 REAL_LLM=1 수동)',
+    };
+  }
   const ok = overlap_ratio < 30;
   return {
+    evaluated: true,
     overlap_count: overlap,
     total_stops: total,
     overlap_ratio,
@@ -413,7 +433,10 @@ async function runAll() {
   }
 
   const overlapDisplay = typeof diversity.overlap_ratio === 'number' ? Math.round(diversity.overlap_ratio) : '?';
-  console.log(`\n  🎲 다양성: 중복률 ${overlapDisplay}% (${diversity.overlap_count != null ? diversity.overlap_count : 0}/${diversity.total_stops != null ? diversity.total_stops : 0})`);
+  console.log(`\n  🎲 다양성: 중복률 ${overlapDisplay}% (${diversity.overlap_count != null ? diversity.overlap_count : 0}/${diversity.total_stops != null ? diversity.total_stops : 0})${diversity.evaluated === false ? ' — 미평가' : ''}`);
+  if (diversity.note) {
+    console.log(`    ℹ ${diversity.note}`);
+  }
   if (diversity.reason) {
     console.log(`    ⚠ ${diversity.reason}`);
   }

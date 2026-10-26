@@ -54,6 +54,7 @@ import { releasePlanIssuance } from '../../_shared/plan-issuance.js'; // P0: onF
 import { VEHICLE_LABELS } from '../../_ai_core/vehicleAndPrice.js';
 import { sendNotificationEmail, recordLeadToSheets } from '../../_ai_core/emailNotifier.js';
 import { throttledTelegramAlert } from '../../_shared/telegram-throttle.js';
+import { escapeTelegram } from '../../_shared/escape.js';
 
 const adminDb = initAdminDb();
 
@@ -155,7 +156,7 @@ export const processPlanAfterAI = inngest.createFunction(
           key: `inngest-worker-fail:${planId}`,
           channel: 'admin',
           severity: 'high',
-          message: `🔴 <b>Inngest worker 최종 실패 (P307 onFailure)</b>\n\nplanId=<code>${planId.slice(0, 8)}</code>\nerror=${(error?.message || 'unknown').slice(0, 200)}\n\n→ 운영자 manual: 사용자 결제 후 plan 안 받음 → 환불 안내 + 원인 분석 (Vercel logs / Inngest run).`,
+          message: `🔴 <b>Inngest worker 최종 실패 (P307 onFailure)</b>\n\nplanId=<code>${escapeTelegram(String(planId).slice(0, 8))}</code>\nerror=${escapeTelegram((error?.message || 'unknown').slice(0, 200))}\n\n→ 운영자 manual: 사용자 결제 후 plan 안 받음 → 환불 안내 + 원인 분석 (Vercel logs / Inngest run).`,
         });
       } catch (alertErr) {
         console.warn(`[P307] onFailure alert failed: ${alertErr.message}`);
@@ -240,7 +241,7 @@ export const processPlanAfterAI = inngest.createFunction(
             key: `p231-skeleton-write-fail:${planIdForSkeleton}`,
             channel: 'admin',
             severity: 'low',
-            message: `P231 skeleton-write step 실패 (non-fatal). planId=${planIdForSkeleton}, err=${skErr.message}. stub doc 유지 → persistPlan 이 set merge 로 완성.`,
+            message: `P231 skeleton-write step 실패 (non-fatal). planId=${escapeTelegram(planIdForSkeleton)}, err=${escapeTelegram(skErr.message)}. stub doc 유지 → persistPlan 이 set merge 로 완성.`,
           }).catch(() => {});
           return null;
         }
@@ -479,7 +480,7 @@ export const processPlanAfterAI = inngest.createFunction(
         key: `inngest-status-mark-fail:${planId}`,
         channel: 'admin',
         severity: 'low',
-        message: `Inngest worker 완료 후 _inngest_status mark 실패. planId=${planId}, err=${markErr.message}`,
+        message: `Inngest worker 완료 후 _inngest_status mark 실패. planId=${escapeTelegram(planId)}, err=${escapeTelegram(markErr.message)}`,
       }).catch(() => {});
     }
 
