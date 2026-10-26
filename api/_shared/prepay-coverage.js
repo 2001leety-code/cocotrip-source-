@@ -62,10 +62,16 @@ export function normalizePrepayInput(raw, { requireFutureStart = false } = {}) {
   }
   // 날짜 원천 하나 — requestShaper·checkStartDateTooSoon 과 같은 우선순위(date → startDate). 둘 다 있고 다르면 거부(r3):
   //   검사한 날짜와 저장·지문·생성에 쓰이는 날짜가 갈라지는 우회를 막는다.
-  if (hasText(raw.date) && hasText(raw.startDate) && raw.date.trim() !== raw.startDate.trim()) {
+  //   r4: requestShaper 와 **똑같이** `date || startDate`(truthy 면 date)로 읽고 trim 하지 않는다 — 문자열이 아니면(배열·숫자·객체) 거부.
+  //   그래야 지문·저장에 쓰는 날짜 = 생성 단계가 쓰는 날짜(고정 지문 일치 = 출발일 재검사 면제의 근거).
+  const genDate = raw.date || raw.startDate;
+  if (genDate && typeof genDate !== 'string') {
+    return prepayRejection(400, 'PLANNER_INPUT_CONFLICT', 'Planner start date must be a YYYY-MM-DD string', `date type=${Array.isArray(genDate) ? 'array' : typeof genDate}`);
+  }
+  if (hasText(raw.date) && hasText(raw.startDate) && raw.date !== raw.startDate) {
     return prepayRejection(400, 'PLANNER_INPUT_CONFLICT', 'Planner start date disagrees between request fields', `date=${raw.date} startDate=${raw.startDate}`);
   }
-  const startDate = hasText(raw.date) ? raw.date.trim() : (hasText(raw.startDate) ? raw.startDate.trim() : '');
+  const startDate = typeof genDate === 'string' ? genDate : '';
   const durationDays = Number(raw.durationDays);
   if (!DATE_RE.test(startDate) || !Number.isInteger(durationDays) || durationDays < 1 || durationDays > 30) {
     return prepayRejection(400, 'PREPAY_DATES_MISSING', 'Planner input must include startDate (YYYY-MM-DD) and durationDays');

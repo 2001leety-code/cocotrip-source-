@@ -142,10 +142,12 @@ export async function verifyBearerUid(authHeader) {
 }
 
 // ── Response shapes ──────────────────────────────────────────────────────────
-export function pendingPaymentResponse({ orderID, flow, paymentStatus, inProgress = false }) {
+export function pendingPaymentResponse({ orderID, flow, paymentStatus, inProgress = false, productType = '' }) {
   const captured = paymentStatus === 'CAPTURED';
   return {
     ok: false, code: 'PAYMENT_RECOVERY_PENDING', orderID, flow,
+    // 2026-10-26 B6-1 r4: 원래 주문의 상품 — 클라이언트가 다른 상품 화면에서 이 주문을 자기 상품으로 저장·확정하지 않게.
+    ...(productType && productType !== 'unknown' ? { productType: String(productType) } : {}),
     paymentStatus: captured ? 'CAPTURED' : 'CAPTURE_UNKNOWN',
     bookingStatus: captured ? 'BOOKING_RECOVERY_PENDING' : 'BOOKING_STATE_UNKNOWN',
     finalized: false, retryable: false, inProgress,
@@ -195,7 +197,7 @@ export async function findUnfinishedCheckout({ db, req }) {
     }
     if (!snapshot || !capabilityMatches(proof.secret, snapshot.recoveryDigest)) continue;
     if (!isCheckoutUnresolved(lock, review)) continue;
-    return pendingPaymentResponse({ orderID: proof.orderID, flow, paymentStatus: lockPaymentStatus(lock) });
+    return pendingPaymentResponse({ orderID: proof.orderID, flow, paymentStatus: lockPaymentStatus(lock), productType: snapshot.productType || lock.product });
   }
   return null;
 }

@@ -117,8 +117,40 @@ export async function reconcilePayment(flow: PaymentFlow, orderID: string): Prom
   }
 }
 
+/** 다른 범위 키에 포인터 저장(이 화면의 hook 상태는 바꾸지 않는다) — 시각은 여기서 찍는다. */
+export function storePaymentRecovery(value: Omit<PaymentRecovery, 'updatedAt'>, scope?: string): boolean {
+  return writePaymentRecovery({ ...value, updatedAt: Date.now() }, scope);
+}
+
+/** AI 플래너(풀) 상품인가 — 하이픈/밑줄 변형 같게. */
+export function isPlannerProduct(productType: string | undefined | null): boolean {
+  return typeof productType === 'string' && productType.toLowerCase().replace(/-/g, '_') === 'ai_planner_full';
+}
+
+/** 같은 상품인가 — 둘 중 하나라도 모르면 false(모르는 주문을 현재 상품으로 확정하지 않는다). */
+export function isSameProduct(a: string | undefined | null, b: string | undefined | null): boolean {
+  const norm = (v: string | undefined | null) => (typeof v === 'string' ? v.toLowerCase().replace(/-/g, '_') : '');
+  return !!norm(a) && norm(a) === norm(b);
+}
+
+/**
+ * 2026-10-26 B6-1 r4: 배포 전 번들이 공용 키에 남긴 플래너 포인터를 플래너 범위로 한 번 옮긴다(플래너 키가 비어 있을 때만).
+ *   옮긴 포인터는 플래너 화면에서 처음부터 '다시 결제하지 마세요' → 같은 주문 확인 → 플랜 발급 재시도로 이어진다.
+ */
+export function migrateLegacyPlannerPointer(flow: PaymentFlow): PaymentRecovery | null {
+  const own = readPaymentRecovery(flow, PLANNER_RECOVERY_SCOPE);
+  if (own) return own;
+  const shared = readPaymentRecovery(flow);
+  if (!shared || !isPlannerProduct(shared.productType)) return null;
+  if (!writePaymentRecovery(shared, PLANNER_RECOVERY_SCOPE)) return shared;
+  removePaymentRecovery(flow, shared.orderID);
+  return shared;
+}
+
 export function usePaymentRecovery(flow: PaymentFlow, scope?: string) {
-  const [recovery, setRecovery] = useState<PaymentRecovery | null>(() => readPaymentRecovery(flow, scope));
+  const [recovery, setRecovery] = useState<PaymentRecovery | null>(() => (scope === PLANNER_RECOVERY_SCOPE
+    ? migrateLegacyPlannerPointer(flow)
+    : readPaymentRecovery(flow, scope)));
   const pendingRef = useRef<PaymentRecovery | null>(recovery);
   const remember = useCallback((value: Omit<PaymentRecovery, 'updatedAt'> & { updatedAt?: number }) => {
     const next: PaymentRecovery = { ...value, updatedAt: Date.now() };
@@ -151,10 +183,10 @@ export function usePaymentRecovery(flow: PaymentFlow, scope?: string) {
 }
 
 export const PAYMENT_RECOVERY_COPY = {
-  ko: { unknown: '결제 결과를 확인 중입니다', captured: '결제는 접수됐으며 예약을 저장하는 중입니다', review: '결제가 접수되어 담당자가 확인 중입니다', authRequired: '이 주문은 결제를 시작한 기기에서만 확인할 수 있습니다. 문의해 주세요.', detail: '같은 주문의 결제·예약 상태를 다시 확인해 주세요. 확인 전에는 새 결제를 만들 수 없습니다.', warn: '다시 결제하지 마세요. 중복 청구될 수 있습니다.', check: '같은 주문 확인', checking: '확인 중…', order: '주문 번호', contact: '문의하기', notCaptured: '결제가 완료되지 않았습니다. 다시 결제할 수 있습니다.' },
-  en: { unknown: 'Checking your payment result', captured: 'Payment received; your booking is being recorded', review: 'Payment received; our team is verifying it', authRequired: 'This order can only be checked from the device that started the payment. Please contact us.', detail: 'Check the payment and booking status of this same order. A new payment cannot start until it is resolved.', warn: 'Do not pay again. It may result in a duplicate charge.', check: 'Check this order', checking: 'Checking…', order: 'Order No.', contact: 'Contact us', notCaptured: 'Payment was not completed. You can pay again.' },
-  ja: { unknown: 'お支払い結果を確認中です', captured: 'お支払いを受け付け、ご予約を記録しています', review: 'お支払いを受け付け、担当者が確認中です', authRequired: 'この注文はお支払いを開始した端末でのみ確認できます。お問い合わせください。', detail: '同じ注文のお支払いと予約状況を再確認してください。解決するまで新しいお支払いは開始できません。', warn: '二重請求を防ぐため、再度お支払いしないでください。', check: '同じ注文を確認', checking: '確認中…', order: '注文番号', contact: 'お問い合わせ', notCaptured: 'お支払いは完了していません。再度お支払いいただけます。' },
-  zh: { unknown: '正在核实付款结果', captured: '已收到付款，正在记录预订', review: '已收到付款，工作人员正在核实', authRequired: '此订单只能在发起付款的设备上核实。请联系我们。', detail: '请再次核实此订单的付款与预订状态。解决前无法开始新的付款。', warn: '请勿重复付款，以免重复扣款。', check: '核实此订单', checking: '正在核实…', order: '订单号', contact: '联系我们', notCaptured: '付款未完成，您可以重新付款。' },
+  ko: { unknown: '결제 결과를 확인 중입니다', captured: '결제는 접수됐으며 예약을 저장하는 중입니다', review: '결제가 접수되어 담당자가 확인 중입니다', authRequired: '이 주문은 결제를 시작한 기기에서만 확인할 수 있습니다. 문의해 주세요.', detail: '같은 주문의 결제·예약 상태를 다시 확인해 주세요. 확인 전에는 새 결제를 만들 수 없습니다.', warn: '다시 결제하지 마세요. 중복 청구될 수 있습니다.', check: '같은 주문 확인', checking: '확인 중…', order: '주문 번호', contact: '문의하기', notCaptured: '결제가 완료되지 않았습니다. 다시 결제할 수 있습니다.', otherOrder: '이 결제는 다른 주문({{order}})으로 확인됐어요. 다시 결제하지 마세요 — 그 주문의 화면에서 이어서 진행하시거나 문의해 주세요.', otherOrderPending: '이 브라우저에 아직 확인 중인 다른 주문({{order}})이 있어요. 다시 결제하지 마세요 — 그 주문의 화면에서 확인하시거나 문의해 주세요.', close: '닫기' },
+  en: { unknown: 'Checking your payment result', captured: 'Payment received; your booking is being recorded', review: 'Payment received; our team is verifying it', authRequired: 'This order can only be checked from the device that started the payment. Please contact us.', detail: 'Check the payment and booking status of this same order. A new payment cannot start until it is resolved.', warn: 'Do not pay again. It may result in a duplicate charge.', check: 'Check this order', checking: 'Checking…', order: 'Order No.', contact: 'Contact us', notCaptured: 'Payment was not completed. You can pay again.', otherOrder: 'This payment was confirmed for a different order ({{order}}). Do not pay again — continue on that order\'s page or contact us.', otherOrderPending: 'Another order ({{order}}) in this browser is still being confirmed. Do not pay again — check it on that order\'s page or contact us.', close: 'Close' },
+  ja: { unknown: 'お支払い結果を確認中です', captured: 'お支払いを受け付け、ご予約を記録しています', review: 'お支払いを受け付け、担当者が確認中です', authRequired: 'この注文はお支払いを開始した端末でのみ確認できます。お問い合わせください。', detail: '同じ注文のお支払いと予約状況を再確認してください。解決するまで新しいお支払いは開始できません。', warn: '二重請求を防ぐため、再度お支払いしないでください。', check: '同じ注文を確認', checking: '確認中…', order: '注文番号', contact: 'お問い合わせ', notCaptured: 'お支払いは完了していません。再度お支払いいただけます。', otherOrder: 'このお支払いは別のご注文（{{order}}）として確認されました。再度お支払いしないでください — そのご注文の画面で続けるか、お問い合わせください。', otherOrderPending: 'このブラウザでは別のご注文（{{order}}）をまだ確認中です。再度お支払いしないでください — そのご注文の画面で確認するか、お問い合わせください。', close: '閉じる' },
+  zh: { unknown: '正在核实付款结果', captured: '已收到付款，正在记录预订', review: '已收到付款，工作人员正在核实', authRequired: '此订单只能在发起付款的设备上核实。请联系我们。', detail: '请再次核实此订单的付款与预订状态。解决前无法开始新的付款。', warn: '请勿重复付款，以免重复扣款。', check: '核实此订单', checking: '正在核实…', order: '订单号', contact: '联系我们', notCaptured: '付款未完成，您可以重新付款。', otherOrder: '此付款已确认为另一笔订单（{{order}}）。请勿重复付款 — 请在该订单页面继续或联系我们。', otherOrderPending: '此浏览器中另一笔订单（{{order}}）仍在核实中。请勿重复付款 — 请在该订单页面核实或联系我们。', close: '关闭' },
 };
 
 export function recoveryCopy(language: string) {

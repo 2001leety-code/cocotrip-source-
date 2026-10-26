@@ -41,6 +41,10 @@ interface Props {
   customerPhone?: string;
   /** 🔴 2026-10-26 B6-1 r2: AI 플래너(풀) — 송금 안내 전에 서버 결제 전 확인(createPaypalOrder 와 같은 검사)에 쓰는 위자드 입력. */
   plannerInput?: Record<string, unknown>;
+  /** r4: 같은 결제 흐름에서 QR 을 이미 보여 줬으면 그 예약 번호·표시 — 재마운트(Back → 다시 'Pay via QR')에도 재검사·새 번호 없이 신고 유지. */
+  bookingRef?: string;
+  qrShown?: boolean;
+  onQrShown?: (bookingRef: string) => void;
 }
 
 const isAiPlannerFull = (productType: string) => productType.toLowerCase().replace(/-/g, '_') === 'ai_planner_full';
@@ -207,13 +211,14 @@ export function PayPalQrPanel({
   itineraryData, airport,
   onPaymentReported, onBack,
   customerEmail = '', customerPhone = '', plannerInput,
+  bookingRef: sessionBookingRef, qrShown = false, onQrShown,
 }: Props) {
   const { language } = useLanguage();
   const lang = (['ko', 'en', 'ja', 'zh'].includes(language) ? language : 'en') as 'ko' | 'en' | 'ja' | 'zh';
   const L = LABELS[lang];
   const { user } = useAuth();
 
-  const [bookingRef] = useState(generateBookingRef);
+  const [bookingRef] = useState(() => sessionBookingRef || generateBookingRef());
   const [email, setEmail] = useState(customerEmail || user?.email || '');
   const [phone, setPhone] = useState(customerPhone);
   const [submitting, setSubmitting] = useState(false);
@@ -236,11 +241,11 @@ export function PayPalQrPanel({
   const needsPrepay = isAiPlannerFull(productType);
   const plannerInputKey = plannerInput ? JSON.stringify(plannerInput) : '';
   const [prepayState, setPrepayState] = useState<'checking' | 'ok' | 'blocked'>(
-    () => (!needsPrepay ? 'ok' : plannerInput ? 'checking' : 'blocked'),
+    () => (!needsPrepay || qrShown ? 'ok' : plannerInput ? 'checking' : 'blocked'),
   );
   // r3: 한 번 통과해 QR·링크를 보여 준 뒤에는 다시 검사하지 않는다 — 손님이 이미 송금했을 수 있다. 언어 변경 등으로 입력이 바뀌어
   //   재검사가 실패·통신 실패해도 신고 경로를 없애거나 '결제 안 됨' 으로 단정하지 않는다(신고 시 서버가 결과를 기록한다).
-  const qrShownRef = useRef(false);
+  const qrShownRef = useRef(qrShown);
   useEffect(() => {
     if (!needsPrepay || !plannerInputKey || qrShownRef.current) return;
     let cancelled = false;
@@ -259,6 +264,10 @@ export function PayPalQrPanel({
       .catch(() => { if (!cancelled && !qrShownRef.current) setPrepayState('blocked'); });
     return () => { cancelled = true; };
   }, [needsPrepay, plannerInputKey, productType]);
+  // r4: 통과(QR 노출)를 결제 버튼에 알려 같은 흐름 동안 유지 — 부모가 qrShown 을 넘기면 멈춘다.
+  useEffect(() => {
+    if (prepayState === 'ok' && needsPrepay && !qrShown && onQrShown) onQrShown(bookingRef);
+  }, [prepayState, needsPrepay, qrShown, onQrShown, bookingRef]);
 
   // KRW → USD 환산 (정수, 소수 둘째 자리). PayPal.Me 는 USD 권장 — KRW 직접 미지원.
   const usdAmount = (priceKRW / usdRate).toFixed(2);

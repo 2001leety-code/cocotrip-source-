@@ -142,7 +142,9 @@ describe('PayPalBookingButton — pending pointer and same-order reconcile', () 
     expect(await screen.findByText('Book now')).toBeInTheDocument();
   });
 
-  it('durable success for the SAME product calls onPaymentSuccess once; a different product shows the confirmation instead', async () => {
+  // 2026-10-26 B6-1 r4 (Astra P1-2): a different (or unknown) product never shows THIS product's "Booking Confirmed!" —
+  //   it showed a charter confirmation for an unpaid charter. A neutral "confirmed for a different order" notice instead.
+  it('durable success for the SAME product calls onPaymentSuccess once; a different product shows a neutral notice, never this product\'s confirmation', async () => {
     localStorage.setItem(recoveryKey('single'), JSON.stringify({ orderID: 'ORD-9', flow: 'single', paymentStatus: 'CAPTURED', review: false, productType: 'airport_seoul_central', updatedAt: 1 }));
     route({ '/api/capturePaypalOrder': () => final('ORD-9') });
     const onSuccess = vi.fn();
@@ -158,7 +160,8 @@ describe('PayPalBookingButton — pending pointer and same-order reconcile', () 
     const otherSuccess = vi.fn();
     render(<PayPalBookingButton productType="charter_dmz" passengers={2} priceKRW={135000} lang="en" onPaymentSuccess={otherSuccess} p={{ paypalBookBtn: 'Book now' }} />);
     fireEvent.click(screen.getByText('Check this order'));
-    expect(await screen.findByText('Booking Confirmed!')).toBeInTheDocument();
+    expect(await screen.findByText(/This payment was confirmed for a different order \(ORD-9\)/)).toBeInTheDocument();
+    expect(screen.queryByText('Booking Confirmed!')).toBeNull();
     expect(otherSuccess).not.toHaveBeenCalled();
   });
 

@@ -417,7 +417,10 @@ export default async function handler(req, res) {
     let preCaptureLookup = null;
     if (preCaptureBlock && !(attempt.lock && attempt.lock.captureVerified)) {
       const lock = attempt.lock || {};
-      const neverPosted = !attempt.recovering && lock.captureState !== 'posted' && lock.captureState !== 'unknown';
+      // r4: captureState 'none' = POST 한 적 없음(reconcileCapture 는 POST 전에 'posted' 를 커밋하고, 옛 작업자는 claimToken 이
+      //   바뀌어 'posted' 를 쓸 수 없다 — CLAIM_LOST). 복구 중인 기록이어도 'none' 이면 정리할 수 있다.
+      const neverPosted = lock.captureState === 'none'
+        || (!attempt.recovering && lock.captureState !== 'posted' && lock.captureState !== 'unknown');
       const lookup = neverPosted ? null : await fetchPaypalOrder({ baseUrl: PAYPAL_BASE_URL, accessToken, orderID });
       if (lookup && lookup.state === 'captured') {
         console.warn('[capturePaypalOrder] pre-capture block after a completed capture — recording payment, no new POST:', orderID, preCaptureBlock.code);

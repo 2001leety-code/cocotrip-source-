@@ -17,6 +17,7 @@ import { isAiPlannerFullProduct } from '../_shared/ai-planner-policy.js';
 import { toMinorUnits, verifyCaptureIntegrity } from '../_shared/paypal-capture-verify.js';
 import { claimPlanIssuance, PLAN_ISSUANCE_CODE } from '../_shared/plan-issuance.js';
 import { shapeRequest } from './requestShaper.js';
+import { checkStartDateTooSoon } from './validateStartDate.js';
 import { enforceDietaryCoverage, hasSafetyDiet } from './dietaryCoverageGate.js';
 import { normalizePrepayInput, prepayFingerprint, prepayInputSummary, loadPrepayFoodIndex } from '../_shared/prepay-coverage.js';
 
@@ -209,20 +210,40 @@ async function bindPrepayInputBeforeClaim(adminDb, orderId, order, body, authent
     console.warn('[planner] 결제 주문과 요청 입력 불일치 → 발급 거부:', orderId);
     return paidInputMismatch(snapData.prepayInput);
   }
+  // r4: 옛 주문의 1회 고정은 **식이 커버리지 통과 뒤**(발급권 선점 직전 마지막 단계)에 호출부가 commitPin 으로 실행한다 —
+  //   먼저 고정하면 커버리지로 거부될 입력(서울+인천 할랄)이 영구히 묶여 도시를 바꿔도 409, 고정 입력은 다시 422 가 됐다.
   const ref = order.ref;
-  const outcome = await adminDb.runTransaction(async (tx) => {
-    const fresh = await tx.get(ref);
-    const cur = (fresh.exists && fresh.data()) || {};
-    if (cur.prepayFingerprint) return cur.prepayFingerprint === fingerprint ? 'match' : { pinnedInput: cur.prepayInput };
-    tx.update(ref, {
-      prepayInput: normalized.input, prepayInputVersion: normalized.input.version, prepayFingerprint: fingerprint,
-      prepayPinnedAt: new Date().toISOString(), prepayPinnedFrom: 'legacy_paid_first_use', prepayPinnedUid: authenticatedUid || null,
+  const commitPin = async () => {
+    const outcome = await adminDb.runTransaction(async (tx) => {
+      const fresh = await tx.get(ref);
+      const cur = (fresh.exists && fresh.data()) || {};
+      if (cur.prepayFingerprint) return cur.prepayFingerprint === fingerprint ? 'match' : { pinnedInput: cur.prepayInput };
+      tx.update(ref, {
+        prepayInput: normalized.input, prepayInputVersion: normalized.input.version, prepayFingerprint: fingerprint,
+        prepayPinnedAt: new Date().toISOString(), prepayPinnedFrom: 'legacy_paid_first_use', prepayPinnedUid: authenticatedUid || null,
+      });
+      return 'pinned';
     });
-    return 'pinned';
-  });
-  if (outcome && typeof outcome === 'object') return paidInputMismatch(outcome.pinnedInput);
-  if (outcome === 'pinned') console.log('[planner] 옛 결제 주문 입력 1회 고정:', orderId);
-  return { prepayVerified: true };
+    if (outcome && typeof outcome === 'object') return paidInputMismatch(outcome.pinnedInput);
+    if (outcome === 'pinned') console.log('[planner] 옛 결제 주문 입력 1회 고정:', orderId);
+    return null;
+  };
+  return { prepayVerified: true, commitPin };
+}
+
+/** MANUAL 주문 사용 표시(소비) — 트랜잭션 안에서 없을 때만 create. 이미 있거나 동시 create 가 이기면 false(= DUPLICATE). */
+async function markManualOrderUsed(adminDb, usedRef, data) {
+  try {
+    return await adminDb.runTransaction(async (tx) => {
+      const snap = await tx.get(usedRef);
+      if (snap.exists) return false;
+      tx.create(usedRef, data);
+      return true;
+    });
+  } catch (e) {
+    if (e && (e.code === 6 || /ALREADY_EXISTS/i.test(String(e.message || '')))) return false;
+    throw e;
+  }
 }
 
 /** 결제 주문(PayPal·MANUAL) 경로 — 커버리지를 맨 앞에서 하지 않고 소유자·고정 입력 대조 뒤로 미루는 요청. */
@@ -320,6 +341,12 @@ export async function enforcePaymentAndRevision(body, adminDb, authenticatedEmai
   if (!isRevision && aiCouponCode) {
     if (!authenticatedUid) {
       return reject(403, 'AUTH_REQUIRED', 'Login required', 'AI 무료 쿠폰은 로그인 후 사용할 수 있습니다.');
+    }
+    // r4: 출발일 규칙(생성 단계 handlerCore 와 같은 함수)을 쿠폰 소비 **전에** — 소비 뒤 400 이면 1장뿐인 쿠폰이 사라졌다.
+    const tooSoon = checkStartDateTooSoon(body, false);
+    if (tooSoon) {
+      return reject(400, 'PLANNER_DATE_TOO_SOON', 'Start date must be tomorrow or later. Today\'s trips cannot be planned via AI Planner.',
+        `Requested: ${tooSoon.reqStartDate}, today KST: ${tooSoon.todayKST}`);
     }
     const durationDays = body.durationDays || (body.duration === 'multi_day' ? 2 : 1);
     const couponResult = await consumeAiPlanCoupon(adminDb, authenticatedUid, aiCouponCode, durationDays);
@@ -448,8 +475,11 @@ export async function enforcePaymentAndRevision(body, adminDb, authenticatedEmai
         if (bound.rejection) return bound;
         const manualCoverage = await paidCoverageRejection(body, authenticatedEmail, authenticatedUid, loadFoodIndex, paypalOrderId);
         if (manualCoverage) return manualCoverage;
+        if (bound.commitPin) { const pinRejection = await bound.commitPin(); if (pinRejection) return pinRejection; }
         prepayVerified = bound.prepayVerified === true;
-        await usedRef.set({ usedAt: new Date().toISOString(), status: 'CONFIRMED', provider: 'manual', bookingRef });
+        // r4: 소비 원자화 — 존재 확인(위) 뒤 bind·커버리지로 경합 창이 넓어졌다. 트랜잭션 create 로 동시 2요청 = 1 통과 + 1 DUPLICATE.
+        const usedNow = await markManualOrderUsed(adminDb, usedRef, { usedAt: new Date().toISOString(), status: 'CONFIRMED', provider: 'manual', bookingRef });
+        if (!usedNow) return reject(403, 'DUPLICATE_ORDER', 'AI plan already generated for this booking');
       } catch (e) {
         console.error('[planner] Manual mode verify failed:', e.message);
         await captureError(e, { route: 'paymentGate', step: 'manual_verify', orderId: paypalOrderId });
@@ -676,6 +706,18 @@ export async function enforcePaymentAndRevision(body, adminDb, authenticatedEmai
         if (bound.rejection) return bound;
         const paidCoverage = await paidCoverageRejection(body, authenticatedEmail, authenticatedUid, loadFoodIndex, paypalOrderId);
         if (paidCoverage) return paidCoverage;
+        if (bound.commitPin) {
+          let pinRejection;
+          try {
+            pinRejection = await bound.commitPin();
+          } catch (pinErr) {
+            console.error('[planner] prepay input pin 실패 → 발급 거부(fail-closed):', pinErr.message);
+            await captureError(pinErr, { route: 'paymentGate', step: 'prepay_input_pin', orderId: paypalOrderId });
+            return reject(503, 'PAYMENT_VERIFY_UNAVAILABLE', 'Could not verify order details',
+              '일시적인 오류입니다. 잠시 후 다시 시도해주세요.');
+          }
+          if (pinRejection) return pinRejection;
+        }
         prepayVerified = bound.prepayVerified === true;
 
         let claimResult;

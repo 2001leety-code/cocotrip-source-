@@ -241,6 +241,20 @@ describe('capture state machine after a pre-capture refusal (adversarial seq + A
     expect(observed.alerts).toEqual([`single-capture-unknown-${ORDER}`]);
   });
 
+  it('r4-7 (adversarial N4/N5): a recovering record still in captureState "none" never POSTed → refusal clears it (no GET, no POST), NOT_CAPTURED — not a forever 202', async () => {
+    dbHolder.db = memDb({
+      [`paypal_order_snapshots/${ORDER}`]: snapshot(),
+      [`used_paypal_orders/${ORDER}`]: { status: 'pending', flow: 'single', environment: 'sandbox', requestKey: `${ORDER}-cap`, intent: { version: 1, body: { product: 'ai-planner-full' } },
+        captureState: 'none', claimToken: 'dead-worker', claimUntil: 0, stages: {}, createdAtMs: Date.now() - 300_000 },
+    });
+    foodHolder.rows = [];
+    const calls = paypal({ gets: ['APPROVED'] });
+    const out = await call({ orderID: ORDER, reconcile: true });
+    expect(calls).toEqual([]);
+    expect(out.body).toMatchObject({ code: 'PAYMENT_NOT_CAPTURED', preCaptureCode: 'DIETARY_COVERAGE_UNAVAILABLE' });
+    expect(lockOf()).toBeUndefined();
+  });
+
   it('I: corrupt snapshot input (no cities) → the check fails BEFORE any attempt record: 503, PayPal 0 calls, nothing left to block new orders', async () => {
     dbHolder.db = memDb({ [`paypal_order_snapshots/${ORDER}`]: { ...snapshot(), prepayInput: { version: 1, startDate: '2099-12-01', diets: ['halal'] } } });
     const calls = paypal({});
@@ -409,7 +423,8 @@ describe('manual-payment-request (QR / paypal.me) — same pre-payment check bef
   it('frontend: QR button hidden after a prepay refusal, QR panel builds no paypal.me URL until checkOnly passes', () => {
     const btn = read('src/components/PayPalBookingButton.tsx');
     expect(btn).toContain('{!qrBlocked && <button');
-    expect(btn).toContain('if (prepayMsg) { setError(prepayMsg); setQrBlocked(true); return; }');
+    // r4: QR 을 이미 보여 준 흐름이면 숨기지 않는다(신고 경로 유지) — 그 외에는 숨김.
+    expect(btn).toContain('if (prepayMsg) { if (qrSession) setError(rc.warn); else { setError(prepayMsg); setQrBlocked(true); } return; }');
     expect(btn).toContain('plannerInput={plannerInput}');
     const qr = read('src/components/PayPalQrPanel.tsx');
     expect(qr).toContain("const paypalUrl = username && prepayState === 'ok' ?");
@@ -524,6 +539,64 @@ describe('r3 B/J/D/F — paid orders: owner → pinned input → coverage → cl
     const no = await enforcePaymentAndRevision({ ...input(), paypalOrderId: ORDER }, other, null, undefined, { loadFoodIndex: async () => [HALAL_SEOUL], ownerUid: 'someoneElse' });
     expect(no.rejection).toMatchObject({ statusCode: 403 });
     expect(read('api/_ai_core/handlerCore.js')).toContain('const ownerUid = auth.ok ? auth.uid : ((await verifyFirebaseIdentityToken(req)).uid || null);');
+  });
+});
+
+describe('r4 — legacy pin after coverage, atomic MANUAL use, coupon start date, date type', () => {
+  const paidOrderFetch = () => {
+    global.fetch = vi.fn(async () => ({ ok: true, status: 200, json: async () => ({ id: ORDER, status: 'COMPLETED',
+      purchase_units: [{ payments: { captures: [{ id: 'CAP-1', status: 'COMPLETED', amount: { value: '9.90', currency_code: 'USD' } }] } }] }) })) as never;
+  };
+  const realIndex = async () => JSON.parse(read('api/_food_index.json')) as Dict[];
+  it('r4-3 (adversarial L1, PayPal): old paid order, Seoul+Incheon Halal → 422 and NOT pinned; then Seoul only → passes and pins Seoul', async () => {
+    paidOrderFetch();
+    const db = memDb({ [`paypal_order_snapshots/${ORDER}`]: { productType: 'ai-planner-full', expectedUSD: '9.90', expectedCurrency: 'USD', ownerUid: 'uid1' } });
+    const bad = await enforcePaymentAndRevision({ ...input({ regions: ['서울', '인천'] }), paypalOrderId: ORDER }, db, 'u@e.x', 'uid1', { loadFoodIndex: realIndex });
+    expect(bad.rejection).toMatchObject({ statusCode: 422, code: 'DIETARY_COVERAGE_UNAVAILABLE' });
+    expect((db._store.get(`paypal_order_snapshots/${ORDER}`) as Dict).prepayFingerprint).toBeUndefined();
+    const good = await enforcePaymentAndRevision({ ...input({ regions: ['서울'] }), paypalOrderId: ORDER }, db, 'u@e.x', 'uid1', { loadFoodIndex: realIndex });
+    expect(good.rejection).toBeUndefined();
+    expect((db._store.get(`paypal_order_snapshots/${ORDER}`) as Dict)).toMatchObject({ prepayFingerprint: fp(input({ regions: ['서울'] })), prepayPinnedFrom: 'legacy_paid_first_use' });
+  });
+  it('r4-3 (MANUAL): the same order for an old QR order (pending_bookings without a fingerprint)', async () => {
+    const MREF = 'CT-20991201-321';
+    const db = memDb({ [`pending_bookings/${MREF}`]: { status: 'CONFIRMED', productType: 'ai-planner-full', userId: 'uid1', customerEmail: 'u@e.x' } });
+    const bad = await enforcePaymentAndRevision({ ...input({ regions: ['서울', '인천'] }), paypalOrderId: `MANUAL-${MREF}` }, db, 'u@e.x', 'uid1', { loadFoodIndex: realIndex });
+    expect(bad.rejection).toMatchObject({ statusCode: 422 });
+    expect((db._store.get(`pending_bookings/${MREF}`) as Dict).prepayFingerprint).toBeUndefined();
+    expect(db._store.has(`used_paypal_orders/MANUAL-${MREF}`)).toBe(false);
+    const good = await enforcePaymentAndRevision({ ...input({ regions: ['서울'] }), paypalOrderId: `MANUAL-${MREF}` }, db, 'u@e.x', 'uid1', { loadFoodIndex: realIndex });
+    expect(good.rejection).toBeUndefined();
+  });
+  it('r4-4 (adversarial L2): two concurrent MANUAL requests → exactly one passes, the other DUPLICATE_ORDER', async () => {
+    const MREF = 'CT-20991201-555';
+    const db = memDb({ [`pending_bookings/${MREF}`]: { status: 'CONFIRMED', productType: 'ai-planner-full', userId: 'uid1', customerEmail: 'u@e.x', prepayInput: norm(input()), prepayFingerprint: fp(input()) } });
+    const slowIndex = async () => { await new Promise((r) => setTimeout(r, 20)); return [HALAL_SEOUL]; };
+    const body = { ...input(), paypalOrderId: `MANUAL-${MREF}` };
+    const [a, b] = await Promise.all([
+      enforcePaymentAndRevision(body, db, 'u@e.x', 'uid1', { loadFoodIndex: slowIndex }),
+      enforcePaymentAndRevision(body, db, 'u@e.x', 'uid1', { loadFoodIndex: slowIndex }),
+    ]);
+    const codes = [a, b].map((r) => (r.rejection ? r.rejection.code : 'PASS')).sort();
+    expect(codes).toEqual(['DUPLICATE_ORDER', 'PASS']);
+  });
+  it('r4-5 (couponday repro): free coupon with a start date of today → 400 before the coupon is touched', async () => {
+    const db = memDb();
+    const r = await enforcePaymentAndRevision({ ...input({ startDate: todayKST() }), aiCouponCode: 'FREE1' }, db, 'u@e.x', 'uid1', { loadFoodIndex: async () => [HALAL_SEOUL] });
+    expect(r.rejection).toMatchObject({ statusCode: 400, code: 'PLANNER_DATE_TOO_SOON' });
+    expect(db._calls.tx).toBe(0);
+  });
+  it.each([[['2020-01-01']], [20200101], [{ y: 2020 }]])('r4-6 (datetype repro): non-string date %j → refused at order creation (no split from the stored date)', (date) => {
+    expect(normalizePrepayInput({ ...input(), date }, { requireFutureStart: true })).toMatchObject({ ok: false, code: 'PLANNER_INPUT_CONFLICT' });
+  });
+  it('r4-6: whitespace date is truthy for requestShaper → it is the date that is checked (and refused), not startDate', () => {
+    expect(normalizePrepayInput({ ...input(), date: '   ' }, { requireFutureStart: true })).toMatchObject({ ok: false });
+  });
+  it('r4-2 server: a create block for an unfinished checkout names the original product', async () => {
+    const { pendingPaymentResponse } = await import('../../api/_shared/payment-fulfillment-recovery.js');
+    expect(pendingPaymentResponse({ orderID: 'X', flow: 'single', paymentStatus: 'CAPTURE_UNKNOWN', productType: 'ai-planner-full' })).toMatchObject({ productType: 'ai-planner-full' });
+    expect(pendingPaymentResponse({ orderID: 'X', flow: 'single', paymentStatus: 'CAPTURE_UNKNOWN', productType: 'unknown' }).productType).toBeUndefined();
+    expect(read('api/_shared/payment-fulfillment-recovery.js')).toContain('productType: snapshot.productType || lock.product');
   });
 });
 

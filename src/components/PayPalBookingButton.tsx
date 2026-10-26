@@ -15,7 +15,7 @@ import { tourSlotBody, SLOT_REJECT_LABELS } from '@/lib/tourSlotBooking';
 import { fillPrice } from '@/lib/aiPlannerPrice';
 import { charterCheckoutExpectedUsd, charterUsdFromKrw } from '@/lib/charterUsd';
 import { GuestSignupNudge } from '@/components/GuestSignupNudge';
-import { usePaymentRecovery, reconcilePayment, classifyCaptureResponse, recoveryCopy, recoveryHeadline, PLANNER_RECOVERY_SCOPE, type CaptureOutcome } from '@/lib/paymentRecovery';
+import { usePaymentRecovery, reconcilePayment, classifyCaptureResponse, recoveryCopy, recoveryHeadline, PLANNER_RECOVERY_SCOPE, isPlannerProduct, isSameProduct, storePaymentRecovery, type CaptureOutcome } from '@/lib/paymentRecovery';
 import type { Language } from '@/i18n';
 
 // SDK 차단·로드 실패 시 fallback — paypal.me QR (외부 redirect, paypalobjects.com 무관).
@@ -226,8 +226,20 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
         trackPaidConversion({ transactionId: orderID, productType, value: checkoutAmountUSD, currency: 'USD' });
       }
       // A restored pointer for a different product never feeds this product's success callback.
-      const sameProduct = fresh || recovery?.productType === productType;
-      if (onPaymentSuccess && sameProduct) {
+      //   r4: …nor this product's success screen ("Booking Confirmed!"·driver notice). An unknown product counts as different.
+      //   A planner order found here moves to the planner key so the planner page can still issue the plan.
+      const sameProduct = fresh || isSameProduct(recovery?.productType, productType);
+      if (!sameProduct) {
+        const other = recovery;
+        clearRecovery(orderID);
+        if (other && isPlannerProduct(other.productType) && !keepRecoveryUntilFulfilled) {
+          storePaymentRecovery({ ...other, paymentStatus: 'CAPTURED', review: false }, PLANNER_RECOVERY_SCOPE);
+        }
+        setOtherOrderNotice({ orderID, pending: false });
+        setShowPaypal(false); setRateInfo(null);
+        return;
+      }
+      if (onPaymentSuccess) {
         // 2026-10-26 B6-1 r2: 결제 뒤 이행(플랜 발급)이 따로 있는 상품은 이행될 때까지 포인터를 CAPTURED 로 유지 —
         //   생성이 실패하거나 새로고침돼도 새 결제 대신 같은 주문 확인이 보인다. 지우는 쪽 = 호출자(발급 성공 시).
         if (keepRecoveryUntilFulfilled) remember({ orderID, flow: 'single', paymentStatus: 'CAPTURED', review: false, productType });
@@ -254,7 +266,10 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
     }
     if (outcome.kind === 'not_captured') {
       const prepayMsg = plannerPrepayMessage(p, outcome.preCaptureCode, outcome.message);
-      clearRecovery(orderID); setError(prepayMsg || outcome.message); setQrBlocked(!!prepayMsg); setShowPaypal(false); buttonsRendered.current = false; return;
+      clearRecovery(orderID);
+      if (prepayMsg && qrSession) setError(rc.warn); // r4: QR 노출 뒤 — 미결제 단정·신고 경로 숨김 금지
+      else { setError(prepayMsg || outcome.message); setQrBlocked(!!prepayMsg); }
+      setShowPaypal(false); buttonsRendered.current = false; return;
     }
     // Server-proven full refund: terminal, not a booking — no success, no conversion; payment controls return.
     if (outcome.kind === 'refunded') { clearRecovery(orderID); setError(outcome.message); setShowPaypal(false); setRateInfo(null); buttonsRendered.current = false; return; }
@@ -286,6 +301,10 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
   const [useFallback, setUseFallback] = useState(false);
   // AI 플래너 결제 전 거부(식이 커버리지·출발일·입력) 뒤에는 QR 대체 결제를 보이지 않는다 — QR 도 같은 확인을 거친다.
   const [qrBlocked, setQrBlocked] = useState(false);
+  // r4: QR 을 한 번 보여 줬는지 + 그 예약 번호 — 패널 재마운트(Back → 다시 'Pay via QR')에도 재검사 없이 같은 번호·신고 경로 유지.
+  const [qrSession, setQrSession] = useState<{ bookingRef: string } | null>(null);
+  // r4: 이 브라우저의 다른 상품 주문이 확인됐거나(pending=false) 아직 확인 중(pending=true) — 이 상품의 성공 화면 대신 중립 안내.
+  const [otherOrderNotice, setOtherOrderNotice] = useState<{ orderID: string; pending: boolean } | null>(null);
 
   // 게스트 → 회원 전환 넛지 (2026-08-19): 결제 성공 오버레이에서 same-email 가입 유도.
   //   핸들러 = 공용 훅 useGuestSignup (CartCheckout 성공 화면과 공유, 2026-10-24). 결제 로직과 별개 상태.
@@ -722,7 +741,8 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
       if (!res.ok) {
         const prepayMsg = plannerPrepayMessage(p, json.code, json.error || 'Payment was not started.');
         // QR(paypal.me) 대체 결제도 숨긴다 — 같은 입력이면 QR 로 송금해도 생성이 막힌다(r2).
-        if (prepayMsg) { setError(prepayMsg); setQrBlocked(true); return; }
+        //   r4: 이미 QR 을 보여 준 흐름이면 손님이 송금했을 수 있다 — '결제 안 됨' 단정·QR(신고) 숨김 금지, 다시 결제하지 말라는 안내만.
+        if (prepayMsg) { if (qrSession) setError(rc.warn); else { setError(prepayMsg); setQrBlocked(true); } return; }
       }
       // PR-R (2026-05-08): BOOKING_CLOSED → 토스트 + ChatWidget 자동 오픈
       if (!res.ok && json.code === 'BOOKING_CLOSED') {
@@ -754,7 +774,18 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
       }
       // 🔴 Server refuses a new order while an earlier capture in this browser is unresolved (either flow).
       if (!res.ok && json.code === 'PAYMENT_RECOVERY_PENDING' && typeof json.orderID === 'string') {
-        remember({ orderID: json.orderID, flow: json.flow === 'cart' ? 'cart' : 'single', paymentStatus: json.paymentStatus === 'CAPTURED' ? 'CAPTURED' : 'CAPTURE_UNKNOWN', review: false });
+        // r4: 서버가 알려 준 원래 상품으로 저장(현재 화면 상품으로 덮지 않음). 다른 범위(플래너 ↔ 그 밖) 주문이면 그 범위 키에 두고
+        //   이 화면은 중립 안내만 — 그 주문을 이 상품의 결제로 확정하지 않는다.
+        const pendingProduct = typeof json.productType === 'string' ? json.productType : undefined;
+        const pointer = { orderID: json.orderID, flow: (json.flow === 'cart' ? 'cart' : 'single') as 'cart' | 'single', paymentStatus: (json.paymentStatus === 'CAPTURED' ? 'CAPTURED' : 'CAPTURE_UNKNOWN') as 'CAPTURED' | 'CAPTURE_UNKNOWN', review: false, productType: pendingProduct };
+        const pendingScope = isPlannerProduct(pendingProduct) ? PLANNER_RECOVERY_SCOPE : undefined;
+        const ownScope = keepRecoveryUntilFulfilled ? PLANNER_RECOVERY_SCOPE : undefined;
+        if (pendingProduct && pendingScope !== ownScope) {
+          storePaymentRecovery(pointer, pendingScope);
+          setOtherOrderNotice({ orderID: json.orderID, pending: true });
+          return;
+        }
+        remember(pointer);
         return;
       }
       if (!res.ok || !json.ok) throw new Error(json.error ?? d?.error ?? 'Order creation failed');
@@ -960,6 +991,21 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
     );
   }
 
+  // r4: 다른 상품 주문 — 이 상품의 'Booking Confirmed!'·기사 안내·성공 콜백 대신 중립 안내(다시 결제하지 마세요).
+  if (otherOrderNotice) {
+    return (
+      <div className="cocotrip-mobile-paypal rounded-xl border border-amber-400/30 bg-amber-500/10 px-4 py-3 space-y-2 customer-paypal-other-order" role="status">
+        <p className="text-sm font-semibold text-amber-200">{(otherOrderNotice.pending ? rc.otherOrderPending : rc.otherOrder).replace('{{order}}', otherOrderNotice.orderID)}</p>
+        <div className="flex gap-2">
+          <a href="https://wa.me/821087140611" target="_blank" rel="noopener noreferrer" className="flex-1 min-h-[40px] py-2 rounded-lg border border-white/15 text-white/70 text-sm text-center">{rc.contact}</a>
+          {!otherOrderNotice.pending && (
+            <button type="button" onClick={() => setOtherOrderNotice(null)} className="flex-1 min-h-[40px] rounded-lg border border-white/15 text-white/70 text-sm">{rc.close}</button>
+          )}
+        </div>
+      </div>
+    );
+  }
+
   // SDK 차단·로드 실패 시 사용자가 fallback 으로 전환 → paypal.me QR 패널 노출.
   // PayPal 본 사이트 redirect (외부) 라 paypalobjects.com SDK CDN 차단 영향 무관.
   if (useFallback) {
@@ -986,6 +1032,9 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
           airport={airport}
           customerEmail={userEmail}
           plannerInput={plannerInput}
+          bookingRef={qrSession?.bookingRef}
+          qrShown={!!qrSession}
+          onQrShown={(bookingRef) => setQrSession({ bookingRef })}
           onBack={() => setUseFallback(false)}
           onPaymentReported={(bookingRef) => {
             // paypal.me 흐름 = manual 결제. onPaymentSuccess 레거시 콜백 호환 위해 'MANUAL-' prefix
