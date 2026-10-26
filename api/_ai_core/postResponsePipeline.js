@@ -26,6 +26,7 @@ import {
   // 발동 안 됨 → 운영자 의도 ("호텔=동선 anchor, Day 마지막 호텔 복귀") 위반.
   selfHealLodgingBookend,
   applyDepartureBreakfastNote,
+  applyArrivalRestNote,
 } from './planPersister.js';
 import { pickRecommendedRestaurantsByStyle } from './recommendedRestaurants.js';
 import { loadFoodIndex } from './geminiPipeline.js';
@@ -352,6 +353,15 @@ export function applyBackfillsAndTmoney(itinerary, ctx) {
   //   최종 시각 기준이라 9f9f37a1(20:15 인사동) + f80d7219(20:00 경복궁) 모두 enforce. T-money 전 호출 = 정합.
   applyTourEndCap(itinerary, ctx.body?.tourEndTime);
 
+  // ── 2026-10-26 (운영자 승인): 도착 휴식일 안내 — cap "바로 뒤"(cap 으로 저녁이 빠진 경우 포함). Day1 food 0 일 때만.
+  applyArrivalRestNote(itinerary, {
+    arrivalTime: String(ctx.arrivalTime || ctx.body?.arrivalTime || ctx.body?.arrival_time || '').slice(0, 5),
+    arrivalAirport: ctx.arrival_airport || ctx.body?.arrival_airport || ctx.body?.arrivalAirport,
+    cityKey: normalizeRegionKey(itinerary?.days?.[0]?.city || '') || normalizeRegionKey(ctx.body?.area || ''),
+    tourEndTime: ctx.body?.tourEndTime || ctx.body?.tour_end_time,
+    language: ctx.language,
+  });
+
   // ── T-money 서버 계산 ─────────────────────────────────────────────────
   calculateTmoney(itinerary);
 }
@@ -364,9 +374,14 @@ export async function applyRecommendedRestaurants(itinerary, ctx) {
   const { area, dietPrefs, regions, blockModeUsed, language, styles, avoidStopNames } = ctx;
   // 2026-10-24 (식이 준수 P3): 종단 게이트의 필수 끼니 판정에 출국·도착 시각 — sync 경로는 shaped 값,
   //   worker 경로는 body(camel/snake) 에서 같은 방식으로 읽는다.
+  //   2026-10-26: 도착 휴식일 판정 입력(공항·도시·투어 종료) — 모든 실행 경로가 같은 값을 넘긴다.
   const tripTimes = tripTimesFrom({
     departureTime: ctx.departureTime || ctx.body?.departureTime || ctx.body?.departure_time,
     arrivalTime: ctx.arrivalTime || ctx.body?.arrivalTime || ctx.body?.arrival_time,
+    arrivalAirport: ctx.arrival_airport || ctx.body?.arrival_airport || ctx.body?.arrivalAirport,
+    area: ctx.area || ctx.body?.area,
+    regions: ctx.regions,
+    tourEndTime: ctx.tourEndTime || ctx.body?.tourEndTime || ctx.body?.tour_end_time,
   });
   // 동선 5km 이내 + plan 미포함 식당 중 rating × log(reviews) 상위 10개씩.
   // dietPrefs 기준 per-style bucket: { general, vegan?, halal? } — 섞지 않음.

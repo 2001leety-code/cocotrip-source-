@@ -10,7 +10,7 @@
  */
 import { sanitizeStopName } from './sanitizeName.js';
 // 도착일 "활동 가능 시각" — blockMode·buildPrompt·RouteAgent 와 같은 계산을 쓴다(단일 원천).
-import { arrivalReadyMinutes } from './constants.js';
+import { arrivalReadyMinutes, arrivalRestDayInfo } from './constants.js';
 import { throttledTelegramAlert } from '../_shared/telegram-throttle.js';
 import { dietaryEvidenceFor } from '../_shared/dietary-trust.js';
 import { findSelectedFoodRow } from '../_shared/food-name-match.js';
@@ -325,12 +325,21 @@ const KNOWN_HOTEL_CHAINS = [
  * 종단 게이트(finalItineraryGate)가 출국일 끼니 누락을 다시 확인할 때 쓴다. VALIDATOR_BMEAL_ENABLED=false 면 [].
  * 출국 11:00 전은 식당 조식 면제(2026-10-24) — 안내는 planPersister.applyDepartureBreakfastNote.
  * @param {object} itinerary
- * @param {{departure_time?: string, departureTime?: string}} [request]
+ * 도착 휴식일(constants.arrivalRestDayInfo)은 Day1 이 숙소/공항/이동만이면 도착일 끼니 면제(2026-10-26).
+ * @param {{departure_time?: string, arrival_time?: string, arrival_airport?: string, area?: string, regions?: string[], tour_end_time?: string}} [request]
  * @returns {string[]} 예: 'Day 2 (출국일): departure_time=13:00 낮 출국 — 조식(06-10시)/오후식사(11-16시) 모두 누락 (B-MEAL, P137)'
  */
 export function checkRequiredMeals(itinerary, request = {}) {
   if (!itinerary || !Array.isArray(itinerary.days)) return [];
-  const req = { departure_time: request.departure_time || request.departureTime };
+  // 2026-10-26: 도착 휴식일 판정 입력도(snake·camel 둘 다 수용 → snake). 필터(B-MEAL 만)는 그대로.
+  const req = {
+    departure_time: request.departure_time || request.departureTime,
+    arrival_time: request.arrival_time || request.arrivalTime,
+    arrival_airport: request.arrival_airport || request.arrivalAirport,
+    area: request.area,
+    regions: request.regions,
+    tour_end_time: request.tour_end_time || request.tourEndTime,
+  };
   return validatePatternStructure(itinerary, req).filter((e) => /\(B-MEAL/.test(String(e)));
 }
 
@@ -349,6 +358,15 @@ export function validatePatternStructure(itinerary, request = {}) {
   const arrivalAirport  = request.arrival_airport  || request.arrivalAirport  || '';
   const departureAirport = request.departure_airport || request.departureAirport || '';
   const isMultiCity = regions.length >= 2;
+  // 2026-10-26 운영자 승인: 도착 휴식일(도착 ≥18:00 또는 준비 시각 ≥ 투어 종료−60분) — 판정 SSOT = constants.arrivalRestDayInfo.
+  //   B-MEAL 도착일(끼니 면제 — Day1 이 숙소/공항/이동만일 때)·B-LATE-ARRIVAL(선택 저녁 1곳)·B-12(1 stop) 가 같은 값을 쓴다.
+  const restInfo = arrivalRestDayInfo({
+    arrivalTime: request.arrival_time || request.arrivalTime,
+    arrivalAirport,
+    cityKey: normalizeRegionKey(days[0]?.city) || normalizeRegionKey(regions[0] || request.area),
+    tourEndTime: request.tour_end_time || request.tourEndTime,
+  });
+  const isStructuralStop = (s) => ['lodging', 'airport', 'travel'].includes(s?.category);
 
   // B-DC (2026-05-13 PR #407): itinerary.days.length === request.durationDays.
   // 사용자 PDF 보고 (Guest-5--2026-05-14): wizard 5일 plan 인데 PDF Day 4 까지만 노출.
@@ -412,7 +430,8 @@ export function validatePatternStructure(itinerary, request = {}) {
     // B-12: min stops per day. 빈 day 도 잡힘.
     // 2026-06-22 (Sentry JAVASCRIPT-REACT-3, 103건): 출국일은 체크아웃(lodging)+공항(travel)
     //   2 stop 이 정상인데 4 강제 → 재시도해도 위반 → 500. 도착/출국일 최소 2 로 완화.
-    const minStops = (isFirstDay || isLastDay) ? 2 : 4;
+    // 2026-10-26: 도착 휴식일 Day1 은 숙소 하나만도 정상(UI 휴식일 카드는 Day1 1 stop 일 때 뜬다).
+    const minStops = (isFirstDay && restInfo.rest) ? 1 : (isFirstDay || isLastDay) ? 2 : 4;
     if (stops.length < minStops) {
       errors.push(`Day ${dayNum}: stops.length=${stops.length} < ${minStops} minimum (B-12)`);
     }
@@ -642,7 +661,10 @@ export function validatePatternStructure(itinerary, request = {}) {
 
       if (isFirst) {
         // 도착일 — 아침 OR 점심/snack OR 저녁 중 최소 1개 (늦은 도착 시나리오 수용)
-        if (breakfastCount === 0 && afternoonMealCount === 0 && dinnerCount === 0) {
+        // 2026-10-26 운영자 승인: 도착 휴식일이고 Day1 이 숙소/공항/이동만이면 끼니 면제(안내 = applyArrivalRestNote).
+        //   관광 stop 이 하나라도 있으면(활동은 했는데 끼니 0) 기존대로 오류. food 가 있으면 원래대로 통과.
+        const restDayExempt = restInfo.rest && stops.every(isStructuralStop);
+        if (!restDayExempt && breakfastCount === 0 && afternoonMealCount === 0 && dinnerCount === 0) {
           errors.push(
             `Day ${dayNum} (도착일): 아침(06-10시)+오후식사(11-16시)+저녁(17-21시) 모두 누락 (B-MEAL)`
           );
@@ -826,7 +848,10 @@ export function validatePatternStructure(itinerary, request = {}) {
     // P239: 18:00+ 도착 → Day 1 = lodging only 권장 (다음날 tour_start_time 부터 stops).
     // 옛 룰 (arrival + 9h wrap) 은 새벽 wrap → cascade fallback 트리거. 신 룰 = 단순 시각 컷.
     const isLateNightArrival = arrivalMin >= 18 * 60;
-    if (isLateNightArrival && day1Stops.length > 2) {
+    // 2026-10-26 운영자 승인: 숙소/공항/이동 외 stop 이 food 1개뿐이면 3개까지 허용(선택 저녁 — 아래 준비 시각 검사는 그대로 받는다).
+    const day1Activities = day1Stops.filter((s) => !isStructuralStop(s));
+    const optionalDinnerOnly = day1Activities.length === 1 && day1Activities[0]?.category === 'food';
+    if (isLateNightArrival && day1Stops.length > 2 && !(optionalDinnerOnly && day1Stops.length <= 3)) {
       errors.push(`Day 1: arrival_time=${request.arrival_time || request.arrivalTime} (18:00 이후) → Day 1 = lodging only 권장. 현재 stops=${day1Stops.length} (B-LATE-ARRIVAL P239)`);
     }
     // P239: stops[1+] 는 tour_start_time 과 arrival_ready_time 중 **늦은 쪽** 이후여야 한다.

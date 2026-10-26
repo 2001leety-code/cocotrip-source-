@@ -294,6 +294,7 @@ export const processPlanAfterAI = inngest.createFunction(
         //   departureTime 은 ctx 에 없어 postResponsePipeline 이 body 에서 같은 방식
         //   (camel → snake, slice(0,5)) 으로 읽는다.
         departure_airport: ctx.departure_airport,
+        arrival_airport: ctx.arrival_airport, // 2026-10-26: 도착 휴식일 안내(applyArrivalRestNote) — shaped 공항
       });
       return itinAfterRoute;
     });
@@ -317,6 +318,7 @@ export const processPlanAfterAI = inngest.createFunction(
         avoidStopNames: Array.isArray(ctx.avoidStopNames) ? ctx.avoidStopNames : [],
         blockModeUsed: ctx.plannerMode === 'block_mode',
         body: ctx.body, // 2026-10-24: 종단 게이트 필수 끼니 판정의 출국·도착 시각(departureTime 은 ctx 에 없어 body 에서)
+        arrival_airport: ctx.arrival_airport, // 2026-10-26: 도착 휴식일 판정 — shaped 공항(sync 경로와 같은 값)
       });
     });
 
@@ -392,7 +394,15 @@ export const processPlanAfterAI = inngest.createFunction(
       //   sync 호출(dietary: dietaryAll, styles)과 동일하게 맞춘다.
       dietary: ctx.dietPrefs,
       styles: ctx.styles,
-      tripTimes: tripTimesFrom(ctx.body), // 2026-10-24: 종단 게이트 필수 끼니 판정(sync 경로와 동형)
+      // 2026-10-24: 종단 게이트 필수 끼니 판정(sync 경로와 동형). 2026-10-26: 도착 휴식일 입력(shaped 공항·도시) 보강.
+      tripTimes: tripTimesFrom({
+        departureTime: ctx.body?.departureTime || ctx.body?.departure_time,
+        arrivalTime: ctx.body?.arrivalTime || ctx.body?.arrival_time,
+        arrivalAirport: ctx.arrival_airport || ctx.body?.arrival_airport || ctx.body?.arrivalAirport,
+        area: ctx.area || ctx.body?.area,
+        regions: ctx.regions,
+        tourEndTime: ctx.body?.tourEndTime || ctx.body?.tour_end_time,
+      }),
       avoidStopNames: Array.isArray(ctx.avoidStopNames) ? ctx.avoidStopNames : [], // 2026-10-24 재방문 정책: 같은 적격 집합
     });
 

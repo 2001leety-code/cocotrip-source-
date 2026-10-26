@@ -3,6 +3,7 @@
  * Known private-string filtering supplements the schema; it cannot detect paraphrases.
  */
 import { departureBreakfastNote } from './departureBreakfastNote.js';
+import { arrivalRestNote } from './arrivalRestNote.js';
 import { revisitNote, stripRevisitNote } from './revisitNote.js';
 
 const S = 'string';
@@ -167,9 +168,17 @@ function projectStop(stop, privateEndpoint, language, terms) {
     // 2026-10-24: 숙소 tip 원문(호텔 고유 메모)은 비공개 그대로 — 백엔드가 붙인 출국일 조식 안내만 공개.
     //   문구는 저장값이 아니라 보는 사람 언어의 고정 문구(언어 전환 재투영에서 원문 언어로 되돌아가지 않게).
     //   breakfast_note 도 남겨 재투영해도 같은 결과(멱등).
-    if ((typeof stop.breakfast_note === 'string' && stop.breakfast_note) || stop._breakfast_note === true) {
-      result.tip = result.breakfast_note = departureBreakfastNote(language);
+    // 2026-10-26: 도착 휴식일 안내도 같은 방식(보는 사람 언어 고정 문구) — 둘 다 있으면 도착 안내 → 조식 안내 순서로 공백 연결.
+    const notes = [];
+    if ((typeof stop.arrival_rest_note === 'string' && stop.arrival_rest_note) || stop._arrival_rest_note === true) {
+      result.arrival_rest_note = arrivalRestNote(language);
+      notes.push(result.arrival_rest_note);
     }
+    if ((typeof stop.breakfast_note === 'string' && stop.breakfast_note) || stop._breakfast_note === true) {
+      result.breakfast_note = departureBreakfastNote(language);
+      notes.push(result.breakfast_note);
+    }
+    if (notes.length) result.tip = notes.join(' ');
     return result;
   }
   const result = project(stop, stopSchema, terms);

@@ -43,6 +43,7 @@ import {
 import { shapeRequest } from './requestShaper.js';
 import { buildUserMessage } from './userMessageBuilder.js';
 import { runRouteEnrichment, applyBackfillsAndTmoney, applyRecommendedRestaurants, computePricing, savePlan } from './postResponsePipeline.js';
+import { tripTimesFrom } from './finalItineraryGate.js';
 import { dispatchOrInlineForHandlerCore, shouldDispatchToInngest } from './inngestDispatch.js';
 
 // 2026-10-26: 런타임 Node 버전 확인용 — 모듈 최상위(콜드스타트당 1회), 요청마다 찍지 않는다.
@@ -391,11 +392,11 @@ export default async function handler(req, res) {
 
     // ── Backfills + T-money + recommended restaurants + pricing ───────────
     // P290/#1227: ctx 확장(hotel_address/hotelAddressFromBody/recommendedZone) — lodging bookend personalize. 출국일 항공 컷은 legacy 도 shaped 값 필요(raw body 'HH:mm:ss'/snake_case 면 컷이 조용히 skip).
-    applyBackfillsAndTmoney(itinerary, { hotelByCity, body, hotel_address: routeHotelAddress, hotelAddressFromBody: hotel_address, recommendedZone, language, blockMode: blockModeUsed, departureTime, departure_airport });
+    applyBackfillsAndTmoney(itinerary, { hotelByCity, body, hotel_address: routeHotelAddress, hotelAddressFromBody: hotel_address, recommendedZone, language, blockMode: blockModeUsed, departureTime, departure_airport, arrivalTime, arrival_airport });
 
     // ── Must-visit 맛집 추천 ──────────────────────────────────────────────
     // 저장 전 마지막 식이/식사 게이트; avoidStopNames 는 재생성에만 적용한다.
-    const foodIndexForQuality = await withStep('finalGate', () => applyRecommendedRestaurants(itinerary, { area, dietPrefs: dietaryAll, regions, blockModeUsed, language, styles, avoidStopNames, departureTime, arrivalTime }));
+    const foodIndexForQuality = await withStep('finalGate', () => applyRecommendedRestaurants(itinerary, { area, dietPrefs: dietaryAll, regions, blockModeUsed, language, styles, avoidStopNames, departureTime, arrivalTime, arrival_airport, tourEndTime }));
 
     // ── 예상 여행비 (판매가 아님) — 화면·PDF 표시용. 결제/적립/환불에 절대 넘기지 말 것.
     //    원장은 결제 검증된 booking.amountUSD 만 본다(booking-processor readVerifiedLedgerBasis).
@@ -423,7 +424,7 @@ export default async function handler(req, res) {
 
     // ── P168/P170/P171/P172/P173: Pass3 background trigger (fire-and-forget; backgroundPipelines.js 추출; gate.isAdminBypass 명시 전달)
     //   2026-08-24: dietary/styles 전달 — background enrich 결과가 종단 검증을 통과할 때만 Firestore 를 덮어쓴다.
-    triggerPass3BackgroundIfPending({ adminDb, planId, language, apiKey, itinerary, isAdminBypass: !!gate.isAdminBypass, identifierForBucketing, dietary: dietaryAll, styles, tripTimes: { departure_time: departureTime, arrival_time: arrivalTime }, avoidStopNames });
+    triggerPass3BackgroundIfPending({ adminDb, planId, language, apiKey, itinerary, isAdminBypass: !!gate.isAdminBypass, identifierForBucketing, dietary: dietaryAll, styles, tripTimes: tripTimesFrom({ departureTime, arrivalTime, arrivalAirport: arrival_airport, area, regions, tourEndTime }), avoidStopNames });
 
     // ── JSON 응답 ────────────────────────────────────────────────────────
     // P169: streaming 모드에서는 이미 early response 전송 완료 → skip.

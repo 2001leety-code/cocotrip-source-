@@ -155,6 +155,43 @@ export function arrivalReadyMinutes(arrivalHHMM, airport, cityKey) {
   return base + IMMIGRATION_BUFFER_MIN + estimateAirportTransitMinFrom(cityKey, airport);
 }
 
+// 2026-10-26 운영자 승인: 도착 휴식일 — 그날 끼니 의무 면제(출국 11:00 전 조식 면제와 같은 결).
+export const REST_DAY_LATE_ARRIVAL_MIN = 18 * 60; // B-LATE-ARRIVAL 과 같은 기준
+export const REST_DAY_TOUR_END_MARGIN_MIN = 60;   // 정책 여유값(실측 아님) — 운영자 승인 값
+export const DEFAULT_TOUR_END_MIN = 21 * 60;
+
+/** 엄격 HH:MM(00:00~23:59, 앞 5자). 아니면 null. */
+function strictHHMMToMin(value) {
+  const m = /^(\d{1,2}):(\d{2})$/.exec(String(value || '').trim().slice(0, 5));
+  if (!m) return null;
+  const h = Number(m[1]);
+  const mi = Number(m[2]);
+  return h <= 23 && mi <= 59 ? h * 60 + mi : null;
+}
+
+/**
+ * 도착 휴식일 판정(순수 — 로그·부작용 없음). 검증기·게이트·mock·안내가 이 함수 하나만 쓴다(경계값 복제 금지).
+ *   (i)  도착 시각 ≥ 18:00 → late_arrival
+ *   (ii) 도착 준비 시각(arrivalReadyMinutes — 절대 분, 자정 넘어도 1440 이상 그대로) ≥ 투어 종료 − 60분 → ready_near_tour_end
+ *        공항이 비었거나 ALREADY/already_in_korea 면 (ii) 는 추론하지 않는다.
+ * @returns {{rest: boolean, reason: 'late_arrival'|'ready_near_tour_end'|null, readyMin: number|null, tourEndMin: number}}
+ */
+export function arrivalRestDayInfo({ arrivalTime, arrivalAirport, cityKey, tourEndTime } = {}) {
+  const parsedEnd = strictHHMMToMin(tourEndTime);
+  const tourEndMin = parsedEnd === null ? DEFAULT_TOUR_END_MIN : parsedEnd;
+  const arrMin = strictHHMMToMin(arrivalTime);
+  if (arrMin === null) return { rest: false, reason: null, readyMin: null, tourEndMin };
+  const arrivalHHMM = String(arrivalTime).trim().slice(0, 5);
+  const airport = String(arrivalAirport || '').trim();
+  const noAirport = !airport || /^(already|already_in_korea)$/i.test(airport);
+  const readyMin = noAirport ? null : arrivalReadyMinutes(arrivalHHMM, airport, cityKey);
+  if (arrMin >= REST_DAY_LATE_ARRIVAL_MIN) return { rest: true, reason: 'late_arrival', readyMin, tourEndMin };
+  if (readyMin !== null && readyMin >= tourEndMin - REST_DAY_TOUR_END_MARGIN_MIN) {
+    return { rest: true, reason: 'ready_near_tour_end', readyMin, tourEndMin };
+  }
+  return { rest: false, reason: null, readyMin, tourEndMin };
+}
+
 /** 위 값을 "HH:mm" 으로. 자정을 넘기면 24h wrap(다음 날 시각). 실패 시 null. */
 export function arrivalReadyHHMM(arrivalHHMM, airport, cityKey) {
   const min = arrivalReadyMinutes(arrivalHHMM, airport, cityKey);

@@ -6,11 +6,12 @@
 import { FieldValue } from 'firebase-admin/firestore';
 import { randomUUID } from 'crypto';
 import { computeQualityScore, detectDepartureFlightOverrun } from './qualityMetrics.js';
-import { SCHEDULE_BUFFER_MIN } from './constants.js';
+import { SCHEDULE_BUFFER_MIN, arrivalRestDayInfo } from './constants.js';
 import { throttledTelegramAlert } from '../_shared/telegram-throttle.js';
 import { detectPaymentSource, isAdminBypassOrderId, isOperatorTestEmail } from '../_shared/admin-bypass-detector.js';
 import { beginPlanCommit, finalizePlanIssuance } from '../_shared/plan-issuance.js';
 import { departureBreakfastNote } from '../../src/lib/departureBreakfastNote.js';
+import { arrivalRestNote } from '../../src/lib/arrivalRestNote.js';
 
 /**
  * P112 (2026-05-20): end_time backfill. plan 4792076e dump 결과 29/29 stops 의
@@ -289,6 +290,28 @@ export function applyDepartureBreakfastNote(itinerary, { departureTime, language
 // 2026-10-24 검증 식당 재방문 정책 — 재방문 stop 안내(R6). 구현은 revisitPolicy(순수 모듈 — 이 파일을 모킹하는
 //   테스트에서도 파이프라인이 그대로 부르게), 여기서는 같은 이름으로 내보낸다.
 export { applyRevisitNotes } from './revisitPolicy.js';
+
+/**
+ * 2026-10-26 (운영자 승인): 도착 휴식일 안내 — days ≥ 2, constants.arrivalRestDayInfo(...).rest, Day1 food 0 일 때만
+ * Day1 첫 lodging(없으면 첫 stop) tip 끝에 1문장 + arrival_rest_note 저장(공개 투영용 고정 문구). 멱등(_arrival_rest_note).
+ * 출국일 조식 안내(breakfast_note)와 다른 필드. 근처 식당 약속 없음.
+ * @returns {boolean} 붙였으면 true
+ */
+export function applyArrivalRestNote(itinerary, { arrivalTime, arrivalAirport, cityKey, tourEndTime, language } = {}) {
+  const days = Array.isArray(itinerary?.days) ? itinerary.days : [];
+  if (days.length < 2) return false;
+  if (!arrivalRestDayInfo({ arrivalTime, arrivalAirport, cityKey, tourEndTime }).rest) return false;
+  const stops = Array.isArray(days[0]?.stops) ? days[0].stops : [];
+  if (stops.length === 0 || stops.some((s) => s?.category === 'food')) return false;
+  const target = stops.find((s) => s?.category === 'lodging') || stops[0];
+  if (!target || typeof target !== 'object' || target._arrival_rest_note === true) return false;
+  const note = arrivalRestNote(language);
+  const tip = typeof target.tip === 'string' ? target.tip.trim() : '';
+  target.tip = tip ? `${tip} ${note}` : note;
+  target.arrival_rest_note = note;
+  target._arrival_rest_note = true;
+  return true;
+}
 
 // P156 (2026-05-22): 동네/랜드마크 → 도시 매핑. P152 의 도시명 매칭이 못 잡는
 // "황리단길 호텔" (Gyeongju 동네명만 있고 "경주" 미명시) 같은 케이스 보강.
