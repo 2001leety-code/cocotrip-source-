@@ -22,10 +22,11 @@ vi.mock('../../api/_shared/paypal.js', () => ({
 }));
 vi.mock('../../api/_ai_core/geminiPipeline.js', () => ({ loadFoodIndex: async () => foodHolder.rows }));
 vi.mock('firebase-admin/firestore', () => ({ FieldValue: { serverTimestamp: () => 'TS', increment: (n: number) => ({ __inc: n }) } }));
-vi.mock('../../api/_shared/telegram-throttle.js', () => ({ throttledTelegramAlert: async () => {} }));
+const observed = vi.hoisted(() => ({ alerts: [] as string[], errors: [] as string[] }));
+vi.mock('../../api/_shared/telegram-throttle.js', () => ({ throttledTelegramAlert: async (a: { key: string }) => { observed.alerts.push(a.key); } }));
 vi.mock('../../api/_shared/operator-alerts.js', () => ({ notifyOperator: async () => {} }));
 vi.mock('../../api/_shared/notify.js', () => ({ notify: async () => {} }));
-vi.mock('../../api/_shared/sentry.js', () => ({ captureError: async () => {} }));
+vi.mock('../../api/_shared/sentry.js', () => ({ captureError: async (_e: unknown, ctx: { step?: string }) => { observed.errors.push(String(ctx && ctx.step)); } }));
 vi.mock('../../api/_shared/booking-processor-trigger.js', () => ({
   triggerBookingProcessor: async () => ({ ok: true, outcome: 'completed' }), PENDING_PROCESSOR_RETRIES_COLLECTION: 'pending_processor_retries',
 }));
@@ -100,6 +101,8 @@ function memDb(seed: Record<string, Dict> = {}) {
 
 beforeEach(() => {
   paypalTokenCalls.length = 0;
+  observed.alerts.length = 0;
+  observed.errors.length = 0;
   foodHolder.rows = [HALAL_SEOUL];
 });
 
@@ -170,11 +173,31 @@ describe('capture state machine after a pre-capture refusal (adversarial seq + A
     expect((dbHolder.db as ReturnType<typeof memDb>)._store.has(`bookings/${ORDER}`)).toBe(true);
   });
 
-  it('APPROVED only after the safety window is proof of nonpayment → attempt released, NOT_CAPTURED with the refusal reason, no POST', async () => {
+  it('r3 Astra repro: POST timeout → 125 s later APPROVED → record KEPT (elapsed time is not proof), operator alerted → late COMPLETED is recorded, never no_attempt_record', async () => {
     await unknownAttempt();
     foodHolder.rows = [];
-    ageLock(CLAIM_LEASE_MS + 5_000);
-    const calls = paypal({ gets: ['APPROVED'] });
+    ageLock(125_000);
+    let calls = paypal({ gets: ['APPROVED'] });
+    const out = await call({ orderID: ORDER, reconcile: true });
+    expect(out.status).toBe(202);
+    expect(out.body).toMatchObject({ code: 'PAYMENT_RECOVERY_PENDING', paymentStatus: 'CAPTURE_UNKNOWN' });
+    expect(calls).toEqual(['GET']);
+    expect(lockOf()).toMatchObject({ captureState: 'unknown' });
+    expect(observed.alerts).toContain(`single-capture-unknown-${ORDER}`);
+
+    calls = paypal({ gets: ['COMPLETED'] });
+    const late = await call({ orderID: ORDER, reconcile: true });
+    expect(late.status).toBe(200);
+    expect(late.body).not.toMatchObject({ evidence: 'no_attempt_record' });
+    expect(calls).not.toContain('POST');
+    expect((dbHolder.db as ReturnType<typeof memDb>)._store.has(`bookings/${ORDER}`)).toBe(true);
+  });
+
+  it('only an explicit PayPal terminal state (VOIDED) proves nonpayment → record released, NOT_CAPTURED with the refusal reason', async () => {
+    await unknownAttempt();
+    foodHolder.rows = [];
+    ageLock(CLAIM_LEASE_MS * 10);
+    const calls = paypal({ gets: ['VOIDED'] });
     const out = await call({ orderID: ORDER, reconcile: true });
     expect(out.status).toBe(422);
     expect(out.body).toMatchObject({ code: 'PAYMENT_NOT_CAPTURED', paymentStatus: 'NOT_CAPTURED', preCaptureCode: 'DIETARY_COVERAGE_UNAVAILABLE' });
@@ -182,14 +205,15 @@ describe('capture state machine after a pre-capture refusal (adversarial seq + A
     expect(lockOf()).toBeUndefined();
   });
 
-  it('Astra seq: first lookup PAYER_ACTION_REQUIRED, a second would say APPROVED — capture is never POSTed after the refusal (window passed → NOT_CAPTURED)', async () => {
+  it('Astra seq: first lookup PAYER_ACTION_REQUIRED, a second would say APPROVED — never POSTed after the refusal; record kept even long after', async () => {
     await unknownAttempt();
     foodHolder.rows = [];
-    ageLock(CLAIM_LEASE_MS + 5_000);
+    ageLock(CLAIM_LEASE_MS * 10);
     const calls = paypal({ gets: ['PAYER_ACTION_REQUIRED', 'APPROVED'] });
     const out = await call({ orderID: ORDER, reconcile: true });
     expect(calls).toEqual(['GET']); // 예전: GET 2회 + POST 1회
-    expect(out.body).toMatchObject({ code: 'PAYMENT_NOT_CAPTURED' });
+    expect(out.status).toBe(202);
+    expect(lockOf()).toBeDefined();
   });
 
   it('Astra seq inside the window: still no POST, attempt kept, 202', async () => {
@@ -202,15 +226,29 @@ describe('capture state machine after a pre-capture refusal (adversarial seq + A
     expect(lockOf()).toBeDefined();
   });
 
-  it('lookup unknown (network) after a refusal → 202, attempt kept, no POST', async () => {
+  it('H: lookup unknown (network) after a refusal on a POSTED attempt → 202, captureState=unknown + lastUnknownAtMs recorded, operator alerted, no POST', async () => {
     await unknownAttempt();
+    const store = (dbHolder.db as ReturnType<typeof memDb>)._store;
+    store.set(`used_paypal_orders/${ORDER}`, { ...lockOf(), captureState: 'posted', lastUnknownAtMs: undefined, capturePostedAtMs: Date.now() - 200_000 });
     foodHolder.rows = [];
-    ageLock(CLAIM_LEASE_MS + 5_000);
+    observed.alerts.length = 0;
     const calls = paypal({ gets: ['NETWORK'] });
     const out = await call({ orderID: ORDER, reconcile: true });
     expect(out.status).toBe(202);
     expect(calls).toEqual(['GET']);
-    expect(lockOf()).toBeDefined();
+    expect(lockOf()).toMatchObject({ captureState: 'unknown' });
+    expect(typeof lockOf()!.lastUnknownAtMs).toBe('number');
+    expect(observed.alerts).toEqual([`single-capture-unknown-${ORDER}`]);
+  });
+
+  it('I: corrupt snapshot input (no cities) → the check fails BEFORE any attempt record: 503, PayPal 0 calls, nothing left to block new orders', async () => {
+    dbHolder.db = memDb({ [`paypal_order_snapshots/${ORDER}`]: { ...snapshot(), prepayInput: { version: 1, startDate: '2099-12-01', diets: ['halal'] } } });
+    const calls = paypal({});
+    const out = await call({ orderID: ORDER });
+    expect(out.status).toBe(503);
+    expect(out.body).toMatchObject({ code: 'ORDER_CHECK_UNAVAILABLE' });
+    expect(calls).toEqual([]);
+    expect(lockOf()).toBeUndefined();
   });
 
   it('fresh attempt + refusal → zero PayPal order calls (no GET, no POST), attempt released', async () => {
@@ -413,7 +451,128 @@ describe('paid-order screen and copy (pre-payment vs post-payment keys)', () => 
     const btn = read('src/components/PayPalBookingButton.tsx');
     expect(btn).toContain("if (keepRecoveryUntilFulfilled) remember({ orderID, flow: 'single', paymentStatus: 'CAPTURED', review: false, productType });");
     const hook = read('src/pages/PlannerPage/hooks/usePlannerHandlers.ts');
-    expect(hook).toContain("if (isPaidOrderId(paypalOrderId)) removePaymentRecovery('single', paypalOrderId);");
+    expect(hook).toContain("if (isPaidOrderId(paypalOrderId)) removePaymentRecovery('single', paypalOrderId, PLANNER_RECOVERY_SCOPE);");
     expect(hook).toContain('lastValues.current = applyPaidPlannerInput(lastValues.current, issue.pinnedInput);');
+  });
+});
+
+// ── r3 (Astra r2 · 적대적 r2) ─────────────────────────────────────────────────
+describe('r3 B/J/D/F — paid orders: owner → pinned input → coverage → claim; verified orders skip the start-date re-check', () => {
+  const paidOrderFetch = () => {
+    global.fetch = vi.fn(async () => ({ ok: true, status: 200, json: async () => ({ id: ORDER, status: 'COMPLETED',
+      purchase_units: [{ payments: { captures: [{ id: 'CAP-1', status: 'COMPLETED', amount: { value: '9.90', currency_code: 'USD' } }] } }] }) })) as never;
+  };
+  const realIndex = async () => JSON.parse(read('api/_food_index.json')) as Dict[];
+  const paidSnap = (pinned: Dict, extra: Dict = {}) => ({ productType: 'ai-planner-full', expectedUSD: '9.90', expectedCurrency: 'USD', expectedKRW: 14000,
+    prepayInput: norm(pinned), prepayInputVersion: 1, prepayFingerprint: fp(pinned), ...extra });
+  const claimed = (db: ReturnType<typeof memDb>) => [...db._store.keys()].some((k) => k.startsWith('plan_issued_orders/'));
+
+  it('B (Astra repro): paid Seoul/Halal, re-entry Seoul+Incheon/Halal → 409 with pinnedInput (not 422), no claim', async () => {
+    paidOrderFetch();
+    const db = memDb({ [`paypal_order_snapshots/${ORDER}`]: paidSnap(input({ regions: ['서울'] }), { ownerUid: 'uid1' }) });
+    const r = await enforcePaymentAndRevision({ ...input({ regions: ['서울', '인천'] }), paypalOrderId: ORDER }, db, 'u@e.x', 'uid1', { loadFoodIndex: realIndex });
+    expect(r.rejection).toMatchObject({ statusCode: 409, code: 'PREPAY_INPUT_MISMATCH' });
+    expect(r.rejection.details.pinnedInput).toMatchObject({ cities: ['seoul'], diets: ['halal'] });
+    expect(claimed(db)).toBe(false);
+  });
+  it('J: paid order with the pinned input but coverage now gone → 422 after the bind, operator alert + Sentry, no claim', async () => {
+    paidOrderFetch();
+    const db = memDb({ [`paypal_order_snapshots/${ORDER}`]: paidSnap(input(), { ownerUid: 'uid1' }) });
+    const r = await enforcePaymentAndRevision({ ...input(), paypalOrderId: ORDER }, db, 'u@e.x', 'uid1', { loadFoodIndex: async () => [] });
+    expect(r.rejection).toMatchObject({ statusCode: 422, code: 'DIETARY_COVERAGE_UNAVAILABLE' });
+    expect(observed.alerts).toContain(`paid-dietary-coverage:${ORDER}`);
+    expect(observed.errors).toContain('paid_dietary_coverage');
+    expect(claimed(db)).toBe(false);
+  });
+  it('unpaid paths keep coverage first (free coupon: nothing touched)', async () => {
+    const db = memDb();
+    const r = await enforcePaymentAndRevision({ ...input({ regions: ['서울', '인천'] }), aiCouponCode: 'FREE1' }, db, 'u@e.x', 'uid1', { loadFoodIndex: realIndex });
+    expect(r.rejection).toMatchObject({ statusCode: 422 });
+    expect(db._calls.tx).toBe(0);
+  });
+  it('D (midnight repro): order pinned to a start date that is now "today" → gate passes with prepayVerified, the generation start-date check is skipped', async () => {
+    paidOrderFetch();
+    const today = input({ startDate: todayKST() });
+    const db = memDb({ [`paypal_order_snapshots/${ORDER}`]: paidSnap(today, { ownerUid: 'uid1' }) });
+    const body = { ...today, paypalOrderId: ORDER };
+    const gate = await enforcePaymentAndRevision(body, db, 'u@e.x', 'uid1', { loadFoodIndex: async () => [HALAL_SEOUL] });
+    expect(gate.rejection).toBeUndefined();
+    expect(gate.prepayVerified).toBe(true);
+    // @ts-expect-error — JS 모듈
+    const { checkStartDateTooSoon } = await import('../../api/_ai_core/validateStartDate.js');
+    expect(checkStartDateTooSoon(body, false)).not.toBeNull(); // 면제 없으면 400 이던 상황
+    expect(checkStartDateTooSoon(body, gate.isRevision || gate.prepayVerified === true)).toBeNull();
+    expect(read('api/_ai_core/handlerCore.js')).toContain('const tooSoon = checkStartDateTooSoon(body, gate.isRevision || gate.prepayVerified === true);');
+  });
+  it('D: an OLD paid order pinned on first use is also verified; an un-normalizable legacy request is not', async () => {
+    paidOrderFetch();
+    const db = memDb({ [`paypal_order_snapshots/${ORDER}`]: { productType: 'ai-planner-full', expectedUSD: '9.90', expectedCurrency: 'USD', ownerUid: 'uid1' } });
+    const noDiet = input(); delete noDiet.dietaryRestrictions;
+    const loose = await enforcePaymentAndRevision({ ...noDiet, paypalOrderId: ORDER }, db, 'u@e.x', 'uid1', { loadFoodIndex: async () => [HALAL_SEOUL] });
+    expect(loose.rejection).toBeUndefined();
+    expect(loose.prepayVerified).toBeUndefined();
+    db._store.delete(`plan_issued_orders/${ORDER}`);
+    const pinned = await enforcePaymentAndRevision({ ...input(), paypalOrderId: ORDER }, db, 'u@e.x', 'uid1', { loadFoodIndex: async () => [HALAL_SEOUL] });
+    expect(pinned.prepayVerified).toBe(true);
+  });
+  it('F (phone login, no email claim): the owner uid recorded at order creation matches the uid passed as ownerUid', async () => {
+    paidOrderFetch();
+    const db = memDb({ [`paypal_order_snapshots/${ORDER}`]: paidSnap(input(), { ownerUid: 'phoneUid' }) });
+    const ok = await enforcePaymentAndRevision({ ...input(), paypalOrderId: ORDER }, db, null, undefined, { loadFoodIndex: async () => [HALAL_SEOUL], ownerUid: 'phoneUid' });
+    expect(ok.rejection).toBeUndefined();
+    const other = memDb({ [`paypal_order_snapshots/${ORDER}`]: paidSnap(input(), { ownerUid: 'phoneUid' }) });
+    const no = await enforcePaymentAndRevision({ ...input(), paypalOrderId: ORDER }, other, null, undefined, { loadFoodIndex: async () => [HALAL_SEOUL], ownerUid: 'someoneElse' });
+    expect(no.rejection).toMatchObject({ statusCode: 403 });
+    expect(read('api/_ai_core/handlerCore.js')).toContain('const ownerUid = auth.ok ? auth.uid : ((await verifyFirebaseIdentityToken(req)).uid || null);');
+  });
+});
+
+describe('r3 K — MANUAL (QR) orders get the same input pinning', () => {
+  const pending = (extra: Dict = {}) => ({ status: 'CONFIRMED', productType: 'ai-planner-full', userId: 'uid1', customerEmail: 'u@e.x', ...extra });
+  const MREF = 'CT-20991201-123';
+  it('fingerprint from the report: different input → 409 pinnedInput, used record NOT written; same input → passes, verified', async () => {
+    const db = memDb({ [`pending_bookings/${MREF}`]: pending({ prepayInput: norm(input()), prepayFingerprint: fp(input()) }) });
+    const bad = await enforcePaymentAndRevision({ ...input({ regions: ['Busan'] }), paypalOrderId: `MANUAL-${MREF}` }, db, 'u@e.x', 'uid1', { loadFoodIndex: async () => [HALAL_SEOUL, HALAL_BUSAN] });
+    expect(bad.rejection).toMatchObject({ statusCode: 409, code: 'PREPAY_INPUT_MISMATCH' });
+    expect(db._store.has(`used_paypal_orders/MANUAL-${MREF}`)).toBe(false);
+    const good = await enforcePaymentAndRevision({ ...input(), paypalOrderId: `MANUAL-${MREF}` }, db, 'u@e.x', 'uid1', { loadFoodIndex: async () => [HALAL_SEOUL] });
+    expect(good.rejection).toBeUndefined();
+    expect(good.prepayVerified).toBe(true);
+    expect(db._store.has(`used_paypal_orders/MANUAL-${MREF}`)).toBe(true);
+  });
+  it('old manual order without a fingerprint is pinned on first use (pending_bookings)', async () => {
+    const db = memDb({ [`pending_bookings/${MREF}`]: pending() });
+    const r = await enforcePaymentAndRevision({ ...input(), paypalOrderId: `MANUAL-${MREF}` }, db, 'u@e.x', 'uid1', { loadFoodIndex: async () => [HALAL_SEOUL] });
+    expect(r.rejection).toBeUndefined();
+    expect(db._store.get(`pending_bookings/${MREF}`)).toMatchObject({ prepayFingerprint: fp(input()), prepayPinnedFrom: 'legacy_paid_first_use' });
+  });
+});
+
+describe('r3 E — one date source in normalizePrepayInput', () => {
+  it('adversarial repro: startDate 2099 + date today → refused as a conflict (the checked date can no longer differ from the stored one)', () => {
+    const split = { ...input(), endDate: '2099-12-03', date: `${todayKST()}T09:00` };
+    expect(normalizePrepayInput(split, { requireFutureStart: true })).toMatchObject({ ok: false, code: 'PLANNER_INPUT_CONFLICT' });
+  });
+  it('date alone is the checked and stored date (same precedence as requestShaper)', () => {
+    const only = { ...input(), date: '2099-12-05' }; delete only.startDate;
+    expect(norm(only)).toMatchObject({ startDate: '2099-12-05' });
+    const past = { ...input(), date: '2020-01-01' }; delete past.startDate;
+    expect(normalizePrepayInput(past, { requireFutureStart: true })).toMatchObject({ ok: false, code: 'PLANNER_DATE_TOO_SOON' });
+  });
+});
+
+describe('r3 C/G — QR keeps the report path once shown; planner pointer lives in its own key', () => {
+  it('C: after the QR was shown, later re-checks never revoke it', () => {
+    const qr = read('src/components/PayPalQrPanel.tsx');
+    expect(qr).toContain('if (!needsPrepay || !plannerInputKey || qrShownRef.current) return;');
+    expect(qr).toContain('if (ok) qrShownRef.current = true;');
+    expect(qr).toContain("if (!cancelled && !qrShownRef.current) setPrepayState('blocked');");
+  });
+  it('G: the planner button uses the planner scope; other products keep the shared single key (render test: prepay-r3-planner-pointer-scope.test.tsx)', () => {
+    const rec = read('src/lib/paymentRecovery.ts');
+    expect(rec).toContain("export const PLANNER_RECOVERY_SCOPE = 'ai-planner';");
+    expect(rec).toContain('`cocotrip:payment-recovery:${flow}${scope ? `:${scope}` : \'\'}`');
+    const btn = read('src/components/PayPalBookingButton.tsx');
+    expect(btn).toContain("usePaymentRecovery('single', keepRecoveryUntilFulfilled ? PLANNER_RECOVERY_SCOPE : undefined)");
   });
 });

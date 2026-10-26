@@ -15,7 +15,7 @@
 // 환경변수 (frontend exposed - VITE_ prefix):
 //   VITE_PAYPAL_ME_USERNAME   paypal.me username (필수, 예: 'cocotripkr')
 //   VITE_USD_KRW_RATE         (옵션) hardcoded 환율, 미설정 시 1380
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Smartphone, Copy, Check, Loader2, AlertCircle, Mail, Phone, ExternalLink } from 'lucide-react';
 import QRCode from 'qrcode';
 import { useLanguage } from '@/hooks/useLanguage';
@@ -238,16 +238,25 @@ export function PayPalQrPanel({
   const [prepayState, setPrepayState] = useState<'checking' | 'ok' | 'blocked'>(
     () => (!needsPrepay ? 'ok' : plannerInput ? 'checking' : 'blocked'),
   );
+  // r3: 한 번 통과해 QR·링크를 보여 준 뒤에는 다시 검사하지 않는다 — 손님이 이미 송금했을 수 있다. 언어 변경 등으로 입력이 바뀌어
+  //   재검사가 실패·통신 실패해도 신고 경로를 없애거나 '결제 안 됨' 으로 단정하지 않는다(신고 시 서버가 결과를 기록한다).
+  const qrShownRef = useRef(false);
   useEffect(() => {
-    if (!needsPrepay || !plannerInputKey) return;
+    if (!needsPrepay || !plannerInputKey || qrShownRef.current) return;
     let cancelled = false;
     fetch('/api/manual-payment-request', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ checkOnly: true, productType, plannerInput: JSON.parse(plannerInputKey) }),
     })
-      .then(async (res) => { const json = await res.json(); if (!cancelled) setPrepayState(res.ok && json.ok ? 'ok' : 'blocked'); })
-      .catch(() => { if (!cancelled) setPrepayState('blocked'); });
+      .then(async (res) => {
+        const json = await res.json();
+        if (cancelled || qrShownRef.current) return;
+        const ok = res.ok && json.ok;
+        if (ok) qrShownRef.current = true;
+        setPrepayState(ok ? 'ok' : 'blocked');
+      })
+      .catch(() => { if (!cancelled && !qrShownRef.current) setPrepayState('blocked'); });
     return () => { cancelled = true; };
   }, [needsPrepay, plannerInputKey, productType]);
 

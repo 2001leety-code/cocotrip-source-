@@ -11,7 +11,7 @@ import { track as posthogTrack } from '@/lib/posthog';
 import { buildQuickPreviewPayload } from '../lib/quickPreviewIntent';
 import { parseQuickPreviewResponse } from '../lib/quickPreviewContract';
 import { buildFullPlannerIntentPayload, buildPlannerOrderInput, applyPaidPlannerInput, type PaidPlannerInput } from '../lib/plannerIntent';
-import { removePaymentRecovery } from '@/lib/paymentRecovery';
+import { removePaymentRecovery, PLANNER_RECOVERY_SCOPE } from '@/lib/paymentRecovery';
 
 // feat/guest-anon-auth-pii (2026-06-15): 비로그인 게스트 + 플래그 ON 이면 격리된
 // 익명 Firebase 인스턴스(guestReader)로 로그인해 idToken 을 x-guest-anon-token 헤더로
@@ -366,7 +366,7 @@ export function usePlannerHandlers({ language, userEmail, setUserEmail }: UsePla
       }
 
       // 플랜 발급 = 결제 복구 포인터를 지울 때(그 전까지는 새 결제 버튼 대신 같은 주문 확인이 보인다).
-      if (isPaidOrderId(paypalOrderId)) removePaymentRecovery('single', paypalOrderId);
+      if (isPaidOrderId(paypalOrderId)) removePaymentRecovery('single', paypalOrderId, PLANNER_RECOVERY_SCOPE);
       const data = json.data;
 
       setStreamStep(4);
@@ -408,7 +408,7 @@ export function usePlannerHandlers({ language, userEmail, setUserEmail }: UsePla
       // 결제된 주문의 생성 실패 = 결제 후 안내(다시 결제하지 마세요) + 새 결제 버튼 대신 같은 주문 재시도.
       //   이미 발급된 주문(DUPLICATE_ORDER)은 복구 포인터만 정리한다.
       if (isPaidOrderId(paypalOrderId)) {
-        if (payload.code === 'DUPLICATE_ORDER') removePaymentRecovery('single', paypalOrderId);
+        if (payload.code === 'DUPLICATE_ORDER') removePaymentRecovery('single', paypalOrderId, PLANNER_RECOVERY_SCOPE);
         else setPaidOrderIssue({ orderId: paypalOrderId, code: payload.code, pinnedInput: (err as { pinnedInput?: PaidPlannerInput | null }).pinnedInput || null });
       }
       setIsGeneratingPlan(false);

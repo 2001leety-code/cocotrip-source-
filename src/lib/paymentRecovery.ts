@@ -29,7 +29,12 @@ export type CaptureOutcome =
   | { kind: 'auth_required' }
   | { kind: 'error'; message: string };
 
-export const recoveryKey = (flow: PaymentFlow) => `cocotrip:payment-recovery:${flow}`;
+/**
+ * scope: 같은 flow 안에서 따로 보관할 포인터 범위. 2026-10-26 B6-1 r3 — AI 플래너는 결제 뒤 발급까지 CAPTURED 포인터를
+ * 유지하므로 'single' 공용 키에 두면 차터·투어·InlineBookingCard 결제 버튼까지 막는다 → 플래너 전용 범위('ai-planner').
+ */
+export const recoveryKey = (flow: PaymentFlow, scope?: string) => `cocotrip:payment-recovery:${flow}${scope ? `:${scope}` : ''}`;
+export const PLANNER_RECOVERY_SCOPE = 'ai-planner';
 const FLOWS: PaymentFlow[] = ['single', 'cart'];
 
 function parsePointer(raw: string | null): PaymentRecovery | null {
@@ -49,18 +54,18 @@ function parsePointer(raw: string | null): PaymentRecovery | null {
   }
 }
 
-export function readPaymentRecovery(flow: PaymentFlow): PaymentRecovery | null {
-  try { return parsePointer(localStorage.getItem(recoveryKey(flow))); } catch { return null; }
+export function readPaymentRecovery(flow: PaymentFlow, scope?: string): PaymentRecovery | null {
+  try { return parsePointer(localStorage.getItem(recoveryKey(flow, scope))); } catch { return null; }
 }
 
-export function writePaymentRecovery(value: PaymentRecovery): boolean {
-  try { localStorage.setItem(recoveryKey(value.flow), JSON.stringify(value)); return true; } catch { return false; }
+export function writePaymentRecovery(value: PaymentRecovery, scope?: string): boolean {
+  try { localStorage.setItem(recoveryKey(value.flow, scope), JSON.stringify(value)); return true; } catch { return false; }
 }
 
-export function removePaymentRecovery(flow: PaymentFlow, orderID: string): void {
+export function removePaymentRecovery(flow: PaymentFlow, orderID: string, scope?: string): void {
   try {
-    const current = readPaymentRecovery(flow);
-    if (current && current.orderID === orderID) localStorage.removeItem(recoveryKey(flow));
+    const current = readPaymentRecovery(flow, scope);
+    if (current && current.orderID === orderID) localStorage.removeItem(recoveryKey(flow, scope));
   } catch { /* stale pointer is safe to reconcile again */ }
 }
 
@@ -112,25 +117,27 @@ export async function reconcilePayment(flow: PaymentFlow, orderID: string): Prom
   }
 }
 
-export function usePaymentRecovery(flow: PaymentFlow) {
-  const [recovery, setRecovery] = useState<PaymentRecovery | null>(() => readPaymentRecovery(flow));
+export function usePaymentRecovery(flow: PaymentFlow, scope?: string) {
+  const [recovery, setRecovery] = useState<PaymentRecovery | null>(() => readPaymentRecovery(flow, scope));
   const pendingRef = useRef<PaymentRecovery | null>(recovery);
   const remember = useCallback((value: Omit<PaymentRecovery, 'updatedAt'> & { updatedAt?: number }) => {
     const next: PaymentRecovery = { ...value, updatedAt: Date.now() };
     pendingRef.current = next;
     setRecovery(next);
-    return writePaymentRecovery(next);
-  }, []);
+    return writePaymentRecovery(next, scope);
+  }, [scope]);
   const clearRecovery = useCallback((orderID: string) => {
     const current = pendingRef.current;
     if (current && current.orderID !== orderID) return;
-    if (current) removePaymentRecovery(current.flow, orderID);
+    if (current) removePaymentRecovery(current.flow, orderID, scope);
     pendingRef.current = null;
     setRecovery(null);
-  }, []);
+  }, [scope]);
   useEffect(() => {
     const sync = (event: StorageEvent) => {
-      if (event.key && !FLOWS.some((f) => recoveryKey(f) === event.key)) return;
+      // 범위 포인터는 자기 키만, 공용 포인터는 종전 그대로(두 flow 공용 키).
+      const keys = scope ? [recoveryKey(flow, scope)] : FLOWS.map((f) => recoveryKey(f));
+      if (event.key && !keys.includes(event.key)) return;
       const next = parsePointer(event.newValue);
       if (next) { pendingRef.current = next; setRecovery(next); return; }
       // Removal by another tab counts only for the same order (that tab saw a definitive server answer).
@@ -139,7 +146,7 @@ export function usePaymentRecovery(flow: PaymentFlow) {
     };
     window.addEventListener('storage', sync);
     return () => window.removeEventListener('storage', sync);
-  }, [flow]);
+  }, [flow, scope]);
   return { recovery, pendingRef, remember, clearRecovery };
 }
 

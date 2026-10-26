@@ -60,7 +60,12 @@ export function normalizePrepayInput(raw, { requireFutureStart = false } = {}) {
     // 누락 ≠ "제한 없음"(dietary-safety.md) — 새 주문은 명시 배열(빈 배열 허용)을 요구한다.
     return prepayRejection(400, 'PREPAY_DIETARY_MISSING', 'Planner input must state dietary restrictions (empty list for none)');
   }
-  const startDate = hasText(raw.startDate) ? raw.startDate.trim() : (hasText(raw.date) ? raw.date.trim() : '');
+  // 날짜 원천 하나 — requestShaper·checkStartDateTooSoon 과 같은 우선순위(date → startDate). 둘 다 있고 다르면 거부(r3):
+  //   검사한 날짜와 저장·지문·생성에 쓰이는 날짜가 갈라지는 우회를 막는다.
+  if (hasText(raw.date) && hasText(raw.startDate) && raw.date.trim() !== raw.startDate.trim()) {
+    return prepayRejection(400, 'PLANNER_INPUT_CONFLICT', 'Planner start date disagrees between request fields', `date=${raw.date} startDate=${raw.startDate}`);
+  }
+  const startDate = hasText(raw.date) ? raw.date.trim() : (hasText(raw.startDate) ? raw.startDate.trim() : '');
   const durationDays = Number(raw.durationDays);
   if (!DATE_RE.test(startDate) || !Number.isInteger(durationDays) || durationDays < 1 || durationDays > 30) {
     return prepayRejection(400, 'PREPAY_DATES_MISSING', 'Planner input must include startDate (YYYY-MM-DD) and durationDays');
@@ -71,7 +76,7 @@ export function normalizePrepayInput(raw, { requireFutureStart = false } = {}) {
   }
   let shaped;
   try {
-    shaped = shapeRequest({ ...raw, startDate, durationDays }, null, false, null);
+    shaped = shapeRequest({ ...raw, date: startDate, startDate, durationDays }, null, false, null);
   } catch (err) {
     return prepayRejection(400, 'PREPAY_INPUT_INVALID', 'Planner input is invalid', String(err && (err.code || err.message) || 'invalid'));
   }

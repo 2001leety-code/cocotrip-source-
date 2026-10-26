@@ -230,10 +230,12 @@ describe('capturePaypalOrder — re-check right before a NEW capture POST', () =
   });
   it('source: already-verified captures skip the re-check; the refusal decision feeds forbidPost into reconcileCapture', () => {
     const src = read('api/capturePaypalOrder.js');
-    expect(src).toContain('if (isPrepayCheckedProduct(product) && !(attempt.lock && attempt.lock.captureVerified)) {');
+    // r3: 판정은 시도 기록(acquirePaymentAttempt) 전에 계산, 분기는 그 뒤·reconcile 전.
+    expect(src.indexOf('let preCaptureBlock = null;')).toBeLessThan(src.indexOf('const acquired = await acquirePaymentAttempt('));
+    expect(src).toContain('if (preCaptureBlock && !(attempt.lock && attempt.lock.captureVerified)) {');
     expect(src).toContain('const lookup = neverPosted ? null : await fetchPaypalOrder(');
     expect(src).toContain('forbidPost: forbidCapturePost, lookup: preCaptureLookup');
-    expect(src.indexOf('isPrepayCheckedProduct(product) && !(attempt.lock')).toBeLessThan(src.indexOf('const reconciled = await reconcileCapture('));
+    expect(src.indexOf('if (preCaptureBlock && !(attempt.lock')).toBeLessThan(src.indexOf('const reconciled = await reconcileCapture('));
   });
 });
 
@@ -299,7 +301,8 @@ describe('ai-planner-full gate — coverage before any consumption; paid order i
   });
   it('source: coverage runs at the top of the gate, the bind runs before claimPlanIssuance', () => {
     const src = read('api/_ai_core/paymentGate.js');
-    const top = src.indexOf('const coverageRejection = await coverageRejectionBeforeConsumption(');
+    // r3: 결제 주문(PayPal·MANUAL)만 소유자·고정 입력 대조 뒤로 미루고, 나머지 경로는 여전히 맨 앞.
+    const top = src.indexOf('const coverageRejection = paidOrderRequest ? null : await coverageRejectionBeforeConsumption(');
     expect(top).toBeGreaterThan(-1);
     expect(top).toBeLessThan(src.indexOf('if (revisionOf && adminDb) {'));
     expect(src.indexOf('bindRejection = await bindPrepayInputBeforeClaim(')).toBeLessThan(src.indexOf('claimResult = await claimPlanIssuance('));

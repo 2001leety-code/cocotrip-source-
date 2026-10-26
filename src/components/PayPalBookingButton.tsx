@@ -15,7 +15,7 @@ import { tourSlotBody, SLOT_REJECT_LABELS } from '@/lib/tourSlotBooking';
 import { fillPrice } from '@/lib/aiPlannerPrice';
 import { charterCheckoutExpectedUsd, charterUsdFromKrw } from '@/lib/charterUsd';
 import { GuestSignupNudge } from '@/components/GuestSignupNudge';
-import { usePaymentRecovery, reconcilePayment, classifyCaptureResponse, recoveryCopy, recoveryHeadline, type CaptureOutcome } from '@/lib/paymentRecovery';
+import { usePaymentRecovery, reconcilePayment, classifyCaptureResponse, recoveryCopy, recoveryHeadline, PLANNER_RECOVERY_SCOPE, type CaptureOutcome } from '@/lib/paymentRecovery';
 import type { Language } from '@/i18n';
 
 // SDK 차단·로드 실패 시 fallback — paypal.me QR (외부 redirect, paypalobjects.com 무관).
@@ -213,7 +213,8 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
   // 🔴 2026-10-10 payment recovery: pointer persisted BEFORE capture; synchronous duplicate guard; the same
   //   order is reconciled through the capture endpoint ({orderID} only). Cleared only on durable success or
   //   provider-proven nonpayment. While present: no new order, no SDK reload, no QR fallback.
-  const { recovery, remember, clearRecovery } = usePaymentRecovery('single');
+  // 결제 뒤 이행(플랜 발급)까지 포인터를 유지하는 상품(AI 플래너)은 전용 범위 — 다른 상품 결제 버튼을 막지 않는다(r3).
+  const { recovery, remember, clearRecovery } = usePaymentRecovery('single', keepRecoveryUntilFulfilled ? PLANNER_RECOVERY_SCOPE : undefined);
   const captureInFlight = useRef(false);
   const [reconciling, setReconciling] = useState(false);
   const rc = recoveryCopy(lang);
