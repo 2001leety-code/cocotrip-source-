@@ -24,9 +24,9 @@ import {
   persistBookingsAtomically, shouldDispatchRetry, releaseHeldIntents, recordTerminalBeforeRefund, markRefundCompleted, provenFullRefundID,
   makeRetryPersister, recordProcessorResult, updateAttempt,
   releaseAttemptClaim, discardAttempt, finalizeAttempt, pendingPaymentResponse, notCapturedResponse, withBackoff,
-  buildFullRefundProof, readFullRefundProof, fullRefundProofMatchesCapture, fetchPaypalOrder,
+  buildFullRefundProof, readFullRefundProof, fullRefundProofMatchesCapture, fetchPaypalOrder, CLAIM_LEASE_MS,
 } from './_shared/payment-fulfillment-recovery.js';
-import { checkPrepayCoverage, loadPrepayFoodIndex, isPrepayCheckedProduct, PREPAY_INPUT_VERSION } from './_shared/prepay-coverage.js';
+import { checkPrepayCoverage, loadPrepayFoodIndex, isPrepayCheckedProduct, startDateTooSoon, PREPAY_INPUT_VERSION } from './_shared/prepay-coverage.js';
 
 // ── Admin bypass 허용 이메일 목록 ─────────────────────────────────────────
 // ADMIN_BYPASS_EMAILS env var (쉼표 구분) 우선, 없으면 ADMIN_EMAIL env var,
@@ -387,32 +387,47 @@ export default async function handler(req, res) {
     // 🔴 2026-10-26 B6-1: AI 플래너(풀) — **새 capture POST 직전** 저장 입력으로 식이 커버리지 재검사(주문 후 자료가
     //   바뀌었을 수 있다). postCapture 안에서 던지면 '결제 결과 불명'이 되므로 그 앞의 명시적 사전 거부 분기다.
     //   - 이미 capture 검증된 시도 = 재검사 없음(결제된 주문의 조회·복구는 그대로).
-    //   - 실패 시: 새 시도(조회 없이 바로 POST 할 시도)는 시도 기록을 지우고 422(capture 0회).
-    //     기존/불명 시도는 PayPal 조회로 '미결제(APPROVED)' 가 증명될 때만 지우고 422, 결제됐거나 불명이면 정상 복구 진행.
-    //   - 정규 입력 없는 옛 미결제 주문은 새 주문을 만들게 한다(같은 규칙 — 미결제 증명 시에만 거부).
+    //   - 검사 = 저장 입력의 출발일 > KST 오늘(생성 단계와 같은 함수) + 식이 커버리지. 정규 입력 없는 옛 미결제 주문도 거부.
+    //   - 실패 시 상태기계(2026-10-26 r2, 적대적·Astra 재현):
+    //     · POST 한 적 없는 새 시도 → PayPal 호출 0회, 시도 기록 삭제, 거부.
+    //     · POST 했거나 결과 불명(posted/unknown/복구) → 조회. COMPLETED = 결제 기록·복구(새 capture POST 금지 —
+    //       reconcileCapture forbidPost). APPROVED·미결제 상태라도 마지막 POST/불명 시각에서 CLAIM_LEASE_MS 안이면
+    //       진행 중 capture 가 늦게 끝날 수 있다 → 시도 기록 유지·202 CAPTURE_UNKNOWN. 창이 지난 뒤에만 미결제 증명으로
+    //       정리·NOT_CAPTURED. 조회 불명도 202(기록 유지).
+    let forbidCapturePost = false;
+    let preCaptureLookup = null;
     if (isPrepayCheckedProduct(product) && !(attempt.lock && attempt.lock.captureVerified)) {
       let preCaptureBlock = null;
+      const tooSoon = _snapPrepayInput ? startDateTooSoon(_snapPrepayInput.startDate) : null;
       if (!_snapPrepayInput) {
         preCaptureBlock = { status: 409, code: 'PREPAY_INPUT_MISSING', message: 'This planner order predates the pre-payment check. Please create a new order.' };
+      } else if (tooSoon) {
+        preCaptureBlock = { status: 400, code: 'PLANNER_DATE_TOO_SOON', message: 'Start date must be tomorrow or later', details: `Requested: ${tooSoon.reqStartDate}, today KST: ${tooSoon.todayKST}` };
       } else {
         const coverage = checkPrepayCoverage(_snapPrepayInput, await loadPrepayFoodIndex());
         if (!coverage.ok) preCaptureBlock = coverage;
       }
       if (preCaptureBlock) {
-        const lockState = attempt.lock && attempt.lock.captureState;
-        const freshPost = !attempt.recovering && lockState !== 'posted' && lockState !== 'unknown';
-        const providerState = freshPost ? 'approved' : (await fetchPaypalOrder({ baseUrl: PAYPAL_BASE_URL, accessToken, orderID })).state;
-        if (providerState === 'unknown') {
-          // 조회 불명 — 아래 복구가 다시 조회해 '미결제'로 보고 POST 할 수 있으므로 진행하지 않는다. 시도·예약은 그대로 두고 재시도.
-          await releaseAttemptClaim(attempt);
-          res.writeHead(503, JSON_CORS);
-          return res.end(JSON.stringify(_err('Could not verify the order right now — please retry', 'ORDER_CHECK_UNAVAILABLE')));
-        }
-        if (providerState === 'approved') {
+        const lock = attempt.lock || {};
+        const neverPosted = !attempt.recovering && lock.captureState !== 'posted' && lock.captureState !== 'unknown';
+        const lookup = neverPosted ? null : await fetchPaypalOrder({ baseUrl: PAYPAL_BASE_URL, accessToken, orderID });
+        if (lookup && lookup.state === 'captured') {
+          console.warn('[capturePaypalOrder] pre-capture block after a completed capture — recording payment, no new POST:', orderID, preCaptureBlock.code);
+          forbidCapturePost = true;
+          preCaptureLookup = lookup;
+        } else {
+          const lastPostMs = Math.max(Number(lock.lastUnknownAtMs) || 0, Number(lock.capturePostedAtMs) || 0, Number(lock.createdAtMs) || 0);
+          const provenUnpaid = !lookup || (lookup.state !== 'unknown' && Date.now() - lastPostMs > CLAIM_LEASE_MS);
+          if (!provenUnpaid) {
+            console.warn('[capturePaypalOrder] pre-capture block inside the safety window — attempt kept:', orderID, lookup.state, preCaptureBlock.code);
+            await releaseAttemptClaim(attempt);
+            res.writeHead(202, JSON_CORS);
+            return res.end(JSON.stringify(pendingPaymentResponse({ orderID, flow: 'single', paymentStatus: 'CAPTURE_UNKNOWN' })));
+          }
           await discardAttempt(attempt).catch((e) => console.warn('[capturePaypalOrder] attempt discard after pre-capture block (non-fatal):', e.message));
-          console.warn('[capturePaypalOrder] AI planner pre-capture block — capture 0회:', orderID, preCaptureBlock.code, preCaptureBlock.details || '');
+          console.warn('[capturePaypalOrder] AI planner pre-capture block — no capture:', orderID, preCaptureBlock.code, preCaptureBlock.details || '');
           // 돈이 움직이지 않았음을 증명하는 기존 '미결제' 응답 모양 — 클라 복구 포인터가 풀리고 새 결제가 가능하다.
-          //   preCaptureCode 로 사유(커버리지 불가·옛 주문)를 알려 손님 언어 안내를 고르게 한다.
+          //   preCaptureCode 로 사유(커버리지 불가·출발일·옛 주문)를 알려 손님 언어 안내를 고르게 한다.
           res.writeHead(preCaptureBlock.status, JSON_CORS);
           return res.end(JSON.stringify({
             ...notCapturedResponse({ orderID, flow: 'single', reason: preCaptureBlock.code }),
@@ -420,7 +435,6 @@ export default async function handler(req, res) {
             ...(preCaptureBlock.details ? { details: preCaptureBlock.details } : {}),
           }));
         }
-        console.warn('[capturePaypalOrder] pre-capture block skipped — order may already be paid, continuing recovery:', orderID, preCaptureBlock.code);
       }
     }
     if (attempt.recovering) {
@@ -502,7 +516,7 @@ export default async function handler(req, res) {
       try { body = JSON.parse(text); } catch (e) { parseError = e.message; }
       return { status: captureRes.status, body, parseError };
     };
-    const reconciled = await reconcileCapture({ attempt, orderID, baseUrl: PAYPAL_BASE_URL, accessToken, postCapture });
+    const reconciled = await reconcileCapture({ attempt, orderID, baseUrl: PAYPAL_BASE_URL, accessToken, postCapture, forbidPost: forbidCapturePost, lookup: preCaptureLookup });
     if (reconciled.state === 'not_captured') {
       // PR #427 (CY4): capture never happened — release coupon + order lock so the user can pay again.
       if (couponLockRef) {

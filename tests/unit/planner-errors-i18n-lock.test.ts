@@ -58,6 +58,16 @@ const ERROR_CODES: PlannerErrorCode[] = [
   'UNKNOWN_ERROR',
 ];
 
+// 2026-10-26 B6-1 r2: 서버 코드가 아닌 화면 문구 키 — 결제 전 출발일 거부(PayPalBookingButton)와 결제 후 생성 실패
+//   (resolvePaidOrderErrorMessage, PAID_*). 같은 사전에 살고 4개 언어 모두 있어야 한다.
+const CLIENT_MESSAGE_KEYS = [
+  'PREPAY_DATE_TOO_SOON',
+  'PAID_DIETARY_COVERAGE_UNAVAILABLE',
+  'PAID_PREPAY_INPUT_MISMATCH',
+  'PAID_PREPAY_INPUT_INVALID',
+  'PAID_GENERATION_FAILED',
+];
+
 describe('Error localization lock — all 4 locales complete', () => {
   const enErrors = en.planner?.errors || {};
   const koErrors = ko.planner?.errors || {};
@@ -96,8 +106,14 @@ describe('Error localization lock — all 4 locales complete', () => {
     }
   });
 
+  it('client message keys exist in all four locales', () => {
+    for (const [l, errors] of [['en', enErrors], ['ko', koErrors], ['ja', jaErrors], ['zh', zhErrors]] as const) {
+      for (const key of CLIENT_MESSAGE_KEYS) expect(typeof (errors as Record<string, unknown>)[key], `${l}.planner.errors.${key}`).toBe('string');
+    }
+  });
+
   it('no extra error codes exist in any locale (no stale keys)', () => {
-    const allCodes = new Set(ERROR_CODES);
+    const allCodes = new Set<string>([...ERROR_CODES, ...CLIENT_MESSAGE_KEYS]);
     for (const key of Object.keys(enErrors)) {
       expect(allCodes.has(key as PlannerErrorCode), `en has unexpected error code: ${key}`).toBe(true);
     }

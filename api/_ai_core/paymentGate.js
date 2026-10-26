@@ -18,7 +18,7 @@ import { toMinorUnits, verifyCaptureIntegrity } from '../_shared/paypal-capture-
 import { claimPlanIssuance, PLAN_ISSUANCE_CODE } from '../_shared/plan-issuance.js';
 import { shapeRequest } from './requestShaper.js';
 import { enforceDietaryCoverage, hasSafetyDiet } from './dietaryCoverageGate.js';
-import { normalizePrepayInput, prepayFingerprint, loadPrepayFoodIndex } from '../_shared/prepay-coverage.js';
+import { normalizePrepayInput, prepayFingerprint, prepayInputSummary, loadPrepayFoodIndex } from '../_shared/prepay-coverage.js';
 
 // Audit P0-#2 (2026-05-04): TEST_ACCOUNTS hardcoded admin email 제거.
 // 인증: caller (ai-planner-full.js) 에서 verifyUserToken 으로 검증된 email 을 authenticatedEmail
@@ -156,7 +156,21 @@ async function coverageRejectionBeforeConsumption(body, authenticatedEmail, auth
  *     **최초 요청 입력을 트랜잭션으로 1회 고정**한다. 이미 고정됐으면 그 지문과 비교한다.
  * @returns {Promise<null | ReturnType<typeof reject>>}
  */
+/**
+ * 결제된 주문 409 — 주문에 고정된 입력 요약(도시·식이·날짜·입출국·area)을 함께 준다. 프론트는 이 값으로 같은 주문의
+ * 생성 요청을 다시 만들고(다시 결제하지 않게) 새 결제 버튼을 숨긴다. 요약은 소유자 검사를 통과한 호출자에게만 간다.
+ */
+function paidInputMismatch(pinnedInput) {
+  const summary = prepayInputSummary(pinnedInput);
+  return reject(409, 'PREPAY_INPUT_MISMATCH', 'Trip details differ from the paid order — do not pay again',
+    { paidOrder: true, ...(summary ? { pinnedInput: summary } : {}) });
+}
+
 async function bindPrepayInputBeforeClaim(adminDb, paypalOrderId, snapData, body, authenticatedUid) {
+  // 소유자 검사가 맨 앞 — 정규화 불가·지문 일치 같은 조기 통과보다 먼저(남의 결제 주문으로 발급·고정 차단).
+  if (snapData.ownerUid && snapData.ownerUid !== authenticatedUid) {
+    return reject(403, 'FORBIDDEN', 'Order does not belong to the authenticated user');
+  }
   const normalized = normalizePrepayInput(body);
   if (!normalized.ok) {
     // 새 주문(지문 있음)은 예외 없이 거부. 옛 결제 주문은 돈이 이미 들어왔다 — 고정할 수 없는 요청이라도 막지 않는다
@@ -171,28 +185,20 @@ async function bindPrepayInputBeforeClaim(adminDb, paypalOrderId, snapData, body
   if (snapData.prepayFingerprint) {
     if (snapData.prepayFingerprint === fingerprint) return null;
     console.warn('[planner] 결제 주문과 요청 입력 불일치 → 발급 거부:', paypalOrderId);
-    return reject(409, 'PREPAY_INPUT_MISMATCH', 'Trip details differ from the paid order',
-      '결제한 일정 정보(도시·식이·날짜)와 요청이 다릅니다. 결제 화면의 일정 그대로 다시 시도해주세요.');
-  }
-  // 옛 결제 주문 — 소유자가 기록돼 있으면 인증 사용자와 같아야 고정할 수 있다(남의 주문 입력 고정 차단).
-  if (snapData.ownerUid && snapData.ownerUid !== authenticatedUid) {
-    return reject(403, 'FORBIDDEN', 'Order does not belong to the authenticated user');
+    return paidInputMismatch(snapData.prepayInput);
   }
   const ref = adminDb.collection('paypal_order_snapshots').doc(paypalOrderId);
   const outcome = await adminDb.runTransaction(async (tx) => {
     const fresh = await tx.get(ref);
     const cur = (fresh.exists && fresh.data()) || {};
-    if (cur.prepayFingerprint) return cur.prepayFingerprint === fingerprint ? 'match' : 'mismatch';
+    if (cur.prepayFingerprint) return cur.prepayFingerprint === fingerprint ? 'match' : { pinnedInput: cur.prepayInput };
     tx.update(ref, {
       prepayInput: normalized.input, prepayInputVersion: normalized.input.version, prepayFingerprint: fingerprint,
       prepayPinnedAt: new Date().toISOString(), prepayPinnedFrom: 'legacy_paid_first_use', prepayPinnedUid: authenticatedUid || null,
     });
     return 'pinned';
   });
-  if (outcome === 'mismatch') {
-    return reject(409, 'PREPAY_INPUT_MISMATCH', 'Trip details differ from the paid order',
-      '결제한 일정 정보(도시·식이·날짜)와 요청이 다릅니다. 결제 화면의 일정 그대로 다시 시도해주세요.');
-  }
+  if (outcome && typeof outcome === 'object') return paidInputMismatch(outcome.pinnedInput);
   if (outcome === 'pinned') console.log('[planner] 옛 결제 주문 입력 1회 고정:', paypalOrderId);
   return null;
 }

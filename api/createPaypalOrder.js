@@ -12,7 +12,7 @@ import { fileURLToPath } from 'url';
 import { getPaypalAccessToken, resolveIsSandbox } from './_shared/paypal.js';
 import { isPastCutoff, getCutoffHours } from './_shared/booking-cutoff.js';
 import { checkAiPlannerCouponPolicy, isAiPlannerProduct } from './_shared/ai-planner-policy.js';
-import { normalizePrepayInput, checkPrepayCoverage, loadPrepayFoodIndex, prepaySnapshotFields, isPrepayCheckedProduct } from './_shared/prepay-coverage.js';
+import { checkPlannerOrderInput, loadPrepayFoodIndex, prepaySnapshotFields, isPrepayCheckedProduct } from './_shared/prepay-coverage.js';
 import { acquireSlotLock, fetchServerSlotCapacity } from './_shared/slot-capacity.js';
 import { initAdminDb } from './_shared/firebase-admin.js';
 import { resolveMultiDayCheckoutKrw, multiDayListBaseKrw, captainPremiumKrw } from './_shared/charter-multiday-price.js';
@@ -226,20 +226,15 @@ export default async function handler(req, res) {
     //   통과한 정규 입력·지문은 아래 snapshot 에 저장 → capture 직전 재검사·ai-planner-full 입력 대조의 근거.
     let prepayFields = null;
     if (isPrepayCheckedProduct(productType)) {
-      const normalized = normalizePrepayInput(body.plannerInput);
-      if (!normalized.ok) {
-        console.warn('[createPaypalOrder] planner input rejected before order:', normalized.code, normalized.details || '');
-        res.writeHead(normalized.status, JSON_CORS);
-        return res.end(JSON.stringify({ ..._err(normalized.message, normalized.code), ...(normalized.details ? { details: normalized.details } : {}) }));
-      }
+      //   출발일 > KST 오늘(생성 단계와 같은 함수)도 여기서 — 자정을 넘겨 결제된 주문이 생성 단계 400 으로 막히지 않게.
       const foodIndex = await loadPrepayFoodIndex();
-      const coverage = checkPrepayCoverage(normalized.input, foodIndex);
-      if (!coverage.ok) {
-        console.warn('[createPaypalOrder] dietary coverage unavailable → no PayPal order:', coverage.details || '');
-        res.writeHead(coverage.status, JSON_CORS);
-        return res.end(JSON.stringify({ ..._err(coverage.message, coverage.code), ...(coverage.details ? { details: coverage.details } : {}) }));
+      const checked = checkPlannerOrderInput(body.plannerInput, foodIndex);
+      if (!checked.ok) {
+        console.warn('[createPaypalOrder] planner input rejected before order → no PayPal order:', checked.code, checked.details || '');
+        res.writeHead(checked.status, JSON_CORS);
+        return res.end(JSON.stringify({ ..._err(checked.message, checked.code), ...(checked.details ? { details: checked.details } : {}) }));
       }
-      prepayFields = prepaySnapshotFields(normalized.input, foodIndex);
+      prepayFields = prepaySnapshotFields(checked.input, foodIndex);
     }
 
     // PR-R (2026-05-08): 예약 마감 정책 검증 — 값의 SSOT = _shared/booking-cutoff.js

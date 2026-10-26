@@ -39,7 +39,11 @@ interface Props {
   onBack?: () => void;
   customerEmail?: string;
   customerPhone?: string;
+  /** 🔴 2026-10-26 B6-1 r2: AI 플래너(풀) — 송금 안내 전에 서버 결제 전 확인(createPaypalOrder 와 같은 검사)에 쓰는 위자드 입력. */
+  plannerInput?: Record<string, unknown>;
 }
+
+const isAiPlannerFull = (productType: string) => productType.toLowerCase().replace(/-/g, '_') === 'ai_planner_full';
 
 const LABELS: Record<string, {
   title: string;
@@ -67,6 +71,8 @@ const LABELS: Record<string, {
   errorEmail: string;
   errorReport: string;
   notConfigured: string;
+  prepayChecking: string;
+  prepayBlocked: string;
 }> = {
   ko: {
     title: 'PayPal QR 결제',
@@ -94,6 +100,8 @@ const LABELS: Record<string, {
     errorEmail: '이메일 주소를 입력해 주세요',
     errorReport: '신고 실패. 잠시 후 다시 시도해 주세요.',
     notConfigured: 'PayPal 결제 설정 중입니다. 카카오톡 @cocotripkr 로 직접 문의해 주세요.',
+    prepayChecking: '결제 전에 여행 조건을 확인하고 있어요…',
+    prepayBlocked: '이 여행 조건으로는 지금 결제할 수 없어요(식이 조건에 맞는 검증 식당·출발일·입력 확인). 결제는 진행되지 않았어요 — 조건을 바꾸시거나 문의해 주세요.',
   },
   en: {
     title: 'PayPal QR Payment',
@@ -121,6 +129,8 @@ const LABELS: Record<string, {
     errorEmail: 'Please enter your email',
     errorReport: 'Submission failed. Please try again shortly.',
     notConfigured: 'PayPal payment is being configured. Please contact us via KakaoTalk @cocotripkr.',
+    prepayChecking: 'Checking your trip details before payment…',
+    prepayBlocked: 'This trip can\'t be paid for right now (verified restaurants for your dietary choice, start date or trip details). You have not been charged — please change the trip or contact us.',
   },
   ja: {
     title: 'PayPal QR 決済',
@@ -148,6 +158,8 @@ const LABELS: Record<string, {
     errorEmail: 'メールアドレスを入力してください',
     errorReport: '送信に失敗しました。しばらくしてから再試行してください。',
     notConfigured: 'PayPal決済を設定中です。KakaoTalk @cocotripkrまでお問い合わせください。',
+    prepayChecking: 'お支払い前に旅程条件を確認しています…',
+    prepayBlocked: 'この旅程条件では現在お支払いできません（食事条件に合う確認済みレストラン・出発日・入力内容）。お支払いは行われていません — 条件を変更するか、お問い合わせください。',
   },
   zh: {
     title: 'PayPal 二维码支付',
@@ -175,6 +187,8 @@ const LABELS: Record<string, {
     errorEmail: '请输入邮箱地址',
     errorReport: '提交失败,请稍后再试。',
     notConfigured: 'PayPal 支付正在设置中。请通过 KakaoTalk @cocotripkr 联系我们。',
+    prepayChecking: '正在付款前核实行程条件…',
+    prepayBlocked: '此行程条件目前无法付款（符合饮食需求的已验证餐厅、出发日期或行程信息）。您尚未被扣款 — 请更改行程或联系我们。',
   },
 };
 
@@ -192,7 +206,7 @@ export function PayPalQrPanel({
   priceKRW, pickupLocation = '', dropoffLocation = '', vehicleType = '', memo = '',
   itineraryData, airport,
   onPaymentReported, onBack,
-  customerEmail = '', customerPhone = '',
+  customerEmail = '', customerPhone = '', plannerInput,
 }: Props) {
   const { language } = useLanguage();
   const lang = (['ko', 'en', 'ja', 'zh'].includes(language) ? language : 'en') as 'ko' | 'en' | 'ja' | 'zh';
@@ -217,9 +231,29 @@ export function PayPalQrPanel({
   const adminEmailEnv = (import.meta.env.VITE_ADMIN_EMAIL as string | undefined)?.trim().toLowerCase() || '';
   const isAdminTest = !!(adminEmailEnv && user?.email && user.email.toLowerCase() === adminEmailEnv);
 
+  // 🔴 B6-1 r2: AI 플래너(풀)는 서버 결제 전 확인(checkOnly — 정규화·출발일·식이 커버리지)을 통과해야만 송금 안내
+  //   (QR·paypal.me 링크)를 만든다. 입력 없음·거부·통신 실패 = 안내 없음(fail-closed).
+  const needsPrepay = isAiPlannerFull(productType);
+  const plannerInputKey = plannerInput ? JSON.stringify(plannerInput) : '';
+  const [prepayState, setPrepayState] = useState<'checking' | 'ok' | 'blocked'>(
+    () => (!needsPrepay ? 'ok' : plannerInput ? 'checking' : 'blocked'),
+  );
+  useEffect(() => {
+    if (!needsPrepay || !plannerInputKey) return;
+    let cancelled = false;
+    fetch('/api/manual-payment-request', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ checkOnly: true, productType, plannerInput: JSON.parse(plannerInputKey) }),
+    })
+      .then(async (res) => { const json = await res.json(); if (!cancelled) setPrepayState(res.ok && json.ok ? 'ok' : 'blocked'); })
+      .catch(() => { if (!cancelled) setPrepayState('blocked'); });
+    return () => { cancelled = true; };
+  }, [needsPrepay, plannerInputKey, productType]);
+
   // KRW → USD 환산 (정수, 소수 둘째 자리). PayPal.Me 는 USD 권장 — KRW 직접 미지원.
   const usdAmount = (priceKRW / usdRate).toFixed(2);
-  const paypalUrl = username ? `https://paypal.me/${username}/${usdAmount}USD` : '';
+  const paypalUrl = username && prepayState === 'ok' ? `https://paypal.me/${username}/${usdAmount}USD` : '';
 
   // QR 코드 생성
   useEffect(() => {
@@ -275,6 +309,7 @@ export function PayPalQrPanel({
           paymentMethod: 'paypal-me-qr',
           paypalMeUrl: paypalUrl,
           language: lang,
+          ...(needsPrepay && plannerInput ? { plannerInput } : {}),
         }),
       });
       const json = await res.json();
@@ -296,6 +331,20 @@ export function PayPalQrPanel({
       <div className="bg-white/[0.04] border border-amber-500/30 rounded-xl p-5 text-center customer-paypal-qr customer-paypal-qr-notconfigured">
         <AlertCircle className="w-6 h-6 mx-auto mb-2 text-amber-300" />
         <p className="text-sm text-white/80">{L.notConfigured}</p>
+      </div>
+    );
+  }
+
+  if (prepayState !== 'ok') {
+    return (
+      <div className="bg-white/[0.04] border border-amber-500/30 rounded-xl p-5 text-center customer-paypal-qr customer-paypal-qr-prepay" role="status" aria-live="polite">
+        {prepayState === 'checking'
+          ? <Loader2 className="w-6 h-6 mx-auto mb-2 animate-spin text-white/70" />
+          : <AlertCircle className="w-6 h-6 mx-auto mb-2 text-amber-300" />}
+        <p className="text-sm text-white/80">{prepayState === 'checking' ? L.prepayChecking : L.prepayBlocked}</p>
+        {onBack && (
+          <button type="button" onClick={onBack} className="mt-3 text-xs text-white/70 underline underline-offset-2">{L.back}</button>
+        )}
       </div>
     );
   }

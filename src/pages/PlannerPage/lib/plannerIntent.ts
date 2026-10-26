@@ -280,6 +280,50 @@ export function buildFullPlannerIntentPayload(
  * 결제 후 /api/ai-planner-full 요청이 **같은 함수**로 만든다. 서버는 둘을 같은 규칙으로 정규화해 지문을 대조하므로
  * 두 곳이 따로 조립하면 정상 손님도 PREPAY_INPUT_MISMATCH 가 난다. `area` 는 첫 도시 기준 라우팅 키(종전 호출부 그대로).
  */
+/** 결제된 주문에 고정된 입력 요약 — 서버 paymentGate 409 PREPAY_INPUT_MISMATCH 의 details.pinnedInput (prepay-coverage.js). */
+export interface PaidPlannerInput {
+  cities: string[];
+  regionCities?: string[];
+  regions: string[];
+  arrivalCity: string;
+  departureCity: string;
+  area: string;
+  diets: string[];
+  startDate: string;
+  durationDays: number;
+}
+
+const CANONICAL_DIET: Record<string, string> = { halal: 'Halal', vegan: 'Vegan', vegetarian: 'Vegetarian' };
+
+/** YYYY-MM-DD + (n−1)일 — 마지막 날 inclusive(prepay-coverage 날짜 규칙). 잘못된 값이면 ''. */
+function inclusiveEndDate(startDate: string, durationDays: number): string {
+  const t = Date.parse(`${startDate}T00:00:00Z`);
+  if (!Number.isFinite(t) || !Number.isInteger(durationDays) || durationDays < 1) return '';
+  return new Date(t + (durationDays - 1) * 86_400_000).toISOString().slice(0, 10);
+}
+
+/**
+ * '결제한 조건으로 일정 만들기' — 결제 주문에 고정된 도시·입출국·식이·날짜로 위자드 값을 덮는다. 나머지(시간·호텔·취향)는
+ * 현재 값 그대로. 결과를 buildPlannerOrderInput 에 넣으면 서버 지문이 결제 주문과 같아진다(식이는 안전 식이만 고정 —
+ * dietPrefs 의 안전 식이는 빼서 고정값만 남긴다).
+ */
+export function applyPaidPlannerInput(values: PlannerFormValues, pinned: PaidPlannerInput): PlannerFormValues {
+  const isSafetyDiet = (d: unknown) => typeof d === 'string' && d.toLowerCase() in CANONICAL_DIET;
+  return {
+    ...values,
+    regions: [...pinned.regions],
+    cityKeys: [...(pinned.regionCities && pinned.regionCities.length ? pinned.regionCities : pinned.cities)],
+    arrival_city: pinned.arrivalCity,
+    entry_city: pinned.arrivalCity,
+    departure_city: pinned.departureCity,
+    dietaryRestrictions: pinned.diets.map((d) => CANONICAL_DIET[d] || d),
+    dietPrefs: (values.dietPrefs || []).filter((d) => !isSafetyDiet(d)),
+    startDate: pinned.startDate,
+    endDate: inclusiveEndDate(pinned.startDate, pinned.durationDays),
+    durationDays: pinned.durationDays,
+  };
+}
+
 export function buildPlannerOrderInput(values: PlannerFormValues, language: string): Record<string, unknown> {
   const { flat } = buildFullPlannerIntentPayload(values, language);
   return {

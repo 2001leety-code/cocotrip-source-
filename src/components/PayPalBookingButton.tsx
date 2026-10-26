@@ -119,6 +119,8 @@ interface Props {
   /** 🔴 2026-10-26 B6-1: AI 플래너(풀) 결제 전 식이 커버리지 서버 확인용 위자드 입력. 서버가 다시 정규화·검사하고
    *  통과해야만 PayPal 주문을 만든다(실패 = 422, 결제 없음). 금액과 무관. 다른 상품은 미전달. */
   plannerInput?: Record<string, unknown>;
+  /** 결제 뒤 이행(AI 플랜 발급)을 호출자가 따로 하는 상품 — 이행될 때까지 복구 포인터를 CAPTURED 로 유지(호출자가 지운다). */
+  keepRecoveryUntilFulfilled?: boolean;
 }
 
 // 2026-10-26 B6-1: AI 플래너 결제 전 서버 거부 코드 → 플래너 errors 사전 키(4개 언어, 없으면 서버 문구).
@@ -131,6 +133,7 @@ const PLANNER_PREPAY_ERROR_KEY: Record<string, string> = {
   PREPAY_DIETARY_MISSING: 'PREPAY_INPUT_INVALID',
   PREPAY_DATES_MISSING: 'PREPAY_INPUT_INVALID',
   PLANNER_INPUT_CONFLICT: 'PREPAY_INPUT_INVALID',
+  PLANNER_DATE_TOO_SOON: 'PREPAY_DATE_TOO_SOON',
 };
 function plannerPrepayMessage(p: unknown, code: string | undefined, fallback: string): string | null {
   const key = code ? PLANNER_PREPAY_ERROR_KEY[code] : undefined;
@@ -168,7 +171,7 @@ declare global {
 // 🧪 bypass 버튼 노출. 운영 안정 후 제거 가능.
 const TEST_ACCOUNTS: string[] = ['2001leety@gmail.com'];
 
-export function PayPalBookingButton({ productType, passengers, dateStart = '', dateEnd = '', priceKRW: rawPriceKRW, expectedUSD, disabled = false, estimateConsent, p = {}, lang, pickupLocation = '', dropoffLocation = '', vehicleType = '', memo = '', itineraryData, onPaymentSuccess, userEmail = '', airport, customAmountKRW, pickupTime = '', durationDays, originKey, destKey, tripType, vehicle, routeCoords, termsAgreed, marketingConsent, plannerInput, options, tourId, tourSlotId, bookingDate, slotCapacity }: Props) {
+export function PayPalBookingButton({ productType, passengers, dateStart = '', dateEnd = '', priceKRW: rawPriceKRW, expectedUSD, disabled = false, estimateConsent, p = {}, lang, pickupLocation = '', dropoffLocation = '', vehicleType = '', memo = '', itineraryData, onPaymentSuccess, userEmail = '', airport, customAmountKRW, pickupTime = '', durationDays, originKey, destKey, tripType, vehicle, routeCoords, termsAgreed, marketingConsent, plannerInput, keepRecoveryUntilFulfilled = false, options, tourId, tourSlotId, bookingDate, slotCapacity }: Props) {
   // 슬롯 정원 4필드 — create/capture 두 요청에 **같은 값**이 실려야 pending → confirmed 가 이어진다.
   // 한 번만 계산해 두 곳에서 공유(한쪽만 고치는 사고 방지).
   const slotFields = tourSlotBody({ tourId, tourSlotId, bookingDate, slotCapacity });
@@ -216,7 +219,6 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
   const rc = recoveryCopy(lang);
   async function applyCaptureOutcome(outcome: CaptureOutcome, orderID: string, fresh: boolean) {
     if (outcome.kind === 'final') {
-      clearRecovery(orderID);
       const result = outcome.data as { payerName?: string; payerEmail?: string; amount?: string };
       if (fresh) {
         void posthogTrack('payment_completed', { planType: productType, amount: priceKRW, currency: 'KRW' });
@@ -224,7 +226,14 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
       }
       // A restored pointer for a different product never feeds this product's success callback.
       const sameProduct = fresh || recovery?.productType === productType;
-      if (onPaymentSuccess && sameProduct) { setShowPaypal(false); await onPaymentSuccess(orderID); return; }
+      if (onPaymentSuccess && sameProduct) {
+        // 2026-10-26 B6-1 r2: 결제 뒤 이행(플랜 발급)이 따로 있는 상품은 이행될 때까지 포인터를 CAPTURED 로 유지 —
+        //   생성이 실패하거나 새로고침돼도 새 결제 대신 같은 주문 확인이 보인다. 지우는 쪽 = 호출자(발급 성공 시).
+        if (keepRecoveryUntilFulfilled) remember({ orderID, flow: 'single', paymentStatus: 'CAPTURED', review: false, productType });
+        else clearRecovery(orderID);
+        setShowPaypal(false); await onPaymentSuccess(orderID); return;
+      }
+      clearRecovery(orderID);
       setSuccessData({ orderID, payerName: result.payerName || '', payerEmail: result.payerEmail || '', amount: result.amount || '' });
       setShowSuccess(true); setShowPaypal(false); setRateInfo(null);
       return;
@@ -242,7 +251,10 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
       if (fresh) { clearRecovery(orderID); setError(rc.authRequired); setShowPaypal(false); buttonsRendered.current = false; return; }
       remember({ orderID, flow: 'single', paymentStatus: 'CAPTURE_UNKNOWN', review: false, authRequired: true, productType }); setShowPaypal(false); setRateInfo(null); return;
     }
-    if (outcome.kind === 'not_captured') { clearRecovery(orderID); setError(plannerPrepayMessage(p, outcome.preCaptureCode, outcome.message) || outcome.message); setShowPaypal(false); buttonsRendered.current = false; return; }
+    if (outcome.kind === 'not_captured') {
+      const prepayMsg = plannerPrepayMessage(p, outcome.preCaptureCode, outcome.message);
+      clearRecovery(orderID); setError(prepayMsg || outcome.message); setQrBlocked(!!prepayMsg); setShowPaypal(false); buttonsRendered.current = false; return;
+    }
     // Server-proven full refund: terminal, not a booking — no success, no conversion; payment controls return.
     if (outcome.kind === 'refunded') { clearRecovery(orderID); setError(outcome.message); setShowPaypal(false); setRateInfo(null); buttonsRendered.current = false; return; }
     // Generic failure: an error code alone never proves the provider was not called. Keep the pointer; on a
@@ -271,6 +283,8 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
   // SDK 차단/로드 실패 시 사용자가 paypal.me QR fallback 으로 전환 가능. error 발생 시
   // [QR 로 결제] 버튼 노출 → 클릭 시 PayPalQrPanel 렌더.
   const [useFallback, setUseFallback] = useState(false);
+  // AI 플래너 결제 전 거부(식이 커버리지·출발일·입력) 뒤에는 QR 대체 결제를 보이지 않는다 — QR 도 같은 확인을 거친다.
+  const [qrBlocked, setQrBlocked] = useState(false);
 
   // 게스트 → 회원 전환 넛지 (2026-08-19): 결제 성공 오버레이에서 same-email 가입 유도.
   //   핸들러 = 공용 훅 useGuestSignup (CartCheckout 성공 화면과 공유, 2026-10-24). 결제 로직과 별개 상태.
@@ -706,7 +720,8 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
       // 🔴 B6-1: 결제 전 서버 거부(식이 커버리지 불가·입력 문제) — 주문 미생성 = 돈 안 움직임. 손님 언어로 안내.
       if (!res.ok) {
         const prepayMsg = plannerPrepayMessage(p, json.code, json.error || 'Payment was not started.');
-        if (prepayMsg) { setError(prepayMsg); return; }
+        // QR(paypal.me) 대체 결제도 숨긴다 — 같은 입력이면 QR 로 송금해도 생성이 막힌다(r2).
+        if (prepayMsg) { setError(prepayMsg); setQrBlocked(true); return; }
       }
       // PR-R (2026-05-08): BOOKING_CLOSED → 토스트 + ChatWidget 자동 오픈
       if (!res.ok && json.code === 'BOOKING_CLOSED') {
@@ -969,6 +984,7 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
           itineraryData={itineraryData}
           airport={airport}
           customerEmail={userEmail}
+          plannerInput={plannerInput}
           onBack={() => setUseFallback(false)}
           onPaymentReported={(bookingRef) => {
             // paypal.me 흐름 = manual 결제. onPaymentSuccess 레거시 콜백 호환 위해 'MANUAL-' prefix
@@ -1220,6 +1236,7 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
               type="button"
               onClick={() => {
                 setError(null);
+                setQrBlocked(false);
                 setShowPaypal(false);
                 buttonsRendered.current = false;
                 // SDK 재로드 (캐시 무효화 + script 재생성). 로드되면 paypalReady=true.
@@ -1229,7 +1246,7 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
               {p.paypalRetry}
             </button>
           </div>
-          <button
+          {!qrBlocked && <button
             type="button"
             onClick={() => { setError(null); setUseFallback(true); }}
             className="w-full text-xs text-white/85 border border-white/25 hover:border-white/40 hover:bg-white/[0.04] px-3 py-2 rounded-lg transition-colors"
@@ -1238,7 +1255,7 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
               : lang === 'ja' ? 'QRで決済 (PayPal本サイト直接)'
               : lang === 'zh' ? 'QR支付 (PayPal主站直接)'
               : 'Pay via QR (PayPal direct redirect)'}
-          </button>
+          </button>}
         </div>
       )}
     </div>

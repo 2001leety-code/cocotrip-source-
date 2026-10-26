@@ -41,7 +41,8 @@ const { enforcePaymentAndRevision } = await import('../../api/_ai_core/paymentGa
 const read = (p: string) => readFileSync(resolve(process.cwd(), p), 'utf8');
 const ORDER = '5O190127TN364715T';
 const HALAL_SEOUL = { name: '합성할랄식당', nameEn: 'Synthetic Halal', city: 'seoul', tag: 'halal', verification_status: 'halal_certified', address: '서울특별시 중구 합성로 1', lat: 37.56, lng: 126.98 };
-const input = (o: Dict = {}): Dict => ({ regions: ['Seoul'], dietaryRestrictions: ['Halal'], dietPrefs: [], startDate: '2026-12-01', durationDays: 3, ...o });
+// 먼 미래 날짜 — 출발일 > KST 오늘 규칙(r2)이 날짜 경과로 테스트를 깨지 않게.
+const input = (o: Dict = {}): Dict => ({ regions: ['Seoul'], dietaryRestrictions: ['Halal'], dietPrefs: [], startDate: '2099-12-01', durationDays: 3, ...o });
 
 function mockRes() {
   const out: { status?: number; body?: Dict } = {};
@@ -115,7 +116,7 @@ describe('normalizePrepayInput / prepayFingerprint (pure)', () => {
     const base = fp(input());
     expect(fp(input({ regions: ['Busan'] }))).not.toBe(base);
     expect(fp(input({ dietaryRestrictions: ['Vegan'] }))).not.toBe(base);
-    expect(fp(input({ startDate: '2026-12-02' }))).not.toBe(base);
+    expect(fp(input({ startDate: '2099-12-02' }))).not.toBe(base);
     expect(fp(input({ durationDays: 4 }))).not.toBe(base);
   });
   it('flat vs planner_intent_v1 conflict is rejected (Astra repro: flat 서울/none vs v1 부산/Vegan)', () => {
@@ -227,11 +228,11 @@ describe('capturePaypalOrder — re-check right before a NEW capture POST', () =
     const { captureCalls } = await run(snapshot());
     expect(captureCalls).toHaveLength(1);
   });
-  it('source: already-verified captures skip the re-check; existing attempts only block when PayPal proves APPROVED (unpaid), unknown → 503 retry', () => {
+  it('source: already-verified captures skip the re-check; the refusal decision feeds forbidPost into reconcileCapture', () => {
     const src = read('api/capturePaypalOrder.js');
     expect(src).toContain('if (isPrepayCheckedProduct(product) && !(attempt.lock && attempt.lock.captureVerified)) {');
-    expect(src).toMatch(/const providerState = freshPost \? 'approved' : \(await fetchPaypalOrder\(/);
-    expect(src).toContain("if (providerState === 'unknown') {");
+    expect(src).toContain('const lookup = neverPosted ? null : await fetchPaypalOrder(');
+    expect(src).toContain('forbidPost: forbidCapturePost, lookup: preCaptureLookup');
     expect(src.indexOf('isPrepayCheckedProduct(product) && !(attempt.lock')).toBeLessThan(src.indexOf('const reconciled = await reconcileCapture('));
   });
 });

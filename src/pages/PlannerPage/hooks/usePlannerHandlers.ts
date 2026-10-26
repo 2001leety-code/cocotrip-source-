@@ -10,7 +10,8 @@ import { markPlannerPendingComplete } from '@/lib/analytics';
 import { track as posthogTrack } from '@/lib/posthog';
 import { buildQuickPreviewPayload } from '../lib/quickPreviewIntent';
 import { parseQuickPreviewResponse } from '../lib/quickPreviewContract';
-import { buildFullPlannerIntentPayload, buildPlannerOrderInput } from '../lib/plannerIntent';
+import { buildFullPlannerIntentPayload, buildPlannerOrderInput, applyPaidPlannerInput, type PaidPlannerInput } from '../lib/plannerIntent';
+import { removePaymentRecovery } from '@/lib/paymentRecovery';
 
 // feat/guest-anon-auth-pii (2026-06-15): 비로그인 게스트 + 플래그 ON 이면 격리된
 // 익명 Firebase 인스턴스(guestReader)로 로그인해 idToken 을 x-guest-anon-token 헤더로
@@ -95,6 +96,7 @@ export type PlannerErrorCode =
   | 'PREPAY_INPUT_MISMATCH'
   | 'PREPAY_INPUT_MISSING'
   | 'PREPAY_INPUT_INVALID'
+  | 'PLANNER_DATE_TOO_SOON'
   | 'DUPLICATE_ORDER'
   | 'REVISION_EXHAUSTED'
   | 'FORBIDDEN'
@@ -111,6 +113,18 @@ interface ErrorPayload {
   details: string;
 }
 
+/** 결제된 주문으로 생성이 실패한 상태 — PurchaseSection 이 새 결제 버튼 대신 같은 주문 재시도·문의를 보인다. */
+export interface PaidOrderIssue {
+  orderId: string;
+  code: PlannerErrorCode;
+  pinnedInput: PaidPlannerInput | null;
+}
+
+/** 실제 결제(PayPal·QR 신고)된 주문 ID — 무료 쿠폰('')·운영자 테스트 prefix 는 아니다. */
+function isPaidOrderId(orderId: string): boolean {
+  return !!orderId && !orderId.startsWith('ADMIN-BYPASS-') && !orderId.startsWith('TEST-');
+}
+
 export function usePlannerHandlers({ language, userEmail, setUserEmail }: UsePlannerHandlersOptions) {
   const navigate = useNavigate();
   const [status, setStatus] = useState<Status>('idle');
@@ -122,6 +136,7 @@ export function usePlannerHandlers({ language, userEmail, setUserEmail }: UsePla
   const [isGeneratingPlan, setIsGeneratingPlan] = useState(false);
   const [planError, setPlanError] = useState<string | null>(null);
   const [planErrorCode, setPlanErrorCode] = useState<PlannerErrorCode | null>(null);
+  const [paidOrderIssue, setPaidOrderIssue] = useState<PaidOrderIssue | null>(null);
   const lastValues = useRef<PlannerFormValues | null>(null);
   const quickSubmitInFlight = useRef(false);
 
@@ -255,6 +270,7 @@ export function usePlannerHandlers({ language, userEmail, setUserEmail }: UsePla
     setIsGeneratingPlan(true);
     setPlanError(null);
     setPlanErrorCode(null);
+    setPaidOrderIssue(null);
     setStreamStep(1);
     setStreamAgent('gemini');
 
@@ -340,12 +356,17 @@ export function usePlannerHandlers({ language, userEmail, setUserEmail }: UsePla
       }
 
       if (!res.ok) {
-        const e = new Error(json.details || json.error || `Server error (${res.status})`) as Error & { code?: string; details?: string };
+        // details 는 보통 문구(string)지만 PREPAY_INPUT_MISMATCH 는 결제 주문 고정 입력 요약(object)이다.
+        const detailText = typeof json.details === 'string' ? json.details : undefined;
+        const e = new Error(detailText || json.error || `Server error (${res.status})`) as Error & { code?: string; details?: string; pinnedInput?: PaidPlannerInput | null };
         e.code = json.code;
-        e.details = json.details;
+        e.details = detailText;
+        e.pinnedInput = json.details && typeof json.details === 'object' ? json.details.pinnedInput || null : null;
         throw e;
       }
 
+      // 플랜 발급 = 결제 복구 포인터를 지울 때(그 전까지는 새 결제 버튼 대신 같은 주문 확인이 보인다).
+      if (isPaidOrderId(paypalOrderId)) removePaymentRecovery('single', paypalOrderId);
       const data = json.data;
 
       setStreamStep(4);
@@ -384,8 +405,22 @@ export function usePlannerHandlers({ language, userEmail, setUserEmail }: UsePla
       );
       setPlanErrorCode(payload.code);
       setPlanError(payload.details || (err instanceof Error ? err.message : 'Something went wrong. Please contact us via WhatsApp.'));
+      // 결제된 주문의 생성 실패 = 결제 후 안내(다시 결제하지 마세요) + 새 결제 버튼 대신 같은 주문 재시도.
+      //   이미 발급된 주문(DUPLICATE_ORDER)은 복구 포인터만 정리한다.
+      if (isPaidOrderId(paypalOrderId)) {
+        if (payload.code === 'DUPLICATE_ORDER') removePaymentRecovery('single', paypalOrderId);
+        else setPaidOrderIssue({ orderId: paypalOrderId, code: payload.code, pinnedInput: (err as { pinnedInput?: PaidPlannerInput | null }).pinnedInput || null });
+      }
       setIsGeneratingPlan(false);
     }
+  }
+
+  // 2026-10-26 B6-1 r2: 409 PREPAY_INPUT_MISMATCH — 결제 주문에 고정된 조건으로 같은 주문의 생성을 다시 요청(재결제 없음).
+  async function handleGenerateWithPaidInput() {
+    const issue = paidOrderIssue;
+    if (!issue || !issue.pinnedInput || !lastValues.current) return;
+    lastValues.current = applyPaidPlannerInput(lastValues.current, issue.pinnedInput);
+    await handlePaymentSuccess(issue.orderId);
   }
 
   // 3: Free revision regeneration (consumes revisionCredits)
@@ -521,5 +556,7 @@ export function usePlannerHandlers({ language, userEmail, setUserEmail }: UsePla
     handlePaymentSuccess,
     handleRevisionRegenerate,
     handleReset,
+    paidOrderIssue,
+    handleGenerateWithPaidInput,
   };
 }

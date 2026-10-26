@@ -16,7 +16,8 @@
  */
 import { createHash } from 'crypto';
 import { shapeRequest } from '../_ai_core/requestShaper.js';
-import { mealCitiesForTrip, enforceDietaryCoverage } from '../_ai_core/dietaryCoverageGate.js';
+import { mealCitiesForTrip, mealCityCode, enforceDietaryCoverage } from '../_ai_core/dietaryCoverageGate.js';
+import { checkStartDateTooSoon } from '../_ai_core/validateStartDate.js';
 
 export const PREPAY_INPUT_VERSION = 1;
 const SAFETY_DIETS = new Set(['halal', 'vegan', 'vegetarian']);
@@ -43,10 +44,13 @@ const hasText = (v) => typeof v === 'string' && v.trim().length > 0;
  *   식이: dietPrefs ∪ dietaryRestrictions(옛 allergies 별칭은 requestShaper 규칙 그대로) 중 안전 식이만, 소문자 정렬.
  *   날짜: startDate(또는 date) YYYY-MM-DD + durationDays 정수 ≥1 — 명시 필수(기본값 '오늘' 금지: 지문이 날짜마다 바뀐다).
  *   날짜 범위 규칙: startDate 는 여행 첫날(inclusive), 마지막 날 = startDate + durationDays − 1(inclusive) — endDate(exclusive) 는 쓰지 않는다.
+ *   requireFutureStart: 돈이 움직이기 전(주문 생성·QR 안내) 에만 — 출발일 > KST 오늘(생성 단계 checkStartDateTooSoon 과 같은 함수).
+ *     결제 뒤 대조(paymentGate)에는 쓰지 않는다 — 결제된 주문을 날짜 경과로 막지 않는다.
  * @param {unknown} raw  위자드 값(서버가 다시 정규화) 또는 ai-planner-full 요청 body
+ * @param {{requireFutureStart?: boolean}} [opts]
  * @returns {{ok: true, input: object} | ReturnType<typeof prepayRejection>}
  */
-export function normalizePrepayInput(raw) {
+export function normalizePrepayInput(raw, { requireFutureStart = false } = {}) {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
     return prepayRejection(400, 'PREPAY_INPUT_MISSING', 'Planner input is required for this order');
   }
@@ -60,6 +64,10 @@ export function normalizePrepayInput(raw) {
   const durationDays = Number(raw.durationDays);
   if (!DATE_RE.test(startDate) || !Number.isInteger(durationDays) || durationDays < 1 || durationDays > 30) {
     return prepayRejection(400, 'PREPAY_DATES_MISSING', 'Planner input must include startDate (YYYY-MM-DD) and durationDays');
+  }
+  const tooSoon = requireFutureStart ? startDateTooSoon(startDate) : null;
+  if (tooSoon) {
+    return prepayRejection(400, 'PLANNER_DATE_TOO_SOON', 'Start date must be tomorrow or later', `Requested: ${tooSoon.reqStartDate}, today KST: ${tooSoon.todayKST}`);
   }
   let shaped;
   try {
@@ -85,15 +93,53 @@ export function normalizePrepayInput(raw) {
       return prepayRejection(400, 'PLANNER_INPUT_CONFLICT', 'Planner dietary needs disagree between request fields', `flat=${diets.join('+') || 'none'} v1=${v1Diets.join('+') || 'none'}`);
     }
   }
-  return { ok: true, input: { version: PREPAY_INPUT_VERSION, cities, diets, startDate: shaped.startDate, durationDays: Number(shaped.durationDays) } };
+  const cityKey = (c) => (hasText(c) ? mealCityCode(c) : '');
+  return {
+    ok: true,
+    input: {
+      version: PREPAY_INPUT_VERSION, cities, diets, startDate: shaped.startDate, durationDays: Number(shaped.durationDays),
+      arrivalCity: cityKey(shaped.arrivalCity), departureCity: cityKey(shaped.departureCity),
+      area: String(shaped.area || '').trim().toLowerCase(),
+      // 지문 밖 — '결제한 조건으로 다시 만들기' 가 위자드 도시 이름·순서(regions)와 여행 도시 키(regionCities, 입·출국
+      //   도시 제외)를 그대로 되살리는 데만 쓴다.
+      regions: (shaped.regions || []).map((r) => String(r).trim()),
+      regionCities: mealCitiesForTrip({ regions: shaped.regions, area: shaped.area }),
+    },
+  };
 }
 
-/** 정규 입력의 서버 지문 — 키 순서 고정 JSON 의 sha256. */
+/** 주문 생성·QR 안내 공통: 정규화(출발일 > KST 오늘 포함) + 커버리지. 돈이 움직이기 전 거부 = 재시도 안전. */
+export function checkPlannerOrderInput(raw, foodIndex) {
+  const normalized = normalizePrepayInput(raw, { requireFutureStart: true });
+  if (!normalized.ok) return normalized;
+  const coverage = checkPrepayCoverage(normalized.input, foodIndex);
+  return coverage.ok ? normalized : coverage;
+}
+
+/** 출발일 규칙 — 생성 단계(handlerCore)와 같은 함수. null = 통과. */
+export function startDateTooSoon(startDate) {
+  return checkStartDateTooSoon({ startDate }, false);
+}
+
+/**
+ * 정규 입력의 서버 지문 — 키 순서 고정 JSON 의 sha256. 도시는 정렬·중복 제거 집합(위자드 순서가 바뀌어도 같은 여행),
+ * 입·출국 도시 키·area 키·식이(정렬)·날짜·일수는 고정 항목. regions(표시용 이름)는 넣지 않는다.
+ */
 export function prepayFingerprint(input) {
   const stable = JSON.stringify({
-    version: input.version, cities: input.cities, diets: input.diets, startDate: input.startDate, durationDays: input.durationDays,
+    version: input.version, cities: [...new Set(input.cities)].sort(),
+    arrivalCity: input.arrivalCity || '', departureCity: input.departureCity || '', area: input.area || '',
+    diets: [...input.diets].sort(), startDate: input.startDate, durationDays: input.durationDays,
   });
   return `sha256:${createHash('sha256').update(stable).digest('hex')}`;
+}
+
+/** 결제 주문에 고정된 입력 요약(409 응답·복구 UI) — 버전 필드 제외, 값 그대로. */
+export function prepayInputSummary(input) {
+  if (!input || typeof input !== 'object') return null;
+  const summary = { ...input };
+  delete summary.version;
+  return summary;
 }
 
 /**

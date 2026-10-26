@@ -336,14 +336,17 @@ export async function fetchPaypalOrder({ baseUrl, accessToken, orderID, timeoutM
  *   unknown      keep every reservation; respond 202
  *   not_captured provider proved the order never captured
  * `postCapture()` is supplied by the handler (keeps the PayPal-Request-Id literal there) and returns {status, body, parseError}.
+ * `forbidPost` (a pre-capture refusal was decided): recovery of an already-paid result only — the order is looked up
+ * (or `lookup` is reused) and an APPROVED order answers unknown; postCapture is never called.
  */
-export async function reconcileCapture({ attempt, orderID, baseUrl, accessToken, postCapture }) {
+export async function reconcileCapture({ attempt, orderID, baseUrl, accessToken, postCapture, forbidPost = false, lookup: priorLookup = null }) {
   const lock = attempt.lock || {};
   if (lock.captureVerified) return { state: 'captured', verified: lock.captureVerified, source: 'store' };
-  const lookupFirst = attempt.recovering || lock.captureState === 'posted' || lock.captureState === 'unknown';
+  const lookupFirst = forbidPost || attempt.recovering || lock.captureState === 'posted' || lock.captureState === 'unknown';
   if (lookupFirst) {
-    const lookup = await fetchPaypalOrder({ baseUrl, accessToken, orderID });
+    const lookup = priorLookup || await fetchPaypalOrder({ baseUrl, accessToken, orderID });
     if (lookup.state !== 'approved') return { ...lookup, source: 'get' };
+    if (forbidPost) return { state: 'unknown', reason: 'capture-forbidden-approved', noPost: true, source: 'get' };
   }
   try {
     await updateAttempt(attempt, { captureState: 'posted', capturePostedAtMs: Date.now() });
