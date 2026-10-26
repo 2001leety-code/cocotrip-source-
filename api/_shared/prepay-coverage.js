@@ -42,6 +42,7 @@ const hasText = (v) => typeof v === 'string' && v.trim().length > 0;
  *   도시: requestShaper(regions/region/area/destination 별칭) → mealCitiesForTrip(ko/en/ja/zh 도시명, 명시 입·출국 도시)
  *   식이: dietPrefs ∪ dietaryRestrictions(옛 allergies 별칭은 requestShaper 규칙 그대로) 중 안전 식이만, 소문자 정렬.
  *   날짜: startDate(또는 date) YYYY-MM-DD + durationDays 정수 ≥1 — 명시 필수(기본값 '오늘' 금지: 지문이 날짜마다 바뀐다).
+ *   날짜 범위 규칙: startDate 는 여행 첫날(inclusive), 마지막 날 = startDate + durationDays − 1(inclusive) — endDate(exclusive) 는 쓰지 않는다.
  * @param {unknown} raw  위자드 값(서버가 다시 정규화) 또는 ai-planner-full 요청 body
  * @returns {{ok: true, input: object} | ReturnType<typeof prepayRejection>}
  */
