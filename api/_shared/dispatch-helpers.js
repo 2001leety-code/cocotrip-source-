@@ -16,6 +16,7 @@
  *   - api/booking-processor.js (자동 배차 broadcast, 옵션) — broadcastDispatchToDrivers
  */
 import { callBot } from './telegram-bot.js';
+import { escapeTelegram as esc } from './escape.js';
 import { initAdminDb } from './firebase-admin.js';
 import { FieldValue } from 'firebase-admin/firestore';
 import { computeExpiryDate } from './dispatch-sweep.js';
@@ -25,15 +26,16 @@ import { computeExpiryDate } from './dispatch-sweep.js';
  */
 function buildDispatchText(orderID, booking) {
   const productLabel = booking.product || booking.productType || '-';
+  // 2026-10-26: parse_mode HTML 직접 발송 — 동적 값은 escapeTelegram (고객 메모의 '<'·'&' 로 발송 실패 방지).
   return (
     `<b>새 배차 요청</b>\n` +
-    `예약번호: <code>${orderID}</code>\n` +
-    `상품: ${productLabel}\n` +
-    `날짜: ${booking.tourDate || '-'}\n` +
-    `인원: ${booking.paxCount || '?'}명\n` +
-    `픽업: ${booking.pickupLocation || '-'}\n` +
-    (booking.dropoffLocation ? `드롭오프: ${booking.dropoffLocation}\n` : '') +
-    (booking.memo ? `\n메모: ${booking.memo}\n` : '') +
+    `예약번호: <code>${esc(orderID)}</code>\n` +
+    `상품: ${esc(productLabel)}\n` +
+    `날짜: ${esc(booking.tourDate || '-')}\n` +
+    `인원: ${esc(booking.paxCount || '?')}명\n` +
+    `픽업: ${esc(booking.pickupLocation || '-')}\n` +
+    (booking.dropoffLocation ? `드롭오프: ${esc(booking.dropoffLocation)}\n` : '') +
+    (booking.memo ? `\n메모: ${esc(booking.memo)}\n` : '') +
     `\n10분 내 응답 부탁드립니다.`
   );
 }

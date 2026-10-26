@@ -14,6 +14,7 @@
  * @module api/_ai_core/debugInfo
  */
 import { resolveGeminiModel } from './geminiModelResolver.js';
+import { getLlmContext } from '../_shared/llm/index.js';
 
 /**
  * Build admin-bypass _debug payload. Returns undefined for non-admin-bypass
@@ -59,5 +60,8 @@ export function buildAdminDebug({
     totalInputTokens: cm.total,
     outputTokens: cm.output,
     cacheHitRate,
+    // 2026-10-26: 이 요청이 실제로 mock LLM 으로 돌았는가(adoptLlmMock 성공). 헤더 요청만으로는 true 가 아니다 —
+    //   Daily Health 다양성 검사가 "확인된 mock 실행"만 미평가로 돌리는 근거. admin-bypass 응답에만 실린다.
+    ...(getLlmContext().provider === 'mock' ? { llmMock: true } : {}),
   };
 }

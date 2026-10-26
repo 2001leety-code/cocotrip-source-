@@ -25,6 +25,7 @@ import { initAdminDb } from './_shared/firebase-admin.js';
 import { verifyUserToken } from './_shared/user-auth.js';
 import { captureError } from './_shared/sentry.js';
 import { throttledTelegramAlert } from './_shared/telegram-throttle.js';
+import { escapeTelegram } from './_shared/escape.js';
 import {
   fetchAvailableBlocks,
   expandBlocksToItinerary,
@@ -855,7 +856,7 @@ export default async function handler(req, res) {
       key: 'ai-planner-modify-error',
       channel: 'error',
       severity: 'high',
-      message: `🔴 <b>AI Planner Modify 실패</b>\n\n${err?.message || 'unknown'}`,
+      message: `🔴 <b>AI Planner Modify 실패</b>\n\n${escapeTelegram(err?.message || 'unknown')}`,
       context: { error: String(err?.message || '').slice(0, 200) },
     }).catch(() => {});
   }

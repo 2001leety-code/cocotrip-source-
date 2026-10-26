@@ -20,6 +20,7 @@ import { initAdminDb } from './_shared/firebase-admin.js';
 import { FieldValue } from 'firebase-admin/firestore';
 import { sweepExpiredDispatches } from './_shared/dispatch-sweep.js';
 import { notify } from './_shared/notify.js';
+import { escapeTelegram as esc } from './_shared/escape.js';
 
 export const maxDuration = 10;
 export const config = { runtime: 'nodejs' };
@@ -304,7 +305,7 @@ export async function handleAccept(botToken, p, dispatchRef, dispatch, orderID) 
         message_id: dispatch.telegramMessageId,
         text:
           `<b>✓ 배차 수락 완료</b>\n` +
-          `예약번호: <code>${orderID}</code>\n` +
+          `예약번호: <code>${esc(orderID)}</code>\n` +
           `상태: 운행 예정\n\n` +
           `당일 정시에 픽업 장소에서 대기해 주세요.`,
         parse_mode: 'HTML',
@@ -316,7 +317,7 @@ export async function handleAccept(botToken, p, dispatchRef, dispatch, orderID) 
 
   // 4. 어드민에게 알림 — dispatch 채널로 라우팅
   try {
-    await notify('dispatch', `✓ 배차 수락\n${orderID} → ${dispatch.driverName}`);
+    await notify('dispatch', `✓ 배차 수락\n${esc(orderID)} → ${esc(dispatch.driverName)}`);
   } catch (err) {
     console.warn('[driver-webhook] dispatch notify 실패:', err.message);
   }
@@ -367,7 +368,7 @@ export async function handleReject(botToken, p, dispatchRef, dispatch, orderID) 
       await callBot(botToken, 'editMessageText', {
         chat_id: p.chatId,
         message_id: dispatch.telegramMessageId,
-        text: `<b>✗ 배차 거절</b>\n예약번호: <code>${orderID}</code>\n\n고객 정보는 파기되었습니다.`,
+        text: `<b>✗ 배차 거절</b>\n예약번호: <code>${esc(orderID)}</code>\n\n고객 정보는 파기되었습니다.`,
         parse_mode: 'HTML',
       });
     } catch (err) {
@@ -380,10 +381,10 @@ export async function handleReject(botToken, p, dispatchRef, dispatch, orderID) 
   // 어드민이 즉시 인지해야 함)
   const adminAlertText =
     `⚠️ <b>기사 거절 — 수동 재배차 필요</b>\n` +
-    `예약번호: <code>${orderID}</code>\n` +
-    `거절 기사: ${dispatch.driverName || '-'}\n\n` +
+    `예약번호: <code>${esc(orderID)}</code>\n` +
+    `거절 기사: ${esc(dispatch.driverName || '-')}\n\n` +
     `<code>기사</code> 로 다른 기사 확인 후\n` +
-    `<code>배차 ${orderID} &lt;driverChatId&gt;</code> 실행`;
+    `<code>배차 ${esc(orderID)} &lt;driverChatId&gt;</code> 실행`;
 
   // admin 봇 직접 발송 (TELEGRAM_BOT_TOKEN + TELEGRAM_CHAT_ID)
   try {
@@ -399,7 +400,7 @@ export async function handleReject(botToken, p, dispatchRef, dispatch, orderID) 
 
   // dispatch 채널 보조 (다른 봇/채팅으로 분리한 경우)
   try {
-    await notify('dispatch', `✗ 배차 거절\n${orderID} ← ${dispatch.driverName}\n다른 기사에게 재배차 필요`);
+    await notify('dispatch', `✗ 배차 거절\n${esc(orderID)} ← ${esc(dispatch.driverName)}\n다른 기사에게 재배차 필요`);
   } catch (err) {
     console.warn('[driver-webhook] dispatch notify 실패:', err.message);
   }

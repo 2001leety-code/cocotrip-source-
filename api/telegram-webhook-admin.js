@@ -682,13 +682,13 @@ async function handleDispatchCommand(botToken, p) {
   // 3. 기사봇으로 배차 메시지 발송 (인라인 키보드)
   const dispatchText =
     `<b>새 배차 요청</b>\n` +
-    `예약번호: <code>${orderID}</code>\n` +
-    `상품: ${productDisplayLabel(booking.productType)}\n` +
-    `날짜: ${booking.tourDate || '-'}\n` +
-    `인원: ${booking.paxCount || '?'}명\n` +
-    `픽업: ${booking.pickupLocation || '-'}\n` +
-    (booking.dropoffLocation ? `드롭오프: ${booking.dropoffLocation}\n` : '') +
-    (booking.memo ? `\n메모: ${booking.memo}\n` : '') +
+    `예약번호: <code>${escapeHtmlLocal(orderID)}</code>\n` +
+    `상품: ${escapeHtmlLocal(productDisplayLabel(booking.productType))}\n` +
+    `날짜: ${escapeHtmlLocal(booking.tourDate || '-')}\n` +
+    `인원: ${escapeHtmlLocal(booking.paxCount || '?')}명\n` +
+    `픽업: ${escapeHtmlLocal(booking.pickupLocation || '-')}\n` +
+    (booking.dropoffLocation ? `드롭오프: ${escapeHtmlLocal(booking.dropoffLocation)}\n` : '') +
+    (booking.memo ? `\n메모: ${escapeHtmlLocal(booking.memo)}\n` : '') +
     `\n10분 내 응답 부탁드립니다.`;
 
   const sent = await callBot(driverBotToken, 'sendMessage', {
@@ -726,8 +726,8 @@ async function handleDispatchCommand(botToken, p) {
 
   await sendBotMessage(botToken, p.chatId,
     `✓ 배차 발송 완료\n` +
-    `예약: <code>${orderID}</code>\n` +
-    `기사: ${driver.name} (${driver.vehicle || '-'})\n` +
+    `예약: <code>${escapeHtmlLocal(orderID)}</code>\n` +
+    `기사: ${escapeHtmlLocal(driver.name || '-')} (${escapeHtmlLocal(driver.vehicle || '-')})\n` +
     `메시지ID: ${sent.result?.message_id || '-'}\n\n` +
     `기사 응답을 기다리는 중...`);
 }
@@ -855,8 +855,8 @@ async function handleRedispatchCommand(botToken, p) {
 
   await sendBotMessage(botToken, p.chatId,
     `✓ 재배차 발송 완료\n` +
-    `예약: <code>${orderID}</code>\n` +
-    `기사: ${driver.name} (${driver.vehicle || '-'})\n` +
+    `예약: <code>${escapeHtmlLocal(orderID)}</code>\n` +
+    `기사: ${escapeHtmlLocal(driver.name || '-')} (${escapeHtmlLocal(driver.vehicle || '-')})\n` +
     `메시지ID: ${result.messageId || '-'}\n\n` +
     `기사 응답을 기다리는 중...`);
 }
