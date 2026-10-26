@@ -33,7 +33,7 @@ import { loadFoodIndex } from './geminiPipeline.js';
 import { enrichItineraryWithRoute } from './routeEnrichment.js';
 import { calcPrice } from './vehicleAndPrice.js';
 import { throttledTelegramAlert } from '../_shared/telegram-throttle.js';
-import { applyBlockModeDietaryWarnings, normalizeRegionKey, arrivalRestDayCityKey, departureCityKey } from './responseValidator.js';
+import { applyBlockModeDietaryWarnings, normalizeRegionKey, arrivalRestDayCityKey, departureCityKey, mealWindowsFromCtx } from './responseValidator.js';
 import { applyDepartureDayFlightCap } from './blockMode.js';
 import { assertFinalItineraryValid, assertNoDuplicateStops, tripTimesFrom } from './finalItineraryGate.js';
 import { resolveTourEndTime, arrivalRestDayInfo } from './constants.js';
@@ -411,6 +411,7 @@ export async function applyRecommendedRestaurants(itinerary, ctx) {
     area: ctx.area || ctx.body?.area,
     regions: ctx.regions,
     tourEndTime: ctx.tourEndTime || resolveTourEndTime(ctx.body || {}),
+    meal_windows: mealWindowsFromCtx(ctx), // 2026-10-26 (첫날 도착 PR1): 1일 끼니 창(다일 = null → 전달 안 됨)
     arrival_rest_day: arrivalRestDayFromCtx(ctx), // 2026-10-26: 게이트 휴식일 판정 = 요청 입력 기준 플래그
   });
   // 동선 5km 이내 + plan 미포함 식당 중 rating × log(reviews) 상위 10개씩.

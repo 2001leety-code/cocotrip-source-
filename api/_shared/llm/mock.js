@@ -100,7 +100,7 @@ function foodStop(row, time, order) {
  *   meal.required = 그 날 B-MEAL 이 요구하는 끼니. 선택 끼니는 풀이 남을 때만 채운다.
  * @returns {Array<{kind:'lodging'|'spot'|'meal'|'airport', min:number, stay?:number, required?:boolean}>}
  */
-function daySkeleton({ isSingle, isFirst, isLast, startMin, depMin, restDay = false }) {
+function daySkeleton({ isSingle, isFirst, isLast, startMin, depMin, restDay = false, mealWindows = null }) {
   const full = (lunchRequired, dinnerRequired, endKind) => [
     { kind: 'lodging', min: 8 * 60 + 30 },
     { kind: 'spot', min: 10 * 60, stay: 90 },
@@ -109,6 +109,24 @@ function daySkeleton({ isSingle, isFirst, isLast, startMin, depMin, restDay = fa
     { kind: 'meal', min: 18 * 60, required: dinnerRequired },
     endKind === 'airport' ? { kind: 'airport', min: 20 * 60 } : { kind: 'lodging', min: 20 * 60 + 30 },
   ];
+  // 2026-10-26 (첫날 도착 PR1): 1일 여행 + 서버 끼니 창 — null 아닌 끼니만, 시작 범위 안에(검증기·프롬프트와 같은 값).
+  //   두 끼 다 가능하고 이른 시작이면 기존 풀데이 그대로. 창이 없으면(옛 입력) 기존 동작.
+  if (isSingle && mealWindows && typeof mealWindows === 'object') {
+    if (mealWindows.lunch && mealWindows.dinner && startMin <= 10 * 60) return full(true, true, 'lodging');
+    const out = [{ kind: 'lodging', min: startMin }];
+    let cursor = startMin;
+    for (const w of [mealWindows.lunch, mealWindows.dinner]) {
+      const from = w ? hhmmToMin(w.from) : null;
+      const to = w ? hhmmToMin(w.to) : null;
+      if (from === null || to === null) continue;
+      const t = Math.max(from, cursor);
+      if (t > to) continue;
+      out.push({ kind: 'meal', min: t, required: true });
+      cursor = t + 75;
+    }
+    out.push({ kind: 'lodging', min: Math.min(Math.max(cursor, startMin + 30), 23 * 60 + 30) });
+    return out;
+  }
   if (isSingle) return full(true, true, 'lodging');
   if (isFirst && restDay) {
     // 2026-10-26 도착 휴식일(constants.arrivalRestDayInfo — 검증기와 같은 판정): Day1 = 숙소 2개, 끼니 없음.
@@ -231,7 +249,7 @@ export function buildMockPlan({ userText, foodPool }) {
     ? u.arrival_rest_day
     : arrivalRestDayInfo({ arrivalTime: u.arrival_time, arrivalAirport: u.arrival_airport, cityKey: arrivalRestDayCityKey({ arrivalCity: u.arrival_city, regions: u.regions, area: u.area }), tourEndTime: u.tour_end_time }).rest;
   for (let d = 1; d <= days; d++) {
-    skeletons.push(daySkeleton({ isSingle: days === 1, isFirst: d === 1 && days > 1, isLast: d === days && days > 1, startMin, depMin, restDay }));
+    skeletons.push(daySkeleton({ isSingle: days === 1, isFirst: d === 1 && days > 1, isLast: d === days && days > 1, startMin, depMin, restDay, mealWindows: u.meal_windows }));
   }
   if (days > 1) claim(depName); // 공항 stop 은 출국일 1회 — 유일성 집합에 먼저 올린다.
   const mealRows = new Map();

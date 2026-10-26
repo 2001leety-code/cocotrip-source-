@@ -40,6 +40,7 @@ import { inngest } from '../client.js';
 import { initAdminDb } from '../../_ai_core/firestoreAdmin.js';
 import { failureDetailsOf, tripTimesFrom } from '../../_ai_core/finalItineraryGate.js';
 import { resolveTourEndTime } from '../../_ai_core/constants.js';
+import { mealWindowsFromCtx } from '../../_ai_core/responseValidator.js'; // 2026-10-26 (첫날 도착 PR1): 1일 끼니 창
 import {
   runRouteEnrichment,
   applyBackfillsAndTmoney,
@@ -279,6 +280,8 @@ export const processPlanAfterAI = inngest.createFunction(
     // 2026-10-26 운영자 승인: 도착 휴식일 여부 — 요청 입력으로 한 번 계산(1일 여행 제외 포함, sync handlerCore 와 같은 식).
     //   안내·종단 게이트·pass3·저장이 이 한 값을 쓴다(순수 계산 — step 재실행에도 같은 값).
     const arrivalRestDay = arrivalRestDayFromCtx(ctx);
+    // 2026-10-26 (첫날 도착 PR1): 1일 여행 끼니 창 — 전달 데이터는 그대로, worker 가 같은 순수 함수로 다시 계산(결과 동일).
+    const mealWindows = mealWindowsFromCtx(ctx);
 
     // ── Step 2: backfills + T-money ──────────────────────────────────────────
     // P290 (2026-05-29): selfHealLodgingBookend personalize 위해 ctx 확장.
@@ -328,6 +331,7 @@ export const processPlanAfterAI = inngest.createFunction(
         body: ctx.body, // 2026-10-24: 종단 게이트 필수 끼니 판정의 출국·도착 시각(departureTime 은 ctx 에 없어 body 에서)
         arrival_airport: ctx.arrival_airport, // 2026-10-26: 도착 휴식일 판정 — shaped 공항(sync 경로와 같은 값)
         arrivalRestDay,
+        mealWindows, // 2026-10-26 (첫날 도착 PR1): 1일 끼니 창(sync 경로와 같은 값)
       });
     });
 
@@ -415,6 +419,7 @@ export const processPlanAfterAI = inngest.createFunction(
         regions: ctx.regions,
         tourEndTime: resolveTourEndTime(ctx.body || {}), // 2026-10-26: 종료 시각 SSOT(camel 우선 + snake)
         arrival_rest_day: arrivalRestDayFromCtx(ctx), // 2026-10-26: 휴식일 = 요청 입력 기준(sync 게이트와 같은 식)
+        meal_windows: mealWindows, // 2026-10-26 (첫날 도착 PR1): 1일 끼니 창
       }),
       avoidStopNames: Array.isArray(ctx.avoidStopNames) ? ctx.avoidStopNames : [], // 2026-10-24 재방문 정책: 같은 적격 집합
     });
