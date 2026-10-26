@@ -57,7 +57,8 @@ describe('F — dietaryStopReplacer: all requested diets on one row, staged fall
   const viol = (diet: string) => ({ type: 'dietary_violation', severity: 'critical', stop: '위반식당', diet, category: 'food' });
 
   it('Halal+Vegan: a halal-only row is not a candidate; the intersection row is chosen; evidence for both diets', () => {
-    const HV = halalRow('식당HV', { dietary_tags: ['halal', 'vegan'], lat: 37.7, lng: 127.2 });
+    // 2026-10-26 (Astra B3): 명시 등급 하나는 한 계열만 보증한다 — 교집합 로직 검증용 합성 행은 태그별 파생 등급(필드 없음)을 쓴다. 자동 등급 폐지(B6) 시 함께 바뀐다.
+    const HV = halalRow('식당HV', { dietary_tags: ['halal', 'vegan'], verification_status: undefined, lat: 37.7, lng: 127.2 });
     const p = plan([], bad());
     const r = replaceViolatingFoodStops(p, [viol('halal'), viol('vegan')], [A, HV], ['Halal', 'Vegan'], 'seoul', 'en');
     expect(r).toMatchObject({ replaced: 1, failed: 0 });
