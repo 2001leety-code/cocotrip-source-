@@ -414,15 +414,15 @@ P124 (arrival_time + 9h sleep buffer) 는 옛 룰. tour_start_time 입력 시 (d
   있는 시각에 일정이 시작됐다(실측: ICN 14:00 도착 → 옛 룰 15:00 / 실제 17:00).
   \`arrival_ready_time\` 이 없으면(도착 시각 미입력) 이 규칙은 건너뛰고 tour_start_time 만 쓴다.
 - tour_start_time 이 hour < 5 또는 잘못된 값: 보수적으로 '09:00' 처리 (안전 + 시설 미운영)
-- arrival_time 이 매우 늦으면 (저녁/밤 도착) Day 1 = lodging 1 stop only (다음 day 부터 tour_start_time stops)
-- 휴식일(도착 ≥18:00 또는 arrival_ready_time ≥ tour_end_time − 60분): Day 1 = 숙소만, 끼니 의무 없음 — arrival_ready_time 이후 저녁 1곳은 선택
+- 🔴 휴식일 여부는 \`userInput.arrival_rest_day\` 에 **이미 계산돼 들어온다 — 직접 계산하지 말고 그 값만 따른다.**
+  arrival_rest_day = true → Day 1 = 숙소만(끼니 의무 없음), arrival_ready_time 이후 저녁 1곳은 선택.
+  arrival_rest_day = false(또는 없음) → Day 1 ≥ 1끼니.
 
 **예시 매트릭스 (tour_start_time=09:00 default, 아래 시각은 전부 \`arrival_ready_time\` 기준)**:
-- arrival_ready_time 03:00 (새벽 도착) → stops[0] 03:00 lodging only, stops[1+] 09:00 부터 → Day 1 호텔 휴식 + 09:00~ 투어
+- arrival_ready_time 03:00 (새벽 도착, arrival_rest_day=false) → stops[0] 03:00 lodging, stops[1+] 09:00 부터 → Day 1 호텔 휴식 + 09:00~ 투어
 - arrival_ready_time 07:30 (아침 도착) → stops[0] 07:30 lodging, stops[1+] 09:00 부터
 - arrival_ready_time 15:00 (낮 도착)   → stops[0] 15:00 lodging, stops[1+] 15:00+ 부터 (ready > tour_start_time → ready 우선)
-- arrival_ready_time 20:30 (저녁 도착) → stops[0] 20:30 lodging only, Day 1 추가 stops 0 (Day 2 tour_start_time 부터)
-- arrival_ready_time 01:35 (밤 도착)   → stops[0] 01:35 lodging only, Day 1 = lodging 1 stop only, Day 2 tour_start_time 부터
+- arrival_rest_day=true (예: arrival_ready_time 20:30 또는 자정 넘긴 01:35) → stops[0] lodging, Day 1 관광 0(저녁 1곳만 선택), Day 2 tour_start_time 부터
 
 **tour_start_time 명시 케이스 (사용자 11:00 지정 등)**:
 - arrival_ready_time 03:00 + tour_start_time 11:00 → stops[0] 03:00 lodging, stops[1+] 11:00 부터
@@ -601,7 +601,7 @@ If "special_request" is present in the user message, treat it as HIGHEST PRIORIT
 ## MEAL PLANNING — STRICT RULES (NEVER VIOLATE)
 - Full day = middle days. 필수: lunch/snack (11-16:59) ≥1 + dinner (17-21:59) ≥1. Breakfast (06-10:59) bonus.
 - Backend B-MEAL-LUNCH/DINNER validator: 누락 시 즉시 reject + retry.
-- Arrival day: ≥1 meal — except a rest day (arrival_time ≥ 18:00 or arrival_ready_time ≥ tour_end_time − 60min): Day 1 = lodging only; one dinner after arrival_ready_time is optional. Departure day (P137): <11:00 → no restaurant breakfast (no breakfast stop; the backend appends the guest notice automatically — do NOT write it); 11-16:59 → breakfast OR lunch/snack; ≥17:00 → both.
+- Arrival day: follow userInput.arrival_rest_day (precomputed — do NOT compute it yourself). true → Day 1 = lodging only, one dinner after arrival_ready_time is optional; false → ≥1 meal. Departure day (P137): <11:00 → no restaurant breakfast (no breakfast stop; the backend appends the guest notice automatically — do NOT write it); 11-16:59 → breakfast OR lunch/snack; ≥17:00 → both.
 - 출국 11:00 전에는 식당 조식을 넣지 않는다. 안내 문장은 백엔드가 자동으로 붙이므로 직접 쓰지 않는다. 지어내기 금지.
 - GOOD (departure 20:00): breakfast 08:00 + lunch 12:30. BAD (departure day): 출국 11:00 이후인데 0 food stops → reject.
 - 3-5 signature menu items with KRW prices. reservation_required + phone for popular spots.
@@ -818,7 +818,7 @@ If meal_budget is "Premium":
 
 출력 전 각 day 확인:
 - **full day (middle)**: lunch slot (11:00-14:59) OR snack (15:00-16:59) ≥1 + dinner slot (17:00-21:59) ≥1 — **MINIMUM 2 food stops per full day** 필수.
-- **Day 1 (도착일)**: arrival_time 기준 breakfast / lunch / snack / dinner 중 시간 가능한 식사 최소 1식 (예: arrival 14:00 → snack + dinner) — 단 휴식일(도착 ≥18:00 또는 arrival_ready_time ≥ tour_end_time − 60분)은 Day 1 = 숙소만, arrival_ready_time 이후 저녁 1곳은 선택.
+- **Day 1 (도착일)**: arrival_time 기준 breakfast / lunch / snack / dinner 중 시간 가능한 식사 최소 1식 (예: arrival 14:00 → snack + dinner) — 단 userInput.arrival_rest_day = true 면 Day 1 = 숙소만, arrival_ready_time 이후 저녁 1곳은 선택(휴식일은 직접 계산하지 말 것).
 - **출국일 (P137)**: departure_time <11:00 → no restaurant breakfast (no breakfast stop; the backend appends the guest notice automatically — do NOT write it); 11-16:59 → breakfast OR lunch/snack; ≥17:00 → both.
 
 **BAD 예시 (즉시 retry 트리거 — P179 측정 발견 2026-05-24)**:

@@ -9,7 +9,7 @@
  *
  * 이 모듈은 순수 함수 — adminDb / Gemini 호출 없음. 부수효과 없음.
  */
-import { AIRPORT_ADDRESSES } from './constants.js';
+import { AIRPORT_ADDRESSES, resolveTourEndTime } from './constants.js';
 import { inferDepartureAirport } from './airportInference.js';
 import { selectVehicle } from './vehicleAndPrice.js';
 import { normalizePlannerIntentV1 } from '../_shared/plannerIntentV1.js';
@@ -192,8 +192,8 @@ export function shapeRequest(body, authenticatedEmail, guestCheckoutAllowed = fa
   const tourStartTime = /^\d{2}:\d{2}$/.test(_rawTourStart) ? _rawTourStart : '09:00';
   // #tour-end (2026-06-05, 운영자): tourEndTime — 매일 관광 종료 시각 cap. body 미입력 (옛 client) 시
   // '21:00' default 폴백. HH:MM 형식 검증 (잘못된 입력 시 default — silent fail 방지). tourStartTime 와 대칭.
-  const _rawTourEnd = typeof body.tourEndTime === 'string' ? body.tourEndTime.slice(0, 5) : '';
-  const tourEndTime = /^\d{2}:\d{2}$/.test(_rawTourEnd) ? _rawTourEnd : '21:00';
+  // 2026-10-26: SSOT = constants.resolveTourEndTime(camel 우선 + snake 수용, 엄격 HH:MM, 기본 '21:00') — 모든 경로 같은 값.
+  const tourEndTime = resolveTourEndTime(body);
   const luggage = (body.luggage && typeof body.luggage === 'object') ? {
     small: Number(body.luggage.small) || 0,
     medium: Number(body.luggage.medium) || 0,

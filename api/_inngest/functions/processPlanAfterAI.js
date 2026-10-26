@@ -39,12 +39,14 @@ import { randomUUID } from 'crypto'; // FEATURE_GUEST_ANON_AUTH: 게스트 익�
 import { inngest } from '../client.js';
 import { initAdminDb } from '../../_ai_core/firestoreAdmin.js';
 import { failureDetailsOf, tripTimesFrom } from '../../_ai_core/finalItineraryGate.js';
+import { resolveTourEndTime } from '../../_ai_core/constants.js';
 import {
   runRouteEnrichment,
   applyBackfillsAndTmoney,
   applyRecommendedRestaurants,
   computePricing,
   savePlan,
+  arrivalRestDayFromCtx,
 } from '../../_ai_core/postResponsePipeline.js';
 import { triggerPass3BackgroundIfPending } from '../../_ai_core/backgroundPipelines.js';
 import { savePlanSkeleton } from '../../_ai_core/planPersister.js'; // P231: stub → full skeleton 업그레이드
@@ -401,7 +403,8 @@ export const processPlanAfterAI = inngest.createFunction(
         arrivalAirport: ctx.arrival_airport || ctx.body?.arrival_airport || ctx.body?.arrivalAirport,
         area: ctx.area || ctx.body?.area,
         regions: ctx.regions,
-        tourEndTime: ctx.body?.tourEndTime || ctx.body?.tour_end_time,
+        tourEndTime: resolveTourEndTime(ctx.body || {}), // 2026-10-26: 종료 시각 SSOT(camel 우선 + snake)
+        arrival_rest_day: arrivalRestDayFromCtx(ctx), // 2026-10-26: 휴식일 = 요청 입력 기준(sync 게이트와 같은 식)
       }),
       avoidStopNames: Array.isArray(ctx.avoidStopNames) ? ctx.avoidStopNames : [], // 2026-10-24 재방문 정책: 같은 적격 집합
     });

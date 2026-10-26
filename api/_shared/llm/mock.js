@@ -5,6 +5,7 @@
 import { getExactCityTrustedDietaryCandidates, getExactCityGeneralFoodCandidates } from '../../_food_helper.js';
 import { getExactCitySpotCandidates } from '../../_spots_helper.js';
 import { arrivalRestDayInfo } from '../../_ai_core/constants.js';
+import { arrivalRestDayCityKey } from '../../_ai_core/responseValidator.js'; // responseValidator 는 llm/mock 을 import 하지 않음(순환 없음)
 
 function lastJsonObject(text) {
   // userMessageBuilder: staticPrefix + middle + JSON.stringify(userInput) + tail — 마지막 {...} 블록이 userInput.
@@ -224,8 +225,11 @@ export function buildMockPlan({ userText, foodPool }) {
 
   // 끼니 배정: 필수 끼니 먼저(전 일정), 남으면 선택 끼니. 못 채운 끼니는 뺀다.
   const skeletons = [];
-  // 2026-10-26: 도착 휴식일 판정은 검증기와 같은 함수(constants.arrivalRestDayInfo) — 경계값 복제 금지.
-  const restDay = arrivalRestDayInfo({ arrivalTime: u.arrival_time, arrivalAirport: u.arrival_airport, cityKey: city, tourEndTime: u.tour_end_time }).rest;
+  // 2026-10-26: 도착 휴식일 — userInput.arrival_rest_day(서버 계산, boolean)가 있으면 그 값.
+  //   없으면(옛 입력) 검증기와 같은 함수·같은 도시 키(arrivalRestDayInfo + arrivalRestDayCityKey)로 계산 — 경계값 복제 금지.
+  const restDay = typeof u.arrival_rest_day === 'boolean'
+    ? u.arrival_rest_day
+    : arrivalRestDayInfo({ arrivalTime: u.arrival_time, arrivalAirport: u.arrival_airport, cityKey: arrivalRestDayCityKey({ arrivalCity: u.arrival_city, regions: u.regions, area: u.area }), tourEndTime: u.tour_end_time }).rest;
   for (let d = 1; d <= days; d++) {
     skeletons.push(daySkeleton({ isSingle: days === 1, isFirst: d === 1 && days > 1, isLast: d === days && days > 1, startMin, depMin, restDay }));
   }

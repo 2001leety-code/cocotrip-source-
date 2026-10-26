@@ -143,6 +143,8 @@ export function tripTimesFrom(source) {
     arrival_airport: str(s.arrival_airport || s.arrivalAirport),
     area: str(s.area || (Array.isArray(s.regions) ? s.regions[0] : undefined)),
     tour_end_time: hhmm(s.tour_end_time || s.tourEndTime),
+    // 2026-10-26: 호출부가 요청 입력으로 계산한 휴식일 여부(boolean 일 때만) — validatePatternStructure 의 플래그 우선 경로.
+    ...(typeof s.arrival_rest_day === 'boolean' ? { arrival_rest_day: s.arrival_rest_day } : {}),
   };
 }
 

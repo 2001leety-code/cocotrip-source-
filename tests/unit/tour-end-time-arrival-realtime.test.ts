@@ -96,10 +96,13 @@ describe('#tour-end source markers — 흐름 전체 박제', () => {
     expect(capMatches.length, 'capMin=toMin(tourEndTime) 가 단도시+다도시 둘 다 있어야 함').toBeGreaterThanOrEqual(2);
   });
 
-  it('requestShaper.js — body.tourEndTime parse + default 21:00 + export', () => {
+  // 2026-10-26: 파싱은 constants.resolveTourEndTime 한 곳(camel 우선 + snake, 엄격 HH:MM, 기본 21:00) — 모든 경로 같은 값.
+  it('requestShaper.js — tourEndTime via resolveTourEndTime(body) (default 21:00 lives in constants)', () => {
     const src = read('api/_ai_core/requestShaper.js');
-    expect(/body\.tourEndTime/.test(src), 'tourEndTime body parse 누락').toBe(true);
-    expect(/_rawTourEnd\s*\)\s*\?\s*_rawTourEnd\s*:\s*['"]21:00['"]/.test(src), "default '21:00' 폴백 누락").toBe(true);
+    expect(/const tourEndTime = resolveTourEndTime\(body\);/.test(src), 'resolveTourEndTime(body) 누락').toBe(true);
+    const constants = read('api/_ai_core/constants.js');
+    expect(/export function resolveTourEndTime\(source\)/.test(constants)).toBe(true);
+    expect(/if \(min === null\) return '21:00';/.test(constants), "default '21:00' 폴백 누락").toBe(true);
   });
 
   it('handlerCore.js — tryRunBlockMode userInput 에 tour_end_time 전달', () => {

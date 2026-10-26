@@ -61,6 +61,7 @@ const { mockAdminDb, mockCalls, pipelineMocks } = vi.hoisted(() => {
     applyRecommendedRestaurants: vi.fn(async () => []),
     computePricing: vi.fn(() => ({ priceKRW: 100000, priceUSD: 75 })),
     savePlan: vi.fn(async () => ({ planId: 'plan-abc', planUrl: '/my-plans/plan-abc' })),
+    arrivalRestDayFromCtx: vi.fn(() => false), // 2026-10-26: worker 가 pass3 tripTimes 휴식일 플래그용으로 import
   };
   return { mockAdminDb, mockCalls, pipelineMocks };
 });

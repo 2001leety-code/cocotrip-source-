@@ -306,6 +306,15 @@ export function normalizeRegionKey(r) {
   return CITY_KOR_TO_ENG[low] || low;
 }
 
+/**
+ * 2026-10-26: 도착 휴식일·arrival_ready_time 의 Day1 도시 키 — **요청 입력**에서만 정한다(모델이 쓴 Day1 city 무관).
+ *   arrival_city 우선 → regions[0] → area. userMessageBuilder·handlerCore·게이트·worker·수정 API·mock 이 같은 식.
+ */
+export function arrivalRestDayCityKey({ arrivalCity, regions, area } = {}) {
+  return normalizeRegionKey(arrivalCity || '')
+    || normalizeRegionKey((Array.isArray(regions) && regions[0]) || area || '');
+}
+
 // 잘 알려진 글로벌 호텔 체인 — 이름만으로는 city 모르지만 well-known 5성급 위치.
 // 다도시 plan 에서 Gemini 가 "Lotte L7 Gangnam" / "JW Marriott Dongdaemun" 처럼
 // city 토큰 없는 이름만 반환 시 B-13 false positive 방지. lodging name 에
@@ -339,6 +348,9 @@ export function checkRequiredMeals(itinerary, request = {}) {
     area: request.area,
     regions: request.regions,
     tour_end_time: request.tour_end_time || request.tourEndTime,
+    arrival_city: request.arrival_city || request.arrivalCity,
+    // 호출부가 요청 입력으로 계산한 휴식일 여부(boolean 일 때만) — 플래그 우선 경로(모델이 쓴 Day1 city 무관).
+    ...(typeof request.arrival_rest_day === 'boolean' ? { arrival_rest_day: request.arrival_rest_day } : {}),
   };
   return validatePatternStructure(itinerary, req).filter((e) => /\(B-MEAL/.test(String(e)));
 }
@@ -360,12 +372,18 @@ export function validatePatternStructure(itinerary, request = {}) {
   const isMultiCity = regions.length >= 2;
   // 2026-10-26 운영자 승인: 도착 휴식일(도착 ≥18:00 또는 준비 시각 ≥ 투어 종료−60분) — 판정 SSOT = constants.arrivalRestDayInfo.
   //   B-MEAL 도착일(끼니 면제 — Day1 이 숙소/공항/이동만일 때)·B-LATE-ARRIVAL(선택 저녁 1곳)·B-12(1 stop) 가 같은 값을 쓴다.
-  const restInfo = arrivalRestDayInfo({
-    arrivalTime: request.arrival_time || request.arrivalTime,
-    arrivalAirport,
-    cityKey: normalizeRegionKey(days[0]?.city) || normalizeRegionKey(regions[0] || request.area),
-    tourEndTime: request.tour_end_time || request.tourEndTime,
-  });
+  //   생성 단계·수정 API 는 시각 없이 휴식일 여부만 넘긴다(request.arrival_rest_day: boolean — 그 값 우선) —
+  //   B-LATE-ARRIVAL·P137 출국 시각별 규칙은 시각이 있을 때만(기존 그대로).
+  const restInfo = typeof request.arrival_rest_day === 'boolean'
+    ? { rest: request.arrival_rest_day, reason: request.arrival_rest_day ? 'precomputed' : null, readyMin: null, tourEndMin: null }
+    : arrivalRestDayInfo({
+      arrivalTime: request.arrival_time || request.arrivalTime,
+      arrivalAirport,
+      // 요청 키 우선 — Day1 city(모델 출력)는 요청에 도시가 전혀 없을 때만.
+      cityKey: arrivalRestDayCityKey({ arrivalCity: request.arrival_city || request.arrivalCity, regions, area: request.area })
+        || normalizeRegionKey(days[0]?.city),
+      tourEndTime: request.tour_end_time || request.tourEndTime,
+    });
   const isStructuralStop = (s) => ['lodging', 'airport', 'travel'].includes(s?.category);
 
   // B-DC (2026-05-13 PR #407): itinerary.days.length === request.durationDays.
@@ -663,7 +681,8 @@ export function validatePatternStructure(itinerary, request = {}) {
         // 도착일 — 아침 OR 점심/snack OR 저녁 중 최소 1개 (늦은 도착 시나리오 수용)
         // 2026-10-26 운영자 승인: 도착 휴식일이고 Day1 이 숙소/공항/이동만이면 끼니 면제(안내 = applyArrivalRestNote).
         //   관광 stop 이 하나라도 있으면(활동은 했는데 끼니 0) 기존대로 오류. food 가 있으면 원래대로 통과.
-        const restDayExempt = restInfo.rest && stops.every(isStructuralStop);
+        //   food 는 면제를 깨지 않는다(준비 22:00 이후 선택 저녁은 끼니 창 밖) — 식이 신뢰 판정은 validateResponse/게이트 그대로.
+        const restDayExempt = restInfo.rest && stops.every((s) => isStructuralStop(s) || s?.category === 'food');
         if (!restDayExempt && breakfastCount === 0 && afternoonMealCount === 0 && dinnerCount === 0) {
           errors.push(
             `Day ${dayNum} (도착일): 아침(06-10시)+오후식사(11-16시)+저녁(17-21시) 모두 누락 (B-MEAL)`
@@ -848,14 +867,18 @@ export function validatePatternStructure(itinerary, request = {}) {
     // P239: 18:00+ 도착 → Day 1 = lodging only 권장 (다음날 tour_start_time 부터 stops).
     // 옛 룰 (arrival + 9h wrap) 은 새벽 wrap → cascade fallback 트리거. 신 룰 = 단순 시각 컷.
     const isLateNightArrival = arrivalMin >= 18 * 60;
-    // 2026-10-26 운영자 승인: 숙소/공항/이동 외 stop 이 food 1개뿐이면 3개까지 허용(선택 저녁 — 아래 준비 시각 검사는 그대로 받는다).
+    // P239: stops[1+] 는 tour_start_time 과 arrival_ready_time 중 **늦은 쪽** 이후여야 한다.
+    const effectiveTourStart = Math.max(tourStartMin || 0, arrivalReady);
+    // 2026-10-26 운영자 승인: 숙소/공항/이동 외 stop 이 food 1개뿐이고 그 시각이 엄격 HH:MM·준비 시각 이후·17:00~21:59 인
+    //   저녁일 때만 3개까지 허용(선택 저녁). 그 외(아침·점심·준비 전 식당, 활동 2개 이상)는 기존 `> 2` 오류.
     const day1Activities = day1Stops.filter((s) => !isStructuralStop(s));
-    const optionalDinnerOnly = day1Activities.length === 1 && day1Activities[0]?.category === 'food';
+    const dinnerMatch = day1Activities.length === 1 && day1Activities[0]?.category === 'food'
+      ? /^([01]\d|2[0-3]):([0-5]\d)$/.exec(String(day1Activities[0].start_time || '').trim()) : null;
+    const dinnerMin = dinnerMatch ? Number(dinnerMatch[1]) * 60 + Number(dinnerMatch[2]) : null;
+    const optionalDinnerOnly = dinnerMin !== null && dinnerMin >= effectiveTourStart && dinnerMin >= 17 * 60 && dinnerMin < 22 * 60;
     if (isLateNightArrival && day1Stops.length > 2 && !(optionalDinnerOnly && day1Stops.length <= 3)) {
       errors.push(`Day 1: arrival_time=${request.arrival_time || request.arrivalTime} (18:00 이후) → Day 1 = lodging only 권장. 현재 stops=${day1Stops.length} (B-LATE-ARRIVAL P239)`);
     }
-    // P239: stops[1+] 는 tour_start_time 과 arrival_ready_time 중 **늦은 쪽** 이후여야 한다.
-    const effectiveTourStart = Math.max(tourStartMin || 0, arrivalReady);
     // Day 1 의 lodging 외 카테고리 stops 검증
     for (const stop of day1Stops) {
       if (stop?.category === 'lodging' || stop?.category === 'airport' || stop?.category === 'travel') continue;

@@ -7,8 +7,10 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { arrivalRestDayInfo, REST_DAY_LATE_ARRIVAL_MIN, REST_DAY_TOUR_END_MARGIN_MIN, DEFAULT_TOUR_END_MIN } from '../../api/_ai_core/constants.js';
-import { validatePatternStructure } from '../../api/_ai_core/responseValidator.js';
+import { arrivalRestDayInfo, resolveTourEndTime, REST_DAY_LATE_ARRIVAL_MIN, REST_DAY_TOUR_END_MARGIN_MIN, DEFAULT_TOUR_END_MIN } from '../../api/_ai_core/constants.js';
+import { shapeRequest } from '../../api/_ai_core/requestShaper.js';
+import { validatePatternStructure, arrivalRestDayCityKey } from '../../api/_ai_core/responseValidator.js';
+import { buildMockPlan } from '../../api/_shared/llm/mock.js';
 import { runFinalItineraryValidation, tripTimesFrom, FINAL_GATE_DIETARY_CODE } from '../../api/_ai_core/finalItineraryGate.js';
 import { applyArrivalRestNote, applyDepartureBreakfastNote } from '../../api/_ai_core/planPersister.js';
 import { projectPublicPlan } from '../../api/_shared/public-plan-projection.js';
@@ -96,6 +98,80 @@ describe('validatePatternStructure — arrival rest day', () => {
   });
 });
 
+describe('resolveTourEndTime (SSOT: camel 우선 + snake, 엄격 HH:MM, 기본 21:00)', () => {
+  it.each([
+    [{ tourEndTime: '22:00' }, '22:00'],
+    [{ tour_end_time: '22:00' }, '22:00'],
+    [{ tourEndTime: '20:00', tour_end_time: '22:00' }, '20:00'],
+    [{ tourEndTime: '9:30' }, '09:30'],
+    [{ tourEndTime: '25:00' }, '21:00'],
+    [{ tour_end_time: '9pm' }, '21:00'],
+    [{}, '21:00'],
+    [null, '21:00'],
+  ])('%j → %s', (src, want) => {
+    expect(resolveTourEndTime(src)).toBe(want);
+  });
+  it('shapeRequest uses the same value (camel and snake input)', () => {
+    expect(shapeRequest({ tourEndTime: '20:00', email: 'x@example.com' }, 'x@example.com', false, null).tourEndTime).toBe('20:00');
+    expect(shapeRequest({ tour_end_time: '22:00', email: 'x@example.com' }, 'x@example.com', false, null).tourEndTime).toBe('22:00');
+  });
+  it('path agreement: ICN 14:00 → Busan with snake tour_end_time 22:00 → resolved 22:00 → not a rest day', () => {
+    const tourEndTime = resolveTourEndTime({ tour_end_time: '22:00' });
+    expect(tourEndTime).toBe('22:00');
+    expect(arrivalRestDayInfo({ arrivalTime: '14:00', arrivalAirport: 'ICN_T1', cityKey: 'busan', tourEndTime }).rest).toBe(false);
+  });
+});
+
+describe('validatePatternStructure — precomputed arrival_rest_day flag (generation stage / modify API)', () => {
+  const day2: Day = { day: 2, city: 'seoul', stops: [lodging('09:00'), culture('Palace', '10:00'), food('점심', '12:30'), culture('Market', '14:30'), food('저녁', '18:30'), lodging('21:00')] };
+  const day3: Day = { day: 3, city: 'seoul', stops: [lodging('09:00'), food('아침', '10:00'), { category: 'airport', name: 'Incheon International Airport', start_time: '14:00' }] };
+  const plan = (day1: Stop[]) => ({ days: [{ day: 1, city: 'seoul', stops: day1 }, day2, day3] });
+  // 생성 단계 body / 수정 API 요청 모양 — 시각 필드 없이 플래그만.
+  const genReq = (flag: boolean, extra: Stop = {}) => ({ regions: ['seoul'], arrival_airport: 'ICN_T1', departure_airport: 'ICN_T1', durationDays: 3, styles: [], arrival_rest_day: flag, ...extra });
+  const modifyReq = { regions: ['seoul'], arrival_airport: 'ICN_T1', departure_airport: 'ICN_T1', durationDays: 3, arrival_rest_day: true };
+  const day1Errors = (errs: string[]) => errs.filter((e) => e.startsWith('Day 1'));
+
+  it('flag true: Day 1 [lodging] and [lodging, lodging] pass (no B-MEAL / B-12)', () => {
+    expect(day1Errors(validatePatternStructure(plan([lodging('23:00')]), genReq(true)))).toEqual([]);
+    expect(day1Errors(validatePatternStructure(plan([lodging('23:00'), lodging('23:30')]), genReq(true)))).toEqual([]);
+  });
+  it('flag false: [lodging, lodging] → B-MEAL', () => {
+    expect(day1Errors(validatePatternStructure(plan([lodging('23:00'), lodging('23:30')]), genReq(false))).some((e) => /B-MEAL/.test(e))).toBe(true);
+  });
+  it('flag true but a sightseeing stop without a meal → B-MEAL', () => {
+    expect(day1Errors(validatePatternStructure(plan([lodging('21:00'), culture('Night view', '21:10'), lodging('22:30')]), genReq(true))).some((e) => /B-MEAL/.test(e))).toBe(true);
+  });
+  it('flag false wins over arrival_time 19:00 → B-MEAL', () => {
+    expect(day1Errors(validatePatternStructure(plan([lodging('23:00'), lodging('23:30')]), genReq(false, { arrival_time: '19:00' }))).some((e) => /B-MEAL/.test(e))).toBe(true);
+  });
+  it('modify API: a rest-day plan re-validated after editing another day passes', () => {
+    const edited = plan([lodging('23:00'), lodging('23:30')]);
+    edited.days[1].stops[1] = culture('Edited museum', '10:00');
+    const errs = validatePatternStructure(edited, modifyReq);
+    expect(day1Errors(errs)).toEqual([]);
+    expect(errs.filter((e) => /B-MEAL|B-12/.test(e))).toEqual([]);
+  });
+});
+
+describe('B-LATE-ARRIVAL optional dinner (strict HH:MM, ≥ ready, 17:00 ≤ t < 22:00)', () => {
+  const day2: Day = { day: 2, city: 'seoul', stops: [lodging('09:00'), culture('Palace', '10:00'), food('점심', '12:30'), culture('Market', '14:30'), food('저녁', '18:30'), lodging('21:00')] };
+  const day3: Day = { day: 3, city: 'seoul', stops: [lodging('09:00'), food('아침', '10:00'), { category: 'airport', name: 'Incheon International Airport', start_time: '14:00' }] };
+  const plan = (t: string) => ({ days: [{ day: 1, city: 'seoul', stops: [lodging('21:00'), food('저녁', t), lodging('22:30')] }, day2, day3] });
+  const req = (arrival_time: string) => ({ durationDays: 3, regions: ['seoul'], arrival_airport: 'ICN_T1', arrival_time });
+  const stops3 = (errs: string[]) => errs.some((e) => /현재 stops=3 \(B-LATE-ARRIVAL P239\)/.test(e));
+
+  it.each(['08:00', '17:30'])('ICN → Seoul 19:00 (ready 22:00): food at %s → B-LATE-ARRIVAL', (t) => {
+    expect(stops3(validatePatternStructure(plan(t), req('19:00')))).toBe(true);
+  });
+  // 19:00 ICN→Seoul 은 준비 22:00 이라 21:xx 저녁이 불가 → 통과 케이스는 18:00(준비 21:00) 으로 검증.
+  it('ICN → Seoul 18:00 (ready 21:00): food at 21:10 passes', () => {
+    expect(validatePatternStructure(plan('21:10'), req('18:00')).filter((e) => e.startsWith('Day 1'))).toEqual([]);
+  });
+  it('ICN → Seoul 18:00: food at 22:10 (≥ 22:00) → B-LATE-ARRIVAL', () => {
+    expect(stops3(validatePatternStructure(plan('22:10'), req('18:00')))).toBe(true);
+  });
+});
+
 describe('final gate — Daily Health busan-halal shape (ICN 14:00 → Busan ready 20:07)', () => {
   const row = (name: string, n: number, o: Stop = {}) => ({
     name, nameEn: `${name} EN`, city: 'busan', tag: 'halal', verification_status: 'muslim_friendly',
@@ -130,21 +206,140 @@ describe('final gate — Daily Health busan-halal shape (ICN 14:00 → Busan rea
   });
 });
 
+describe('arrivalRestDayCityKey — request-input city key (r3)', () => {
+  it('arrival_city first, then regions[0], then area; Korean names normalized', () => {
+    expect(arrivalRestDayCityKey({ arrivalCity: 'Busan', regions: ['seoul'], area: 'jeju' })).toBe('busan');
+    expect(arrivalRestDayCityKey({ regions: ['Seoul', 'busan'], area: 'jeju' })).toBe('seoul');
+    expect(arrivalRestDayCityKey({ area: 'jeju' })).toBe('jeju');
+    expect(arrivalRestDayCityKey({ arrivalCity: '부산' })).toBe('busan');
+    expect(arrivalRestDayCityKey()).toBe('');
+  });
+  it('userMessageBuilder: arrival_ready_time and arrival_rest_day use the same key function', () => {
+    const src = read('api/_ai_core/userMessageBuilder.js');
+    expect(src).toMatch(/arrival_ready_time: arrivalReadyHHMM\(\s*arrivalTime,\s*arrival_airport,\s*arrivalRestDayCityKey\(\{ arrivalCity, regions, area \}\),/);
+    expect(src).toMatch(/arrival_rest_day: arrivalRestDayInfo\(\{[\s\S]*?cityKey: arrivalRestDayCityKey\(\{ arrivalCity, regions, area \}\),/);
+  });
+  it('every rest-day computation uses the request key, not the model Day 1 city', () => {
+    expect(read('api/_ai_core/handlerCore.js')).toMatch(/const arrivalRestDay = arrivalRestDayInfo\(\{[\s\S]*?cityKey: arrivalRestDayCityKey\(\{ arrivalCity, regions, area \}\)/);
+    expect(read('api/_ai_core/postResponsePipeline.js')).toMatch(/cityKey: arrivalRestDayCityKey\(\{/);
+    expect(read('api/ai-planner-modify.js')).toMatch(/cityKey: arrivalRestDayCityKey\(\{ arrivalCity: planData\.input\?\.arrival_city/);
+    expect(read('api/_shared/llm/mock.js')).toMatch(/arrivalRestDayCityKey\(\{ arrivalCity: u\.arrival_city, regions: u\.regions, area: u\.area \}\)/);
+    expect(read('api/_ai_core/responseValidator.js')).toMatch(/cityKey: arrivalRestDayCityKey\(\{ arrivalCity: request\.arrival_city \|\| request\.arrivalCity, regions, area: request\.area \}\)\s*\|\| normalizeRegionKey\(days\[0\]\?\.city\)/);
+    expect(read('api/_ai_core/postResponsePipeline.js')).not.toMatch(/cityKey: normalizeRegionKey\(itinerary/);
+  });
+  it('flag reaches the gate (tripTimesFrom, boolean only) and every pass3 path', () => {
+    expect(tripTimesFrom({ arrival_rest_day: true })).toMatchObject({ arrival_rest_day: true });
+    expect(tripTimesFrom({ arrival_rest_day: 'yes' })).not.toHaveProperty('arrival_rest_day');
+    expect(read('api/_ai_core/handlerCore.js')).toMatch(/tripTimesFrom\(\{[^}]*arrival_rest_day: arrivalRestDay \}\)/);
+    expect(read('api/_ai_core/postResponsePipeline.js')).toMatch(/arrival_rest_day: arrivalRestDayFromCtx\(ctx\),/);
+    expect(read('api/_inngest/functions/processPlanAfterAI.js')).toMatch(/arrival_rest_day: arrivalRestDayFromCtx\(ctx\),/);
+  });
+  it('mock: userInput.arrival_rest_day (boolean) wins over its own computation', () => {
+    const plan = buildMockPlan({ userText: 'X\n' + JSON.stringify({
+      duration_days: 3, regions: ['seoul'], area: 'seoul', arrival_airport: 'ICN_T1', arrival_time: '10:00', arrival_rest_day: true, tour_start_time: '09:00',
+    }) }) as { days: Day[] };
+    expect(plan.days[0].stops.every((s) => s.category === 'lodging')).toBe(true);
+  });
+});
+
+describe('prompt — rest day is a precomputed flag, not a formula (r3)', () => {
+  it('buildPrompt / retry text mention arrival_rest_day and no longer state the tour_end_time − 60 formula', () => {
+    for (const f of ['api/_ai_core/buildPrompt.js', 'api/_ai_core/geminiPipeline.js']) {
+      const src = read(f);
+      expect(src, f).toMatch(/arrival_rest_day/);
+      expect(src, f).not.toMatch(/tour_end_time\s*[−-]\s*60/);
+    }
+  });
+});
+
+describe('final gate — request city key + late optional dinner (r3)', () => {
+  const row = (name: string, n: number, o: Stop = {}) => ({
+    name, nameEn: `${name} EN`, city: 'seoul', tag: 'halal', verification_status: 'muslim_friendly',
+    address: `서울특별시 중구 합성로 ${n}`, lat: 37.56 + n / 1000, lng: 126.98, ...o,
+  });
+  const foodIndex = [row('합성할랄점심', 1), row('합성할랄저녁', 2), row('합성할랄야식', 3), row('합성일반식당', 4, { tag: 'general', verification_status: null })];
+  const mid = (city: string): Day => ({ day: 2, city, stops: [lodging('09:00'), culture('Palace', '10:00'), food('합성할랄점심', '12:30'), culture('Market', '14:30'), food('합성할랄저녁', '18:30'), lodging('21:00')] });
+  const last = (city: string): Day => ({ day: 3, city, stops: [lodging('06:00'), { category: 'airport', name: 'Incheon International Airport', start_time: '07:00' }] });
+
+  it('Seoul 14:00 (ready 17:00): model writes Day 1 city "Jeju" → judged by request key seoul → not a rest day, B-MEAL kept', () => {
+    const plan = { days: [{ day: 1, city: 'Jeju', stops: [lodging('17:00'), lodging('17:30')] }, mid('seoul'), last('seoul')] };
+    const tripTimes = tripTimesFrom({ arrivalTime: '14:00', arrivalAirport: 'ICN_T1', area: 'seoul', departureTime: '10:00' });
+    const r = runFinalItineraryValidation(plan, { dietary: ['Halal'], language: 'en', foodIndex, tripTimes });
+    expect(r.ok).toBe(false);
+    expect(r.requiredMealIssues.some((m: string) => /도착일/.test(m))).toBe(true);
+  });
+  // ICN 19:00 → Seoul: 준비 22:00, 투어 종료 23:30 — 휴식일(도착 ≥ 18:00). 22:10 저녁은 끼니 창(17–21) 밖이지만 면제를 깨지 않는다.
+  const lateTrip = tripTimesFrom({ arrivalTime: '19:00', arrivalAirport: 'ICN_T1', area: 'seoul', departureTime: '10:00', tourEndTime: '23:30' });
+  const latePlan = (dinner: string) => ({ days: [{ day: 1, city: 'seoul', stops: [lodging('22:00'), food(dinner, '22:10'), lodging('23:20')] }, mid('seoul'), last('seoul')] });
+  it('ready after 22:00, end 23:30: Day 1 [lodging, trusted restaurant 22:10, lodging] passes the gate', () => {
+    expect(runFinalItineraryValidation(latePlan('합성할랄야식'), { dietary: ['Halal'], language: 'en', foodIndex, tripTimes: lateTrip })).toMatchObject({ ok: true, code: null });
+  });
+  it('same shape with an untrusted restaurant → critical dietary failure (standard unchanged)', () => {
+    expect(runFinalItineraryValidation(latePlan('합성일반식당'), { dietary: ['Halal'], language: 'en', foodIndex, tripTimes: lateTrip })).toMatchObject({ ok: false, code: FINAL_GATE_DIETARY_CODE });
+  });
+  it('rest day with a sightseeing stop and no meal still needs a meal (B-MEAL)', () => {
+    const plan = { days: [{ day: 1, city: 'seoul', stops: [lodging('22:00'), culture('Night view', '22:10'), lodging('23:20')] }, mid('seoul'), last('seoul')] };
+    const r = runFinalItineraryValidation(plan, { dietary: ['Halal'], language: 'en', foodIndex, tripTimes: lateTrip });
+    expect(r.requiredMealIssues.some((m: string) => /도착일/.test(m))).toBe(true);
+  });
+});
+
+describe('block mode — Day 1 sightseeing 0 under the operator rest-day definition (r3)', () => {
+  const blocks = [{ id: 'T1', city: 'seoul', zone: 'Test', theme: 'T', intensity: 'standard',
+    stops: [0, 120, 240].map((off, i) => ({ order: i + 1, name: `Spot ${i + 1}`, category: 'culture', start_time_offset_min: off, stay_min: 60 })) }];
+  const sel = { day_selections: [{ day: 1, block_id: 'T1', tweak_notes: '' }], language: 'en' };
+  const input = { language: 'en', area: 'seoul', dietPrefs: [], foodIndex: [], startDate: '2026-06-15', tour_start_time: '09:00' };
+  const sights = (itin: { days: Day[] }) => itin.days[0].stops.filter((s) => !['lodging', 'airport', 'travel'].includes(String(s.category)));
+
+  it('18:00 GMP arrival, tour end 23:00 (ready well before cap) → late_arrival rest day → no sightseeing', async () => {
+    const { expandBlocksToItinerary } = await import('../../api/_ai_core/blockMode.js');
+    expect(sights(expandBlocksToItinerary(sel, blocks, { ...input, arrival_time: '18:00', arrival_airport: 'GMP', tour_end_time: '23:00' }))).toHaveLength(0);
+  });
+  it('ICN 17:00 → Seoul ready 20:00 = tour end 21:00 − 60 → rest day → no sightseeing; ICN 14:00 (ready 17:00) keeps sightseeing', async () => {
+    const { expandBlocksToItinerary } = await import('../../api/_ai_core/blockMode.js');
+    expect(sights(expandBlocksToItinerary(sel, blocks, { ...input, arrival_time: '17:00', arrival_airport: 'ICN', tour_end_time: '21:00' }))).toHaveLength(0);
+    expect(sights(expandBlocksToItinerary(sel, blocks, { ...input, arrival_time: '14:00', arrival_airport: 'ICN', tour_end_time: '21:00' })).length).toBeGreaterThan(0);
+  });
+  it('source: single- and multi-city expand both OR in arrivalRestDayInfo', () => {
+    const src = read('api/_ai_core/blockMode.js');
+    expect(src).toMatch(/effMin >= capMin \|\| arrivalRestDayInfo\(\{ arrivalTime, arrivalAirport: arrivalAirportInput, cityKey: block\.city \|\| area, tourEndTime \}\)\.rest/);
+    expect(src).toMatch(/effMin >= capMin \|\| arrivalRestDayInfo\(\{ arrivalTime, arrivalAirport: mcArrivalAirport, cityKey: dayCityKey \|\| block\.city, tourEndTime \}\)\.rest/);
+  });
+});
+
 describe('wiring (source)', () => {
   it('all execution paths pass airport / area / tour end to the gate', () => {
     const post = read('api/_ai_core/postResponsePipeline.js');
     expect(post).toMatch(/arrivalAirport: ctx\.arrival_airport \|\| ctx\.body\?\.arrival_airport \|\| ctx\.body\?\.arrivalAirport,/);
-    expect(post).toMatch(/area: ctx\.area \|\| ctx\.body\?\.area,\s*regions: ctx\.regions,\s*tourEndTime: ctx\.tourEndTime \|\| ctx\.body\?\.tourEndTime \|\| ctx\.body\?\.tour_end_time,/);
-    expect(read('api/_ai_core/handlerCore.js')).toMatch(/tripTimes: tripTimesFrom\(\{ departureTime, arrivalTime, arrivalAirport: arrival_airport, area, regions, tourEndTime \}\)/);
-    expect(read('api/_inngest/functions/processPlanAfterAI.js')).toMatch(/tripTimes: tripTimesFrom\(\{[\s\S]*?arrivalAirport: ctx\.arrival_airport \|\| ctx\.body\?\.arrival_airport \|\| ctx\.body\?\.arrivalAirport,[\s\S]*?area: ctx\.area \|\| ctx\.body\?\.area,[\s\S]*?tourEndTime: ctx\.body\?\.tourEndTime \|\| ctx\.body\?\.tour_end_time,/);
+    expect(post).toMatch(/area: ctx\.area \|\| ctx\.body\?\.area,\s*regions: ctx\.regions,\s*tourEndTime: ctx\.tourEndTime \|\| resolveTourEndTime\(ctx\.body \|\| \{\}\),/);
+    expect(read('api/_ai_core/handlerCore.js')).toContain('tripTimes: tripTimesFrom({ departureTime, arrivalTime, arrivalAirport: arrival_airport, area, regions, tourEndTime, arrival_rest_day: arrivalRestDay })');
+    expect(read('api/_inngest/functions/processPlanAfterAI.js')).toMatch(/tripTimes: tripTimesFrom\(\{\s*departureTime: ctx\.body\?\.departureTime \|\| ctx\.body\?\.departure_time,\s*arrivalTime: ctx\.body\?\.arrivalTime \|\| ctx\.body\?\.arrival_time,\s*arrivalAirport: ctx\.arrival_airport \|\| ctx\.body\?\.arrival_airport \|\| ctx\.body\?\.arrivalAirport,\s*area: ctx\.area \|\| ctx\.body\?\.area,\s*regions: ctx\.regions,\s*tourEndTime: resolveTourEndTime\(ctx\.body \|\| \{\}\),[^\n]*\n\s*arrival_rest_day: arrivalRestDayFromCtx\(ctx\),/);
   });
   it('applyArrivalRestNote runs right after applyTourEndCap', () => {
     const post = read('api/_ai_core/postResponsePipeline.js');
-    const cap = post.indexOf('applyTourEndCap(itinerary, ctx.body?.tourEndTime);');
+    const cap = post.indexOf('applyTourEndCap(itinerary, resolveTourEndTime(ctx.body || {}));');
     const note = post.indexOf('applyArrivalRestNote(itinerary, {');
     expect(cap).toBeGreaterThan(-1);
     expect(note).toBeGreaterThan(cap);
     expect(post.slice(cap, note)).not.toMatch(/calculateTmoney|applyRecommendedRestaurants/);
+  });
+  it('tour end time: postResponsePipeline (cap / rest note / tripTimes) and the worker resolve via resolveTourEndTime, no direct snake reads', () => {
+    const post = read('api/_ai_core/postResponsePipeline.js');
+    const worker = read('api/_inngest/functions/processPlanAfterAI.js');
+    expect(post).toMatch(/applyTourEndCap\(itinerary, resolveTourEndTime\(ctx\.body \|\| \{\}\)\);/);
+    expect(post).toMatch(/applyArrivalRestNote\(itinerary, \{[\s\S]*?tourEndTime: resolveTourEndTime\(ctx\.body \|\| \{\}\),/);
+    expect(post).toMatch(/tourEndTime: ctx\.tourEndTime \|\| resolveTourEndTime\(ctx\.body \|\| \{\}\),/);
+    expect(worker).toMatch(/tourEndTime: resolveTourEndTime\(ctx\.body \|\| \{\}\),/);
+    for (const [f, src] of [['postResponsePipeline', post], ['processPlanAfterAI', worker]]) {
+      expect(src, f).not.toMatch(/ctx\.body\?\.tour_end_time/);
+      expect(src, f).not.toMatch(/ctx\.body\?\.tourEndTime/);
+    }
+  });
+  it('generation-stage body and the modify API validation request carry arrival_rest_day', () => {
+    const core = read('api/_ai_core/handlerCore.js');
+    expect(core).toMatch(/const arrivalRestDay = arrivalRestDayInfo\(\{[\s\S]*?cityKey: arrivalRestDayCityKey\(\{ arrivalCity, regions, area \}\)[\s\S]*?\}\)\.rest;/);
+    expect(core).toContain('arrival_rest_day: arrivalRestDay,');
+    expect(read('api/ai-planner-modify.js')).toMatch(/arrival_rest_day: arrivalRestDayInfo\(\{[\s\S]*?tourEndTime: resolveTourEndTime\(/);
   });
   it('the boundary values live only in constants.js (no duplicated 18:00 / −60 rule elsewhere)', () => {
     for (const f of ['api/_ai_core/responseValidator.js', 'api/_shared/llm/mock.js', 'api/_ai_core/planPersister.js']) {
@@ -176,6 +371,11 @@ describe('arrival rest note', () => {
     const notRest = plan([lodging('17:00'), lodging('17:30')]);
     expect(applyArrivalRestNote(notRest, { arrivalTime: '14:00', arrivalAirport: 'ICN_T1', cityKey: 'seoul', language: 'en' })).toBe(false);
     expect(applyArrivalRestNote({ days: [{ day: 1, city: 'seoul', stops: [lodging('23:00')] }] }, { ...rest, language: 'en' })).toBe(false);
+  });
+  it('r3: rest day but Day 1 [lodging, sightseeing, lodging] → no note; restDay flag wins over the computed value', () => {
+    expect(applyArrivalRestNote(plan([lodging('21:00'), culture('Night view', '21:10'), lodging('22:30')]), { restDay: true, language: 'en' })).toBe(false);
+    expect(applyArrivalRestNote(plan([lodging('23:00'), lodging('23:30')]), { restDay: false, ...rest, language: 'en' })).toBe(false);
+    expect(applyArrivalRestNote(plan([lodging('17:00'), lodging('17:30')]), { restDay: true, arrivalTime: '14:00', arrivalAirport: 'ICN_T1', cityKey: 'seoul', language: 'en' })).toBe(true);
   });
   it('public projection: viewer language only, hotel tip and name stay private; with a breakfast note both appear (arrival first)', () => {
     const hotel = 'Secret Lantern Hotel';

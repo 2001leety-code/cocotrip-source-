@@ -170,6 +170,20 @@ function strictHHMMToMin(value) {
 }
 
 /**
+ * 투어 종료 시각 SSOT(2026-10-26) — camel tourEndTime 우선, 다음 snake tour_end_time. 앞 5자, 엄격 HH:MM(00:00~23:59,
+ * 1자리 시는 2자리로 패딩)이 아니면 '21:00'. 요청 정규화·tour-end cap·필수 끼니 게이트·휴식일 안내가 같은 값을 쓴다. 순수.
+ * @param {object} source
+ * @returns {string}
+ */
+export function resolveTourEndTime(source) {
+  const s = source && typeof source === 'object' ? source : {};
+  const raw = typeof s.tourEndTime === 'string' && s.tourEndTime ? s.tourEndTime : s.tour_end_time;
+  const min = strictHHMMToMin(raw);
+  if (min === null) return '21:00';
+  return `${String(Math.floor(min / 60)).padStart(2, '0')}:${String(min % 60).padStart(2, '0')}`;
+}
+
+/**
  * 도착 휴식일 판정(순수 — 로그·부작용 없음). 검증기·게이트·mock·안내가 이 함수 하나만 쓴다(경계값 복제 금지).
  *   (i)  도착 시각 ≥ 18:00 → late_arrival
  *   (ii) 도착 준비 시각(arrivalReadyMinutes — 절대 분, 자정 넘어도 1440 이상 그대로) ≥ 투어 종료 − 60분 → ready_near_tour_end

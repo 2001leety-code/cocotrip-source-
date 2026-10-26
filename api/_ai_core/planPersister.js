@@ -297,12 +297,15 @@ export { applyRevisitNotes } from './revisitPolicy.js';
  * 출국일 조식 안내(breakfast_note)와 다른 필드. 근처 식당 약속 없음.
  * @returns {boolean} 붙였으면 true
  */
-export function applyArrivalRestNote(itinerary, { arrivalTime, arrivalAirport, cityKey, tourEndTime, language } = {}) {
+export function applyArrivalRestNote(itinerary, { restDay, arrivalTime, arrivalAirport, cityKey, tourEndTime, language } = {}) {
   const days = Array.isArray(itinerary?.days) ? itinerary.days : [];
   if (days.length < 2) return false;
-  if (!arrivalRestDayInfo({ arrivalTime, arrivalAirport, cityKey, tourEndTime }).rest) return false;
+  // 2026-10-26: 호출부가 요청 입력으로 계산한 restDay(boolean) 우선, 없으면 여기서 계산.
+  const rest = typeof restDay === 'boolean' ? restDay : arrivalRestDayInfo({ arrivalTime, arrivalAirport, cityKey, tourEndTime }).rest;
+  if (!rest) return false;
   const stops = Array.isArray(days[0]?.stops) ? days[0].stops : [];
-  if (stops.length === 0 || stops.some((s) => s?.category === 'food')) return false;
+  // Day1 이 전부 숙소/공항/이동일 때만(식당·관광이 남은 날엔 "쉬는 날" 안내 금지).
+  if (stops.length === 0 || !stops.every((s) => ['lodging', 'airport', 'travel'].includes(s?.category))) return false;
   const target = stops.find((s) => s?.category === 'lodging') || stops[0];
   if (!target || typeof target !== 'object' || target._arrival_rest_note === true) return false;
   const note = arrivalRestNote(language);
