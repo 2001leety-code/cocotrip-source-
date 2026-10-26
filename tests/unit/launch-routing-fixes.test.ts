@@ -71,10 +71,10 @@ describe('P-launch #1b — 한글 region 키 정규화 (getDayHotelCoord 행동 
     expect(r.lat).toBeLessThan(36); // 부산 ~35.18
     expect(r.source).toBe('multi_city_center');
   });
-  it('source-grep — RouteAgent depLastRegion/depFirstRegion + pipeline _depCity 모두 normalizeRegionKey 경유', () => {
-    expect(routeAgentSrc).toMatch(/depLastRegion\s*=\s*depRegions\.length\s*>=\s*2\s*\?\s*normalizeRegionKey/);
-    expect(routeAgentSrc).toMatch(/depFirstRegion\s*=\s*depRegions\[0\]\s*\?\s*normalizeRegionKey/);
-    expect(pipelineSrc).toMatch(/_depCity\s*=[\s\S]{0,80}normalizeRegionKey/);
+  it('source-grep — RouteAgent depLastRegion/depFirstRegion + pipeline _depCity 모두 regionCityKey(한글 normalizeRegionKey + 2026-10-26 ja/zh 별칭) 경유', () => {
+    expect(routeAgentSrc).toMatch(/depLastRegion\s*=\s*depRegions\.length\s*>=\s*2\s*\?\s*\(departureCityKey\(/); // 2026-10-26: 명시 출국 도시 → 마지막 날 → regions 마지막
+    expect(routeAgentSrc).toMatch(/depFirstRegion\s*=\s*depRegions\[0\]\s*\?\s*regionCityKey/);
+    expect(pipelineSrc).toMatch(/_depCity\s*=[\s\S]{0,80}departureCityKey/);
   });
 });
 

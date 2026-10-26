@@ -7,7 +7,7 @@ import { searchTransit } from "../../_transit_provider.js";
 import { getTransitProvider } from "../../_transit_provider.js";
 import { AIRPORT_COORDS, AIRPORT_STATION_COORDS, AIRPORT_NAMES, CITY_CENTER_COORDS, lookupZoneCoord, SCHEDULE_BUFFER_MIN, arrivalReadyMinutes } from "../constants.js";
 // P-launch (2026-05-31): 한글 regions('부산') → 영문 키('busan') 정규화 (멀티시티 departure city 해석용).
-import { normalizeRegionKey } from "../responseValidator.js";
+import { normalizeRegionKey, regionCityKey, departureCityKey } from "../responseValidator.js";
 import { throttledTelegramAlert } from "../../_shared/telegram-throttle.js";
 // Phase 3 (2026-05-27): zone_courses Firestore transit_matrix cache — ODsay 호출 절감.
 import { lookupTransitCache, getTransitCacheStats } from "../transitCache.js";
@@ -1035,8 +1035,12 @@ export class RouteAgent extends BaseAgent {
             const depRegions = Array.isArray(data.regions) ? data.regions : (Array.isArray(rawItinerary.regions) ? rawItinerary.regions : []);
             // P-launch (2026-05-31): normalizeRegionKey — 한글 '부산' → 'busan' (P321 trap). 이거 없으면
             //   getDayHotelCoord/CITY_CENTER_COORDS 영문 키 mismatch → silent 첫 도시(명동) 폴백.
-            const depFirstRegion = depRegions[0] ? normalizeRegionKey(depRegions[0]) : null;
-            const depLastRegion = depRegions.length >= 2 ? normalizeRegionKey(depRegions[depRegions.length - 1]) : null;
+            // 2026-10-26: regionCityKey — ja/zh 표시명('釜山')도 영문 키로(normalizeRegionKey 는 한글만).
+            const depFirstRegion = depRegions[0] ? regionCityKey(depRegions[0]) : null;
+            //   출국 도시 = 실제 마지막 날 도시 → 명시 출국 도시 → regions 마지막(departureCityKey, 출국 안내 라벨과 같은 함수).
+            const depLastRegion = depRegions.length >= 2
+                ? (departureCityKey({ departureCity: data.departure_city, days: daysList, regions: depRegions }) || null)
+                : null;
             if (depLastRegion && !isSameAsFirstCity(depLastRegion, depFirstRegion)) {
                 const depZonesMap = (data.recommended_zones && typeof data.recommended_zones === 'object' && !Array.isArray(data.recommended_zones)) ? data.recommended_zones : null;
                 const depHotel = getDayHotelCoord({ city: depLastRegion }, {
@@ -1171,7 +1175,7 @@ export class RouteAgent extends BaseAgent {
         //   .toLowerCase() 만으론 '부산'.toLowerCase() === '부산' → getDayHotelCoord /
         //   CITY_CENTER_COORDS 영문 키('busan') mismatch → 둘째 도시 숙소좌표 silent skip →
         //   다도시 day 가 첫 도시 호텔로 폴백. ko/ja/zh 다도시 100% 영향.
-        const tripFirstRegion = regionsList[0] ? normalizeRegionKey(regionsList[0]) : null;
+        const tripFirstRegion = regionsList[0] ? regionCityKey(regionsList[0]) : null; // 2026-10-26: ja/zh 표시명 포함
         // PDF-issue-3 v2 (2026-05-14): module-level helpers (getDayHotelCoord / isSameAsFirstCity)
         // 사용 — closure 제거 + unit test 가능. context 묶어서 전달.
         const dayHotelCtx = {

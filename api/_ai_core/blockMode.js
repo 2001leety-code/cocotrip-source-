@@ -40,13 +40,16 @@ import {
   // 같이 쓰게 되면서 leaf 로 올렸다(2026-08-04).
   estimateAirportTransitMinFrom, hhmmToMin, arrivalReadyMinutes, arrivalRestDayInfo,
 } from './constants.js';
-import { repairAndParseJSON, normalizeRegionKey, arrivalRestDayCityKey } from './responseValidator.js';
+import { repairAndParseJSON, normalizeRegionKey, arrivalRestDayCityKey, regionCityKey } from './responseValidator.js';
 import { stopDuplicateKey } from './qualityMetrics.js';
 import { buildCityPerDayWithBookends } from '../_shared/plannerIntentV1.js';
 import { recordGeminiUsage } from '../_shared/apiUsageRecorder.js';
 // 식이 신뢰 등급 SSOT (.claude/rules/dietary-safety.md). 태그만 보고 "인증" 판정 금지 —
 // unverified(naver_local/ai_curated) 행은 점수 경쟁 전에 후보에서 탈락시킨다.
 import { dietaryEvidenceFor, dietaryTagsOfRow, describeDietaryEvidence } from '../_shared/dietary-trust.js';
+
+/** 2026-10-26: 블록 도시 키 = 공용 responseValidator.regionCityKey(ja/zh 표시명 → 영문 키, 쉼표 값은 종전 정규화). */
+export const blockCityKey = regionCityKey;
 
 // 사용량 실측 기록(비용 가시화 2026-07-09) — fire-and-forget, 어떤 실패도 본 흐름에 영향 0.
 // block_mode 는 legacy(logCacheMetrics)와 달리 기록이 전혀 없던 sleeper 공백.
@@ -1742,7 +1745,7 @@ export function buildCityPerDay(cities, durationDays, perDayCity = null, bookend
       // available_blocks 빈 배열 + day_selections.city 한글 → 취미 pin 실패).
       // 현재 perDayCity 는 미wiring(dead input)=fallback 만 사용 → byte-identical.
       // 향후 per-day 도시 위저드 wiring 시 P321 재발 예방용 선제 하드닝. split('_')[0] = L1567 패턴 동일.
-      const explicit = normalizeRegionKey(String(perDayCity[d] || perDayCity[String(d)] || '').split('_')[0]);
+      const explicit = blockCityKey(perDayCity[d] || perDayCity[String(d)]);
       result.push(explicit || cities[0]);
     }
     return result;
@@ -2270,8 +2273,8 @@ export async function runBlockModeMultiCity({ adminDb, cities, userInput, gemini
   const durationDays = Math.max(1, Math.min(14, Number(userInput.durationDays) || 1));
   const cityPerDay = buildCityPerDay(cities, durationDays, userInput.perDayCity || null, {
     // planner-intent-v1: normalizeRegionKey — '부산' 같은 현지어 입력도 영문 cityKey 와 맞춘다 (P321).
-    arrivalCityKey: normalizeRegionKey(String(userInput.arrival_city || '').split('_')[0]),
-    departureCityKey: normalizeRegionKey(String(userInput.departure_city || '').split('_')[0]),
+    arrivalCityKey: blockCityKey(userInput.arrival_city),
+    departureCityKey: blockCityKey(userInput.departure_city),
   });
 
   const selections = await selectBlocksMultiCity(cityBlocksList, userInput, geminiClient, cityPerDay);
@@ -2321,8 +2324,8 @@ export async function tryRunBlockMode({ adminDb, regions, area, userInput, apiKe
   // → block_mode silent legacy 폴백 (ko/ja/zh 다도시 사용자 100% 영향 = 5일+ 느림 직접 원인).
   // 영문/unmapped 는 그대로 반환 → en 사용자 동작 불변(회귀 0). split('_')[0] 로 area-key 선처리.
   const cities = Array.isArray(regions) && regions.length > 0
-    ? regions.map((r) => normalizeRegionKey(String(r || '').split('_')[0])).filter(Boolean)
-    : [normalizeRegionKey(String(area || '').split('_')[0])].filter(Boolean);
+    ? regions.map((r) => blockCityKey(r)).filter(Boolean)
+    : [blockCityKey(area)].filter(Boolean);
 
   if (cities.length === 0) return { skipped: true, reason: 'no_city' };
 
