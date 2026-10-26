@@ -46,6 +46,8 @@ import { resolveTourEndTime, arrivalRestDayInfo } from './constants.js';
 export function arrivalRestDayFromCtx(ctx = {}) {
   if (typeof ctx.arrivalRestDay === 'boolean') return ctx.arrivalRestDay;
   const b = ctx.body || {};
+  // 1일 여행은 휴식일 없음 — handlerCore 플래그(`&& Number(durationDays) > 1`)와 같은 조건.
+  if (!(Number(ctx.durationDays || b.durationDays) > 1)) return false;
   return arrivalRestDayInfo({
     arrivalTime: String(ctx.arrivalTime || b.arrivalTime || b.arrival_time || '').slice(0, 5),
     arrivalAirport: ctx.arrival_airport || b.arrival_airport || b.arrivalAirport,
@@ -364,6 +366,8 @@ export function applyBackfillsAndTmoney(itinerary, ctx) {
     // P-launch (2026-05-31): 합성 호텔 stop 4lang tip + block_mode 정상 bookend 표시 suppress.
     language: ctx.language,
     blockMode: ctx.blockMode,
+    // 2026-10-26: 블록모드 휴식일 빈 Day1 → 체크인 숙소 1개(이후 cap → applyArrivalRestNote 가 이 숙소에 안내).
+    arrivalRestDay: arrivalRestDayFromCtx(ctx),
   });
 
   // ── #tour-end (2026-06-05): 종료 시각 cap — selfHealLodgingBookend "후" 적용 (권위 enforcer) ──

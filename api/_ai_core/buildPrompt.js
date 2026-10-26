@@ -351,6 +351,7 @@ Gemini 가 \`departure_guide.airport: 'ICN T1'\` (T1 추가 hallucinate) + \`arr
   - **EACH day MUST have AT LEAST 4 stops** (lodging 출발 + 관광/식사 2+ + lodging 복귀 포함)
     AND **AT MOST 8 stops**.
   - 예외: **2일 이상 일정의** 마지막 날이 출국 11:00 전이면 체크아웃(lodging) + 공항(airport) 2 stops 가 정답(1일 일정은 해당 없음 — 최소 4 stops·점심/저녁 규칙 그대로).
+  - 예외: userInput.arrival_rest_day = true 인 Day 1 은 숙소만(1~2 stops) 허용 — 아래 "N일 plan" 분량 규칙도 그 Day 1 에는 적용 안 함.
   - 사용자 신고: Day 5 가 1 stop (점심만) 으로 끝나는 buggy plan 발생. 절대 금지.
   - **분량 균형**: 5일 trip 이면 Day 1~4 에 stops 몰아넣고 Day 5 비우지 말 것.
     Day 5 도 4-6 stops 확보 (출국 항공편 시각 고려해 마지막 lodging 대신 공항 가는 경우는

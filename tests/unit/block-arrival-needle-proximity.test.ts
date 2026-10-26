@@ -140,9 +140,10 @@ describe('#arrival-needle end-to-end — 밤도착 도착일에 가까운 stop �
     expect(sights.every((s: TestStop) => toMin(s.start_time) <= toMin('21:30')), '생존 stop 이 종료 cap 이내').toBe(true);
   });
 
-  it('2026-10-26: ICN 18:00 도착(운영자 승인 휴식일) → Day1 관광 0', async () => {
+  it('2026-10-26: ICN 18:00 도착(운영자 승인 휴식일, 2일 이상 여행) → Day1 관광 0', async () => {
     const { expandBlocksToItinerary } = await import('../../api/_ai_core/blockMode.js');
-    const itin = expandBlocksToItinerary(baseSelections, makeBlocks(true), { ...lateArrivalInput, arrival_time: '18:00' });
+    const twoDays = { ...baseSelections, day_selections: [...baseSelections.day_selections, { day: 2, block_id: 'T1', tweak_notes: '' }] };
+    const itin = expandBlocksToItinerary(twoDays, makeBlocks(true), { ...lateArrivalInput, arrival_time: '18:00' });
     const sights = itin.days[0].stops.filter(
       (s: TestStop) => s.category !== 'lodging' && s.category !== 'airport' && s.category !== 'travel'
     );

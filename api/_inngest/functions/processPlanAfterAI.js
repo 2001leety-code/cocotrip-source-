@@ -275,6 +275,10 @@ export const processPlanAfterAI = inngest.createFunction(
       return itinerary;
     });
 
+    // 2026-10-26 운영자 승인: 도착 휴식일 여부 — 요청 입력으로 한 번 계산(1일 여행 제외 포함, sync handlerCore 와 같은 식).
+    //   안내·종단 게이트·pass3·저장이 이 한 값을 쓴다(순수 계산 — step 재실행에도 같은 값).
+    const arrivalRestDay = arrivalRestDayFromCtx(ctx);
+
     // ── Step 2: backfills + T-money ──────────────────────────────────────────
     // P290 (2026-05-29): selfHealLodgingBookend personalize 위해 ctx 확장.
     //   Inngest worker path 도 sync path 와 동일 ctx 전달 (block_mode plan 의
@@ -297,6 +301,7 @@ export const processPlanAfterAI = inngest.createFunction(
         //   (camel → snake, slice(0,5)) 으로 읽는다.
         departure_airport: ctx.departure_airport,
         arrival_airport: ctx.arrival_airport, // 2026-10-26: 도착 휴식일 안내(applyArrivalRestNote) — shaped 공항
+        arrivalRestDay,
       });
       return itinAfterRoute;
     });
@@ -321,6 +326,7 @@ export const processPlanAfterAI = inngest.createFunction(
         blockModeUsed: ctx.plannerMode === 'block_mode',
         body: ctx.body, // 2026-10-24: 종단 게이트 필수 끼니 판정의 출국·도착 시각(departureTime 은 ctx 에 없어 body 에서)
         arrival_airport: ctx.arrival_airport, // 2026-10-26: 도착 휴식일 판정 — shaped 공항(sync 경로와 같은 값)
+        arrivalRestDay,
       });
     });
 
@@ -357,6 +363,9 @@ export const processPlanAfterAI = inngest.createFunction(
         dietary: ctx.dietPrefs,
         foodIndex: foodIndexForQuality,
         plannerIntent: ctx.plannerIntent || null,
+        // 2026-10-26: input.arrival_rest_day / arrival_city 저장(sync 경로와 같은 판정 — 수정 API 가 저장 플래그 우선).
+        arrivalRestDay,
+        arrivalCity: String(ctx.body?.arrival_city || ctx.body?.arrivalCity || '').trim().toLowerCase() || null,
         plannerMode: ctx.plannerMode,
         abReason: ctx.abReason,
         abBucket: ctx.abBucket,

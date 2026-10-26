@@ -14,6 +14,7 @@ import { arrivalReadyMinutes, arrivalRestDayInfo } from './constants.js';
 import { throttledTelegramAlert } from '../_shared/telegram-throttle.js';
 import { dietaryEvidenceFor } from '../_shared/dietary-trust.js';
 import { findSelectedFoodRow } from '../_shared/food-name-match.js';
+import { resolveUiCityKey } from '../_shared/cityResolver.js'; // 의존성 없는 leaf(순환 없음)
 
 // PR #462 (Audit X-H3 — 2026-05-16): keys that the cut-and-close repair
 // path in repairAndParseJSON may lose when Gemini truncates the response
@@ -311,8 +312,10 @@ export function normalizeRegionKey(r) {
  *   arrival_city 우선 → regions[0] → area. userMessageBuilder·handlerCore·게이트·worker·수정 API·mock 이 같은 식.
  */
 export function arrivalRestDayCityKey({ arrivalCity, regions, area } = {}) {
-  return normalizeRegionKey(arrivalCity || '')
-    || normalizeRegionKey((Array.isArray(regions) && regions[0]) || area || '');
+  // 2026-10-26: ja/zh 위자드는 regions 를 '釜山'·'济州' 같은 표시명으로 보낸다 — cityResolver 별칭 우선, 없으면 기존 정규화.
+  //   arrival_ready_time(userMessageBuilder)도 이 함수를 쓰므로 ja/zh 손님의 공항→권역 이동 시각도 같이 바로잡힌다(의도된 수정).
+  const key = (x) => { const s = String(x || '').trim(); return s ? (resolveUiCityKey(s) || normalizeRegionKey(s)) : ''; };
+  return key(arrivalCity) || key((Array.isArray(regions) && regions[0]) || area);
 }
 
 // 잘 알려진 글로벌 호텔 체인 — 이름만으로는 city 모르지만 well-known 5성급 위치.
@@ -374,7 +377,7 @@ export function validatePatternStructure(itinerary, request = {}) {
   //   B-MEAL 도착일(끼니 면제 — Day1 이 숙소/공항/이동만일 때)·B-LATE-ARRIVAL(선택 저녁 1곳)·B-12(1 stop) 가 같은 값을 쓴다.
   //   생성 단계·수정 API 는 시각 없이 휴식일 여부만 넘긴다(request.arrival_rest_day: boolean — 그 값 우선) —
   //   B-LATE-ARRIVAL·P137 출국 시각별 규칙은 시각이 있을 때만(기존 그대로).
-  const restInfo = typeof request.arrival_rest_day === 'boolean'
+  const restInfoRaw = typeof request.arrival_rest_day === 'boolean'
     ? { rest: request.arrival_rest_day, reason: request.arrival_rest_day ? 'precomputed' : null, readyMin: null, tourEndMin: null }
     : arrivalRestDayInfo({
       arrivalTime: request.arrival_time || request.arrivalTime,
@@ -384,6 +387,8 @@ export function validatePatternStructure(itinerary, request = {}) {
         || normalizeRegionKey(days[0]?.city),
       tourEndTime: request.tour_end_time || request.tourEndTime,
     });
+  // 1일 여행은 휴식일 없음(도착=출국일) — B-12 minStops·B-MEAL 도착일 면제가 단일일에 걸리지 않게 여기 한 곳에서.
+  const restInfo = days.length > 1 ? restInfoRaw : { ...restInfoRaw, rest: false, reason: null };
   const isStructuralStop = (s) => ['lodging', 'airport', 'travel'].includes(s?.category);
 
   // B-DC (2026-05-13 PR #407): itinerary.days.length === request.durationDays.

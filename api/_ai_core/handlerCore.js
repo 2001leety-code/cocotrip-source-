@@ -201,9 +201,10 @@ export default async function handler(req, res) {
     lastUid = uid;
     // 2026-10-26 운영자 승인: 도착 휴식일 여부 — 요청 입력으로 한 번 계산(도시 키 = arrival_city → regions[0] → area).
     //   생성 검증 body·pass3 게이트 tripTimes 가 같은 값을 쓴다(프롬프트는 userMessageBuilder 가 같은 식으로 계산).
+    //   1일 여행은 휴식일 없음(도착=출국일) — 여기 한 곳에서 제외하고 모든 하위 경로가 이 값을 쓴다.
     const arrivalRestDay = arrivalRestDayInfo({
       arrivalTime, arrivalAirport: arrival_airport, cityKey: arrivalRestDayCityKey({ arrivalCity, regions, area }), tourEndTime,
-    }).rest;
+    }).rest && Number(durationDays) > 1;
     // P298 (2026-05-29) SAFETY-CRITICAL: 할랄/비건이 dietaryRestrictions 칸으로 들어옴 (WizardForm DIETARY_RESTRICTION_KEYS). dietPrefs 만 보던 검증·필터·추천·저장·dispatch 체인에 합집합 전달 ('None' 제외). 검증 함수(responseValidator/_food_helper)는 'Halal'/'Vegan' 문자열 처리 가능 — 값 도달만 하면 즉시 작동.
     const dietaryAll = [...new Set([...(Array.isArray(dietPrefs) ? dietPrefs : []), ...(Array.isArray(dietaryRestrictions) ? dietaryRestrictions : [])])].filter((d) => d && d !== 'None');
     // 2026-07-11 SAFETY: 검증 후보 0 도시 = 422. 2026-10-24: 식사 도시 집합(regions + 명시 입·출국 도시) 하나를
@@ -260,7 +261,7 @@ export default async function handler(req, res) {
     try { attractionsContext = getAttractionsContext({ city: area, styles, language, maxLocations: 6 }) || ''; } catch (e) { console.warn('[ai-planner-full] getAttractionsContext failed:', e.message); }
     try { const s = Array.isArray(styles) ? styles : []; const h = s.includes('Hallasan'); if (h || s.includes('Trekking') || s.includes('NamsanHike')) mountainContext = getMountainContextForPrompt({ regions: Array.isArray(regions) && regions.length > 0 ? regions : [area], hallaOnly: h, language, maxItems: 5 }) || ''; } catch (e) { console.warn('[ai-planner-full] getMountainContextForPrompt failed (P191):', e.message); }
     try { const s = Array.isArray(styles) ? styles : []; if (s.includes('HangangRun') || s.includes('Running')) runningContext = getRunningContextForPrompt({ cities: Array.isArray(regions) && regions.length > 0 ? regions : [area], language, maxItems: 4 }) || ''; } catch (e) { console.warn('[ai-planner-full] getRunningContextForPrompt failed (P237):', e.message); }
-    const userMessage = buildUserMessage({ shaped, body, spotContext, foodContext, attractionsContext, mountainContext, runningContext });
+    const userMessage = buildUserMessage({ shaped, body, spotContext, foodContext, attractionsContext, mountainContext, runningContext, arrivalRestDay });
 
     // ── AVOID 리스트 (최근 plan 식당 중복 방지) ────────────────────────────
     const { clause: avoidClause, foodNames: recentFoodNames, blockIds: recentBlockIds } = await withStep('avoidClause', () => buildAvoidContext(adminDb, { uid: verifiedHistoryUid }));
@@ -298,6 +299,7 @@ export default async function handler(req, res) {
       arrival_time: arrivalTime, departure_time: departureTime, tour_start_time: tourStartTime, tour_end_time: tourEndTime,
       arrival_airport, departure_airport, pax, mobility, companions,
       arrival_city: arrivalCity, departure_city: departureCity,
+      arrival_rest_day: arrivalRestDay, // 2026-10-26: 블록모드도 공통 휴식일 판정(블록 도시로 따로 계산하지 않음)
       hotel_address, hotelByCity, recommended_zone: recommendedZone, recommended_zones: recommendedZones,
       tour_pace: plannerIntent.tourPace, pace,
       spice_level: spiceLevel, bucket_dishes: bucketDishes, meal_budget: priceRange,
@@ -378,6 +380,7 @@ export default async function handler(req, res) {
             area, dietPrefs: dietaryAll, regions, vehicle, durationDays, uid: planOwnerUid, verifiedHistoryUid, forceGuestToken, guestName, styles, duration, startDate, email,
             specialRequest, mobility, language, PLANNER_MODE, blockModeUsed, blocksUsed, abDecision,
             isAdminBypass: gate.isAdminBypass, identifierForBucketing, handlerStart, issuanceClaim: issuance.claim, avoidStopNames, plannerIntent,
+            arrivalRestDay, // 2026-10-26: worker 가 재계산 없이 같은 휴식일 판정
           }),
           sendEarlyResponse: ({ planId, planUrl, debug }) => sendStreamingEarlyResponse({ res, CORS, planId, planUrl, debug }),
           buildDebug: () => buildAdminDebug({ gate, plannerMode: PLANNER_MODE, abDecision, identifierForBucketing, blockModeUsed, blocksUsed, useStreaming, itinerary }),
@@ -390,7 +393,7 @@ export default async function handler(req, res) {
     if (blkInn) { streamingPlanId = blkInn.streamingPlanId; streamingPlanUrl = blkInn.streamingPlanUrl; skeletonCtx = blkInn.skeletonCtx || null; }
 
     // P220/P230/P231/P0: Inngest dispatch — streaming+ENV+토글 시 post-Gemini 를 별 invocation 으로(ENV/throw 시 inline fallback). block-mode 는 위에서 처리 완료 → skip, legacy streaming 만 진입. skeletonCtx 는 worker Step 0 full skeleton 저장용. issuanceClaim 전달 + dispatch 성공 시 소유권 이관(handler release 금지).
-    if (!blockModeUsed && await dispatchOrInlineForHandlerCore({ streamingResponseSent, itinerary, streamingPlanId, skeletonCtx, apiKey, body, routeHotelAddress, hotel_address, arrival_airport, departure_airport, pax, recommendedZone, recommendedZoneAddress, hotelByCity, area, dietPrefs: dietaryAll, regions, vehicle, durationDays, uid: planOwnerUid, verifiedHistoryUid, forceGuestToken, guestName, styles, duration, startDate, email, specialRequest, mobility, language, PLANNER_MODE, blockModeUsed, blocksUsed, abDecision, isAdminBypass: gate.isAdminBypass, identifierForBucketing, handlerStart, issuanceClaim: issuance.claim, avoidStopNames, plannerIntent })) { issuance.handOff(); return; }
+    if (!blockModeUsed && await dispatchOrInlineForHandlerCore({ streamingResponseSent, itinerary, streamingPlanId, skeletonCtx, apiKey, body, routeHotelAddress, hotel_address, arrival_airport, departure_airport, pax, recommendedZone, recommendedZoneAddress, hotelByCity, area, dietPrefs: dietaryAll, regions, vehicle, durationDays, uid: planOwnerUid, verifiedHistoryUid, forceGuestToken, guestName, styles, duration, startDate, email, specialRequest, mobility, language, PLANNER_MODE, blockModeUsed, blocksUsed, abDecision, isAdminBypass: gate.isAdminBypass, identifierForBucketing, handlerStart, issuanceClaim: issuance.claim, avoidStopNames, plannerIntent, arrivalRestDay })) { issuance.handOff(); return; }
 
     console.log('[planner] Step 2: Running RouteAgent...');
 
@@ -422,6 +425,7 @@ export default async function handler(req, res) {
       hotel_address, mobility, language,
       dietary: dietaryAll, foodIndex: foodIndexForQuality,
       plannerIntent,  // persistPlan persists this verbatim as input.planner_intent_v1.
+      arrivalRestDay, arrivalCity,  // 2026-10-26: input.arrival_rest_day / arrival_city 저장(수정 API 가 저장 플래그 우선)
       cacheMetadata: itinerary?._cache_metadata || null,  // P266: P195 cache instrumentation explicit pass-through (geminiPipeline:1515 attach → debugInfo:42 pop 전)
       plannerMode: blockModeUsed ? 'block_mode' : PLANNER_MODE,  // P128 block-mode trace
       abReason: abDecision.reason, abBucket: abDecision.bucket,

@@ -6,7 +6,7 @@
 import { FieldValue } from 'firebase-admin/firestore';
 import { randomUUID } from 'crypto';
 import { computeQualityScore, detectDepartureFlightOverrun } from './qualityMetrics.js';
-import { SCHEDULE_BUFFER_MIN, arrivalRestDayInfo } from './constants.js';
+import { SCHEDULE_BUFFER_MIN, arrivalRestDayInfo, resolveTourEndTime } from './constants.js';
 import { throttledTelegramAlert } from '../_shared/telegram-throttle.js';
 import { detectPaymentSource, isAdminBypassOrderId, isOperatorTestEmail } from '../_shared/admin-bypass-detector.js';
 import { beginPlanCommit, finalizePlanIssuance } from '../_shared/plan-issuance.js';
@@ -558,7 +558,11 @@ export function selfHealLodgingBookend(itinerary, ctx = {}) {
   for (let d = 0; d < days.length; d++) {
     const day = days[d];
     const stops = Array.isArray(day?.stops) ? day.stops : [];
-    if (stops.length === 0) continue;
+    // 2026-10-26 운영자 승인 휴식일: 블록모드 휴식일은 Day1 이 빈 날이 된다(관광 0). 빈 날을 건너뛰면 숙소·휴식 안내·
+    //   휴식 카드가 전부 사라지므로, 2일 이상 여행의 Day1 이 비었고 휴식일(ctx.arrivalRestDay — 요청 입력 판정)이면
+    //   체크인 숙소 1개를 넣는다(아래 return bookend 와 같은 이름·주소, 체크인 tip). 휴식일 아님·1일 여행은 기존대로 skip.
+    const restDayCheckin = stops.length === 0 && d === 0 && days.length >= 2 && ctx.arrivalRestDay === true && !!day;
+    if (stops.length === 0 && !restDayCheckin) continue;
 
     const dayCityLc = String(day?.city || '').trim().toLowerCase();
     const defaultMeta = CITY_LODGING_DEFAULT[dayCityLc];
@@ -599,6 +603,22 @@ export function selfHealLodgingBookend(itinerary, ctx = {}) {
         : (genericDisplay ? genericDisplay[language] : synName);
     // The same synthesized hotel label is used for departure and return.
     const synAddress = day?.lodging?.address || ctxFallbackAddress || (defaultMeta ? `${dayCityKor || dayCityLc} ${defaultMeta.defaultZone}` : (dayCityKor || dayCityLc || ''));
+    if (restDayCheckin) {
+      // start_time 은 생략 — 빈 날이라 기준 시각이 없고, 숙소 stop 은 시각 검사 대상이 아니다(lodging 은 validator·cap 에서 제외).
+      if (!Array.isArray(day.stops)) day.stops = stops;
+      stops.push({
+        category: 'lodging',
+        name: synName,
+        display_name: displayName,
+        address: synAddress,
+        stay_min: 0,
+        order: 1,
+        tip: lodgingBookendTip('return', language), // 체크인 역할 문구(늦은 도착 시 체크인 시간 알림)
+        _self_healed: true,
+      });
+      healed.push({ day: day?.day || d + 1, kind: 'prepend_first_lodging', synthesized_name: synName });
+      continue;
+    }
     // 첫 stop 이 lodging 이 아니면 prepend
     if (stops[0]?.category !== 'lodging') {
       // 숙소 출발 시각(logical) — 첫 활동 시각에서 **실제 이동 시간**을 빼서 만든다.
@@ -1480,6 +1500,11 @@ export async function persistPlan(adminDb, {
   //   신뢰한다 (allergy 값은 normalizePlannerIntentV1 이 이미 걸러냈다 — 재도입 경로 없음).
   //   null (미전달 호출부·과거 테스트) = 기존 body.* 재구성 동작 그대로.
   plannerIntent = null,
+  // 2026-10-26 운영자 승인: 호출부(handlerCore=arrivalRestDay / worker=arrivalRestDayFromCtx)가 계산한 도착 휴식일 여부.
+  //   input.arrival_rest_day 로 저장 → 수정 API 가 재계산 없이 같은 판정을 쓴다. boolean 아니면 저장 안 함(옛 호출부).
+  arrivalRestDay = null,
+  // shaped arrivalCity(소문자 정규화) — body.arrival_city 가 없을 때(camel 입력) input.arrival_city 보강.
+  arrivalCity = null,
 }) {
   if (!adminDb) {
     throw new Error('Firebase not configured — cannot save plan');
@@ -1598,14 +1623,15 @@ export async function persistPlan(adminDb, {
       // orderId / ADMIN-BYPASS-/TEST-/MANUAL- prefix 모두 보존 (audit 용도).
       paypalOrderId: body.paypalOrderId || null,
       // 2026-05-10 (P1): 도착/출발 시각 — PlanDetailPage 시각 분기 + revision prefill.
-      arrival_time: body.arrivalTime || null,
+      arrival_time: body.arrivalTime || body.arrival_time || null,
       departure_time: body.departureTime || null,
       // P245 (2026-05-27): tour_start_time persist — P239 architectural fix 가 prod 에서
       // 효과 미완료였던 근본 원인 = 본 필드 미저장 + block_mode 가 arrival+9h 룰 그대로 사용.
       // PDF/UI/admin debug 분기 + 회귀 검증 (R-P245 lint regex) 용도.
       tour_start_time: body.tourStartTime || null,
       // #tour-end (2026-06-05): tour_end_time persist — 매일 관광 종료 cap. PDF/UI/admin debug + 회귀 검증용.
-      tour_end_time: body.tourEndTime || null,
+      //   2026-10-26: 정규화값(constants.resolveTourEndTime — camel 우선 + snake, 엄격 HH:MM, 기본 21:00) — 생성 판정과 같은 값.
+      tour_end_time: resolveTourEndTime(body),
       // 2026-05-10 (P1): luggage — AirportToLodgingGuide heavyLoad 자동 추천 핵심.
       luggage: (body.luggage && typeof body.luggage === 'object') ? body.luggage : null,
       // 2026-05-10 (P1): 매운맛 / bucket 음식 — 식당 추천 정확도.
@@ -1626,7 +1652,9 @@ export async function persistPlan(adminDb, {
       durationDays: body.durationDays || null,
       hotelByCity: (body.hotelByCity && typeof body.hotelByCity === 'object') ? body.hotelByCity : null,
       recommended_zones: (body.recommended_zones && typeof body.recommended_zones === 'object') ? body.recommended_zones : null,
-      arrival_city: body.arrival_city || null,
+      arrival_city: body.arrival_city || arrivalCity || null,
+      // 2026-10-26: 생성 시 계산한 도착 휴식일 여부(수정 API 가 이 값을 우선).
+      ...(typeof arrivalRestDay === 'boolean' ? { arrival_rest_day: arrivalRestDay } : {}),
       departure_city: body.departure_city || null,
       entry_city: body.entry_city || null,
       price_range: body.priceRange || null,

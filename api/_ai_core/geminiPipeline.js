@@ -1300,7 +1300,7 @@ function buildPatternReinforcedPrompt(systemPrompt, patternErrors) {
     'STRICT RULES (NO EXCEPTIONS):',
     '- EVERY day MUST start with a stop where category="lodging" (departure from hotel/zone).',
     '- EVERY day MUST end with a stop where category="lodging" (return to hotel/zone). On the LAST day with a departure airport, the final stop may instead use category="travel" or category="airport".',
-    '- EVERY day MUST contain AT LEAST 4 stops total.',
+    '- EVERY day MUST contain AT LEAST 4 stops total (except Day 1 when userInput.arrival_rest_day is true: lodging only, 1-2 stops).',
     '- EVERY stop start_time MUST be a 24h "HH:MM" value with hour 0-23 (NEVER 24:00 or higher).',
     '- For MULTI-CITY plans (regions.length >= 2), the first lodging stop of EACH day MUST mention day.city via ONE of these acceptable forms (any single match passes validator):',
     '   (a) lodging name OR address contains city token (Seoul/서울, Busan/부산, Jeju/제주, etc.),',

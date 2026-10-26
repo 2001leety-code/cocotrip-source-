@@ -122,7 +122,8 @@ describe('#tour-end source markers — 흐름 전체 박제', () => {
 
   it('planPersister.js — Firestore tour_end_time persist', () => {
     const src = read('api/_ai_core/planPersister.js');
-    expect(/tour_end_time:\s*body\.tourEndTime/.test(src), 'Firestore tour_end_time persist 누락').toBe(true);
+    // 2026-10-26: 정규화값 저장(resolveTourEndTime — camel 우선 + snake, 기본 21:00).
+    expect(/tour_end_time:\s*resolveTourEndTime\(body\)/.test(src), 'Firestore tour_end_time persist 누락').toBe(true);
   });
 
   it('frontend — WizardForm state + Step2 입력 + 4-lang i18n', () => {
