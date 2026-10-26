@@ -602,7 +602,11 @@
       "PAYMENT_NOT_CAPTURED": "Your payment did not complete successfully. Please contact support before trying again.",
       "PLAN_GENERATION_IN_PROGRESS": "Your plan is already being generated for this payment. Please wait a moment — do not pay again.",
       "PLAN_ISSUANCE_CHECK_UNAVAILABLE": "We can't check your plan status right now. Please try again shortly — if you already paid, do not pay again.",
-      "PLAN_ISSUANCE_NEEDS_REVIEW": "We're checking your plan issuance and will follow up shortly — please do not pay again."
+      "PLAN_ISSUANCE_NEEDS_REVIEW": "We're checking your plan issuance and will follow up shortly — please do not pay again.",
+      "DIETARY_COVERAGE_UNAVAILABLE": "One of the cities on this trip doesn't have verified restaurants for your dietary choice yet. You have not been charged. Please change the cities or contact us on WhatsApp.",
+      "PREPAY_INPUT_MISMATCH": "These trip details (cities, dietary needs, dates) differ from the paid order. Please try again with the trip details you paid for.",
+      "PREPAY_INPUT_MISSING": "This payment order was created before our new pre-payment check. You have not been charged — please refresh the page and pay again.",
+      "PREPAY_INPUT_INVALID": "We couldn't read your trip details (cities, dietary needs, dates), so payment was not started. Please check your answers and try again."
     },
     "retry": "Try Again",
     "loginRequired": "Sign in to pay",

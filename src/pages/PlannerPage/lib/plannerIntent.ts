@@ -31,6 +31,7 @@
  * reintroduced here.
  */
 import type { PlannerFormValues } from '@/components/PlannerForm';
+import { cityNameToAreaKey } from './formatters';
 
 export const PLANNER_INTENT_VERSION = 1 as const;
 export const PLANNER_INTENT_KEY = 'planner_intent_v1' as const;
@@ -272,4 +273,20 @@ export function buildFullPlannerIntentPayload(
   const plannerIntentV1 = buildPlannerIntentV1(values, language, revision);
   const flat = flattenPlannerIntentV1(plannerIntentV1, values);
   return { plannerIntentV1, flat };
+}
+
+/**
+ * 2026-10-26 B6-1: 새 유료 생성의 여행 입력 — 결제 버튼(createPaypalOrder plannerInput, 서버가 결제 전 식이 커버리지 검사)과
+ * 결제 후 /api/ai-planner-full 요청이 **같은 함수**로 만든다. 서버는 둘을 같은 규칙으로 정규화해 지문을 대조하므로
+ * 두 곳이 따로 조립하면 정상 손님도 PREPAY_INPUT_MISMATCH 가 난다. `area` 는 첫 도시 기준 라우팅 키(종전 호출부 그대로).
+ */
+export function buildPlannerOrderInput(values: PlannerFormValues, language: string): Record<string, unknown> {
+  const { flat } = buildFullPlannerIntentPayload(values, language);
+  return {
+    area: cityNameToAreaKey((values.regions || ['Seoul'])[0]),
+    // P125 explicit compat forward — flat 의 같은 키가 항상 이긴다(아래 spread).
+    arrival_city: values.arrival_city || undefined,
+    departure_city: values.departure_city || undefined,
+    ...flat,
+  };
 }

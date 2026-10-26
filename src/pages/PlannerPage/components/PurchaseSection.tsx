@@ -18,6 +18,7 @@ import {
 import { PayPalBookingButton } from '@/components/PayPalBookingButton';
 import type { PlannerFormValues } from '@/components/PlannerForm';
 import type { PlannerDict } from '../types';
+import { buildPlannerOrderInput } from '../lib/plannerIntent';
 import { TriviaLoadingAnimation } from './TriviaLoadingAnimation';
 import { useAuth } from '@/hooks/useAuth';
 import { signInWithGoogle, getAvailableAiCoupon } from '@/lib/firebase';
@@ -331,6 +332,8 @@ export function PurchaseSection({
                 itineraryData={resultQuick}
                 onPaymentSuccess={onPaymentSuccess}
                 userEmail={userEmail}
+                // 🔴 2026-10-26 B6-1: 결제 전 서버 식이 커버리지 확인 — 결제 후 생성 요청과 같은 함수로 만든 여행 입력.
+                plannerInput={lastValues.current ? buildPlannerOrderInput(lastValues.current, language) : undefined}
               />
             )}
 

@@ -116,6 +116,27 @@ interface Props {
   /** 슬롯 정원을 세는 기준 일자 (YYYY-MM-DD). 보통 dateStart 와 같다. */
   bookingDate?: string;
   slotCapacity?: number;
+  /** 🔴 2026-10-26 B6-1: AI 플래너(풀) 결제 전 식이 커버리지 서버 확인용 위자드 입력. 서버가 다시 정규화·검사하고
+   *  통과해야만 PayPal 주문을 만든다(실패 = 422, 결제 없음). 금액과 무관. 다른 상품은 미전달. */
+  plannerInput?: Record<string, unknown>;
+}
+
+// 2026-10-26 B6-1: AI 플래너 결제 전 서버 거부 코드 → 플래너 errors 사전 키(4개 언어, 없으면 서버 문구).
+const PLANNER_PREPAY_ERROR_KEY: Record<string, string> = {
+  DIETARY_COVERAGE_UNAVAILABLE: 'DIETARY_COVERAGE_UNAVAILABLE',
+  PREPAY_INPUT_MISSING: 'PREPAY_INPUT_MISSING',
+  PREPAY_INPUT_MISMATCH: 'PREPAY_INPUT_MISMATCH',
+  PREPAY_INPUT_INVALID: 'PREPAY_INPUT_INVALID',
+  PREPAY_CITIES_MISSING: 'PREPAY_INPUT_INVALID',
+  PREPAY_DIETARY_MISSING: 'PREPAY_INPUT_INVALID',
+  PREPAY_DATES_MISSING: 'PREPAY_INPUT_INVALID',
+  PLANNER_INPUT_CONFLICT: 'PREPAY_INPUT_INVALID',
+};
+function plannerPrepayMessage(p: unknown, code: string | undefined, fallback: string): string | null {
+  const key = code ? PLANNER_PREPAY_ERROR_KEY[code] : undefined;
+  if (!key) return null;
+  const errors = (p as { errors?: Record<string, string | undefined> } | undefined)?.errors;
+  return errors?.[key] || errors?.DIETARY_PREVIEW_UNAVAILABLE || fallback;
 }
 
 interface RateInfo {
@@ -147,7 +168,7 @@ declare global {
 // 🧪 bypass 버튼 노출. 운영 안정 후 제거 가능.
 const TEST_ACCOUNTS: string[] = ['2001leety@gmail.com'];
 
-export function PayPalBookingButton({ productType, passengers, dateStart = '', dateEnd = '', priceKRW: rawPriceKRW, expectedUSD, disabled = false, estimateConsent, p = {}, lang, pickupLocation = '', dropoffLocation = '', vehicleType = '', memo = '', itineraryData, onPaymentSuccess, userEmail = '', airport, customAmountKRW, pickupTime = '', durationDays, originKey, destKey, tripType, vehicle, routeCoords, termsAgreed, marketingConsent, options, tourId, tourSlotId, bookingDate, slotCapacity }: Props) {
+export function PayPalBookingButton({ productType, passengers, dateStart = '', dateEnd = '', priceKRW: rawPriceKRW, expectedUSD, disabled = false, estimateConsent, p = {}, lang, pickupLocation = '', dropoffLocation = '', vehicleType = '', memo = '', itineraryData, onPaymentSuccess, userEmail = '', airport, customAmountKRW, pickupTime = '', durationDays, originKey, destKey, tripType, vehicle, routeCoords, termsAgreed, marketingConsent, plannerInput, options, tourId, tourSlotId, bookingDate, slotCapacity }: Props) {
   // 슬롯 정원 4필드 — create/capture 두 요청에 **같은 값**이 실려야 pending → confirmed 가 이어진다.
   // 한 번만 계산해 두 곳에서 공유(한쪽만 고치는 사고 방지).
   const slotFields = tourSlotBody({ tourId, tourSlotId, bookingDate, slotCapacity });
@@ -221,7 +242,7 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
       if (fresh) { clearRecovery(orderID); setError(rc.authRequired); setShowPaypal(false); buttonsRendered.current = false; return; }
       remember({ orderID, flow: 'single', paymentStatus: 'CAPTURE_UNKNOWN', review: false, authRequired: true, productType }); setShowPaypal(false); setRateInfo(null); return;
     }
-    if (outcome.kind === 'not_captured') { clearRecovery(orderID); setError(outcome.message); setShowPaypal(false); buttonsRendered.current = false; return; }
+    if (outcome.kind === 'not_captured') { clearRecovery(orderID); setError(plannerPrepayMessage(p, outcome.preCaptureCode, outcome.message) || outcome.message); setShowPaypal(false); buttonsRendered.current = false; return; }
     // Server-proven full refund: terminal, not a booking — no success, no conversion; payment controls return.
     if (outcome.kind === 'refunded') { clearRecovery(orderID); setError(outcome.message); setShowPaypal(false); setRateInfo(null); buttonsRendered.current = false; return; }
     // Generic failure: an error code alone never proves the provider was not called. Keep the pointer; on a
@@ -676,10 +697,17 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
           // 🔴 P0-2 추정가 정산조건 동의 — 서버가 정책 버전을 검증하고 서버 시각으로 기록한다.
           //   동의 시각을 클라가 보내지 않는 이유: 위조·시계 오차가 근거를 무의미하게 만든다.
           ...(estimateConsent ? { estimateConsent: { agreed: estimateConsent.agreed === true, policyVersion: estimateConsent.policyVersion } } : {}),
+          // 🔴 B6-1: AI 플래너 결제 전 서버 식이 커버리지 확인 — 서버가 다시 정규화·검사(실패 시 주문 미생성).
+          ...(plannerInput ? { plannerInput } : {}),
         }),
       });
       const json = await res.json();
       const d = json.data;
+      // 🔴 B6-1: 결제 전 서버 거부(식이 커버리지 불가·입력 문제) — 주문 미생성 = 돈 안 움직임. 손님 언어로 안내.
+      if (!res.ok) {
+        const prepayMsg = plannerPrepayMessage(p, json.code, json.error || 'Payment was not started.');
+        if (prepayMsg) { setError(prepayMsg); return; }
+      }
       // PR-R (2026-05-08): BOOKING_CLOSED → 토스트 + ChatWidget 자동 오픈
       if (!res.ok && json.code === 'BOOKING_CLOSED') {
         // 2026-07-17: 언어별 문구를 서버 error(한국어 고정)보다 우선 — 기존 `json.error ??` 는

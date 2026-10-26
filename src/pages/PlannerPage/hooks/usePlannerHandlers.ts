@@ -10,7 +10,7 @@ import { markPlannerPendingComplete } from '@/lib/analytics';
 import { track as posthogTrack } from '@/lib/posthog';
 import { buildQuickPreviewPayload } from '../lib/quickPreviewIntent';
 import { parseQuickPreviewResponse } from '../lib/quickPreviewContract';
-import { buildFullPlannerIntentPayload } from '../lib/plannerIntent';
+import { buildFullPlannerIntentPayload, buildPlannerOrderInput } from '../lib/plannerIntent';
 
 // feat/guest-anon-auth-pii (2026-06-15): 비로그인 게스트 + 플래그 ON 이면 격리된
 // 익명 Firebase 인스턴스(guestReader)로 로그인해 idToken 을 x-guest-anon-token 헤더로
@@ -90,6 +90,11 @@ export type PlannerErrorCode =
   | 'PLAN_GENERATION_IN_PROGRESS'
   | 'PLAN_ISSUANCE_CHECK_UNAVAILABLE'
   | 'PLAN_ISSUANCE_NEEDS_REVIEW'
+  // 2026-10-26 B6-1: 결제 전/발급 전 식이 커버리지·입력 대조 거부(결제 버튼과 생성 요청이 같은 사전 사용).
+  | 'DIETARY_COVERAGE_UNAVAILABLE'
+  | 'PREPAY_INPUT_MISMATCH'
+  | 'PREPAY_INPUT_MISSING'
+  | 'PREPAY_INPUT_INVALID'
   | 'DUPLICATE_ORDER'
   | 'REVISION_EXHAUSTED'
   | 'FORBIDDEN'
@@ -300,7 +305,8 @@ export function usePlannerHandlers({ language, userEmail, setUserEmail }: UsePla
       // every travel-preference field (backward-compatible key names); the
       // few keys below (paypalOrderId/aiCouponCode/identity/routing `area`)
       // are request-mechanics, not travel intent, so they stay here.
-      const { flat } = buildFullPlannerIntentPayload(values, language);
+      // 2026-10-26 B6-1: 여행 입력은 결제 버튼이 createPaypalOrder 에 보낸 것과 **같은 함수**(buildPlannerOrderInput —
+      //   area·arrival_city/departure_city 폴백·flat 그대로) — 서버가 결제 주문 지문과 대조한다.
       const res = await fetch('/api/ai-planner-full', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...authHeaders, ...guestAnonHeaders },
@@ -312,16 +318,7 @@ export function usePlannerHandlers({ language, userEmail, setUserEmail }: UsePla
           email: userEmail,
           uid: values.uid || null,
           language,
-          // area 는 client-only 라우팅 그룹 키 — plannerIntent.ts 의 intent 필드가
-          // 아니라 이 호출부에서만 파생(첫 도시 기준).
-          area: cityNameToAreaKey((values.regions || ['Seoul'])[0]),
-          // P125 explicit compat forward: `flat` (spread below) is the SSOT and
-          // already derives the same value from values.arrival_city/entry_city
-          // (plannerIntent.ts) — this is a literal fallback only, never a
-          // second source of truth, and flat's spread always wins on conflict.
-          arrival_city: values.arrival_city || undefined,
-          departure_city: values.departure_city || undefined,
-          ...flat,
+          ...buildPlannerOrderInput(values, language),
         }),
       });
 

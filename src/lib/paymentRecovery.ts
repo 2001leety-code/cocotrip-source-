@@ -24,7 +24,7 @@ export type CaptureOutcome =
   | { kind: 'final'; data: Record<string, unknown> }
   | { kind: 'pending'; status: PaymentStatus }
   | { kind: 'review'; captured: boolean; captureID: string }
-  | { kind: 'not_captured'; message: string }
+  | { kind: 'not_captured'; message: string; preCaptureCode?: string }
   | { kind: 'refunded'; message: string; refundID: string }
   | { kind: 'auth_required' }
   | { kind: 'error'; message: string };
@@ -78,7 +78,11 @@ export function classifyCaptureResponse(json: Record<string, unknown> | null, or
   if (!json || typeof json !== 'object') return { kind: 'pending', status: 'CAPTURE_UNKNOWN' };
   if (isFinalPayment(json, orderID)) return { kind: 'final', data: (json.data as Record<string, unknown>) || {} };
   if (json.code === 'PAYMENT_NOT_CAPTURED' && json.paymentStatus === 'NOT_CAPTURED' && json.orderID === orderID) {
-    return { kind: 'not_captured', message: typeof json.error === 'string' ? json.error : 'Payment was not completed.' };
+    return {
+      kind: 'not_captured', message: typeof json.error === 'string' ? json.error : 'Payment was not completed.',
+      // 2026-10-26 B6-1: capture 전 서버 사전 거부(AI 플래너 식이 커버리지 등) 사유 — 화면 안내용.
+      ...(typeof json.preCaptureCode === 'string' ? { preCaptureCode: json.preCaptureCode } : {}),
+    };
   }
   // Server-proven full refund of THIS order (terminal, never a booking success). Any missing field — e.g. a
   // legacy promo 409 or a refund still pending — falls through and keeps the pointer.

@@ -602,7 +602,11 @@
       "PAYMENT_NOT_CAPTURED": "付款未成功完成。请在重试前联系客服。",
       "PLAN_GENERATION_IN_PROGRESS": "正在使用此笔付款生成您的行程，请稍候 — 请勿重复付款。",
       "PLAN_ISSUANCE_CHECK_UNAVAILABLE": "目前无法查询行程发放状态，请稍后重试 — 如已付款，请勿重复付款。",
-      "PLAN_ISSUANCE_NEEDS_REVIEW": "正在核实您的行程发放，稍后会通知您 — 请勿重复付款。"
+      "PLAN_ISSUANCE_NEEDS_REVIEW": "正在核实您的行程发放，稍后会通知您 — 请勿重复付款。",
+      "DIETARY_COVERAGE_UNAVAILABLE": "本次行程中有城市暂无符合您饮食选择的已验证餐厅。您尚未被扣款。请更换城市或通过WhatsApp联系我们。",
+      "PREPAY_INPUT_MISMATCH": "行程信息（城市、饮食、日期）与已付款订单不一致。请按付款时的行程重试。",
+      "PREPAY_INPUT_MISSING": "此订单创建于新的付款前核验之前。您尚未被扣款 — 请刷新页面后重新付款。",
+      "PREPAY_INPUT_INVALID": "无法确认您的行程信息（城市、饮食、日期），因此未开始付款。请检查后重试。"
     },
     "retry": "重新尝试",
     "loginRequired": "登录后可付款",
