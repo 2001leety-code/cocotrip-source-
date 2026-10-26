@@ -168,18 +168,20 @@ export async function notify(channel, text, options = {}) {
       console.warn(`[notify:${channel}] text truncated for Telegram 4096-cap: ${originalLength} → ${safeText.length} chars`);
     }
 
+    const send = (withParseMode) => fetch(`${TELEGRAM_API}/bot${token}/sendMessage`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        chat_id: chatId,
+        text: safeText,
+        ...(withParseMode ? { parse_mode: options.parseMode || 'HTML' } : {}),
+        disable_web_page_preview: true,
+        ...(options.replyMarkup ? { reply_markup: options.replyMarkup } : {}),
+      }),
+    });
+
     try {
-      const res = await fetch(`${TELEGRAM_API}/bot${token}/sendMessage`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          chat_id: chatId,
-          text: safeText,
-          parse_mode: options.parseMode || 'HTML',
-          disable_web_page_preview: true,
-          ...(options.replyMarkup ? { reply_markup: options.replyMarkup } : {}),
-        }),
-      });
+      let res = await send(true);
       let data;
       try {
         data = await res.json();
@@ -187,6 +189,23 @@ export async function notify(channel, text, options = {}) {
         // 요청은 나갔는데 응답을 못 읽었다 — 전달 여부 미상.
         console.error(`[notify:${channel}] Telegram response unreadable:`, parseErr.message);
         return { ok: false, channel, error: `unreadable_response: ${parseErr.message}`, delivery: 'unknown' };
+      }
+      // 2026-10-26: 본문의 이스케이프 안 된 `<`(예: "0% < 30%") 때문에 HTML 파싱 거절 → 알림 자체가 운영자에게 안 갔다.
+      //   그 거절(4xx ok:false + "can't parse entities")만 같은 텍스트를 평문(parse_mode 없이)으로 1회 재전송.
+      //   다른 4xx 는 재시도하지 않는다. 재전송도 실패하면 아래 기존 거절 경로 그대로.
+      if (data && data.ok === false && Number(res.status) >= 400 && Number(res.status) < 500
+          && /can't parse entities/i.test(String(data.description || ''))) {
+        console.warn(`[notify:${channel}] parse-entities fallback → plain text`);
+        res = await send(false);
+        try {
+          data = await res.json();
+        } catch (parseErr) {
+          console.error(`[notify:${channel}] Telegram response unreadable:`, parseErr.message);
+          return { ok: false, channel, error: `unreadable_response: ${parseErr.message}`, delivery: 'unknown' };
+        }
+        if (data && data.ok) {
+          return { ok: true, channel, fallback: isFallback, messageId: data.result?.message_id, delivery: 'sent', truncated, fallbackPlain: true };
+        }
       }
       if (!data || !data.ok) {
         const description = data && data.description;

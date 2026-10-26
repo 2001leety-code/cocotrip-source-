@@ -5,6 +5,9 @@
 import { initializeApp, getApps, cert } from 'firebase-admin/app';
 import { getFirestore as getAdminFirestore } from 'firebase-admin/firestore';
 
+// 2026-10-26: 런타임 Node 버전 확인용 — 모듈 최상위(콜드스타트당 1회), 요청마다 찍지 않는다.
+console.log(`[runtime] node=${process.version} region=${process.env.VERCEL_REGION || '-'}`);
+
 export const maxDuration = 15;
 export const config = { runtime: 'nodejs' };
 
