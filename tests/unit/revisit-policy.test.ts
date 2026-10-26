@@ -105,7 +105,8 @@ describe('judgeRepeats', () => {
     expect(judgeRepeats(it0('합성A'), { foodIndex: [A], dietary: ['Halal', 'Vegan'] }).duplicates).toHaveLength(1);
   });
   it('compound diets: the intersection decides exhaustion (a halal-only row is not a candidate for Halal+Vegan)', () => {
-    const HV = row('합성HV', { tag: 'vegan', dietary_tags: ['vegan', 'halal'], verification_status: 'vegan_restaurant' });
+    // 2026-10-26 (Astra B3): 명시 등급 하나는 한 계열만 보증한다 — 교집합 로직 검증용 합성 행은 태그별 파생 등급(필드 없음)을 쓴다. 자동 등급 폐지(B6) 시 함께 바뀐다.
+    const HV = row('합성HV', { tag: 'vegan', dietary_tags: ['vegan', 'halal'], verification_status: undefined });
     const it0 = { days: [day(1, [food('합성HV', '12:00')]), day(2, [food('합성HV', '12:00', { revisit: true })])] };
     expect(eligibleRows([HV, A], 'seoul', ['halal', 'vegan'])).toEqual([HV]);
     expect(judgeRepeats(it0, { foodIndex: [HV, A], dietary: ['Halal', 'Vegan'] }).duplicates).toEqual([]); // A 는 교집합 밖 → 소진

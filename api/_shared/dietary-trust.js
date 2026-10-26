@@ -23,6 +23,23 @@ export const TRUSTED_DIETARY_STATUS = [
   'muslim_friendly', 'vegan_options',    // Google Places 기반 (인증 아님 — 친화 등급)
 ];
 
+// 등급 계열 (2026-10-26 Astra B3): 할랄 등급은 할랄 태그에만, 비건 등급은 vegan/vegetarian 태그에만 증거가 된다.
+//   전에는 "halal 태그 + vegan_restaurant 등급"도 할랄 증거로 통과했다(등급이 TRUSTED 목록에만 있으면 OK).
+//   override 하나로 다른 식이의 증거가 생기면 안 된다 — 계열이 다르면 신뢰하지 않는다(강화 전용).
+const STATUS_FAMILY = {
+  halal_certified: 'halal', muslim_friendly: 'halal',
+  vegan_restaurant: 'plant', vegan_options: 'plant',
+};
+const TAG_FAMILY = { halal: 'halal', vegan: 'plant', vegetarian: 'plant' };
+
+/** 이 등급이 이 dietary 태그의 증거가 될 수 있는가 (계열 일치). 미지의 등급·태그는 false. */
+export function statusMatchesTag(status, tag) {
+  const s = String(status || '');
+  const t = String(tag || '').toLowerCase();
+  const family = Object.prototype.hasOwnProperty.call(STATUS_FAMILY, s) ? STATUS_FAMILY[s] : undefined;
+  return !!family && Object.prototype.hasOwnProperty.call(TAG_FAMILY, t) && family === TAG_FAMILY[t];
+}
+
 // 격리 대상 소스 (운영자 검증 전까지 unverified)
 const QUARANTINE_SOURCES = ['naver_local', 'ai_curated_2026_05_21'];
 
@@ -102,6 +119,7 @@ export function dietaryEvidenceFor(row, diet, rowTags) {
   // 격리 소스면 unverified). tag 필드가 없고 dietary_tags 만 있는 레코드도 같은 규칙을 탄다.
   const status = row.verification_status || deriveVerificationStatus({ ...row, tag: matched }) || 'unverified';
   if (!TRUSTED_DIETARY_STATUS.includes(status)) return null;
+  if (!statusMatchesTag(status, matched)) return null; // 할랄 태그 + 비건 등급(또는 역) = 증거 아님
   return { diet: String(diet || '').toLowerCase(), tag: matched, verification_status: status };
 }
 
@@ -163,12 +181,17 @@ export function isCertifiedDietaryStatus(status) {
  *   격리 소스면 false — 필드 부재가 신뢰 승격이 되면 안 됨)
  * - 태그는 dietaryEvidenceFor 와 같이 dietaryTagsOfRow 로 읽는다 (tag + dietary_tags).
  *   dietary 태그가 여럿이면 각 태그의 파생 등급이 전부 trusted 여야 한다.
+ * - 명시 등급은 모든 dietary 태그와 계열이 맞아야 한다(statusMatchesTag). dietaryEvidenceFor 는 매칭 태그 하나만 보므로
+ *   복수 식이 태그 + 명시 등급 행에서는 이 함수가 더 엄격하다(항상 막는 쪽 — 현재 인덱스엔 복수 태그 행 0).
  */
 export function isDietaryTrusted(row) {
   if (!row) return false;
   const dietTags = dietaryTagsOfRow(row).filter((t) => DIETARY_TAGS.includes(t));
   if (dietTags.length === 0) return true;
-  if (row.verification_status) return TRUSTED_DIETARY_STATUS.includes(row.verification_status);
+  if (row.verification_status) {
+    const status = row.verification_status;
+    return TRUSTED_DIETARY_STATUS.includes(status) && dietTags.every((t) => statusMatchesTag(status, t));
+  }
   return dietTags.every((t) => TRUSTED_DIETARY_STATUS.includes(deriveVerificationStatus({ ...row, tag: t })));
 }
 

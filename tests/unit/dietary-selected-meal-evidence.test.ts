@@ -200,7 +200,8 @@ describe('selected meal evidence', () => {
 
   it('requires all requested dietary evidence on the selected row', () => {
     expect(check(meal(), [trusted], ['Halal', 'Vegan'])).toBe(false);
-    expect(check(meal(), [{ ...trusted, dietary_tags: ['halal'] }], ['Halal', 'Vegan'])).toBe(true);
+    // 2026-10-26 (Astra B3): 명시 등급 하나는 한 계열만 보증한다 — vegan_restaurant 행에 halal 태그를 더해도 할랄 증거가 아니다.
+    expect(check(meal(), [{ ...trusted, dietary_tags: ['halal'] }], ['Halal', 'Vegan'])).toBe(false); // vegan_restaurant 는 할랄 증거 아님
   });
 
   it.each(['beef', 'chicken', 'pork', 'fish', 'seafood', '소고기', '돼지', '닭', '생선', '해산물'])(

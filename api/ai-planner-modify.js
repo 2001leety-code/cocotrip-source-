@@ -35,7 +35,7 @@ import { loadFoodIndex } from './_ai_core/geminiPipeline.js';
 import { backfillStopEndTimes } from './_ai_core/planPersister.js';
 import { validatePatternStructure, arrivalRestDayCityKey } from './_ai_core/responseValidator.js';
 import { arrivalRestDayInfo, resolveTourEndTime } from './_ai_core/constants.js';
-import { normalizeRevisits, applyRevisitNotes, clearReplacedLegs } from './_ai_core/revisitPolicy.js';
+import { normalizeRevisits, applyRevisitNotes, clearReplacedLegs, applyFoodRowToStop, safetyDiets } from './_ai_core/revisitPolicy.js';
 import { runDuplicateStopGate } from './_ai_core/finalItineraryGate.js';
 
 export const maxDuration = 30;
@@ -332,7 +332,7 @@ async function applyBlockSwap({ itinerary, classified, dietPrefs, language, city
 /**
  * stop_swap — Day 의 특정 stop 1개를 다른 식당/카페로 교체.
  */
-export function applyStopSwap({ itinerary, classified, dietPrefs, foodIndex, area }) {
+export function applyStopSwap({ itinerary, classified, dietPrefs, foodIndex, area, language = 'en' }) {
   const dayIndex = classified.target?.day_index;
   const stopOrder = classified.target?.stop_order;
   const categoryHint = String(classified.target?.stop_name || '').toLowerCase(); // e.g. '식당' / 'cafe'
@@ -365,7 +365,7 @@ export function applyStopSwap({ itinerary, classified, dietPrefs, foodIndex, are
     placeholder: 'verified_lunch',
     preferred_dietary: [],
   };
-  const matched = matchFoodPlaceholder(placeholderStop, foodIndex, area, dietPrefs);
+  let matched = matchFoodPlaceholder(placeholderStop, foodIndex, area, dietPrefs);
   if (!matched) {
     return { ok: false, code: 'NO_ALTERNATIVE', message: 'No alternative restaurant found matching your preferences.' };
   }
@@ -376,7 +376,9 @@ export function applyStopSwap({ itinerary, classified, dietPrefs, foodIndex, are
     if (!matched2) {
       return { ok: false, code: 'NO_ALTERNATIVE', message: 'Only the same restaurant was available.' };
     }
-    Object.assign(matched, matched2);
+    // 2026-10-26 (Astra r3): 덮어쓰기(Object.assign) 금지 — 두 번째 후보에 없는 필드(등급·주소·좌표)가 첫 후보 값으로 남고,
+    //   식이 요구가 없으면 matchFoodPlaceholder 가 원본 행을 돌려주므로 프로세스 공유 foodIndex 행까지 바뀐다. 교체만.
+    matched = matched2;
   }
   // mutate stop in place — preserve order/start_time/stay_min.
   // ⚠️ SAFETY (CLAUDE.md J): 프로덕션 _food_index.json 은 식이태그를 matched.tag(단일 문자열) 에
@@ -384,17 +386,15 @@ export function applyStopSwap({ itinerary, classified, dietPrefs, foodIndex, are
   // 해야 직후 checkDietary 가 halal/vegan 적합 식당을 인식한다 (이전엔 oldStop.dietary_tags 폴백 →
   // oldStop 에 식이태그 없으면 정상 교체인데 DIETARY_UNSATISFIED false-reject).
   const matchedTags = dietaryTagsOf(matched);
-  const swapped = {
-    ...oldStop,
-    name: matched.name || oldStop.name,
-    display_name: matched.display_name || matched.name_en || matched.name,
-    address: matched.address || oldStop.address,
-    verified: true,
-    dietary_tags: matchedTags.length > 0 ? matchedTags : oldStop.dietary_tags,
-    tag: matched.tag || oldStop.tag, // 프로덕션 원본 필드 보존 (downstream 일관성)
-    tip: matched.tip || oldStop.tip,
-    personalization_reasoning: `Swap (user-requested): ${classified.raw_text.slice(0, 60)}`,
-  };
+  // 2026-10-26 (적대적 검증): 예전엔 { ...oldStop } 위에 일부만 덮어 옛 식당의 dietary_evidence·tip·주소·좌표·
+  //   식당 종속 필드가 새 식당에 남았다 → 친화 등급 식당이 "운영자 인증 확인" 문구를 달고 저장됐다(신뢰 SSOT 우회).
+  //   식당 종속 값은 새 행에서만 다시 만든다 — 재방문 정책 교체와 같은 함수(revisitPolicy.applyFoodRowToStop).
+  //   order·start_time·stay_min·category 등 일정 값은 그대로.
+  const swapped = { ...oldStop };
+  applyFoodRowToStop(swapped, matched, { diets: safetyDiets(dietPrefs), language });
+  swapped.dietary_tags = matchedTags; // tag·dietary_tags 둘 다 정규화(프로덕션 r.tag 단일 문자열) — 옛 식당 태그 폴백 금지
+  if (matched.tag) swapped.tag = matched.tag; else delete swapped.tag; // 프로덕션 원본 필드(downstream 일관성) — 새 행 기준
+  swapped.personalization_reasoning = `Swap (user-requested): ${classified.raw_text.slice(0, 60)}`;
   // 2026-10-24 재방문 정책: 옛 stop 의 재방문 표시·안내는 새 식당에 넘기지 않는다 — 저장 전 전체 일정 재정규화가 다시 판정.
   delete swapped.revisit;
   delete swapped.revisit_note;
@@ -686,7 +686,7 @@ export default async function handler(req, res) {
     if (classified.intent === 'block_swap') {
       mutResult = await applyBlockSwap({ itinerary, classified, dietPrefs, language, city, area, foodIndex });
     } else if (classified.intent === 'stop_swap') {
-      mutResult = applyStopSwap({ itinerary, classified, dietPrefs, foodIndex, area: city });
+      mutResult = applyStopSwap({ itinerary, classified, dietPrefs, foodIndex, area: city, language });
     } else if (classified.intent === 'stop_add') {
       mutResult = applyStopAdd({ itinerary, classified });
     } else if (classified.intent === 'stop_remove') {
