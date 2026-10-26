@@ -50,6 +50,7 @@ import { ActivityGuideSlide } from './components/ActivityGuideSlide';
 import { AdSlide } from './components/AdSlide';
 import { QualityWarningsPanel } from './components/QualityWarningsPanel';
 import { UserPlanNoticesPanel } from './components/UserPlanNoticesPanel';
+import { noMealStopsNotices } from './lib/userPlanNotices';
 import { usePlanEditor } from './hooks/usePlanEditor';
 import { useSwipeNavigation } from './hooks/useSwipeNavigation';
 import { usePlanCompletionTracking } from './hooks/usePlanCompletionTracking';
@@ -657,7 +658,11 @@ export default function PlanDetailPage() {
             화이트리스트 (positive notices 만) + 4lang i18n + purple/pink 디자인 토큰.
             QualityWarningsPanel (admin amber) 와 구분. severity='critical' 제외. */}
         <UserPlanNoticesPanel
-          qualityWarnings={plan.itinerary?.quality_warnings as never}
+          qualityWarnings={[
+            ...(Array.isArray(plan.itinerary?.quality_warnings) ? plan.itinerary.quality_warnings : []),
+            // 2026-10-26: 2일+ 여행 식사 stop 0 안내(늦은 도착·이른 출국) — 화면 판정.
+            ...noMealStopsNotices(plan.itinerary as never),
+          ] as never}
         />
 
         {/* P121 (2026-05-20): 운영자 전용 quality_warnings + qualityScore 노출.

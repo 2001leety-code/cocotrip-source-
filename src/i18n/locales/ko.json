@@ -1905,7 +1905,8 @@
       "arrivalAirportOverridden": "도착 공항 터미널 입력값 기준 자동 정정 (T1/T2 mismatch 차단)",
       "departureAirportOverridden": "출발 공항 터미널 입력값 기준 자동 정정 (T1/T2 mismatch 차단)",
       "dietaryCoverageLow": "식이제한 (할랄·비건·채식) 매칭 식당 부족 — 방문 전 메뉴 재확인 권장",
-      "dailyBudgetSelfHealed": "일별 예산 추정값 자동 생성 (인원수 곱셈)"
+      "dailyBudgetSelfHealed": "일별 예산 추정값 자동 생성 (인원수 곱셈)",
+      "noMealStops": "이 일정에는 식사 장소가 들어 있지 않아요(늦은 도착·이른 출국)."
     }
   },
   "mypage": {

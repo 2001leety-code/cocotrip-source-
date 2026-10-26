@@ -11,7 +11,7 @@ import { throttledTelegramAlert } from '../_shared/telegram-throttle.js';
 import { detectPaymentSource, isAdminBypassOrderId, isOperatorTestEmail } from '../_shared/admin-bypass-detector.js';
 import { beginPlanCommit, finalizePlanIssuance } from '../_shared/plan-issuance.js';
 import { departureBreakfastNote } from '../../src/lib/departureBreakfastNote.js';
-import { arrivalRestNote } from '../../src/lib/arrivalRestNote.js';
+import { arrivalRestNote, hasArrivalRestNote, ARRIVAL_REST_NOTE } from '../../src/lib/arrivalRestNote.js';
 
 /**
  * P112 (2026-05-20): end_time backfill. plan 4792076e dump 결과 29/29 stops 의
@@ -299,13 +299,15 @@ export { applyRevisitNotes } from './revisitPolicy.js';
  */
 export function applyArrivalRestNote(itinerary, { restDay, arrivalTime, arrivalAirport, cityKey, tourEndTime, language } = {}) {
   const days = Array.isArray(itinerary?.days) ? itinerary.days : [];
-  if (days.length < 2) return false;
+  // 2026-10-26 (D5①): 조건이 더 이상 안 맞으면(예: 수정으로 Day1 에 식당·관광이 생김) 예전에 붙인 안내를 뗀다.
+  const stripStale = () => { for (const day of days) for (const s of (Array.isArray(day?.stops) ? day.stops : [])) stripArrivalRestNote(s); return false; };
+  if (days.length < 2) return stripStale();
   // 2026-10-26: 호출부가 요청 입력으로 계산한 restDay(boolean) 우선, 없으면 여기서 계산.
   const rest = typeof restDay === 'boolean' ? restDay : arrivalRestDayInfo({ arrivalTime, arrivalAirport, cityKey, tourEndTime }).rest;
-  if (!rest) return false;
+  if (!rest) return stripStale();
   const stops = Array.isArray(days[0]?.stops) ? days[0].stops : [];
   // Day1 이 전부 숙소/공항/이동일 때만(식당·관광이 남은 날엔 "쉬는 날" 안내 금지).
-  if (stops.length === 0 || !stops.every((s) => ['lodging', 'airport', 'travel'].includes(s?.category))) return false;
+  if (stops.length === 0 || !stops.every((s) => ['lodging', 'airport', 'travel'].includes(s?.category))) return stripStale();
   const target = stops.find((s) => s?.category === 'lodging') || stops[0];
   if (!target || typeof target !== 'object' || target._arrival_rest_note === true) return false;
   const note = arrivalRestNote(language);
@@ -313,6 +315,24 @@ export function applyArrivalRestNote(itinerary, { restDay, arrivalTime, arrivalA
   target.tip = tip ? `${tip} ${note}` : note;
   target.arrival_rest_note = note;
   target._arrival_rest_note = true;
+  return true;
+}
+
+/**
+ * 붙였던 도착 휴식일 안내만 정확히 뗀다 — tip 에서 고정 문장(저장된 arrival_rest_note + 4개 언어 문구)만 제거하고
+ * arrival_rest_note·_arrival_rest_note 삭제. 손님/모델이 쓴 나머지 tip 은 그대로(공백 정리는 양끝만). 표식 없는 stop 은 무변.
+ * @returns {boolean} 뗐으면 true
+ */
+export function stripArrivalRestNote(stop) {
+  if (!hasArrivalRestNote(stop)) return false;
+  const notes = [...new Set([stop.arrival_rest_note, ...Object.values(ARRIVAL_REST_NOTE)])].filter((n) => typeof n === 'string' && n);
+  let tip = typeof stop.tip === 'string' ? stop.tip : '';
+  for (const n of notes) tip = tip.split(` ${n}`).join('').split(n).join('');
+  tip = tip.trim();
+  if (tip) stop.tip = tip;
+  else delete stop.tip;
+  delete stop.arrival_rest_note;
+  delete stop._arrival_rest_note;
   return true;
 }
 

@@ -24,6 +24,7 @@ import type { PlanDay, PlanStop, PlanDocument, IntercityTransitSegment } from '.
 import { getPlanDetailDict } from '../types';
 import type { TransitFromPrev } from '@/types/plan';
 import { dayLabelParts, formatDayLabel } from '../lib/dayLabel';
+import { hasArrivalRestNote } from '@/lib/arrivalRestNote.js';
 
 interface DayTimelineProps {
   day: PlanDay;
@@ -183,6 +184,8 @@ export function DayTimeline({ day, dayIndex, editMode, isRecalculating, onDelete
       // fallback (시간 정보 부족): 기존 동작 — first + intercity = checkout 가정
       return 'checkout';
     }
+    // 2026-10-26: 도착 휴식일 Day1 의 첫 숙소(휴식 안내가 붙은 stop)는 출발이 아니라 체크인. 다음날 출발·도시 이동 판정은 위 그대로.
+    if (isFirst && hasArrivalRestNote(stop)) return 'checkin';
     if (isFirst) return 'depart';
     if (isLast) return 'return';
     return 'checkin';

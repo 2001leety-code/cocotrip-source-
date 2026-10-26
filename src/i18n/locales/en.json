@@ -1905,7 +1905,8 @@
       "arrivalAirportOverridden": "Arrival airport terminal auto-corrected to match your input (T1/T2 mismatch prevention)",
       "departureAirportOverridden": "Departure airport terminal auto-corrected to match your input (T1/T2 mismatch prevention)",
       "dietaryCoverageLow": "Dietary restriction (halal/vegan/vegetarian) restaurant matches insufficient — please verify menus before visiting",
-      "dailyBudgetSelfHealed": "Daily budget estimates auto-generated (multiplied by party size)"
+      "dailyBudgetSelfHealed": "Daily budget estimates auto-generated (multiplied by party size)",
+      "noMealStops": "This itinerary has no meal stops (late arrival · early departure)."
     }
   },
   "mypage": {

@@ -440,7 +440,8 @@ describe('wiring (source)', () => {
     expect(persist).toContain('arrival_city: body.arrival_city || arrivalCity || null,');
     expect(read('api/_ai_core/handlerCore.js')).toContain('arrivalRestDay, arrivalCity,');
     expect(read('api/_inngest/functions/processPlanAfterAI.js')).toMatch(/savePlan\(adminDb, \{[\s\S]*?arrivalRestDay,\s*arrivalCity:/);
-    expect(read('api/ai-planner-modify.js')).toMatch(/arrival_rest_day: typeof planData\.input\?\.arrival_rest_day === 'boolean'\s*\? planData\.input\.arrival_rest_day\s*: \(itinerary\.days\.length > 1 && arrivalRestDayInfo\(\{/);
+    expect(read('api/ai-planner-modify.js')).toMatch(/const arrivalRestDay = typeof planData\.input\?\.arrival_rest_day === 'boolean'\s*\? planData\.input\.arrival_rest_day\s*: \(itinerary\.days\.length > 1 && arrivalRestDayInfo\(\{/);
+    expect(read('api/ai-planner-modify.js')).toContain('arrival_rest_day: arrivalRestDay,');
     // snake tour_end_time 20:00 + ICN 16:00 → 서울 요청: 저장값(= resolveTourEndTime(body)) 은 '20:00'.
     expect(resolveTourEndTime({ tour_end_time: '20:00', arrivalTime: '16:00', arrival_airport: 'ICN_T1', regions: ['seoul'] })).toBe('20:00');
   });
@@ -449,7 +450,7 @@ describe('wiring (source)', () => {
     expect(core).toMatch(/const arrivalRestDay = arrivalRestDayInfo\(\{[\s\S]*?cityKey: arrivalRestDayCityKey\(\{ arrivalCity, regions, area \}\)[\s\S]*?\}\)\.rest && Number\(durationDays\) > 1;/);
     expect(core).toContain('arrival_rest_day: arrivalRestDay,');
     // 2026-10-26 r4: 저장된 input.arrival_rest_day(boolean) 우선, 옛 플랜만 재계산(2일 이상).
-    expect(read('api/ai-planner-modify.js')).toMatch(/arrival_rest_day: typeof planData\.input\?\.arrival_rest_day === 'boolean'[\s\S]*?\? planData\.input\.arrival_rest_day[\s\S]*?: \(itinerary\.days\.length > 1 && arrivalRestDayInfo\(\{[\s\S]*?tourEndTime: resolveTourEndTime\(/);
+    expect(read('api/ai-planner-modify.js')).toMatch(/const arrivalRestDay = typeof planData\.input\?\.arrival_rest_day === 'boolean'[\s\S]*?\? planData\.input\.arrival_rest_day[\s\S]*?: \(itinerary\.days\.length > 1 && arrivalRestDayInfo\(\{[\s\S]*?tourEndTime: resolveTourEndTime\(/);
   });
   it('the boundary values live only in constants.js (no duplicated 18:00 / −60 rule elsewhere)', () => {
     for (const f of ['api/_ai_core/responseValidator.js', 'api/_shared/llm/mock.js', 'api/_ai_core/planPersister.js']) {

@@ -1905,7 +1905,8 @@
       "arrivalAirportOverridden": "到着空港ターミナルを入力値基準で自動補正 (T1/T2 mismatch 防止)",
       "departureAirportOverridden": "出発空港ターミナルを入力値基準で自動補正 (T1/T2 mismatch 防止)",
       "dietaryCoverageLow": "食事制限 (ハラル・ビーガン・ベジタリアン) 対応店舗が不足 — 訪問前にメニュー再確認推奨",
-      "dailyBudgetSelfHealed": "日別予算の推定値を自動生成 (人数掛算)"
+      "dailyBudgetSelfHealed": "日別予算の推定値を自動生成 (人数掛算)",
+      "noMealStops": "この日程には食事の場所が含まれていません（遅い到着・早い出国）。"
     }
   },
   "mypage": {
