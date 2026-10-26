@@ -11,7 +11,7 @@ import { throttledTelegramAlert } from '../_shared/telegram-throttle.js';
 import { detectPaymentSource, isAdminBypassOrderId, isOperatorTestEmail } from '../_shared/admin-bypass-detector.js';
 import { beginPlanCommit, finalizePlanIssuance } from '../_shared/plan-issuance.js';
 import { departureBreakfastNote } from '../../src/lib/departureBreakfastNote.js';
-import { arrivalRestNote } from '../../src/lib/arrivalRestNote.js';
+import { arrivalRestNote, stripArrivalRestNote, hasArrivalRestNote } from '../../src/lib/arrivalRestNote.js';
 
 /**
  * P112 (2026-05-20): end_time backfill. plan 4792076e dump 결과 29/29 stops 의
@@ -299,15 +299,19 @@ export { applyRevisitNotes } from './revisitPolicy.js';
  */
 export function applyArrivalRestNote(itinerary, { restDay, arrivalTime, arrivalAirport, cityKey, tourEndTime, language } = {}) {
   const days = Array.isArray(itinerary?.days) ? itinerary.days : [];
-  if (days.length < 2) return false;
+  // 2026-10-26 (D5①): 조건이 더 이상 안 맞으면(예: 수정으로 Day1 에 식당·관광이 생김) 예전에 붙인 안내를 뗀다.
+  const stripStale = () => { for (const day of days) for (const s of (Array.isArray(day?.stops) ? day.stops : [])) stripArrivalRestNote(s); return false; };
+  if (days.length < 2) return stripStale();
   // 2026-10-26: 호출부가 요청 입력으로 계산한 restDay(boolean) 우선, 없으면 여기서 계산.
   const rest = typeof restDay === 'boolean' ? restDay : arrivalRestDayInfo({ arrivalTime, arrivalAirport, cityKey, tourEndTime }).rest;
-  if (!rest) return false;
+  if (!rest) return stripStale();
   const stops = Array.isArray(days[0]?.stops) ? days[0].stops : [];
   // Day1 이 전부 숙소/공항/이동일 때만(식당·관광이 남은 날엔 "쉬는 날" 안내 금지).
-  if (stops.length === 0 || !stops.every((s) => ['lodging', 'airport', 'travel'].includes(s?.category))) return false;
+  if (stops.length === 0 || !stops.every((s) => ['lodging', 'airport', 'travel'].includes(s?.category))) return stripStale();
+  // 멱등: Day1 stop 중 하나라도 이미 안내를 갖고 있으면 no-op(숙소 순서를 바꾼 뒤 재호출해도 2개가 되지 않게).
+  if (stops.some(hasArrivalRestNote)) return false;
   const target = stops.find((s) => s?.category === 'lodging') || stops[0];
-  if (!target || typeof target !== 'object' || target._arrival_rest_note === true) return false;
+  if (!target || typeof target !== 'object') return false;
   const note = arrivalRestNote(language);
   const tip = typeof target.tip === 'string' ? target.tip.trim() : '';
   target.tip = tip ? `${tip} ${note}` : note;
@@ -315,6 +319,9 @@ export function applyArrivalRestNote(itinerary, { restDay, arrivalTime, arrivalA
   target._arrival_rest_note = true;
   return true;
 }
+
+// 붙였던 안내만 정확히 떼는 함수 — 화면 편집 저장(usePlanEditor)도 같이 쓰도록 브라우저 안전 leaf 로 옮겼다.
+export { stripArrivalRestNote };
 
 // P156 (2026-05-22): 동네/랜드마크 → 도시 매핑. P152 의 도시명 매칭이 못 잡는
 // "황리단길 호텔" (Gyeongju 동네명만 있고 "경주" 미명시) 같은 케이스 보강.

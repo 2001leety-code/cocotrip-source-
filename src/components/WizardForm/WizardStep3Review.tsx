@@ -26,6 +26,7 @@ import type { WizardDict } from './types';
 import type { ReservationStatus } from './WizardStep0Reservation';
 import type { TourPace } from './WizardStep2Details';
 import { pickPlannerCopy } from '@/pages/PlannerPage/plannerCopy';
+import { isLikelyNoMealTrip } from '@/lib/arrivalRestRules.js';
 
 // 2026-08-04: helpers.tsx 에서 옮겨 왔다 (마크업 그대로). 소비처가 이 파일 하나뿐인데
 // 순수 함수 모듈에 섞여 있어 fast-refresh 가 위저드를 통째로 리마운트하게 만들고 있었다.
@@ -189,6 +190,11 @@ export function WizardStep3Review(props: Step3Props) {
   const paxValue = `${pax} ${p.wizardPaxUnit || 'pax'}`;
   const departureAirportValue = (departureTerminal ? (AIRPORT_DISPLAY[departureTerminal] || departureTerminal) : (p.wizardDepartureSameAsArrival || 'Same as arrival airport'))
     + (departureTime ? ` · ${departureTime}` : '');
+  // 2026-10-26: 날짜(포함 범위) → 일수. 순수 규칙 값은 src/lib/arrivalRestRules(서버 constants 와 같은 SSOT).
+  const startD = parseDateOnly(startDate);
+  const endD = parseDateOnly(endDate);
+  const tripDays = startD && endD ? Math.round((endD.getTime() - startD.getTime()) / 86400000) + 1 : 0;
+  const likelyNoMeal = isLikelyNoMealTrip({ durationDays: tripDays, arrivalTime, departureTime });
   const tourPaceValue = p[`tourPace${cap(tourPace)}`] || tourPace;
   const tourWindowValue = `${tourStartTime || '09:00'} - ${tourEndTime || '21:00'}`;
   const companionsValue = companions ? (p[`companions${cap(companions)}`] || companions) : notSelected;
@@ -306,6 +312,13 @@ export function WizardStep3Review(props: Step3Props) {
 
         <p className="wizard-dossier-hint text-[10px] text-ec-ink-3 text-center">{p.wizardTapToEdit || 'Tap any card to edit'}</p>
       </div>
+
+      {/* 2026-10-26: 생성 전 힌트 — 확실한 경우(2일 + 도착 ≥18:00 + 출국 <11:00)만, 단정하지 않는 문구. */}
+      {likelyNoMeal && (
+        <p className="ec-body-sm border-l-2 border-ec-line-2 bg-ec-sunken px-3 py-2.5 text-ec-ink-2" role="note" data-testid="wizard-no-meal-hint">
+          {(p as Record<string, string>).wizardNoMealHint || 'With an arrival after 18:00 and a departure before 11:00 on a 2-day trip, the itinerary may include no meal stops.'}
+        </p>
+      )}
 
       {/* What the purchase contains — not what the button below hands over. */}
       <div className="wizard-review-includes ec-panel">

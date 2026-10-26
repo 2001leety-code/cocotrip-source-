@@ -24,8 +24,8 @@
 import { createLlmModel, runWithLlmContext, wantsLlmMock } from './_shared/llm/index.js';
 import { initAdminDb } from './_shared/firebase-admin.js';
 import { checkIpRateLimit, getClientIp } from './_shared/ip-rate-limit.js';
-import { stripRevisitNote } from '../src/lib/revisitNote.js';
 import { applyRevisitNotes } from './_ai_core/revisitPolicy.js';
+import { stripFixedTipNotes, reattachFixedTipNotes } from '../src/lib/fixedTipNotes.js';
 const _rateDb = initAdminDb('translate-plan');
 
 export const maxDuration = 60;
@@ -35,7 +35,9 @@ export const config = { runtime: 'nodejs' };
 // Bumped when the translator emits new fields; useAutoTranslate compares this
 // against cached.translatorVersion and re-translates on mismatch so old caches
 // (without translated transit fields) get refreshed.
-const TRANSLATOR_VERSION = 2;
+// 2026-10-26: 3 — 휴식·조식 고정 안내를 번역 전에 떼고 번역 후 대상 언어로 다시 붙인다(v2 캐시는 안내가 번역/중복된 상태라 재번역).
+//   src/pages/PlanDetailPage/useAutoTranslate.ts EXPECTED_TRANSLATOR_VERSION 과 같이 올린다.
+const TRANSLATOR_VERSION = 3;
 
 const _ok  = (data) => ({ ok: true, data });
 const _err = (msg, code = 'UNKNOWN_ERROR') => ({ ok: false, error: msg, code });
@@ -123,7 +125,8 @@ async function translateHandler(req, res) {
             TRANSLATE_FIELDS.forEach(f => {
               if (stop[f] && typeof stop[f] === 'string') {
                 // 2026-10-24 재방문 안내(R6): tip 에서 고정 안내를 떼고 본문만 번역 → 아래에서 대상 언어 문장 부착(의역 중복 방지).
-                const text = (f === 'tip' || f === 'tip_en') ? stripRevisitNote(stop[f], stop.revisit_note) : stop[f];
+                // 2026-10-26: 도착 휴식·출국 조식 안내도 같은 방식(번역 전 떼고 → 번역 후 대상 언어 고정 문구 재부착).
+                const text = (f === 'tip' || f === 'tip_en') ? stripFixedTipNotes(stop[f], stop) : stop[f];
                 if (!text) return;
                 descTexts.push(text);
                 descMapping.push({ section: 'stop', dayIdx: di, stopIdx: si, field: f });
@@ -199,7 +202,11 @@ async function translateHandler(req, res) {
     }
 
     if (descTexts.length === 0 && transitTexts.length === 0) {
-      return res.status(200).json(_ok({ translated: plan, translatorVersion: TRANSLATOR_VERSION, message: 'Nothing to translate' }));
+      // 2026-10-26: 번역할 본문이 없어도(tip 이 고정 안내뿐) 고정 안내는 대상 언어로 바꿔 돌려준다 — 원문 언어 안내가 남지 않게.
+      const untouched = JSON.parse(JSON.stringify(plan));
+      reattachFixedTipNotes(untouched, targetLang);
+      applyRevisitNotes(untouched, { language: targetLang });
+      return res.status(200).json(_ok({ translated: untouched, translatorVersion: TRANSLATOR_VERSION, message: 'Nothing to translate' }));
     }
 
     // 텍스트 배열 합산 상한 — Gemini 프롬프트 크기 비용 방어
@@ -328,6 +335,8 @@ ${JSON.stringify({ descriptive: descTexts, transit: transitTexts })}`;
       }
     } catch (e) { console.warn('[translate-plan] sanitize fail:', e.message); }
 
+    // 2026-10-26: 도착 휴식·출국 조식 안내 — 표식이 있는 stop 만, 번역된 본문 뒤에 대상 언어 고정 문장(휴식 → 조식 순).
+    reattachFixedTipNotes(result_plan, targetLang);
     // 2026-10-24 재방문 안내: 번역된 본문 뒤에 대상 언어 고정 문장(revisit: true food stop 만, 기존 안내는 제거 후).
     applyRevisitNotes(result_plan, { language: targetLang });
 

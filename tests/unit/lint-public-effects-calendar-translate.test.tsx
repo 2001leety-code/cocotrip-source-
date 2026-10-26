@@ -131,7 +131,7 @@ describe('public effects state', () => {
     rerender({ language: 'en' });
     resolveCache({
       exists: () => true,
-      data: () => ({ itinerary: { tour_title: 'Stale cache', days: [] }, cachedAt: new Date().toISOString(), translatorVersion: 2 }),
+      data: () => ({ itinerary: { tour_title: 'Stale cache', days: [] }, cachedAt: new Date().toISOString(), translatorVersion: 3 }),
     });
     await waitFor(() => expect(result.current.plan?.itinerary?.tour_title).toBe('Original'));
     expect(result.current.isTranslating).toBe(false);

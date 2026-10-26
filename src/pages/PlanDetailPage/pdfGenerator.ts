@@ -22,6 +22,7 @@ import type { PlanDocument, PlanDay, PlanStop, BudgetRow } from './types';
 import { buildActivityMetaHtml } from '@/lib/activityMetaLabels';
 import { buildActivityGuideHtml } from '@/lib/activityGuides';
 import { preparePdfFonts } from '@/lib/pdfFonts';
+import { arrivalRestTitle, arrivalRestTomorrowLine, isArrivalRestDay1, nextDayStartTime } from '@/lib/arrivalRestNote.js';
 
 // Sprint 1 Step 4 — 카테고리별 카드 좌측 accent bar 색 (web `CAT_COLORS.bar` parity, #136).
 // PDF는 dark theme 토큰을 못 쓰므로 web bar gradient의 진한 쪽 hex 만 추출.
@@ -750,14 +751,19 @@ export async function generatePDF(
 
     // P239 (2026-05-27): Day 1 = lodging only 안내 PDF 카드 — 운영자 architectural fix.
     // 새벽 도착 시 호텔만 + 다음날 tour_start_time (default 09:00) 부터 stops 시작.
-    // 클라이언트 UI (DayTimeline) 와 동일 카드. stopsLen <= 1 AND day.day === 1 만.
-    if ((day.day === 1 || di === 0) && (day.stops || []).length <= 1) {
-      const tourStart = (input as { tour_start_time?: string; tourStartTime?: string }).tour_start_time
-        || (input as { tour_start_time?: string; tourStartTime?: string }).tourStartTime
-        || '09:00';
+    // 2026-10-26 (D5②): 장소 수(≤1) 대신 실제 휴식일만 — Day1 이 숙소·공항·이동뿐이고 휴식 안내가 붙었거나 저장된
+    //   input.arrival_rest_day === true (식당 하나인 날은 휴식일 아님). 문구 = src/lib/arrivalRestNote 4개 언어(PDF 언어).
+    if ((day.day === 1 || di === 0) && isArrivalRestDay1(day.stops || [], {
+      inputRestDay: (input as { arrival_rest_day?: unknown }).arrival_rest_day,
+      inputArrivalTime: (input as { arrival_time?: unknown; arrivalTime?: unknown }).arrival_time
+        || (input as { arrivalTime?: unknown }).arrivalTime,
+      totalDays: days.length,
+    })) {
+      // "내일 시작" = 다음날 실제 첫 stop 시각(화면 DayTimeline 과 같은 함수). 없으면 줄 생략(기본 09:00 단정 금지).
+      const nextStart = nextDayStartTime(days, di);
       html += `<div style="margin-bottom:14px;background:rgba(124,92,252,0.06);border:1px solid rgba(124,92,252,0.25);border-radius:6px;padding:10px 12px;page-break-inside:avoid;break-inside:avoid;">
-        <p style="font-size:12px;font-weight:700;color:${C.accent};margin:0 0 4px;">🌙 Late arrival? Rest at your hotel</p>
-        <p style="font-size:10.5px;color:${C.muted};margin:0;line-height:1.5;">Your tour starts tomorrow at ${tourStart}.</p>
+        <p style="font-size:12px;font-weight:700;color:${C.accent};margin:0 0 4px;">🌙 ${arrivalRestTitle(lang)}</p>
+        ${nextStart ? `<p style="font-size:10.5px;color:${C.muted};margin:0;line-height:1.5;">${arrivalRestTomorrowLine(lang, nextStart)}</p>` : ''}
       </div>`;
     }
 

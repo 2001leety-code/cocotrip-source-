@@ -1275,6 +1275,7 @@
     "wizardDepartureDifferentNote": "Different from arrival airport — plan will reflect this",
     "wizardNextGenerate": "Next: Review",
     "wizardReviewTitle": "Review Your Trip",
+    "wizardNoMealHint": "With an arrival after 18:00 and a departure before 11:00 on a 2-day trip, the itinerary may include no meal stops (Day 1 is a rest evening at the hotel; breakfast on departure day is at your hotel or the airport).",
     "wizardDestination": "Destination",
     "wizardDates": "Dates",
     "wizardAirport": "Airport",
@@ -1906,6 +1907,13 @@
       "departureAirportOverridden": "Departure airport terminal auto-corrected to match your input (T1/T2 mismatch prevention)",
       "dietaryCoverageLow": "Dietary restriction (halal/vegan/vegetarian) restaurant matches insufficient — please verify menus before visiting",
       "dailyBudgetSelfHealed": "Daily budget estimates auto-generated (multiplied by party size)"
+    },
+    "noMealNotice": {
+      "plain": "This itinerary has no meal stops.",
+      "withReasons": "This itinerary has no meal stops ({{reasons}}).",
+      "lateArrival": "late arrival",
+      "earlyDeparture": "early departure",
+      "joiner": " · "
     }
   },
   "mypage": {

@@ -24,7 +24,7 @@ async function bound(source: PlanDocument) {
   return fingerprint;
 }
 function response(translated: unknown) {
-  return { ok: true, json: async () => ({ data: { translated, translatorVersion: 2 } }) } as Response;
+  return { ok: true, json: async () => ({ data: { translated, translatorVersion: 3 } }) } as Response;
 }
 function deferred<T>() {
   let resolve!: (value: T) => void;
@@ -97,7 +97,7 @@ describe('translation access and request boundaries', () => {
     const full = { tour_title: 'Owner', accommodation: { name: 'PRIVATE-HOTEL' }, days: [] };
     const ownerFingerprint = await bound(fixture('owner'));
     cache.getDoc.mockResolvedValue({ exists: () => true, data: () => ({
-      itinerary: full, translatorVersion: 2, sourceFingerprint: ownerFingerprint,
+      itinerary: full, translatorVersion: 3, sourceFingerprint: ownerFingerprint,
     }) });
     let plan = fixture('owner');
     const fetchMock = vi.fn().mockResolvedValue(response(full));
@@ -152,7 +152,7 @@ describe('translation access and request boundaries', () => {
     expect(olderSource).not.toBe(editedSource);
     cache.getDoc.mockResolvedValue({ exists: () => true, data: () => ({
       itinerary: { tour_title: 'Older source Japanese', days: [] }, cachedAt: '2999-01-01T00:00:00.000Z',
-      translatorVersion: 2, sourceFingerprint: olderSource,
+      translatorVersion: 3, sourceFingerprint: olderSource,
     }) });
     let plan: PlanDocument = { ...fixture('owner-edit', 'After edit'), lastEditedAt: Date.parse('2026-10-01T00:00:00.000Z') };
     const fetchMock = vi.fn().mockResolvedValue(response({ tour_title: 'Edited Japanese', days: [] }));
@@ -172,7 +172,7 @@ describe('translation access and request boundaries', () => {
     expect(sameSource).toMatch(/^sha256:[0-9a-f]{64}$/);
     cache.getDoc.mockResolvedValue({ exists: () => true, data: () => ({
       itinerary: { tour_title: 'Bound Japanese', days: [] }, cachedAt: '2026-10-01T00:00:00.000Z',
-      translatorVersion: 2, sourceFingerprint: sameSource,
+      translatorVersion: 3, sourceFingerprint: sameSource,
     }) });
     let plan = fixture('owner-fresh');
     const fetchMock = vi.fn();
@@ -185,9 +185,26 @@ describe('translation access and request boundaries', () => {
     expect(cache.setDoc).not.toHaveBeenCalled();
   });
 
+  it('2026-10-26: an owner cache from translator v2 (fixed notes translated in) is re-translated even with the same source', async () => {
+    const sameSource = await bound(fixture('owner-v2'));
+    cache.getDoc.mockResolvedValue({ exists: () => true, data: () => ({
+      itinerary: { tour_title: 'v2 Japanese', days: [] }, cachedAt: '2999-01-01T00:00:00.000Z',
+      translatorVersion: 2, sourceFingerprint: sameSource,
+    }) });
+    let plan = fixture('owner-v2');
+    const fetchMock = vi.fn().mockResolvedValue(response({ tour_title: 'v3 Japanese', days: [] }));
+    vi.stubGlobal('fetch', fetchMock);
+    const setPlan = (update: (previous: PlanDocument | null) => PlanDocument | null) => { plan = update(plan)!; };
+    const { result } = renderHook(() => useAutoTranslate(plan, setPlan, 'ja', access('owner-v2', 'owner')));
+    await waitFor(() => expect(result.current.isTranslating).toBe(false));
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(plan.itinerary?.tour_title).toBe('v3 Japanese');
+    expect(cache.setDoc.mock.calls[0][1].translatorVersion).toBe(3);
+  });
+
   it('misses a legacy unbound owner cache, rewrites it bound, then reuses the rewrite', async () => {
     cache.getDoc.mockResolvedValue({ exists: () => true, data: () => ({
-      itinerary: { tour_title: 'Legacy Japanese', days: [] }, cachedAt: '2999-01-01T00:00:00.000Z', translatorVersion: 2,
+      itinerary: { tour_title: 'Legacy Japanese', days: [] }, cachedAt: '2999-01-01T00:00:00.000Z', translatorVersion: 3,
     }) });
     let plan = fixture('owner-legacy', 'Original');
     const fetchMock = vi.fn().mockResolvedValue(response({ tour_title: 'Fresh Japanese', days: [] }));
@@ -238,7 +255,7 @@ describe('translation access and request boundaries', () => {
     const beforeEdit = await bound(fixture('owner-live', 'Before edit'));
     cache.getDoc.mockResolvedValue({ exists: () => true, data: () => ({
       itinerary: { tour_title: 'Cached Japanese', days: [] }, cachedAt: new Date(Date.now() - 60_000).toISOString(),
-      translatorVersion: 2, sourceFingerprint: beforeEdit,
+      translatorVersion: 3, sourceFingerprint: beforeEdit,
     }) });
     let plan = fixture('owner-live', 'Before edit');
     const fetchMock = vi.fn().mockResolvedValue(response({ tour_title: 'Edited Japanese', days: [] }));

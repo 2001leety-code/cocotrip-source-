@@ -170,8 +170,10 @@ describe('PlanDetailPage editorial execution document', () => {
     }
   });
 
-  it('shows the late-arrival note only for a lodging-only first day', () => {
-    expect(DAY).toContain("stops.length === 1 && stops[0]?.category === 'lodging'");
+  it('shows the late-arrival note only for a real rest first day (shared isArrivalRestDay1 — lodging/airport/travel only + rest note or stored flag)', () => {
+    // 2026-10-26: 장소 수 1 대신 PDF 와 같은 공통 판정(1일 여행 제외, 숙소 2개 휴식일 포함).
+    expect(DAY).toMatch(/const showArrivalRestCard = \(day\.day === 1 \|\| dayIndex === 0\) && isArrivalRestDay1\(stops, \{/);
+    expect(DAY).toContain('{showArrivalRestCard && (');
   });
 
   it('formats day labels natively in all four languages', () => {

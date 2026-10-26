@@ -2,6 +2,10 @@
  * Shared constants for ai-planner-full pipeline.
  * Extracted verbatim from api/ai-planner-full.js L22-109, L172-199.
  */
+// 2026-10-26: 도착 휴식일·출국 조식 면제 순수 값 SSOT(브라우저 안전 leaf) — 아래에서 re-export.
+import {
+  REST_DAY_LATE_ARRIVAL_MIN, REST_DAY_TOUR_END_MARGIN_MIN, DEFAULT_TOUR_END_MIN, EARLY_DEPARTURE_NO_BREAKFAST_MIN, strictHHMMToMin,
+} from '../../src/lib/arrivalRestRules.js';
 
 // ── 환경변수 trim — Naver API 헤더 오류 방지 (개행/공백 제거) ──────────
 ['NAVER_CLIENT_ID','NAVER_CLIENT_SECRET','NCP_CLIENT_ID','NCP_CLIENT_SECRET'].forEach(k => {
@@ -156,18 +160,8 @@ export function arrivalReadyMinutes(arrivalHHMM, airport, cityKey) {
 }
 
 // 2026-10-26 운영자 승인: 도착 휴식일 — 그날 끼니 의무 면제(출국 11:00 전 조식 면제와 같은 결).
-export const REST_DAY_LATE_ARRIVAL_MIN = 18 * 60; // B-LATE-ARRIVAL 과 같은 기준
-export const REST_DAY_TOUR_END_MARGIN_MIN = 60;   // 정책 여유값(실측 아님) — 운영자 승인 값
-export const DEFAULT_TOUR_END_MIN = 21 * 60;
-
-/** 엄격 HH:MM(00:00~23:59, 앞 5자). 아니면 null. */
-function strictHHMMToMin(value) {
-  const m = /^(\d{1,2}):(\d{2})$/.exec(String(value || '').trim().slice(0, 5));
-  if (!m) return null;
-  const h = Number(m[1]);
-  const mi = Number(m[2]);
-  return h <= 23 && mi <= 59 ? h * 60 + mi : null;
-}
+//   순수 값 SSOT = src/lib/arrivalRestRules.js(브라우저 안전 — 위자드 힌트도 같은 값). 여기서는 re-export 만(import 는 파일 맨 위).
+export { REST_DAY_LATE_ARRIVAL_MIN, REST_DAY_TOUR_END_MARGIN_MIN, DEFAULT_TOUR_END_MIN, EARLY_DEPARTURE_NO_BREAKFAST_MIN };
 
 /**
  * 투어 종료 시각 SSOT(2026-10-26) — camel tourEndTime 우선, 다음 snake tour_end_time. 앞 5자, 엄격 HH:MM(00:00~23:59,

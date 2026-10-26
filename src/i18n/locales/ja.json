@@ -1275,6 +1275,7 @@
     "wizardDepartureDifferentNote": "到着空港と異なります — 計画に反映されます",
     "wizardNextGenerate": "次へ: 内容確認",
     "wizardReviewTitle": "旅行内容の確認",
+    "wizardNoMealHint": "18時以降の到着・11時前の出国の2日間の日程のため、食事の場所が日程に入らない場合があります（初日はホテルでお休み、出国日の朝食はホテルまたは空港で）。",
     "wizardDestination": "目的地",
     "wizardDates": "日程",
     "wizardAirport": "空港",
@@ -1906,6 +1907,13 @@
       "departureAirportOverridden": "出発空港ターミナルを入力値基準で自動補正 (T1/T2 mismatch 防止)",
       "dietaryCoverageLow": "食事制限 (ハラル・ビーガン・ベジタリアン) 対応店舗が不足 — 訪問前にメニュー再確認推奨",
       "dailyBudgetSelfHealed": "日別予算の推定値を自動生成 (人数掛算)"
+    },
+    "noMealNotice": {
+      "plain": "この日程には食事の場所が含まれていません。",
+      "withReasons": "この日程には食事の場所が含まれていません（{{reasons}}）。",
+      "lateArrival": "遅い到着",
+      "earlyDeparture": "早い出国",
+      "joiner": "・"
     }
   },
   "mypage": {
