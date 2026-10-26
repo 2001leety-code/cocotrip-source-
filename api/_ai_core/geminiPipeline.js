@@ -1487,7 +1487,8 @@ export async function runGeminiPipeline({ apiKey, systemPrompt, userMessage, are
     // P160 (2026-05-22): self-heal lodging bookend BEFORE pattern validation.
     // Gemini 가 가끔 stops[0]=food 시작 → B-10 throw → customer 500.
     // synthetic lodging prepend/append → validation 통과 + alert.
-    if (typeOk3pass) selfHealLodgingBookend(itinerary, { language });
+    // 2026-10-26: 휴식일 빈 Day1 → 검증 전에 체크인 숙소로 보정(body.arrival_rest_day = handlerCore 공통 판정).
+    if (typeOk3pass) selfHealLodgingBookend(itinerary, { language, arrivalRestDay: body?.arrival_rest_day === true });
     // 여기까지의 itinerary 는 식이 검증(위 dietary 분기)을 통과한 마지막 상태다. 아래 pattern
     // retry 는 plan 을 통째로 새로 받아 구조만 재검증하므로 되돌릴 원본을 떠 둔다.
     const lastDietValid3pass = typeOk3pass ? snapshotItinerary(itinerary, dietaryArr) : null;
@@ -1794,7 +1795,7 @@ export async function runGeminiPipeline({ apiKey, systemPrompt, userMessage, are
     // P160 (2026-05-22): self-heal lodging bookend BEFORE pattern validation.
     // Gemini 가 가끔 stops[0]=food 시작 → B-10 throw → customer 500.
     // synthetic lodging prepend/append → validation 통과 + alert.
-    if (typeOk) selfHealLodgingBookend(itinerary, { language });
+    if (typeOk) selfHealLodgingBookend(itinerary, { language, arrivalRestDay: body?.arrival_rest_day === true }); // 2026-10-26: 휴식일 빈 Day1 보정
     // 3pass 와 동일 — pattern retry 가 식이 검증 통과본을 밀어낼 수 있으므로 원본 스냅샷.
     const lastDietValidLegacy = typeOk ? snapshotItinerary(itinerary, dietaryArr) : null;
     // 자료형 오류도 같은 구조 오류 목록 — 재시도는 이 한 번뿐.

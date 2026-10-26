@@ -51,6 +51,11 @@ describe('P116 — source-level invariants (lodging role labeling)', () => {
     expect(STOP_CARD).toMatch(/return:\s*\{\s*ko:[^}]+,\s*en:[^}]+,\s*ja:[^}]+,\s*zh:/);
   });
 
+  it('2026-10-26: aria-label appends the time only when start_time exists (rest-day check-in lodging has none → no "undefined")', () => {
+    expect(STOP_CARD).toContain("${stop.start_time ? `, ${stop.start_time}` : ''}");
+    expect(STOP_CARD).not.toMatch(/'Unnamed stop'\}, \$\{stop\.start_time\}`/);
+  });
+
   it('badge renders only when lodgingRole truthy (guarded)', () => {
     // Badge JSX must be inside `{lodgingRole && (...)}` guard
     expect(STOP_CARD).toMatch(/\{lodgingRole\s*&&\s*\(/);

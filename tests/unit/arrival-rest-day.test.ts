@@ -270,6 +270,9 @@ describe('r5 — local-language city names, one flag passed through, min-stop ex
     expect(disp).toMatch(/avoidStopNames, plannerIntent, arrivalRestDay,\s*\}, handlerStart\)/);
     expect(read('api/_ai_core/postResponsePipeline.js')).toContain("if (typeof ctx.arrivalRestDay === 'boolean') return ctx.arrivalRestDay;");
   });
+  it('r6: both generation-stage selfHealLodgingBookend calls pass the rest-day flag', () => {
+    expect((read('api/_ai_core/geminiPipeline.js').match(/selfHealLodgingBookend\(itinerary, \{ language, arrivalRestDay: body\?\.arrival_rest_day === true \}\)/g) || []).length).toBe(2);
+  });
   it('prompt min-stop rules carry the rest-day Day 1 exception', () => {
     expect(read('api/_ai_core/buildPrompt.js')).toMatch(/예외: userInput\.arrival_rest_day = true 인 Day 1 은 숙소만\(1~2 stops\) 허용/);
     expect(read('api/_ai_core/geminiPipeline.js')).toContain('EVERY day MUST contain AT LEAST 4 stops total (except Day 1 when userInput.arrival_rest_day is true');

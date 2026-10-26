@@ -11317,7 +11317,7 @@ function P245_blockModeTourStartTime({ changed }) {
       issues.push("planPersister.js Firestore input.tour_start_time 저장 누락 — admin debug + 추적 불가");
     }
     // #tour-end (2026-06-05): tour_end_time 도 Firestore 저장 의무 (PDF/UI/admin debug + 추적).
-    if (!/tour_end_time:\s*body\.tourEndTime/.test(persistSrc)) {
+    if (!/tour_end_time:\s*(?:body\.tourEndTime|resolveTourEndTime\(body\))/.test(persistSrc)) {
       issues.push("planPersister.js Firestore input.tour_end_time 저장 누락");
     }
   }
