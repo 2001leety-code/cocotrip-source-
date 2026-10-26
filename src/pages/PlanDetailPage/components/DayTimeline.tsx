@@ -193,7 +193,8 @@ export function DayTimeline({ day, dayIndex, editMode, isRecalculating, onDelete
       return 'checkout';
     }
     // 2026-10-26: 도착 휴식일 Day1 의 첫 숙소(휴식 안내가 붙은 stop)는 출발이 아니라 체크인. 다음날 출발·도시 이동 판정은 위 그대로.
-    if (isFirst && hasArrivalRestNote(stop)) return 'checkin';
+    //   휴식 카드와 같은 판정(showArrivalRestCard — 플래그·옛 플랜 도착 시각 대체 판정 포함)도 체크인(편집 후·옛 플랜에서 표식이 없어도).
+    if (isFirst && (hasArrivalRestNote(stop) || showArrivalRestCard)) return 'checkin';
     if (isFirst) return 'depart';
     if (isLast) return 'return';
     return 'checkin';

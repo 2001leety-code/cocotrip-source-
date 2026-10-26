@@ -5,6 +5,7 @@
 import { departureBreakfastNote, hasBreakfastNote, stripBreakfastNoteText } from './departureBreakfastNote.js';
 import { arrivalRestNote, hasArrivalRestNote, stripArrivalRestText } from './arrivalRestNote.js';
 import { revisitNote, stripRevisitNote } from './revisitNote.js';
+import { strictHHMMToMin, REST_DAY_LATE_ARRIVAL_MIN } from './arrivalRestRules.js';
 
 const S = 'string';
 const N = 'number';
@@ -50,6 +51,8 @@ const inputSchema = {
   language: S, area: S, regions: texts, destination: S,
   startDate: S, endDate: S, nights: N, adults: N, pax: N, children: N,
   tour_start_time: S, tourStartTime: S,
+  // 2026-10-26: 휴식 카드 판정용 boolean 만 공개(도착 시각 원값은 비공개 — 아래 projectPublicPlan 에서 옛 플랜만 파생).
+  arrival_rest_day: B,
 };
 const stopSchema = {
   order: N, start_time: S, end_time: S, stay_min: N, category: S,
@@ -249,6 +252,15 @@ export function projectPublicPlan(plan, options = {}) {
     _streaming_in_progress: B, _streaming_progress: N, __truncated: B,
     input: inputSchema,
   }, terms);
+  // 2026-10-26: 옛 플랜(arrival_rest_day 필드 자체가 없음)은 원본 도착 시각 엄격 HH:MM ≥ 18:00 이면 true 로 파생 —
+  //   화면·PDF 의 isArrivalRestDay1 대체 판정과 같은 규칙. 시각 자체는 공개 결과에 넣지 않는다.
+  if (isRecord(source.input) && source.input.arrival_rest_day === undefined) {
+    const arr = strictHHMMToMin(source.input.arrival_time || source.input.arrivalTime);
+    if (arr !== null && arr >= REST_DAY_LATE_ARRIVAL_MIN) {
+      result.input = isRecord(result.input) ? result.input : {};
+      result.input.arrival_rest_day = true;
+    }
+  }
   if (!isRecord(source.itinerary)) return result;
   const itinerary = project(source.itinerary, {
     tour_title: S, t_money_recommended_load: N, _truncated_days: N, _streaming_skeleton: B,

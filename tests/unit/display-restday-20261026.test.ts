@@ -37,7 +37,8 @@ describe('D3 — DayTimeline lodging role', () => {
   const src = read('src/pages/PlanDetailPage/components/DayTimeline.tsx');
   it("rest-day Day1 first lodging with the note → 'checkin', checked after the intercity branch and before the generic 'depart'", () => {
     const intercity = src.indexOf('if (isFirst && hasIntercity) {');
-    const rest = src.indexOf("if (isFirst && hasArrivalRestNote(stop)) return 'checkin';");
+    // r3: 표식 또는 휴식 카드 판정(showArrivalRestCard)이면 체크인.
+    const rest = src.indexOf("if (isFirst && (hasArrivalRestNote(stop) || showArrivalRestCard)) return 'checkin';");
     const depart = src.indexOf("if (isFirst) return 'depart';");
     expect(intercity).toBeGreaterThan(-1);
     expect(rest).toBeGreaterThan(intercity);

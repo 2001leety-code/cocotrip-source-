@@ -128,6 +128,38 @@ describe('r2-6 — no-meal causes only when every meal-less day is explained', (
   });
 });
 
+describe('r3-1 — Day1 first hotel label follows the rest-card decision (not only the note marker)', () => {
+  it("label uses showArrivalRestCard: an unmarked first hotel on a flagged / legacy rest day is 'checkin'", () => {
+    const src = read('src/pages/PlanDetailPage/components/DayTimeline.tsx');
+    expect(src).toContain("if (isFirst && (hasArrivalRestNote(stop) || showArrivalRestCard)) return 'checkin';");
+    expect(src.indexOf('const showArrivalRestCard')).toBeLessThan(src.indexOf('function computeLodgingRole('));
+    // 재현: 편집으로 식당 추가→삭제(표식 제거됨) 후 / 옛 플랜 — 표식 없는 숙소지만 카드 판정은 참.
+    expect(isArrivalRestDay1([lodging('23:00')], { totalDays: 3, inputRestDay: true })).toBe(true);
+    expect(isArrivalRestDay1([lodging('23:00')], { totalDays: 3, inputArrivalTime: '19:30' })).toBe(true);
+  });
+});
+
+describe('r3-2 — public projection exposes only a boolean arrival_rest_day (derived for old plans)', () => {
+  const doc = (input: Record<string, unknown>) => ({ id: 'p', isPublic: true, input, itinerary: { days: [{ day: 1, stops: [lodging('23:00')] }, { day: 2, stops: [lodging('09:00')] }] } });
+  const projInput = (input: Record<string, unknown>) => (projectPublicPlan(doc(input), { language: 'en' }) as { input?: Record<string, unknown> }).input || {};
+  it('stored boolean passes through; the raw arrival time never does', () => {
+    expect(projInput({ arrival_rest_day: true, arrival_time: '19:00' })).toEqual({ arrival_rest_day: true });
+    expect(projInput({ arrival_rest_day: false, arrival_time: '19:00' })).toEqual({ arrival_rest_day: false });
+  });
+  it('old plan (field missing): arrival ≥ 18:00 → true; earlier / malformed → absent', () => {
+    expect(projInput({ arrival_time: '19:00' })).toEqual({ arrival_rest_day: true });
+    expect(projInput({ arrivalTime: '18:00' })).toEqual({ arrival_rest_day: true });
+    expect(projInput({ arrival_time: '17:59' })).not.toHaveProperty('arrival_rest_day');
+    expect(projInput({ arrival_time: '7pm' })).not.toHaveProperty('arrival_rest_day');
+    expect(JSON.stringify(projectPublicPlan(doc({ arrival_time: '19:00' }), { language: 'en' }))).not.toContain('19:00');
+  });
+  it('re-projection is idempotent and the public card decision matches', () => {
+    const once = projectPublicPlan(doc({ arrival_time: '19:00' }), { language: 'en' }) as { input: { arrival_rest_day?: unknown }; itinerary: Itin };
+    expect(projectPublicPlan(once as never, { language: 'en' })).toEqual(once);
+    expect(isArrivalRestDay1(once.itinerary.days[0].stops, { inputRestDay: once.input.arrival_rest_day, totalDays: once.itinerary.days.length })).toBe(true);
+  });
+});
+
 describe('r2-7 — old plans without input.arrival_rest_day fall back to arrival ≥ 18:00', () => {
   it('fallback only when the field is missing; strict time parser', () => {
     const day1 = [lodging('23:00')];
