@@ -308,6 +308,40 @@ export function normalizeRegionKey(r) {
 }
 
 /**
+ * 2026-10-26: 지역 값 → 영문 도시 키 SSOT(블록모드·RouteAgent 다도시·출국 안내 공통).
+ *   ja/zh 위자드는 regions 를 '釜山'·'済州' 같은 표시명으로 보낸다. normalizeRegionKey 는 한글만 매핑해 현지어 키가 남아
+ *   블록 0건(legacy 폴백)·다도시 호텔 조회 실패(첫 도시 호텔로 폴백 = 출국 출발지 오류)가 났다.
+ *   area-key 접두(split('_')[0]) → cityResolver 별칭 → 기존 정규화. 모르는 이름은 그대로(다른 도시로 추측하지 않음).
+ *   쉼표가 든 값('seoul,gapyeong')은 별칭 해석을 하지 않는다 — resolveUiCityKey 는 쉼표 구간 중 UI 도시 하나만 맞아도
+ *   그 도시를 고르므로 UI 밖 도시가 조용히 빠진다.
+ */
+export function regionCityKey(x) {
+  const s = String(x || '').split('_')[0].trim();
+  if (!s) return '';
+  if (s.includes(',')) return normalizeRegionKey(s);
+  return resolveUiCityKey(s) || normalizeRegionKey(s);
+}
+
+/**
+ * 2026-10-26: 출국 도시 키 SSOT — **실제 마지막 날 day.city** → 명시 출국 도시(위자드 departure_city) → 선택 목록 마지막 순.
+ *   예전엔 regions 마지막을 출국 도시로 썼다 — regions=['서울','부산','제주'] + 출국 부산이면 마지막 날은 부산인데
+ *   제주 호텔 라벨·제주 중심에서 공항 이동이 나왔다(출국 안내 오류 = 비행기 놓침 위험). 출국 안내 라벨·공항 이동 출발지 공통.
+ *   마지막 날 도시가 먼저인 이유: 공항 이동은 손님이 그날 실제로 있는 곳에서 출발해야 한다. 명시 출국 도시와 마지막 날이
+ *   다르면(P125 는 프롬프트 지시라 보장 아님) 명시값을 쓰면 부산에 있는 손님에게 서울 출발 안내가 나간다(Astra r5).
+ * @param {{departureCity?: string, days?: Array<{city?: string}>, regions?: string[]}} src
+ * @returns {string} 영문 도시 키 또는 ''
+ */
+export function departureCityKey({ departureCity, days, regions } = {}) {
+  const lastDay = Array.isArray(days) && days.length ? days[days.length - 1] : null;
+  const dayCity = regionCityKey(lastDay && lastDay.city);
+  if (dayCity) return dayCity;
+  const explicit = regionCityKey(departureCity);
+  if (explicit) return explicit;
+  const list = Array.isArray(regions) ? regions : [];
+  return list.length ? regionCityKey(list[list.length - 1]) : '';
+}
+
+/**
  * 2026-10-26: 도착 휴식일·arrival_ready_time 의 Day1 도시 키 — **요청 입력**에서만 정한다(모델이 쓴 Day1 city 무관).
  *   arrival_city 우선 → regions[0] → area. userMessageBuilder·handlerCore·게이트·worker·수정 API·mock 이 같은 식.
  */
@@ -424,10 +458,10 @@ export function validatePatternStructure(itinerary, request = {}) {
   // regions + day.city 둘 다 영문 lowercase 정규화 후 비교.
   if (isMultiCity) {
     // 정규화 키 (영문 lowercase) → 원본 region 문자열 (오류 메시지용)
-    const normalizedToOriginal = Object.fromEntries(regions.map((r) => [normalizeRegionKey(r), r]));
+    const normalizedToOriginal = Object.fromEntries(regions.map((r) => [regionCityKey(r), r]));
     const cityHits = Object.fromEntries(Object.keys(normalizedToOriginal).map((k) => [k, 0]));
     for (const d of days) {
-      const cityKey = normalizeRegionKey(String(d?.city || '').trim());
+      const cityKey = regionCityKey(String(d?.city || '').trim());
       if (cityKey && cityHits[cityKey] !== undefined) cityHits[cityKey]++;
     }
     const missing = Object.entries(cityHits)
@@ -507,11 +541,11 @@ export function validatePatternStructure(itinerary, request = {}) {
       // otherCities 에 포함 → hay.includes('서울') = TRUE (서울 주소에 '서울' 포함) →
       // hasExplicitOtherCity = TRUE → **false positive**.
       // Fix: normalizeRegionKey() 로 regions 엔트리를 영문 lowercase 로 정규화한 뒤 dayCity 와 비교.
-      const dayCityNorm = normalizeRegionKey(dayCity); // 'Seoul' → 'seoul'
-      const otherCities = regions.filter((r) => normalizeRegionKey(r) !== dayCityNorm);
+      const dayCityNorm = regionCityKey(dayCity); // 'Seoul' → 'seoul'
+      const otherCities = regions.filter((r) => regionCityKey(r) !== dayCityNorm);
       const hasExplicitOtherCity = otherCities.some((other) => {
         // other 는 한글 또는 영문. 영문 alias + 한글 alias 모두 검사.
-        const otherNorm = normalizeRegionKey(other); // 정규화 영문 키
+        const otherNorm = regionCityKey(other); // 정규화 영문 키
         const otherEngKey = otherNorm.charAt(0).toUpperCase() + otherNorm.slice(1); // PascalCase
         const otherKorKey = other.toLowerCase(); // 원본 한글 lowercase
         const otherAliases = CITY_KOR_ALIASES[otherEngKey] || [];

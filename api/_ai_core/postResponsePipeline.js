@@ -33,7 +33,7 @@ import { loadFoodIndex } from './geminiPipeline.js';
 import { enrichItineraryWithRoute } from './routeEnrichment.js';
 import { calcPrice } from './vehicleAndPrice.js';
 import { throttledTelegramAlert } from '../_shared/telegram-throttle.js';
-import { applyBlockModeDietaryWarnings, normalizeRegionKey, arrivalRestDayCityKey } from './responseValidator.js';
+import { applyBlockModeDietaryWarnings, normalizeRegionKey, arrivalRestDayCityKey, departureCityKey } from './responseValidator.js';
 import { applyDepartureDayFlightCap } from './blockMode.js';
 import { assertFinalItineraryValid, assertNoDuplicateStops, tripTimesFrom } from './finalItineraryGate.js';
 import { resolveTourEndTime, arrivalRestDayInfo } from './constants.js';
@@ -222,7 +222,11 @@ export async function runRouteEnrichment(itinerary, ctx) {
     const _depRegions = Array.isArray(body?.regions) ? body.regions : [];
     // P-launch (2026-05-31): normalizeRegionKey — 한글 '부산' → 'busan'. hotelByCity 키는 영문(seoul/busan)
     //   이므로 정규화 없이 '부산' 조회하면 undefined → 첫 도시(명동) 폴백 = 비행기 놓침 risk (P321 trap).
-    const _depCity = _depRegions.length >= 2 ? normalizeRegionKey(_depRegions[_depRegions.length - 1]) : null;
+    // 2026-10-26: departureCityKey — 실제 마지막 날 도시 → 명시 출국 도시 → regions 마지막(ja/zh 표시명 포함). 예전엔 regions
+    //   마지막만 봐서 ['서울','부산','제주']+출국 부산이 제주 호텔 라벨이 됐고, ja/zh '釜山' 은 조회 실패 → 첫 도시 호텔.
+    const _depCity = _depRegions.length >= 2
+      ? (departureCityKey({ departureCity: body?.departure_city || body?.departureCity, days: itinerary?.days, regions: _depRegions }) || null)
+      : null;
     const _departureHotelLabel = _depCity ? (body?.hotelByCity?.[_depCity] || null) : null;
     selfHealDepartureGuide(itinerary, departure_airport, {
       hotel_address: hotel_address || hotelAddressFromBody,

@@ -179,6 +179,8 @@ export async function enrichItineraryWithRoute(itinerary, { apiKey, body, langua
       // 2026-05-10 (P0-1 launch blocker): regions array — RouteAgent.js
       // _enrichMultiCityDays() 가 regions.length>=2 시 작동. 누락 시 PR #331 다도시
       // fix 가 backend 에서 dead code (audit A 발견).
+      // 2026-10-26: 명시 출국 도시 — RouteAgent 출국 출발지(departureCityKey)가 마지막 날 도시가 없을 때 regions 마지막보다 먼저 쓴다.
+      departure_city: body.departure_city || body.departureCity || '',
       regions: Array.isArray(body.regions) && body.regions.length > 0
         ? body.regions
         : (body.area ? [body.area] : []),
