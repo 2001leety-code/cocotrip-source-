@@ -379,14 +379,21 @@ export function mealWindowsFromRequest(src = {}) {
 export function mealWindowsFromCtx(ctx = {}) {
   if (ctx.mealWindows !== undefined) return ctx.mealWindows;
   const b = ctx.body || {};
+  const first = (...vals) => vals.find((v) => v !== undefined && v !== null && v !== '');
+  // shaped(ctx) 값이 원 body 보다 먼저 — mealWindowsFromRequest 는 camel 키를 먼저 고르므로 camel 키로 넘긴다
+  //   (snake 로만 덮으면 body 의 camel departureAirport 등이 shaped 값을 이겨 sync 창과 달라진다, PR1 r2).
   return mealWindowsFromRequest({
     ...b,
-    durationDays: ctx.durationDays || b.durationDays,
-    arrival_airport: ctx.arrival_airport || b.arrival_airport || b.arrivalAirport,
-    departure_airport: ctx.departure_airport || b.departure_airport || b.departureAirport,
+    durationDays: first(ctx.durationDays, b.durationDays, b.duration_days),
+    arrivalAirport: first(ctx.arrival_airport, b.arrival_airport, b.arrivalAirport),
+    departureAirport: first(ctx.departure_airport, b.departure_airport, b.departureAirport),
+    arrivalTime: first(ctx.arrivalTime, b.arrivalTime, b.arrival_time),
+    departureTime: first(ctx.departureTime, b.departureTime, b.departure_time),
+    tourStartTime: first(ctx.tourStartTime, b.tourStartTime, b.tour_start_time),
+    tourEndTime: first(ctx.tourEndTime, b.tourEndTime, b.tour_end_time),
     regions: Array.isArray(ctx.regions) ? ctx.regions : b.regions,
-    area: ctx.area || b.area,
-    arrivalCity: ctx.arrivalCity || b.arrival_city || b.arrivalCity,
+    area: first(ctx.area, b.area),
+    arrivalCity: first(ctx.arrivalCity, b.arrival_city, b.arrivalCity),
   });
 }
 
