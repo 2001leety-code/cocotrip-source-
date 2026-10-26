@@ -45,6 +45,9 @@ import { buildUserMessage } from './userMessageBuilder.js';
 import { runRouteEnrichment, applyBackfillsAndTmoney, applyRecommendedRestaurants, computePricing, savePlan } from './postResponsePipeline.js';
 import { dispatchOrInlineForHandlerCore, shouldDispatchToInngest } from './inngestDispatch.js';
 
+// 2026-10-26: 런타임 Node 버전 확인용 — 모듈 최상위(콜드스타트당 1회), 요청마다 찍지 않는다.
+console.log(`[runtime] node=${process.version} region=${process.env.VERCEL_REGION || '-'}`);
+
 // Phase 4 A/B test (2026-05-13): mode resolved per-request via
 // decidePlannerMode (api/_ai_core/plannerMode.js). Inputs: uid / guestEmail /
 // sessionId hash → bucket [0..99] → < PLANNER_AB_3PASS_PCT means 3-pass.

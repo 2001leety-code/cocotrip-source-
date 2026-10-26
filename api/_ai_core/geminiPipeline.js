@@ -24,6 +24,8 @@ import { selfHealLodgingBookend, updatePlanProgressive } from './planPersister.j
 import { recordGeminiUsage } from '../_shared/apiUsageRecorder.js';
 import { replaceViolatingFoodStops } from './dietaryStopReplacer.js';
 import { runFinalItineraryValidation, buildFinalGateError, FINAL_GATE_DUPLICATE_CODE } from './finalItineraryGate.js';
+// 2026-10-26: 텔레그램 HTML 알림 본문의 검증기 유래 문자열("0% < 30%", "stops.length=3 < 4") 이스케이프 — 파싱 거절 방지.
+import { escapeTelegram } from '../_shared/escape.js';
 
 /**
  * pass2Resolve fail-closed (Busan #1438): 미사용 DB 식당이 없을 때 던지는 에러.
@@ -1534,7 +1536,7 @@ export async function runGeminiPipeline({ apiKey, systemPrompt, userMessage, are
           message: (isAdminBypass
             ? '🟡 <b>AI 플랜 구조 검증 실패 — admin Test Mode (3pass, SOFT)</b>\n\n'
             : '🔴 <b>AI 플랜 구조 검증 실패 (3pass)</b>\n\n')
-            + patternErrors.slice(0, 5).join('\n')
+            + patternErrors.slice(0, 5).map((e) => escapeTelegram(String(e))).join('\n')
             + (isAdminBypass
               ? '\n\n운영자(admin Test Mode) 요청 — plan 저장 진행. prompt/validator 점검 필요.'
               : '\n\n사용자 1회 재시도 후 새 플랜 생성. 재발 시 prompt/validator 점검 필요.'),
@@ -1570,7 +1572,7 @@ export async function runGeminiPipeline({ apiKey, systemPrompt, userMessage, are
           key: 'plan-quality-local-tag-low',
           channel: 'error',
           severity: 'low',
-          message: '🟡 <b>Plan 다양성 미달 (B-18)</b>\n\n' + softWarnings.map((w) => w.message).join('\n'),
+          message: '🟡 <b>Plan 다양성 미달 (B-18)</b>\n\n' + softWarnings.map((w) => escapeTelegram(w.message)).join('\n'),
           context: { mode: '3pass', warnings: softWarnings.slice(0, 3) },
         }).catch(() => {});
       }
@@ -1847,7 +1849,7 @@ export async function runGeminiPipeline({ apiKey, systemPrompt, userMessage, are
           message: (isAdminBypass
             ? '🟡 <b>AI 플랜 구조 검증 실패 — admin Test Mode (legacy, SOFT)</b>\n\n'
             : '🔴 <b>AI 플랜 구조 검증 실패 (legacy)</b>\n\n')
-            + patternErrors.slice(0, 5).join('\n')
+            + patternErrors.slice(0, 5).map((e) => escapeTelegram(String(e))).join('\n')
             + (isAdminBypass
               ? '\n\n운영자(admin Test Mode) 요청 — plan 저장 진행. prompt/validator 점검 필요.'
               : '\n\n사용자 1회 재시도 후 새 플랜 생성. 재발 시 prompt/validator 점검 필요.'),
@@ -1883,7 +1885,7 @@ export async function runGeminiPipeline({ apiKey, systemPrompt, userMessage, are
           key: 'plan-quality-local-tag-low',
           channel: 'error',
           severity: 'low',
-          message: '🟡 <b>Plan 다양성 미달 (B-18)</b>\n\n' + softWarnings.map((w) => w.message).join('\n'),
+          message: '🟡 <b>Plan 다양성 미달 (B-18)</b>\n\n' + softWarnings.map((w) => escapeTelegram(w.message)).join('\n'),
           context: { mode: 'legacy', warnings: softWarnings.slice(0, 3) },
         }).catch(() => {});
       }
