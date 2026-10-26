@@ -214,7 +214,8 @@ describe('C r1-4a — no-meal notice: always visible on the intro slide, causes 
     expect(noMealStopsInfo(noMeals, { arrival_rest_day: 'yes', departure_time: '11:00' })).toEqual({ show: true, lateArrival: false, earlyDeparture: false });
     expect(noMealStopsInfo(noMeals, { arrival_rest_day: true, departure_time: '10:00:00' })).toMatchObject({ earlyDeparture: true });
     expect(noMealStopsInfo({ days: [{ stops: [lodging('23:00')] }, { stops: [food('A', '08:00')] }] }, {})).toMatchObject({ show: false });
-    expect(noMealStopsInfo({ days: [{ stops: [lodging('09:00')] }] }, {})).toMatchObject({ show: false });
+    // 2026-10-26 (첫날 도착 PR1 r2, 운영 정책): 1일 여행 식사 0곳도 안내 — 원인 문구 없이.
+    expect(noMealStopsInfo({ days: [{ stops: [lodging('09:00')] }] }, { arrival_rest_day: true, departure_time: '10:00' })).toEqual({ show: true, lateArrival: false, earlyDeparture: false });
     expect(noMealStopsInfo(null, null)).toMatchObject({ show: false });
   });
   it('IntroSlide renders it un-collapsed; the auto-correction panel no longer carries it; 4-locale copy', () => {

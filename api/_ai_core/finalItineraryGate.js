@@ -145,6 +145,8 @@ export function tripTimesFrom(source) {
     tour_end_time: hhmm(s.tour_end_time || s.tourEndTime),
     // 2026-10-26: 호출부가 요청 입력으로 계산한 휴식일 여부(boolean 일 때만) — validatePatternStructure 의 플래그 우선 경로.
     ...(typeof s.arrival_rest_day === 'boolean' ? { arrival_rest_day: s.arrival_rest_day } : {}),
+    // 2026-10-26 (첫날 도착 PR1): 호출부가 계산한 1일 여행 끼니 창(객체일 때만 그대로) — 필수 끼니 판정이 같은 값을 쓴다.
+    ...(s.meal_windows && typeof s.meal_windows === 'object' ? { meal_windows: s.meal_windows } : {}),
   };
 }
 

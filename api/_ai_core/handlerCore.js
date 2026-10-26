@@ -18,7 +18,7 @@ import { getMountainContextForPrompt } from '../_mountain_helper.js'; // P191 SA
 import { getRunningContextForPrompt } from '../_running_helper.js'; // P237: Running 코스 16개 DB
 import { throttledTelegramAlert } from '../_shared/telegram-throttle.js';
 import { CORS, arrivalRestDayInfo } from './constants.js';
-import { arrivalRestDayCityKey } from './responseValidator.js';
+import { arrivalRestDayCityKey, mealWindowsFromRequest } from './responseValidator.js';
 import { buildSystemPrompt, logPromptMetrics, buildRevisionInstruction } from './buildPrompt.js';
 import { loadFoodIndex, runGeminiPipeline } from './geminiPipeline.js';
 import { initAdminDb } from './firestoreAdmin.js';
@@ -205,6 +205,8 @@ export default async function handler(req, res) {
     const arrivalRestDay = arrivalRestDayInfo({
       arrivalTime, arrivalAirport: arrival_airport, cityKey: arrivalRestDayCityKey({ arrivalCity, regions, area }), tourEndTime,
     }).rest && Number(durationDays) > 1;
+    // 2026-10-26 (첫날 도착 PR1): 1일 여행 끼니 창 — 요청 입력으로 한 번 계산(다일 = null). 생성 검증·프롬프트·게이트가 같은 값.
+    const mealWindows = mealWindowsFromRequest(shaped);
     // P298 (2026-05-29) SAFETY-CRITICAL: 할랄/비건이 dietaryRestrictions 칸으로 들어옴 (WizardForm DIETARY_RESTRICTION_KEYS). dietPrefs 만 보던 검증·필터·추천·저장·dispatch 체인에 합집합 전달 ('None' 제외). 검증 함수(responseValidator/_food_helper)는 'Halal'/'Vegan' 문자열 처리 가능 — 값 도달만 하면 즉시 작동.
     const dietaryAll = [...new Set([...(Array.isArray(dietPrefs) ? dietPrefs : []), ...(Array.isArray(dietaryRestrictions) ? dietaryRestrictions : [])])].filter((d) => d && d !== 'None');
     // 2026-07-11 SAFETY: 검증 후보 0 도시 = 422. 2026-10-24: 식사 도시 집합(regions + 명시 입·출국 도시) 하나를
@@ -261,7 +263,7 @@ export default async function handler(req, res) {
     try { attractionsContext = getAttractionsContext({ city: area, styles, language, maxLocations: 6 }) || ''; } catch (e) { console.warn('[ai-planner-full] getAttractionsContext failed:', e.message); }
     try { const s = Array.isArray(styles) ? styles : []; const h = s.includes('Hallasan'); if (h || s.includes('Trekking') || s.includes('NamsanHike')) mountainContext = getMountainContextForPrompt({ regions: Array.isArray(regions) && regions.length > 0 ? regions : [area], hallaOnly: h, language, maxItems: 5 }) || ''; } catch (e) { console.warn('[ai-planner-full] getMountainContextForPrompt failed (P191):', e.message); }
     try { const s = Array.isArray(styles) ? styles : []; if (s.includes('HangangRun') || s.includes('Running')) runningContext = getRunningContextForPrompt({ cities: Array.isArray(regions) && regions.length > 0 ? regions : [area], language, maxItems: 4 }) || ''; } catch (e) { console.warn('[ai-planner-full] getRunningContextForPrompt failed (P237):', e.message); }
-    const userMessage = buildUserMessage({ shaped, body, spotContext, foodContext, attractionsContext, mountainContext, runningContext, arrivalRestDay });
+    const userMessage = buildUserMessage({ shaped, body, spotContext, foodContext, attractionsContext, mountainContext, runningContext, mealWindows, arrivalRestDay });
 
     // ── AVOID 리스트 (최근 plan 식당 중복 방지) ────────────────────────────
     const { clause: avoidClause, foodNames: recentFoodNames, blockIds: recentBlockIds } = await withStep('avoidClause', () => buildAvoidContext(adminDb, { uid: verifiedHistoryUid }));
@@ -353,6 +355,8 @@ export default async function handler(req, res) {
         // 2026-10-26: 도착 휴식일 여부만 미리 계산해 넘긴다(시각 자체는 넘기지 않는다 — 꺼져 있던 B-LATE-ARRIVAL·P137
         //   시각 규칙을 생성 단계에서 새로 켜지 않게). 휴식일이면 Day1 숙소만이 B-MEAL/B-12 로 거절되지 않는다.
         arrival_rest_day: arrivalRestDay,
+        // 2026-10-26 (첫날 도착 PR1): 1일 끼니 창만 넘긴다(원시 시각은 넘기지 않음 — B-LATE-ARRIVAL·P137 시각 규칙은 계속 꺼짐).
+        meal_windows: mealWindows,
       },
       // P169: streaming 모드에서 progressive Firestore write 용
       ...(streamingPlanId ? { adminDb, planId: streamingPlanId } : {}),
@@ -408,7 +412,7 @@ export default async function handler(req, res) {
 
     // ── Must-visit 맛집 추천 ──────────────────────────────────────────────
     // 저장 전 마지막 식이/식사 게이트; avoidStopNames 는 재생성에만 적용한다.
-    const foodIndexForQuality = await withStep('finalGate', () => applyRecommendedRestaurants(itinerary, { area, dietPrefs: dietaryAll, regions, blockModeUsed, language, styles, avoidStopNames, departureTime, arrivalTime, arrival_airport, tourEndTime, arrivalRestDay }));
+    const foodIndexForQuality = await withStep('finalGate', () => applyRecommendedRestaurants(itinerary, { area, dietPrefs: dietaryAll, regions, blockModeUsed, language, styles, avoidStopNames, departureTime, arrivalTime, arrival_airport, tourEndTime, arrivalRestDay, mealWindows }));
 
     // ── 예상 여행비 (판매가 아님) — 화면·PDF 표시용. 결제/적립/환불에 절대 넘기지 말 것.
     //    원장은 결제 검증된 booking.amountUSD 만 본다(booking-processor readVerifiedLedgerBasis).
@@ -437,7 +441,7 @@ export default async function handler(req, res) {
 
     // ── P168/P170/P171/P172/P173: Pass3 background trigger (fire-and-forget; backgroundPipelines.js 추출; gate.isAdminBypass 명시 전달)
     //   2026-08-24: dietary/styles 전달 — background enrich 결과가 종단 검증을 통과할 때만 Firestore 를 덮어쓴다.
-    triggerPass3BackgroundIfPending({ adminDb, planId, language, apiKey, itinerary, isAdminBypass: !!gate.isAdminBypass, identifierForBucketing, dietary: dietaryAll, styles, tripTimes: tripTimesFrom({ departureTime, arrivalTime, arrivalAirport: arrival_airport, area, regions, tourEndTime, arrival_rest_day: arrivalRestDay }), avoidStopNames });
+    triggerPass3BackgroundIfPending({ adminDb, planId, language, apiKey, itinerary, isAdminBypass: !!gate.isAdminBypass, identifierForBucketing, dietary: dietaryAll, styles, mealWindows, tripTimes: tripTimesFrom({ departureTime, arrivalTime, arrivalAirport: arrival_airport, area, regions, tourEndTime, arrival_rest_day: arrivalRestDay }), avoidStopNames });
 
     // ── JSON 응답 ────────────────────────────────────────────────────────
     // P169: streaming 모드에서는 이미 early response 전송 완료 → skip.

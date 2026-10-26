@@ -34,7 +34,7 @@ import {
 } from './_ai_core/blockMode.js';
 import { loadFoodIndex } from './_ai_core/geminiPipeline.js';
 import { backfillStopEndTimes, applyArrivalRestNote } from './_ai_core/planPersister.js';
-import { validatePatternStructure, arrivalRestDayCityKey } from './_ai_core/responseValidator.js';
+import { validatePatternStructure, arrivalRestDayCityKey, mealWindowsFromRequest } from './_ai_core/responseValidator.js';
 import { arrivalRestDayInfo, resolveTourEndTime } from './_ai_core/constants.js';
 import { normalizeRevisits, applyRevisitNotes, clearReplacedLegs, applyFoodRowToStop, safetyDiets } from './_ai_core/revisitPolicy.js';
 import { runDuplicateStopGate } from './_ai_core/finalItineraryGate.js';
@@ -755,6 +755,8 @@ export default async function handler(req, res) {
       departure_airport: planData.input?.departure_airport || '',
       durationDays: itinerary.days.length,
       arrival_rest_day: arrivalRestDay,
+      // 2026-10-26 (첫날 도착 PR1): 1일 끼니 창 — 저장된 input 으로 재계산(없으면 1일 3곳 플랜을 수정할 때마다 B-12/B-MEAL 422).
+      meal_windows: mealWindowsFromRequest({ ...(planData.input || {}), durationDays: itinerary.days.length }),
     });
     if (patternErrors.length > 0) {
       // rollback

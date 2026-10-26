@@ -38,7 +38,7 @@ import {
   // 도착·출국 계산 — buildPrompt(Gemini 경로)와 같은 값을 쓰기 위해 constants 로 옮겼다.
   // 거리 보정판(estimateAirportTransitMinFrom)은 출국일에만 배선돼 있었는데 도착일도
   // 같이 쓰게 되면서 leaf 로 올렸다(2026-08-04).
-  estimateAirportTransitMinFrom, hhmmToMin, arrivalReadyMinutes, arrivalRestDayInfo,
+  estimateAirportTransitMinFrom, hhmmToMin, arrivalReadyMinutes, arrivalRestDayInfo, departureActivityDeadlineMin,
 } from './constants.js';
 import { repairAndParseJSON, normalizeRegionKey, arrivalRestDayCityKey, regionCityKey } from './responseValidator.js';
 import { stopDuplicateKey } from './qualityMetrics.js';
@@ -733,7 +733,8 @@ export function applyDepartureDayFlightCap(stops, departureTime, departureAirpor
   if (depMin < 0) return result;
   const airportArriveMin = depMin - AIRPORT_ARRIVE_BEFORE_MIN;
   const transitMin = estimateAirportTransitMinFrom(cityKey, departureAirport);
-  const activityDeadlineMin = airportArriveMin - transitMin;
+  // 출국 활동 마감 = 출국 − 공항 도착 여유 − 공항 이동 — 1일 끼니 창(constants.singleDayMealWindows)과 같은 함수.
+  const activityDeadlineMin = departureActivityDeadlineMin(depMin, departureAirport, cityKey);
 
   const isProtected = (s) => s.category === 'lodging' || s.category === 'airport' || s.category === 'travel';
   const endMinOf = (s) => {

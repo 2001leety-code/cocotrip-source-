@@ -177,6 +177,42 @@ export function resolveTourEndTime(source) {
   return `${String(Math.floor(min / 60)).padStart(2, '0')}:${String(min % 60).padStart(2, '0')}`;
 }
 
+// 2026-10-26 (첫날 도착 PR1): 1일 여행 끼니 창. 식당 체류 = buildPrompt "restaurant 60" 과 같은 값.
+export const MEAL_STAY_MIN = 60;
+const DEFAULT_TOUR_START_MIN = 9 * 60;
+const LUNCH_WINDOW = [11 * 60, 17 * 60];  // B-MEAL 점심(오후 식사) [11,17)
+const DINNER_WINDOW = [17 * 60, 22 * 60]; // B-MEAL 저녁 [17,22)
+
+/** 출국일 활동 마감(분) = 출국 − 공항 도착 여유 − 공항 이동. blockMode.applyDepartureDayFlightCap 과 같은 식(공유). */
+export function departureActivityDeadlineMin(depMin, departureAirport, cityKey) {
+  return depMin - AIRPORT_ARRIVE_BEFORE_MIN - estimateAirportTransitMinFrom(cityKey, departureAirport);
+}
+
+/**
+ * 1일 여행(durationDays === 1)의 끼니별 **가능한 시작 범위** — 그 밖은 null(다일 여행은 항상 null).
+ *   R = max(도착 준비 시각, 투어 시작) — 투어 시작이 엄격 HH:MM 이 아니면(숫자·객체 포함) 09:00.
+ *   상한 = min(끼니 창 끝 − 1분, 투어 종료 − 1분, 출국 활동 마감 − 식당 체류) — 출국 시각이 엄격 HH:MM 일 때만 마감 적용.
+ *   from ≤ to 일 때만 { from, to }(HH:MM), 아니면 null = 그 끼니는 이 일정에서 불가능 → 필수 아님. 순수.
+ * @returns {null | { lunch: {from: string, to: string} | null, dinner: {from: string, to: string} | null }}
+ */
+export function singleDayMealWindows({ durationDays, arrivalTime, arrivalAirport, cityKey, tourStartTime, tourEndTime, departureTime, departureAirport } = {}) {
+  if (Number(durationDays) !== 1) return null;
+  const startParsed = typeof tourStartTime === 'string' ? strictHHMMToMin(tourStartTime) : null;
+  const tourStartMin = startParsed === null ? DEFAULT_TOUR_START_MIN : startParsed;
+  const ready = strictHHMMToMin(arrivalTime) === null ? null : arrivalReadyMinutes(String(arrivalTime).trim().slice(0, 5), arrivalAirport, cityKey);
+  const R = Math.max(tourStartMin, ready === null ? 0 : ready);
+  const endMin = strictHHMMToMin(resolveTourEndTime({ tourEndTime }));
+  const depMin = strictHHMMToMin(departureTime);
+  const cutoff = depMin === null ? Infinity : departureActivityDeadlineMin(depMin, departureAirport || arrivalAirport, cityKey);
+  const fmt = (m) => `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
+  const win = ([lo, hi]) => {
+    const from = Math.max(R, lo);
+    const to = Math.min(hi - 1, endMin - 1, cutoff - MEAL_STAY_MIN);
+    return from <= to ? { from: fmt(from), to: fmt(to) } : null;
+  };
+  return { lunch: win(LUNCH_WINDOW), dinner: win(DINNER_WINDOW) };
+}
+
 /**
  * 도착 휴식일 판정(순수 — 로그·부작용 없음). 검증기·게이트·mock·안내가 이 함수 하나만 쓴다(경계값 복제 금지).
  *   (i)  도착 시각 ≥ 18:00 → late_arrival

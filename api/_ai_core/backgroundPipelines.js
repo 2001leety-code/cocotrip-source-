@@ -104,7 +104,9 @@ export function isSkeletonInWorkerEnabled() {
  *   GEMINI_ADMIN_BYPASS_MODEL 우선 (운영자 Pro→Flash 비교 시 background tip 도 Flash).
  *   dietary/styles — 종단 검증 입력 (없으면 식이 요구 없는 손님 = 검증 no-op).
  */
-export function triggerPass3BackgroundIfPending({ adminDb, planId, language, apiKey, itinerary, isAdminBypass, identifierForBucketing, dietary, styles, tripTimes, avoidStopNames }) {
+export function triggerPass3BackgroundIfPending({ adminDb, planId, language, apiKey, itinerary, isAdminBypass, identifierForBucketing, dietary, styles, tripTimes: tripTimesIn, mealWindows, avoidStopNames }) {
+  // 2026-10-26 (첫날 도착 PR1): 1일 끼니 창(객체일 때만) — sync 종단 게이트와 같은 필수 끼니 기준.
+  const tripTimes = tripTimesIn && mealWindows && typeof mealWindows === 'object' ? { ...tripTimesIn, meal_windows: mealWindows } : tripTimesIn;
   if (!itinerary._pass3_pending || !isPass3BackgroundEnabled()) return;
 
   // fire-and-forget — UnhandledPromiseRejection 방지를 위해 .catch() 필수.
