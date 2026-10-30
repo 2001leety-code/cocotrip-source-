@@ -39,6 +39,7 @@ import {
   // 거리 보정판(estimateAirportTransitMinFrom)은 출국일에만 배선돼 있었는데 도착일도
   // 같이 쓰게 되면서 leaf 로 올렸다(2026-08-04).
   estimateAirportTransitMinFrom, hhmmToMin, arrivalReadyMinutes, arrivalRestDayInfo, departureActivityDeadlineMin,
+  MEAL_ROLE_WINDOWS,
 } from './constants.js';
 import { repairAndParseJSON, normalizeRegionKey, arrivalRestDayCityKey, regionCityKey } from './responseValidator.js';
 import { stopDuplicateKey } from './qualityMetrics.js';
@@ -724,6 +725,35 @@ function addMinutesToHHMM(hhmm, minutes) {
  *   마지막 day 에 한 번 더 부른다. 두 번 불러도 안전하다 — 초과 활동이 없으면 filter 가
  *   no-op 이고, 공항 stop 이 이미 마감 안이면 시각도 안 건드린다.
  */
+/**
+ * 2026-10-26 (첫날 도착 PR2): 첫날(휴식일 아님) 투어 종료 cap 이 지우려는 음식 stop 구제 — 블록 offset 이 늦은 준비 시각에
+ *   더해져 종료 뒤로 밀린 저녁을 미리 지우면 RouteAgent 가 식사 창 안으로 배치할 후보가 없다. 역할 시각(자정 넘김이면 +1440)
+ *   기준 역할(17:00 전 점심, 아니면 저녁) 창이 [dayStart, tourEnd) 와 1분이라도 겹치면 남긴다 — **역할별 첫 1곳**만
+ *   (이미 남은 같은 역할 식사가 있으면 구제하지 않는다). 11:00 전 역할(조식)·다른 날은 종전 cap 그대로. 순수(Set 갱신만).
+ * @returns {boolean} 남기면 true
+ */
+export function rescueFirstDayMeal(stop, m, pastMidnight, dayStartMin, capMin, keptRoles) {
+  if (stop.category !== 'food' || m < 0 || dayStartMin < 0) return false;
+  const roleMin = pastMidnight ? m + 24 * 60 : m;
+  if (roleMin < MEAL_ROLE_WINDOWS.lunch[0]) return false;
+  const role = roleMin < MEAL_ROLE_WINDOWS.dinner[0] ? 'lunch' : 'dinner';
+  const [from, to] = MEAL_ROLE_WINDOWS[role];
+  if (keptRoles.has(role) || !(from < capMin && dayStartMin < to)) return false;
+  keptRoles.add(role);
+  return true;
+}
+
+/** 종전 cap 에서 살아남은 음식 stop 의 역할 — 구제는 비어 있는 역할만. */
+function keptMealRoles(stops, isKept) {
+  const roles = new Set();
+  for (const s of stops) {
+    if (s.category !== 'food' || !isKept(s)) continue;
+    const m = hhmmToMin(s.start_time);
+    if (m >= MEAL_ROLE_WINDOWS.lunch[0]) roles.add(m < MEAL_ROLE_WINDOWS.dinner[0] ? 'lunch' : 'dinner');
+  }
+  return roles;
+}
+
 export function applyDepartureDayFlightCap(stops, departureTime, departureAirport, language, cityKey) {
   const result = { trimmed: 0, airportStopAdded: false };
   if (!Array.isArray(stops)) return result;
@@ -1475,13 +1505,20 @@ export function expandBlocksToItinerary(blockSelections, blocks, userInput) {
       const dayStartMin = toMin(dayStart);
       const isProtected = (s) => s.category === 'lodging' || s.category === 'airport' || s.category === 'travel';
       const orig = stops.slice();
-      const kept = orig.filter((s) => {
-        if (isProtected(s)) return true;            // 호텔/공항/이동 = 보존
-        if (arrivalRestDay) return false;           // 휴식일 = 모든 관광 제거
+      const capKeeps = (s) => {
         const m = toMin(s.start_time);
         if (m < 0) return true;
         const pastMidnight = dayStartMin >= 0 && m < dayStartMin;
         return !(pastMidnight || m > capMin);       // 종료 초과 / 자정 넘김 = 제거
+      };
+      // PR2: 첫날(휴식일 아님) — 역할 식사 창이 하루 범위와 겹치는 음식 stop 은 역할별 첫 1곳 유지(배치는 RouteAgent).
+      const d1Roles = isFirstDay && !arrivalRestDay ? keptMealRoles(orig, capKeeps) : null;
+      const kept = orig.filter((s) => {
+        if (isProtected(s)) return true;            // 호텔/공항/이동 = 보존
+        if (arrivalRestDay) return false;           // 휴식일 = 모든 관광 제거
+        if (capKeeps(s)) return true;
+        const m = toMin(s.start_time);
+        return !!d1Roles && rescueFirstDayMeal(s, m, dayStartMin >= 0 && m < dayStartMin, dayStartMin, capMin, d1Roles);
       });
       stops.length = 0;
       // 🔴 2026-08-03: "최소 1개(anchor) 보장" 폴백은 stops[0] 이 숙소라는 가정으로 쓰였다.
@@ -2153,13 +2190,20 @@ export function expandBlocksToItineraryMultiCity(blockSelections, cityBlocksList
       const dayStartMin = toMin(dayStart);
       const isProtected = (s) => s.category === 'lodging' || s.category === 'airport' || s.category === 'travel';
       const orig = stops.slice();
-      const kept = orig.filter((s) => {
-        if (isProtected(s)) return true;
-        if (arrivalRestDay) return false;
+      const capKeeps = (s) => {
         const m = toMin(s.start_time);
         if (m < 0) return true;
         const pastMidnight = dayStartMin >= 0 && m < dayStartMin;
         return !(pastMidnight || m > capMin);
+      };
+      // PR2: 단도시 expand 와 같은 첫날 식사 유지(rescueFirstDayMeal).
+      const d1Roles = isFirstDay && !arrivalRestDay ? keptMealRoles(orig, capKeeps) : null;
+      const kept = orig.filter((s) => {
+        if (isProtected(s)) return true;
+        if (arrivalRestDay) return false;
+        if (capKeeps(s)) return true;
+        const m = toMin(s.start_time);
+        return !!d1Roles && rescueFirstDayMeal(s, m, dayStartMin >= 0 && m < dayStartMin, dayStartMin, capMin, d1Roles);
       });
       stops.length = 0;
       // 🔴 2026-08-07 (#1229 후속): 단도시(1256)만 고치고 여기는 옛 무조건 폴백이 남아

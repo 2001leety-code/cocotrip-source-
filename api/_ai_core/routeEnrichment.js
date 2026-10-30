@@ -14,6 +14,7 @@
  * itinerary.quality_warnings 에 기록 + console.warn — 운영자 분석용.
  */
 import { RouteAgent } from './agents/RouteAgent.js';
+import { resolveArrivalTime, resolveTourStartTime, resolveTourEndTime, resolveDepartureTime } from './constants.js';
 import { throttledTelegramAlert } from '../_shared/telegram-throttle.js';
 import { computeDayRouteMetrics, isExcessiveDayRoute } from './routeQuality.js';
 // 진단 로그가 "어느 env 이름이 있나" 가 아니라 "RouteAgent 가 실제로 쓸 키가 있나" 를 찍게.
@@ -157,7 +158,12 @@ export async function enrichItineraryWithRoute(itinerary, { apiKey, body, langua
     // using the ODsay airport↔hotel routing added in this release.
     const wrapped = {
       itinerary: {
-        days: (itinerary.days || []).map((d) => ({ ...d, places: d.stops || [] })),
+        // 2026-10-26 (첫날 도착 PR2): stop 마다 숨은 원래 위치 _ri — TSP 재정렬·관광 삭제 뒤에도 아래 병합이 같은 stop 의
+        //   입장료·예약 정보를 붙인다(순번 병합이면 Near 에 Far 의 입장료가 붙었다). RouteAgent 는 stop 객체를 제자리에서만 바꾼다.
+        days: (itinerary.days || []).map((d) => {
+          const tagged = (d.stops || []).map((s, j) => ({ ...s, _ri: j }));
+          return { ...d, stops: tagged, places: tagged }; // RouteAgent 는 stops 를 먼저 읽는다
+        }),
         arrival_guide: itinerary.arrival_guide,
         departure_guide: itinerary.departure_guide,
       },
@@ -167,7 +173,13 @@ export async function enrichItineraryWithRoute(itinerary, { apiKey, body, langua
       departure_airport,
       // Wizard inputs used for smart airport-transport recommendation
       // (late-night arrival → limousine, heavy luggage → taxi, etc.)
-      arrival_time: body.arrival_time || '',
+      // 2026-10-26 (첫날 도착 PR2): 정규화 시각(camel 우선 + snake, 엄격 HH:MM) — 웹은 camel arrivalTime 을 보내
+      //   예전엔 '' 가 넘어가 Day1 도착 바닥이 꺼져 있었다. pickRecommendedTransport 도 이제 실제 도착 시각을 받는다.
+      arrival_time: resolveArrivalTime(body),
+      tour_start_time: resolveTourStartTime(body),
+      tour_end_time: resolveTourEndTime(body),
+      // 1일 여행만: 식사 상한에 PR1 출국 활동 마감(departureActivityDeadlineMin) 적용.
+      ...((itinerary.days || []).length === 1 ? { departure_time: resolveDepartureTime(body) } : {}),
       luggage: body.luggage || null,
       pax,
       // 2026-05-05: area + recommended_zone 누락 → RouteAgent 의 hotel→airport
@@ -215,10 +227,12 @@ export async function enrichItineraryWithRoute(itinerary, { apiKey, body, langua
           console.log(`[planner] Day ${i + 1}: ${enrichedStops.length} stops, ${geoCount} geocoded, ${odsayCount} ODsay routes`);
 
           itinerary.days[i].stops = enrichedStops.map((p, j) => {
-            const original = itinerary.days[i].stops[j] || {};
-            return {
+            // PR2: 원래 위치(_ri)로 같은 stop 을 찾는다 — 없으면(옛 호출) 순번. _ri 는 출력에 남기지 않는다.
+            const original = itinerary.days[i].stops[Number.isInteger(p._ri) ? p._ri : j] || {};
+            const { _ri, ...routed } = p;
+            const merged = {
               ...original,
-              ...p,
+              ...routed,
               start_time: p.start_time || original.start_time,
               transit_from_prev: p.transit_from_prev != null ? p.transit_from_prev : original.transit_from_prev,
               travelFromPrev: p.travelFromPrev || null,
@@ -227,6 +241,9 @@ export async function enrichItineraryWithRoute(itinerary, { apiKey, body, langua
               reservation_note: original.reservation_note,
               recommended_items: original.recommended_items,
             };
+            // RouteAgent 가 재배치하며 지운 end_time 은 원본 병합으로 되살리지 않는다.
+            if (merged.start_time !== original.start_time && !/^(?:[01]?\d|2[0-3]):[0-5]\d$/.test(String(routed.end_time || ''))) delete merged.end_time;
+            return merged;
           });
           // 2026-05-08 신규: lodging bookend 필드 day-level merge.
           // RouteAgent (Phase 2.5/2.6) 가 enrichedDay 에 attach 한 lodging_to_first /
@@ -361,6 +378,7 @@ export async function enrichItineraryWithRoute(itinerary, { apiKey, body, langua
       }
     }
   } catch (routeErr) {
+    if (routeErr?.code === 'ROUTE_DAY_INFEASIBLE') throw routeErr; // PR2: 자정 안에 일정 불가 = 명시 실패(422) — 일반 경로 실패로 삼키지 않는다
     // B-11 (2026-05-12): TDZ ReferenceError 같은 회귀가 silent swallow 안 되도록
     // 명시적 에러 type + 한 줄 요약 로그.
     console.error('[planner] Route FAILED:', routeErr.name + ':', routeErr.message, '| stack:', routeErr.stack?.split('\n').slice(0, 3).join(' | '), '|', Date.now() - routeStart, 'ms');

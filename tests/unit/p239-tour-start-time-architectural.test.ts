@@ -119,11 +119,9 @@ describe('P239 architectural: RouteAgent Day1 tour_start_time floor', () => {
     const src = readFile('api/_ai_core/agents/RouteAgent.js');
     expect(/P239/.test(src), 'RouteAgent P239 마커 누락').toBe(true);
     expect(/_p239TourStartMin/.test(src), '_p239TourStartMin dayPlan cache 누락').toBe(true);
-    // i === 1 의 floor 적용 (lodging → 첫 활동)
-    expect(
-      /i\s*===\s*1[\s\S]{0,300}_p239TourStartMin/.test(src),
-      'i === 1 에서 tour_start_time floor 적용 누락'
-    ).toBe(true);
+    // 2026-10-26 (첫날 도착 PR2): i === 1 고정 대신 첫 비숙소 stop 에 floor — 동작은 M14(day1-route-stitch-pr2 테스트)가 잠근다.
+    expect(src).toContain("const floorIdx = day1 ? places.findIndex((p) => stopCat(p) !== 'lodging') : -1;");
+    expect(src).toContain('const tsMin = this._parseTime(resolveTourStartTime(data));');
   });
 });
 

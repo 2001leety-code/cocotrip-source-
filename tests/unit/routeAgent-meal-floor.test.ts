@@ -10,7 +10,7 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { applyMealFloor, parseMealOriginMin } from '../../api/_ai_core/agents/RouteAgent.js';
+import { applyMealFloor, parseMealOriginMin, stitchStartMins } from '../../api/_ai_core/agents/RouteAgent.js';
 import { runFinalItineraryValidation } from '../../api/_ai_core/finalItineraryGate.js';
 
 const hm = (h: number, m = 0) => h * 60 + m;
@@ -51,21 +51,20 @@ describe('parseMealOriginMin (pure) — strict HH:MM on food stops only', () => 
   });
 });
 
-describe('RouteAgent wiring (source)', () => {
+// 2026-10-26 (첫날 도착 PR2): 소스 순서 고정 → 동작 테스트(stitchStartMins). 실제 RouteAgent 행렬 M7~M9 는 day1-route-stitch-pr2 테스트.
+describe('RouteAgent wiring (behavior — stitchStartMins)', () => {
   const src = readFileSync(resolve(process.cwd(), 'api/_ai_core/agents/RouteAgent.js'), 'utf8');
-  it('food-only original times are captured next to the P150 Gemini times', () => {
+  it('food-only original times are captured once per day', () => {
     expect(src).toMatch(/const _mealOriginMins = places\.map\(\(p\) => parseMealOriginMin\(p\)\);/);
-    expect(src.indexOf('const _mealOriginMins')).toBeGreaterThan(src.indexOf('const _p150GeminiTimes'));
   });
-  it('the floor runs after the stay+transit+buffer step and the P239 floor, before the P150 wrap fallback', () => {
-    const step = src.indexOf('currentTime += prevStayMin + realTransitMin + BUFFER_MIN;');
-    const p239 = src.indexOf('currentTime = dayPlan._p239TourStartMin;', step);
-    const floor = src.indexOf('applyMealFloor(currentTime, _mealOriginMins[i])', step);
-    const wrap = src.indexOf('P150 (2026-05-22): 24h wrap', step);
-    expect(step).toBeGreaterThan(-1);
-    expect(p239).toBeGreaterThan(step);
-    expect(floor).toBeGreaterThan(p239);
-    expect(wrap).toBeGreaterThan(floor);
+  it('a non-Day1 meal is never pulled earlier than its original time (stay + transit + buffer chain, then the floor)', () => {
+    const places = [{ category: 'lodging', start_time: '09:00' }, { category: 'culture', stay_min: 30 }, { category: 'food', start_time: '18:00', stay_min: 60 }];
+    const { starts } = stitchStartMins(places, { firstMin: 9 * 60, legMins: [10, 10], buffer: 5, mealOrigins: places.map((p) => parseMealOriginMin(p)) });
+    expect(starts).toEqual([540, 615, 1080]); // 09:00 → 09:00+60+10+5 = 10:15 → 10:15+30+15 = 11:00 → floor 18:00
+  });
+  it('times stay absolute (no %24 wrap, no 22:30 cap) — the placement step decides what happens after midnight', () => {
+    const places = [{ category: 'lodging', start_time: '22:00' }, { category: 'culture', stay_min: 90 }, { category: 'lodging' }];
+    expect(stitchStartMins(places, { firstMin: 22 * 60, legMins: [20, 20], buffer: 5 }).starts).toEqual([1320, 1405, 1520]);
   });
 });
 
