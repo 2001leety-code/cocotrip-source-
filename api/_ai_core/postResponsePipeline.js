@@ -277,6 +277,9 @@ export async function runRouteEnrichment(itinerary, ctx) {
   } finally {
     clearTimeout(timeoutId);
   }
+  // PR2 r3-8: RouteAgent 일반 실패·타임아웃이면 병합이 건너뛰어져 blockMode 구제 표식이 남는다 — 저장 전에 지운다
+  //   (시각은 blockMode 가 이미 창 안으로 잠정 배치). 성공 경로는 병합이 지운다.
+  (itinerary.days || []).forEach((d) => (d.stops || []).forEach((s) => { if (s && '_blockMealRole' in s) delete s._blockMealRole; }));
 
   // arrival_guide / departure_guide의 route_to_hotel에 zone fallback이 적용됐음을
   // 표시 — UI가 "Lotte Hotel 기준" 대신 "홍대 지역 기준"으로 라벨링할 수 있게.

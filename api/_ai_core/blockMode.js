@@ -738,11 +738,18 @@ export function rescueFirstDayMeal(stop, m, pastMidnight, dayStartMin, capMin, k
   if (roleMin < MEAL_ROLE_WINDOWS.lunch[0]) return false;
   const role = roleMin < MEAL_ROLE_WINDOWS.dinner[0] ? 'lunch' : 'dinner';
   const [from, to] = MEAL_ROLE_WINDOWS[role];
-  if (keptRoles.has(role) || !(from < capMin && dayStartMin < to)) return false;
+  // r3-8: 겹침 = 창 [from,to) ∩ [dayStart, cap) 에 시작 가능한 분이 하나라도 있음(예전 식은 dayStart ≥ cap 을 놓쳤다).
+  const lo = Math.max(dayStartMin, from);
+  const hi = Math.min(capMin - 1, to - 1);
+  if (keptRoles.has(role) || lo > hi) return false;
   keptRoles.add(role);
   // PR2 r2: 구제한 역할을 stop 에 붙여 RouteAgent 배치까지 전달 — 자정 넘김(01:30) 저녁을 조식 시각으로 읽어 창을 안 쓰던 문제.
-  //   routeEnrichment 가 병합 때 지운다(저장 안 함). PR3 _blockMealRole 의 최소 선행분(구제 식당에 한해).
+  //   routeEnrichment 가 지운다(저장 안 함). PR3 _blockMealRole 의 최소 선행분(구제 식당에 한해).
   stop._blockMealRole = role;
+  // PR2 r3-8: 잠정 배치 — 창·하루 범위 안 가장 늦은 자리(원래 시각에 가장 가까운 곳)로 미리 옮긴다. RouteAgent 가 실패해
+  //   병합이 건너뛰어져도 01:30 같은 시각이 저장되지 않게. 정상 경로는 RouteAgent 가 창 안에서 다시 배치한다.
+  stop.start_time = `${String(Math.floor(hi / 60)).padStart(2, '0')}:${String(hi % 60).padStart(2, '0')}`;
+  if (stop.end_time) delete stop.end_time; // 옛 종료 시각은 버린다(planPersister 가 체류로 다시 채움)
   return true;
 }
 

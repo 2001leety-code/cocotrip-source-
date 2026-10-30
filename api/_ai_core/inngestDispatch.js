@@ -115,6 +115,7 @@ export function buildPlanAiCompletePayload(args) {
     isAdminBypass, identifierForBucketing,
     forceGuestToken,  // FEATURE_GUEST_ANON_AUTH: worker persistPlan accessToken 발급용.
     issuanceClaim,    // P0 (2026-07-15): 유료 PayPal 발급권 { orderId, attemptId, planId }.
+    consumedCoupon,   // PR2 r3-11: 무료 AI 쿠폰 { uid, code } — onFailure 복구용.
     // planner-intent-v1 (2026-08-24): avoidStopNames — removal already ran in handlerCore
     //   (before this dispatch), so the itinerary the worker gets is already clean. The
     //   worker still needs the list for postResponsePipeline's final assert-only check
@@ -187,6 +188,8 @@ export function buildPlanAiCompletePayload(args) {
       //   secret 아님: attemptId 는 서버 생성 UUID, planId 는 예약 ID. (ctx.apiKey/ctx.body 가
       //   이미 payload 에 있는 건 이번 작업 이전부터의 별개 이슈.)
       ...(issuanceClaim ? { issuanceClaim } : {}),
+      // PR2 r3-11: 무료 AI 쿠폰 {uid, code} — 1급 필드(같은 이유). secret 아님(쿠폰 코드는 손님 본인 것, 사용 여부는 서버 트랜잭션이 판정).
+      ...(consumedCoupon && consumedCoupon.uid && consumedCoupon.code ? { consumedCoupon: { uid: consumedCoupon.uid, code: consumedCoupon.code } } : {}),
     },
   };
 }
@@ -280,6 +283,8 @@ export async function dispatchOrInlineForHandlerCore({
   plannerIntent = null,
   // 2026-10-26: 같은 이유의 구조분해 시그니처 — 명시 안 하면 worker 가 휴식일을 재계산한다.
   arrivalRestDay = null,
+  // PR2 r3-11: 같은 이유 — 무료 AI 쿠폰 {uid, code}. worker 가 결정론 422 로 저장 전 실패하면 onFailure 가 되살린다.
+  consumedCoupon = null,
 }) {
   return tryDispatchAndLog({
     streamingResponseSent, itinerary, streamingPlanId, skeletonCtx: skeletonCtx || undefined,
@@ -290,6 +295,6 @@ export async function dispatchOrInlineForHandlerCore({
     plannerMode: blockModeUsed ? 'block_mode' : PLANNER_MODE,
     abReason: abDecision.reason, abBucket: abDecision.bucket,
     blocksUsed: blockModeUsed ? blocksUsed : null,
-    isAdminBypass, identifierForBucketing, forceGuestToken, issuanceClaim, avoidStopNames, plannerIntent, arrivalRestDay,
+    isAdminBypass, identifierForBucketing, forceGuestToken, issuanceClaim, avoidStopNames, plannerIntent, arrivalRestDay, consumedCoupon,
   }, handlerStart);
 }

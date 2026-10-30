@@ -99,8 +99,10 @@ export function runFinalItineraryValidation(itinerary, ctx = {}) {
     const mealRemovedDays = (Array.isArray(itinerary.days) ? itinerary.days : [])
       .map((d, idx) => (d && d._routeMealRemoved === true ? (Number(d.day) || idx + 1) : null)).filter((n) => n !== null);
     if (mealRemovedDays.length === 0 || !ctx.tripTimes || typeof ctx.tripTimes !== 'object') return empty;
+    // r3: 일차 번호로 매칭 — 메시지 접두어가 "Day 1 (도착일): …"·"Day N (출국일): …" 일 수 있다(문자열 startsWith 는 도착일·출국일을 놓쳤다).
+    const dayOf = (m) => { const hit = /^Day (\d+)\b/.exec(String(m)); return hit ? Number(hit[1]) : null; };
     const requiredMealIssues = checkRequiredMeals(itinerary, ctx.tripTimes)
-      .filter((m) => mealRemovedDays.some((n) => String(m).startsWith(`Day ${n}:`)));
+      .filter((m) => mealRemovedDays.includes(dayOf(m)));
     return requiredMealIssues.length ? { ...empty, ok: false, code: FINAL_GATE_MEAL_CODE, requiredMealIssues } : empty;
   }
 
@@ -235,8 +237,21 @@ export function buildFinalGateError(result, dietary, stage) {
     : result.violations.slice(0, 5).map((v) => `${v.diet}:${v.stop}`);
   // 2026-10-24 (r2): Inngest 는 오류를 넘길 때 name/message/stack/code/cause 만 보존한다(inngest/helpers/errors.js
   //   copiedErrorProperties) → worker 실패 문서에서 details 가 사라졌다. cause 에 같은 값을 실어 보존.
-  e.cause = { details: e.details };
+  // PR2 r3: code 도 cause 에 — Inngest StepError 는 최상위 code 를 복사하지 않는다(cause 는 직렬화 왕복 뒤에도 남는다).
+  e.cause = { details: e.details, code: e.code };
   return e;
+}
+
+/** 손님 화면이 사유별 안내를 고르는 실패 코드 — 이 목록만 plan 문서에 남긴다(임의 문자열 저장 금지). */
+export const PLAN_FAILURE_REASON_CODES = Object.freeze(['ROUTE_DAY_INFEASIBLE', FINAL_GATE_MEAL_CODE, FINAL_GATE_DIETARY_CODE]);
+
+/**
+ * PR2 r3: 오류의 실패 코드(허용 목록만). Inngest 를 거친 오류(StepError)는 최상위 code 가 없고 cause.code 에만 있다.
+ * @returns {string|undefined}
+ */
+export function failureCodeOf(error) {
+  const candidates = [error && error.code, error && error.cause && typeof error.cause === 'object' ? error.cause.code : undefined];
+  return candidates.find((c) => typeof c === 'string' && PLAN_FAILURE_REASON_CODES.includes(c));
 }
 
 /**

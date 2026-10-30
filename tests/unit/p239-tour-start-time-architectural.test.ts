@@ -120,7 +120,8 @@ describe('P239 architectural: RouteAgent Day1 tour_start_time floor', () => {
     expect(/P239/.test(src), 'RouteAgent P239 마커 누락').toBe(true);
     expect(/_p239TourStartMin/.test(src), '_p239TourStartMin dayPlan cache 누락').toBe(true);
     // 2026-10-26 (첫날 도착 PR2): i === 1 고정 대신 첫 비숙소 stop 에 floor — 동작은 M14(day1-route-stitch-pr2 테스트)가 잠근다.
-    expect(src).toContain("const floorIdx = day1 ? places.findIndex((p) => stopCat(p) !== 'lodging') : -1;");
+    // PR2 r3: 바닥은 첫 관광·식당 stop(isDay1FloorStop) — 공항 이동·travel 표식은 제외.
+    expect(src).toContain('const floorIdx = day1 ? places.findIndex((p) => isDay1FloorStop(p)) : -1;');
     expect(src).toContain('const tsMin = this._parseTime(resolveTourStartTime(data));');
   });
 });

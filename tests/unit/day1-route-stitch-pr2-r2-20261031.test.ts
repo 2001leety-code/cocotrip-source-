@@ -132,7 +132,8 @@ describe('r2-7 — guest-facing reasons in 4 languages (sync 422 code + async fa
       expect(resolveErrorStateCopy(l, {}, 'DIETARY_MEAL_COVERAGE_FAILED').desc.endsWith(generic)).toBe(true);
       expect(resolveErrorStateCopy(l, {}, 'SOMETHING_ELSE').desc).toBe(generic);
     }
-    expect(read('api/_inngest/functions/processPlanAfterAI.js')).toContain('_streaming_error_code: error.code.slice(0, 80)');
+    // r3: 저장 경로는 실제 Inngest StepError 직렬화 왕복으로 검증(day1-route-stitch-pr2-r3 'failure code survives').
+    expect(read('api/_inngest/functions/processPlanAfterAI.js')).toContain('_streaming_error_code: failureCodeOf(error)');
     expect(read('src/pages/PlanDetailPage/index.tsx')).toContain('reasonCode={');
   });
   it('sync 422 body carries the code (planCloseout) — the planner page localizes it by code', () => {

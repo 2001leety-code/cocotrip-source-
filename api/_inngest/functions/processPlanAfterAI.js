@@ -36,9 +36,11 @@
  *     1 step 당 300s 이내면 OK (routeEnrich 180s cap 으로 안전).
  */
 import { randomUUID } from 'crypto'; // FEATURE_GUEST_ANON_AUTH: 게스트 익명 skeleton accessToken 발급용
+import { NonRetriableError } from 'inngest';
 import { inngest } from '../client.js';
+import { restoreAiPlanCoupon } from '../../_ai_core/paymentGate.js'; // PR2 r3-11: 저장 전 결정론 실패 시 무료 쿠폰 복구
 import { initAdminDb } from '../../_ai_core/firestoreAdmin.js';
-import { failureDetailsOf, tripTimesFrom } from '../../_ai_core/finalItineraryGate.js';
+import { failureDetailsOf, failureCodeOf, tripTimesFrom } from '../../_ai_core/finalItineraryGate.js';
 import { resolveTourEndTime } from '../../_ai_core/constants.js';
 import { mealWindowsFromCtx } from '../../_ai_core/responseValidator.js'; // 2026-10-26 (첫날 도착 PR1): 1일 끼니 창
 import {
@@ -58,6 +60,22 @@ import { throttledTelegramAlert } from '../../_shared/telegram-throttle.js';
 import { escapeTelegram } from '../../_shared/escape.js';
 
 const adminDb = initAdminDb();
+
+/**
+ * PR2 r3-11: 입력만으로 정해지는 실패(허용 사유 코드 — 동선 422·종단 끼니/식이 게이트)는 재시도해도 같다(구간당 ODsay/TMAP ×4 낭비)
+ *   → NonRetriableError 로 바로 onFailure. cause 는 평범한 {code, details} — 실제 SDK 직렬화 왕복 뒤 StepError.cause.code 로
+ *   남는 모양(오류 객체를 cause 로 넣으면 code 가 한 단계 더 깊이 묻힌다). 그 밖의 오류는 그대로(기존 재시도).
+ */
+export async function failFastOnPlanCode(fn) {
+  try {
+    return await fn();
+  } catch (err) {
+    const code = failureCodeOf(err);
+    if (!code) throw err;
+    const details = err.details || (err.cause && typeof err.cause === 'object' ? err.cause.details : undefined);
+    throw new NonRetriableError(err.message, { cause: { code, details } });
+  }
+}
 
 /**
  * Worker: routeEnrich → backfill+T-money → recommended_restaurants → persist.
@@ -117,7 +135,8 @@ export const processPlanAfterAI = inngest.createFunction(
             _streaming_error: 'inngest_worker_failure_p307',
             _streaming_error_message: (error?.message || 'unknown').slice(0, 500),
             // PR2 r2: 손님 화면이 사유별 안내(ROUTE_DAY_INFEASIBLE·DIETARY_MEAL_COVERAGE_FAILED)를 고르게 — Inngest 는 code 를 보존한다.
-            ...(typeof error?.code === 'string' && error.code ? { _streaming_error_code: error.code.slice(0, 80) } : {}),
+            //   r3: StepError 는 최상위 code 를 복사하지 않는다 → cause.code 까지 보고 허용 목록(failureCodeOf)만 저장.
+            ...(failureCodeOf(error) ? { _streaming_error_code: failureCodeOf(error) } : {}),
             // 2026-10-24: 구조화 상세(종단 끼니 실패의 날짜·끼니·사유 등)가 직렬화돼 넘어오면 같이 남긴다.
             ...(failureDetailsOf(error) ? { _streaming_error_details: failureDetailsOf(error) } : {}),
             _failed_at: new Date().toISOString(),
@@ -152,6 +171,13 @@ export const processPlanAfterAI = inngest.createFunction(
         } catch (relErr) {
           console.error(`[P307] onFailure: 발급권 해제 실패 — lease 만료까지 잠김: ${relErr.message}`);
         }
+      }
+      // PR2 r3-11: 무료 AI 쿠폰 복구 — 허용 사유 코드(동선 422·종단 게이트) 실패만. 이 코드들은 persistPlan 전
+      //   step(routeEnrich·recommendedRestaurants)에서만 던져져 플랜이 저장되지 않았다 → 손님 안내("다시 만들어 주세요")대로 재시도 가능.
+      //   코드 없는 일반 실패는 저장 뒤 step 일 수 있어(정당 소비) 건드리지 않는다. restoreAiPlanCoupon 은 오류를 삼킨다.
+      const failedCoupon = event?.data?.event?.data?.ctx?.consumedCoupon;
+      if (failedCoupon && failedCoupon.uid && failedCoupon.code && failureCodeOf(error)) {
+        await restoreAiPlanCoupon(adminDb, failedCoupon.uid, failedCoupon.code);
       }
       // 운영자 escalation — sweep 30분 net 보다 빠르게 manual 환불 안내 시작 가능.
       try {
@@ -255,7 +281,7 @@ export const processPlanAfterAI = inngest.createFunction(
     // runRouteEnrichment 가 in-place mutation 이라 step.run 의 반환값은 사용 X.
     // 단, Inngest 가 step output 으로 itinerary 를 serialize 해서 다음 step 으로 넘김.
     // → 명시적 return 으로 mutation 결과 전파.
-    const itinAfterRoute = await step.run('routeEnrich', async () => {
+    const itinAfterRoute = await step.run('routeEnrich', () => failFastOnPlanCode(async () => {
       await runRouteEnrichment(itinerary, {
         apiKey: ctx.apiKey,
         body: ctx.body,
@@ -277,7 +303,7 @@ export const processPlanAfterAI = inngest.createFunction(
         avoidStopNames: ctx.avoidStopNames,
       });
       return itinerary;
-    });
+    }));
 
     // 2026-10-26 운영자 승인: 도착 휴식일 여부 — 요청 입력으로 한 번 계산(1일 여행 제외 포함, sync handlerCore 와 같은 식).
     //   안내·종단 게이트·pass3·저장이 이 한 값을 쓴다(순수 계산 — step 재실행에도 같은 값).
@@ -313,7 +339,7 @@ export const processPlanAfterAI = inngest.createFunction(
     });
 
     // ── Step 3: recommended_restaurants ──────────────────────────────────────
-    const foodIndexForQuality = await step.run('recommendedRestaurants', async () => {
+    const foodIndexForQuality = await step.run('recommendedRestaurants', () => failFastOnPlanCode(async () => {
       // 2026-08-24: language/styles/blockModeUsed 전달 — 이 helper 끝의 종단 식이/중복 게이트 입력.
       //   게이트가 실패하면 이 step 이 throw → persistPlan 미실행 (위반본 저장 금지, fail-closed).
       // planner-intent-v1: avoidStopNames/blockModeUsed 도 전달해야 한다 — 없으면 이 worker
@@ -335,7 +361,7 @@ export const processPlanAfterAI = inngest.createFunction(
         arrivalRestDay,
         mealWindows, // 2026-10-26 (첫날 도착 PR1): 1일 끼니 창(sync 경로와 같은 값)
       });
-    });
+    }));
 
     // ── Step 4: pricing ──────────────────────────────────────────────────────
     const { priceKRW, priceUSD } = await step.run('computePricing', () => {
