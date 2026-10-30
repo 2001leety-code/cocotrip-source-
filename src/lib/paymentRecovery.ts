@@ -19,6 +19,8 @@ export type PaymentRecovery = {
   authRequired?: boolean;
   productType?: string;
   updatedAt: number;
+  /** r7: 메모리 전용 — 이 탭의 remember 가 저장소에 실제로 썼는가(false = 쓰기 실패: 시크릿 모드 Quota·차단). 저장소에서 읽은 포인터엔 없다. */
+  persisted?: boolean;
 };
 export type CaptureOutcome =
   | { kind: 'final'; data: Record<string, unknown> }
@@ -58,8 +60,20 @@ export function readPaymentRecovery(flow: PaymentFlow, scope?: string): PaymentR
   try { return parsePointer(localStorage.getItem(recoveryKey(flow, scope))); } catch { return null; }
 }
 
+/**
+ * r7: 저장소 상태를 "못 읽음(SecurityError — 쿠키 전면 차단·일부 웹뷰)" 과 "키 없음(다른 탭이 지움)" 으로 구분해 읽는다.
+ *   readPaymentRecovery 는 둘 다 null 이라 확인 결과 대조에 쓰면 저장소 없는 브라우저의 모든 결과가 버려졌다.
+ */
+export function readPaymentRecoveryState(flow: PaymentFlow, scope?: string): { readable: boolean; pointer: PaymentRecovery | null } {
+  let raw: string | null;
+  try { raw = localStorage.getItem(recoveryKey(flow, scope)); } catch { return { readable: false, pointer: null }; }
+  return { readable: true, pointer: parsePointer(raw) };
+}
+
 export function writePaymentRecovery(value: PaymentRecovery, scope?: string): boolean {
-  try { localStorage.setItem(recoveryKey(value.flow, scope), JSON.stringify(value)); return true; } catch { return false; }
+  const stored = { ...value };
+  delete stored.persisted; // 메모리 전용 표식은 저장하지 않는다
+  try { localStorage.setItem(recoveryKey(value.flow, scope), JSON.stringify(stored)); return true; } catch { return false; }
 }
 
 export function removePaymentRecovery(flow: PaymentFlow, orderID: string, scope?: string): void {
@@ -154,9 +168,11 @@ export function usePaymentRecovery(flow: PaymentFlow, scope?: string) {
   const pendingRef = useRef<PaymentRecovery | null>(recovery);
   const remember = useCallback((value: Omit<PaymentRecovery, 'updatedAt'> & { updatedAt?: number }) => {
     const next: PaymentRecovery = { ...value, updatedAt: Date.now() };
-    pendingRef.current = next;
-    setRecovery(next);
-    return writePaymentRecovery(next, scope);
+    const persisted = writePaymentRecovery(next, scope);
+    const current: PaymentRecovery = { ...next, persisted }; // 쓰기 실패 여부를 메모리 포인터에 남긴다(r7 — 확인 결과 대조 기준)
+    pendingRef.current = current;
+    setRecovery(current);
+    return persisted;
   }, [scope]);
   const clearRecovery = useCallback((orderID: string) => {
     const current = pendingRef.current;

@@ -231,7 +231,6 @@ describe('r6 storage changes before a storage event arrives', () => {
   it.each([
     ['flow', { flow: 'cart' }, 'PENDING'], ['flow', { flow: 'cart' }, 'FINAL'],
     ['product', { productType: 'tour_dmz_day' }, 'PENDING'], ['product', { productType: 'tour_dmz_day' }, 'FINAL'],
-    ['timestamp', { updatedAt: 2 }, 'PENDING'], ['timestamp', { updatedAt: 2 }, 'FINAL'],
   ] as const)('same order with changed %s is not overwritten by stale %s evidence', async (_name, change, outcome) => {
     const raw = pointer('ORD-C', 'charter_dmz'); localStorage.setItem(SHARED, raw);
     const replacement = JSON.stringify({ ...JSON.parse(raw), ...change });
@@ -243,6 +242,18 @@ describe('r6 storage changes before a storage event arrives', () => {
     expect(localStorage.getItem(SHARED)).toBe(replacement);
     expect(success).not.toHaveBeenCalled();
     expect(screen.queryByText('Booking Confirmed!')).toBeNull();
+  });
+  // r7: 같은 주문·흐름·상품을 다른 탭이 새 시각으로 다시 저장한 것은 교체가 아니다 — 이 탭의 결과를 버리지 않는다.
+  it.each(['PENDING', 'FINAL'] as const)('r7: same order re-saved with a new timestamp → the %s result still applies', async (outcome) => {
+    const raw = pointer('ORD-C', 'charter_dmz'); localStorage.setItem(SHARED, raw);
+    const resaved = JSON.stringify({ ...JSON.parse(raw), updatedAt: 2 });
+    const st = parkedCheck('ORD-C', outcome); const success = vi.fn();
+    render(<PayPalBookingButton productType="charter_dmz" passengers={2} priceKRW={135000} lang="en" onPaymentSuccess={success} p={{ paypalBookBtn: 'Book now' }} />);
+    fireEvent.click(screen.getByText('Check this order')); await waitFor(() => expect(st.release).not.toBeNull());
+    localStorage.setItem(SHARED, resaved);
+    await act(async () => { st.release!(); await new Promise(r => setTimeout(r, 10)); });
+    if (outcome === 'FINAL') expect(success).toHaveBeenCalledWith('ORD-C');
+    else expect(JSON.parse(localStorage.getItem(SHARED) || '{}')).toMatchObject({ orderID: 'ORD-C', productType: 'charter_dmz' });
   });
 });
 
@@ -282,7 +293,7 @@ describe('r6 fresh error reconcile does not touch a replacement pointer', () => 
     if (when === 'during reconcile') await replace();
     await act(async () => { releaseReconcile!(); await approval; });
     expect(localStorage.getItem(SHARED)).toBe(replacement);
-    expect(success).not.toHaveBeenCalled();
-    expect(screen.queryByText('Booking Confirmed!')).toBeNull();
+    // r7: 이 화면 자신의 주문(ORD-OLD) 증거는 버리지 않는다 — 결제된 주문을 재결제 권유로 보내지 않게(교체 포인터는 그대로).
+    expect(success).toHaveBeenCalledWith('ORD-OLD');
   });
 });

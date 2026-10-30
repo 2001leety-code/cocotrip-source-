@@ -465,7 +465,8 @@ describe('paid-order screen and copy (pre-payment vs post-payment keys)', () => 
     expect(section.indexOf(') : paidOrderIssue ? (')).toBeLessThan(section.indexOf('<PayPalBookingButton'));
     expect(section).toContain('keepRecoveryUntilFulfilled');
     const btn = read('src/components/PayPalBookingButton.tsx');
-    expect(btn).toContain("if (keepRecoveryUntilFulfilled) remember({ orderID, flow: 'single', paymentStatus: 'CAPTURED', review: false, productType });");
+    // r7: 포인터가 다른 탭에서 교체됐으면(mayWrite=false) 덮어쓰지 않는다.
+    expect(btn).toContain("if (keepRecoveryUntilFulfilled) { if (mayWrite) remember({ orderID, flow: 'single', paymentStatus: 'CAPTURED', review: false, productType }); }");
     const hook = read('src/pages/PlannerPage/hooks/usePlannerHandlers.ts');
     expect(hook).toContain("if (isPaidOrderId(paypalOrderId)) removePaymentRecovery('single', paypalOrderId, PLANNER_RECOVERY_SCOPE);");
     expect(hook).toContain('lastValues.current = applyPaidPlannerInput(lastValues.current, issue.pinnedInput);');

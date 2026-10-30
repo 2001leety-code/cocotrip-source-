@@ -15,7 +15,7 @@ import { tourSlotBody, SLOT_REJECT_LABELS } from '@/lib/tourSlotBooking';
 import { fillPrice } from '@/lib/aiPlannerPrice';
 import { charterCheckoutExpectedUsd, charterUsdFromKrw } from '@/lib/charterUsd';
 import { GuestSignupNudge } from '@/components/GuestSignupNudge';
-import { usePaymentRecovery, reconcilePayment, classifyCaptureResponse, recoveryCopy, recoveryHeadline, PLANNER_RECOVERY_SCOPE, isPlannerProduct, isSameProduct, storePaymentRecovery, readPaymentRecovery, type PaymentRecovery, type CaptureOutcome } from '@/lib/paymentRecovery';
+import { usePaymentRecovery, reconcilePayment, classifyCaptureResponse, recoveryCopy, recoveryHeadline, PLANNER_RECOVERY_SCOPE, isPlannerProduct, isSameProduct, storePaymentRecovery, readPaymentRecoveryState, type PaymentRecovery, type CaptureOutcome } from '@/lib/paymentRecovery';
 import type { Language } from '@/i18n';
 
 // SDK 차단·로드 실패 시 fallback — paypal.me QR (외부 redirect, paypalobjects.com 무관).
@@ -220,13 +220,19 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
   const rc = recoveryCopy(lang);
   // r6: 같은 주문 확인을 시작한 포인터를 고정한다. 다른 탭에서 삭제·이동·교체한 뒤 도착한
   // 응답은 저장·성공 처리에 쓰지 않는다. StorageEvent 전달 전에도 실제 저장소를 함께 대조한다.
+  // r7: 동일성 = 주문·흐름·상품(같은 주문을 다른 탭이 새 시각으로 다시 저장해도 같은 확인 — updatedAt 비교 제거).
+  //   저장소를 못 읽거나(SecurityError) 이 탭이 쓰기에 실패한 포인터(persisted=false)는 ref 비교만 — 저장소 없는 브라우저는
+  //   StorageEvent 도 없어 다른 탭 경합이 없다. 그렇지 않은데 키가 없거나 다른 주문이면(다른 탭이 지움·교체) 현재가 아니다.
   function isCurrentCheck(checked: PaymentRecovery | null): boolean {
     if (!checked) return false;
     const same = (current: PaymentRecovery | null) => !!current
       && current.orderID === checked.orderID && current.flow === checked.flow
-      && current.productType === checked.productType && current.updatedAt === checked.updatedAt;
-    return same(recoveryRef.current)
-      && same(readPaymentRecovery(checked.flow, keepRecoveryUntilFulfilled ? PLANNER_RECOVERY_SCOPE : undefined));
+      && current.productType === checked.productType;
+    const mine = recoveryRef.current;
+    if (!same(mine)) return false;
+    if (mine && mine.persisted === false) return true;
+    const stored = readPaymentRecoveryState(checked.flow, keepRecoveryUntilFulfilled ? PLANNER_RECOVERY_SCOPE : undefined);
+    return !stored.readable || same(stored.pointer);
   }
   function keepWaiting(orderID: string, fresh: boolean, state: { paymentStatus: 'CAPTURED' | 'CAPTURE_UNKNOWN' | 'NOT_CAPTURED'; review: boolean; authRequired?: boolean }, checked: PaymentRecovery | null) {
     if (!fresh) {
@@ -235,8 +241,11 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
     }
     remember({ orderID, flow: 'single', productType, ...state });
   }
-  async function applyCaptureOutcome(outcome: CaptureOutcome, orderID: string, fresh: boolean, checked: PaymentRecovery | null = null) {
-    if (!fresh && (checked?.orderID !== orderID || !isCurrentCheck(checked))) return;
+  // r7: own = 이 화면이 방금 만든(fresh) 주문의 증거 조회 결과 — 포인터가 다른 탭에서 교체됐어도 증거의 orderID 가 그 주문이면
+  //   적용한다(성공·NOT_CAPTURED 처리). 교체된 포인터는 건드리지 않는다(clearRecovery 의 orderID 가드 · 아래 mayWrite).
+  async function applyCaptureOutcome(outcome: CaptureOutcome, orderID: string, fresh: boolean, checked: PaymentRecovery | null = null, own = false) {
+    if (!fresh && !own && (checked?.orderID !== orderID || !isCurrentCheck(checked))) return;
+    const mayWrite = fresh || (!!checked && checked.orderID === orderID && isCurrentCheck(checked));
     if (outcome.kind === 'final') {
       const result = outcome.data as { payerName?: string; payerEmail?: string; amount?: string };
       if (fresh) {
@@ -246,7 +255,7 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
       // A restored pointer for a different product never feeds this product's success callback.
       //   r4: …nor this product's success screen ("Booking Confirmed!"·driver notice). An unknown product counts as different.
       //   A planner order found here moves to the planner key so the planner page can still issue the plan.
-      const sameProduct = fresh || isSameProduct(checked?.productType, productType);
+      const sameProduct = fresh || own || isSameProduct(checked?.productType, productType);
       if (!sameProduct) {
         const other = checked;
         clearRecovery(orderID);
@@ -260,7 +269,7 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
       if (onPaymentSuccess) {
         // 2026-10-26 B6-1 r2: 결제 뒤 이행(플랜 발급)이 따로 있는 상품은 이행될 때까지 포인터를 CAPTURED 로 유지 —
         //   생성이 실패하거나 새로고침돼도 새 결제 대신 같은 주문 확인이 보인다. 지우는 쪽 = 호출자(발급 성공 시).
-        if (keepRecoveryUntilFulfilled) remember({ orderID, flow: 'single', paymentStatus: 'CAPTURED', review: false, productType });
+        if (keepRecoveryUntilFulfilled) { if (mayWrite) remember({ orderID, flow: 'single', paymentStatus: 'CAPTURED', review: false, productType }); }
         else clearRecovery(orderID);
         setShowPaypal(false); await onPaymentSuccess(orderID); return;
       }
@@ -302,7 +311,8 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
       const evidencePointer = pointer && pointer.orderID === orderID ? { ...pointer } : null;
       const evidence = await reconcilePayment('single', orderID);
       // 미결제 증거도 공통 경로로 처리해 QR 송금 뒤의 재결제 금지 안내를 유지한다.
-      await applyCaptureOutcome(evidence, orderID, false, evidencePointer);
+      //   r7: 이 화면 자신의 주문 증거(own) — 포인터가 다른 주문으로 바뀌었어도 증거를 버리지 않는다(교체 포인터는 그대로).
+      await applyCaptureOutcome(evidence, orderID, false, evidencePointer, true);
       return;
     }
     keepWaiting(orderID, fresh, { paymentStatus: 'CAPTURE_UNKNOWN', review: false }, checked);

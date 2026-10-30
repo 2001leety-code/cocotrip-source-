@@ -318,7 +318,7 @@ export default async function handler(req, res) {
         customerPhone ? `<b>연락처:</b> ${customerPhone}` : null,
         prepayCheck && !prepayCheck.ok
           ? (prepayCheck.code === 'DIETARY_COVERAGE_UNAVAILABLE'
-            ? `⚠️ <b>AI 플래너 신고 시 식이 확인 실패:</b> ${prepayCheck.code} — 입금 및 생성 요청의 식이 조건을 확인하세요`
+            ? `⚠️ <b>AI 플래너 신고 시 식이 확인 실패:</b> ${prepayCheck.code}${prepayCheck.details ? ` (${prepayCheck.details})` : ''} — 입금 및 생성 요청의 식이 조건을 확인하세요`
             : `⚠️ <b>AI 플래너 신고 입력 확인 필요:</b> ${prepayCheck.code} — 결제 확인 후 정규화 가능한 첫 생성 요청이 식이 확인을 통과하면 입력이 고정됩니다`)
           : null,
         '',
