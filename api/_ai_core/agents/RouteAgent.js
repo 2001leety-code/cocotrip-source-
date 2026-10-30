@@ -753,9 +753,11 @@ export const isSightseeingStop = (p) => !NOT_SIGHTSEEING.has(stopCat(p));
 
 /**
  * 2026-10-26 (첫날 도착 PR2) A단계 — 시작 시각(절대 분, 1440 이상도 그대로; %24·되돌림 없음). 순수.
- *   firstMin: 0번 stop 시각. legMins[i-1]: i-1→i 구간. floorIdx/floorMin: Day1 첫 비숙소 stop 의 바닥(pref) — 앞 숙소의 체류는
- *   보지 않고(체크인·짐 맡기기 자리) 숙소 시각 + 이동 + 버퍼보다는 늦게. d1Meal: Day1 끼니 시작 창 {lunch,dinner}({from,to}|null, 분).
- *   Day1 식사(원래 시각 ≥ 11:00): 역할 = 원래 시각 < 17:00 점심, 아니면 저녁. lo = max(창 시작, 앞 종료 + 이동 + 버퍼),
+ *   firstMin: 0번 stop 시각. legMins[i-1]: i-1→i 구간. floorIdx/floorMin: Day1 첫 비숙소 stop 의 바닥(pref) —
+ *   r2: 0번이면 바닥(pref) 자체(모델 시각은 pref 에 이미 들어 있다 — 배치 루프가 pref 를 R 로 낮추면 그대로 앞당겨진다),
+ *   1번 이후면 max(바닥, 앞 숙소 시각 + 체류 + 이동 + 버퍼)(숙소 체류 유지 — 기존 동작). d1Meal: Day1 끼니 시작 창 {lunch,dinner}({from,to}|null, 분).
+ *   Day1 식사(원래 시각 ≥ 11:00, 또는 blockMode 가 붙인 역할 _blockMealRole): 역할 = 원래 시각 < 17:00 점심, 아니면 저녁.
+ *   lo = max(창 시작, 앞 종료 + 이동 + 버퍼),
  *   hi = 창 끝 → start = max(lo, min(원래 시각 ?? lo, hi)). 창이 없거나 lo > hi = 배치 불가로 meals 에 표시.
  *   그 밖의 식사는 applyMealFloor(원래 시각보다 앞당기지 않음).
  * @returns {{starts: number[], meals: Array<{i: number, infeasible: boolean, noWindow: boolean}>}}
@@ -766,17 +768,22 @@ export function stitchStartMins(places, { firstMin, legMins = [], buffer = SCHED
     const hasFloor = Number.isFinite(floorMin);
     for (let i = 0; i < places.length; i++) {
         let base;
-        if (i === 0) base = hasFloor && floorIdx === 0 ? Math.max(firstMin, floorMin) : firstMin;
-        else if (hasFloor && i === floorIdx) base = Math.max(floorMin, starts[i - 1] + legMins[i - 1] + buffer);
-        else base = starts[i - 1] + stayOf(places[i - 1]) + legMins[i - 1] + buffer;
+        if (i === 0) base = hasFloor && floorIdx === 0 ? floorMin : firstMin;
+        else {
+            const chain = starts[i - 1] + stayOf(places[i - 1]) + legMins[i - 1] + buffer;
+            base = hasFloor && i === floorIdx ? Math.max(floorMin, chain) : chain;
+        }
         const origin = mealOrigins[i];
         if (stopCat(places[i]) === 'food') {
             const roleMin = Number.isFinite(origin) ? origin : base;
-            if (d1Meal && roleMin >= 11 * 60) {
-                const w = roleMin < 17 * 60 ? d1Meal.lunch : d1Meal.dinner;
+            const blockRole = places[i]?._blockMealRole === 'lunch' || places[i]?._blockMealRole === 'dinner' ? places[i]._blockMealRole : null;
+            if (d1Meal && (blockRole || roleMin >= 11 * 60)) {
+                const w = (blockRole ? blockRole === 'lunch' : roleMin < 17 * 60) ? d1Meal.lunch : d1Meal.dinner;
                 if (!w) { starts.push(base); meals.push({ i, infeasible: true, noWindow: true }); continue; }
                 const lo = Math.max(w.from, base);
-                starts.push(Math.max(lo, Math.min(Number.isFinite(origin) ? origin : lo, w.to)));
+                // 구제 식당(_blockMealRole)의 원래 시각(자정 넘김 01:30 등)은 선호값으로 쓰지 않는다 — 창 안 가장 이른 자리.
+                const pref = Number.isFinite(origin) && !blockRole ? origin : lo;
+                starts.push(Math.max(lo, Math.min(pref, w.to)));
                 meals.push({ i, infeasible: lo > w.to, noWindow: false });
                 continue;
             }
@@ -1967,10 +1974,16 @@ export class RouteAgent extends BaseAgent {
                 const [gone] = places.splice(k, 1);
                 _mealOriginMins.splice(k, 1);
                 removedStops.push(`${gone?.name || gone?.display_name || '?'}(${why})`);
-                if (k === 0) { transitResults.splice(0, 1); await runHotelToFirst(true); }
+                removedKinds.push(why);
+                // r2: 식사를 뺀 날은 식이 손님이 아니어도 종단 게이트가 필수 끼니를 검사한다(finalItineraryGate — 이 표식).
+                if (stopCat(gone) === 'food') dayPlan._routeMealRemoved = true;
+                // r2: 새로 이어진 구간의 도착 stop — 빠진 장소에서 오던 옛 이동 안내(모델 문구·걸어서 n분 등)를 지우고 재조회 결과로만 채운다.
+                const resetIncoming = (p) => { if (p) { delete p.transit_from_prev; delete p.travelFromPrev; p._transitReset = true; } };
+                if (k === 0) { transitResults.splice(0, 1); resetIncoming(places[0]); await runHotelToFirst(true); }
                 else if (k === places.length) { transitResults.splice(k - 1, 1); await runLastToLodging(true); }
-                else transitResults.splice(k - 1, 2, await legBetween(places[k - 1], places[k], k));
+                else { resetIncoming(places[k]); transitResults.splice(k - 1, 2, await legBetween(places[k - 1], places[k], k)); }
             };
+            const removedKinds = [];
             const lastSightseeingBefore = (end) => { for (let k = end - 1; k >= 0; k--) if (isSightseeingStop(places[k])) return k; return -1; };
             const placementPassLimit = 2 * places.length + 2; // 삭제 전 개수로 고정해 연속 삭제 중 상한이 줄지 않게 한다.
             let stitched = null;
@@ -1983,14 +1996,20 @@ export class RouteAgent extends BaseAgent {
                 const v = findStitchViolation(places, candidate, { day1TourEndMin: day1 ? day1.tourEndMin : null, lastReturnMin: dayPlan.last_to_lodging?.est_min });
                 if (!v) { stitched = candidate; break; }
                 if (v.kind === 'meal' && v.noWindow) { await removeStop(v.index, 'meal-no-window'); continue; }
-                if (v.kind === 'meal' && day1.pref > day1.R) { day1.pref = day1.R; continue; }
+                // r2: 어떤 위반이든 Day1 선호 시각(pref)이 R 보다 늦으면 먼저 R 까지 당긴다(첫 stop 이 숙소가 아닐 때도 — stitchStartMins 0번 = pref).
+                if (day1 && day1.pref > day1.R) { day1.pref = day1.R; continue; }
                 const k = lastSightseeingBefore(v.kind === 'meal' ? v.index : places.length);
                 if (k >= 0) { await removeStop(k, v.kind); continue; }
                 if (v.kind === 'meal') { await removeStop(v.index, 'meal-no-room'); continue; }
                 throw routeDayInfeasibleError([`Day ${dayPlan.day || dayIdx + 1}: ${places[v.index]?.name || '?'} would start or end after midnight`]);
             }
             if (!stitched) throw routeDayInfeasibleError([`Day ${dayPlan.day || dayIdx + 1}: route placement could not be validated`]);
-            if (removedStops.length) console.log(`  [Route] Day ${dayPlan.day || '?'}: PR2 placement removed ${removedStops.join(', ')}`);
+            // r2: 자정 때문에 빼다가 그날 활동이 하나도 안 남으면 = 자정 안에 표현할 수 없는 하루 → 명시 실패(빈 날로 저장하지 않는다).
+            if (removedKinds.includes('midnight') && !places.some((p) => stopCat(p) !== 'lodging')) {
+                throw routeDayInfeasibleError([`Day ${dayPlan.day || dayIdx + 1}: no activity fits before midnight`]);
+            }
+            // routeEnrichment 가 이 표식을 보고 결과가 0곳이어도 그대로 반영한다(원본 부활 금지).
+            if (removedStops.length) { dayPlan._routePlacementRemoved = removedStops.length; console.log(`  [Route] Day ${dayPlan.day || '?'}: PR2 placement removed ${removedStops.join(', ')}`); }
             // TSP(Phase 1.5)가 dayPlan.stops 를 다른 배열로 바꿔 둘 수 있다 — 확정된 배열로 다시 연결.
             if (dayPlan.stops) dayPlan.stops = places;
             if (dayPlan.places) dayPlan.places = places;

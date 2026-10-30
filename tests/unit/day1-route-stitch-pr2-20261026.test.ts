@@ -45,8 +45,9 @@ const lateDay1 = (): Stop[] => [
   { category: 'food', name: 'Dinner', start_time: '19:30', stay_min: 60, ...at(3) },
   { category: 'lodging', name: 'Hotel', start_time: '21:00', ...P },
 ];
+// r2: 숙소 07:00 — 체류 60 + 구간 25 = 08:25 이 09:00 바닥보다 이르다(바닥이 보이는 픽스처).
 const morningDay1 = (): Stop[] => [
-  { category: 'lodging', name: 'Hotel', start_time: '08:00', ...P },
+  { category: 'lodging', name: 'Hotel', start_time: '07:00', ...P },
   { category: 'culture', name: 'Palace', start_time: '08:30', stay_min: 60, ...at(1) },
   { category: 'food', name: 'Lunch', start_time: '12:30', stay_min: 60, ...at(2) },
   { category: 'lodging', name: 'Hotel', start_time: '20:00', ...P },
@@ -66,16 +67,20 @@ async function run(day1: Stop[], body: Record<string, unknown>, extraDays: Plan[
 }
 
 describe('M1–M6 — Day1 arrival floor + meal placed first (legacy late first day)', () => {
-  it('M1 arrivalTime 14:00 (camel, ready 17:00) → Palace 17:00 / Market 18:25 / Dinner 19:50 / Hotel 21:15; tour-end cap changes nothing', async () => {
+  // r2 (편차① 철회): 첫 활동 = max(바닥, 숙소 시각 + 체류 60 + 구간 + 버퍼) — 16:30 숙소면 17:55 가 17:00 바닥보다 늦다.
+  it('M1 arrivalTime 14:00 (camel, ready 17:00) → Palace 17:55 / Market 19:20 / Dinner 20:45 / Hotel 22:10 (hotel stay kept); tour-end cap changes nothing', async () => {
     const it1 = await run(lateDay1(), { arrivalTime: '14:00', tourEndTime: '21:00' });
-    expect(names(it1.days[0].stops)).toEqual(['Hotel 16:30', 'Palace 17:00', 'Market 18:25', 'Dinner 19:50', 'Hotel 21:15']);
+    expect(names(it1.days[0].stops)).toEqual(['Hotel 16:30', 'Palace 17:55', 'Market 19:20', 'Dinner 20:45', 'Hotel 22:10']);
     const before = JSON.stringify(it1.days[0].stops);
     applyTourEndCap(it1, '21:00', { arrivalRestDay: false });
     expect(JSON.stringify(it1.days[0].stops)).toBe(before);
   });
-  it('M2 13:59 (ready 16:59) → 16:59 / 18:24 / 19:49 / 21:14', async () => {
+  it('M2 13:59 (ready 16:59) → hotel stay wins: 17:55 / 19:20 / 20:45 / 22:10; an earlier hotel (15:30) shows the floor: 16:59 / 18:24 / 19:49 / 21:14', async () => {
     const it2 = await run(lateDay1(), { arrivalTime: '13:59', tourEndTime: '21:00' });
-    expect(it2.days[0].stops.slice(1).map((s) => s.start_time)).toEqual(['16:59', '18:24', '19:49', '21:14']);
+    expect(it2.days[0].stops.slice(1).map((s) => s.start_time)).toEqual(['17:55', '19:20', '20:45', '22:10']);
+    const early = lateDay1(); early[0].start_time = '15:30';
+    const it2b = await run(early, { arrivalTime: '13:59', tourEndTime: '21:00' });
+    expect(it2b.days[0].stops.slice(1).map((s) => s.start_time)).toEqual(['16:59', '18:24', '19:49', '21:14']);
   });
   it('M3 16:30 (ready 19:30) → Market removed, one re-queried leg; Dinner 20:55; Day1 meal requirement satisfied; Dinner keeps its own fields', async () => {
     const m1Calls = (await (async () => { transitSpy.mockClear(); await run(lateDay1(), { arrivalTime: '14:00', tourEndTime: '21:00' }); return transitSpy.mock.calls.length; })());
@@ -225,9 +230,13 @@ describe('pure helpers', () => {
     expect(findStitchViolation(places, { starts: [990, 1170, 1240, 1450], meals: [] }, {})).toMatchObject({ kind: 'midnight', index: 3 });
     expect(findStitchViolation(places, { starts: [990, 1270, 1340, 1430], meals: [] }, { day1TourEndMin: 1260 })).toMatchObject({ kind: 'tour_end', index: 1 });
   });
-  it('stitchStartMins Day1 floor uses the lodging time + leg, not the lodging stay', () => {
+  it('r2: stitchStartMins Day1 floor = max(floor, lodging time + stay + leg + buffer) (hotel stay kept)', () => {
     const places = [{ category: 'lodging' }, { category: 'culture', stay_min: 60 }];
-    expect(stitchStartMins(places, { firstMin: 990, legMins: [20], buffer: 5, floorIdx: 1, floorMin: 1020 }).starts).toEqual([990, 1020]);
-    expect(stitchStartMins(places, { firstMin: 1010, legMins: [20], buffer: 5, floorIdx: 1, floorMin: 1020 }).starts).toEqual([1010, 1035]);
+    expect(stitchStartMins(places, { firstMin: 990, legMins: [20], buffer: 5, floorIdx: 1, floorMin: 1020 }).starts).toEqual([990, 1075]);
+    expect(stitchStartMins(places, { firstMin: 900, legMins: [20], buffer: 5, floorIdx: 1, floorMin: 1020 }).starts).toEqual([900, 1020]);
+  });
+  it('r2: a first non-lodging stop starts at the floor itself (so lowering pref to R really moves it)', () => {
+    const places = [{ category: 'culture', start_time: '20:00', stay_min: 60 }];
+    expect(stitchStartMins(places, { firstMin: 1200, legMins: [], buffer: 5, floorIdx: 0, floorMin: 1170 }).starts).toEqual([1170]);
   });
 });

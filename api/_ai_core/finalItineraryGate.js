@@ -92,7 +92,17 @@ export function runFinalItineraryValidation(itinerary, ctx = {}) {
   const dietary = Array.isArray(ctx.dietary) ? ctx.dietary : [];
   const empty = { ok: true, code: null, issues: [], violations: [], zeroFoodDays: [], requiredMealIssues: [] };
   if (!itinerary || typeof itinerary !== 'object') return empty;
-  if (!hasSafetyDiet(dietary)) return empty; // 식이 요구 없음 → no-op
+  if (!hasSafetyDiet(dietary)) {
+    // 2026-10-26 (첫날 도착 PR2 r2): 경로 배치(RouteAgent)가 식사를 뺀 날(_routeMealRemoved)은 식이 요구가 없어도 필수 끼니
+    //   (PR1 meal_windows 포함)를 검사한다 — "필수 끼니는 게이트가 본다" 는 전제가 일반 손님에게 성립하지 않았다.
+    //   그 밖의 날·일반 손님 판정은 종전 그대로(no-op).
+    const mealRemovedDays = (Array.isArray(itinerary.days) ? itinerary.days : [])
+      .map((d, idx) => (d && d._routeMealRemoved === true ? (Number(d.day) || idx + 1) : null)).filter((n) => n !== null);
+    if (mealRemovedDays.length === 0 || !ctx.tripTimes || typeof ctx.tripTimes !== 'object') return empty;
+    const requiredMealIssues = checkRequiredMeals(itinerary, ctx.tripTimes)
+      .filter((m) => mealRemovedDays.some((n) => String(m).startsWith(`Day ${n}:`)));
+    return requiredMealIssues.length ? { ...empty, ok: false, code: FINAL_GATE_MEAL_CODE, requiredMealIssues } : empty;
+  }
 
   const issues = validateResponse(
     itinerary,
@@ -208,10 +218,11 @@ export function assertNoDuplicateStops(itinerary, stage = 'unknown', ctx) {
 export function buildFinalGateError(result, dietary, stage) {
   const diets = (Array.isArray(dietary) ? dietary : []).join(', ');
   const e = result.code === FINAL_GATE_MEAL_CODE
-    ? new Error(
-        `We could not place a safe meal on every full day of your itinerary (${diets}). ` +
+    ? new Error(diets
+      ? `We could not place a safe meal on every full day of your itinerary (${diets}). ` +
         'To keep you safe we did not save this plan. Please try again or contact support.'
-      )
+      // PR2 r2: 식이 요구 없는 손님 — 배치가 식사를 뺀 날의 필수 끼니 누락.
+      : 'We could not fit a required meal into one of your days. Please change the arrival time or trip length and try again.')
     : new Error(
         `AI failed to respect your dietary requirements (${diets}). ` +
         'Please try again or contact support.'

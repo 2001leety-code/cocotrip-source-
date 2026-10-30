@@ -116,6 +116,8 @@ export const processPlanAfterAI = inngest.createFunction(
             _streaming_in_progress: false,
             _streaming_error: 'inngest_worker_failure_p307',
             _streaming_error_message: (error?.message || 'unknown').slice(0, 500),
+            // PR2 r2: 손님 화면이 사유별 안내(ROUTE_DAY_INFEASIBLE·DIETARY_MEAL_COVERAGE_FAILED)를 고르게 — Inngest 는 code 를 보존한다.
+            ...(typeof error?.code === 'string' && error.code ? { _streaming_error_code: error.code.slice(0, 80) } : {}),
             // 2026-10-24: 구조화 상세(종단 끼니 실패의 날짜·끼니·사유 등)가 직렬화돼 넘어오면 같이 남긴다.
             ...(failureDetailsOf(error) ? { _streaming_error_details: failureDetailsOf(error) } : {}),
             _failed_at: new Date().toISOString(),

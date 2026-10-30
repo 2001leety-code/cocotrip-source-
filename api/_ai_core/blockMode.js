@@ -729,7 +729,7 @@ function addMinutesToHHMM(hhmm, minutes) {
  * 2026-10-26 (첫날 도착 PR2): 첫날(휴식일 아님) 투어 종료 cap 이 지우려는 음식 stop 구제 — 블록 offset 이 늦은 준비 시각에
  *   더해져 종료 뒤로 밀린 저녁을 미리 지우면 RouteAgent 가 식사 창 안으로 배치할 후보가 없다. 역할 시각(자정 넘김이면 +1440)
  *   기준 역할(17:00 전 점심, 아니면 저녁) 창이 [dayStart, tourEnd) 와 1분이라도 겹치면 남긴다 — **역할별 첫 1곳**만
- *   (이미 남은 같은 역할 식사가 있으면 구제하지 않는다). 11:00 전 역할(조식)·다른 날은 종전 cap 그대로. 순수(Set 갱신만).
+ *   (이미 남은 같은 역할 식사가 있으면 구제하지 않는다). 11:00 전 역할(조식)·다른 날은 종전 cap 그대로. 부작용 = keptRoles 갱신 + 구제한 stop 에 _blockMealRole.
  * @returns {boolean} 남기면 true
  */
 export function rescueFirstDayMeal(stop, m, pastMidnight, dayStartMin, capMin, keptRoles) {
@@ -740,6 +740,9 @@ export function rescueFirstDayMeal(stop, m, pastMidnight, dayStartMin, capMin, k
   const [from, to] = MEAL_ROLE_WINDOWS[role];
   if (keptRoles.has(role) || !(from < capMin && dayStartMin < to)) return false;
   keptRoles.add(role);
+  // PR2 r2: 구제한 역할을 stop 에 붙여 RouteAgent 배치까지 전달 — 자정 넘김(01:30) 저녁을 조식 시각으로 읽어 창을 안 쓰던 문제.
+  //   routeEnrichment 가 병합 때 지운다(저장 안 함). PR3 _blockMealRole 의 최소 선행분(구제 식당에 한해).
+  stop._blockMealRole = role;
   return true;
 }
 

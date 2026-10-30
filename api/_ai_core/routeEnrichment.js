@@ -221,7 +221,10 @@ export async function enrichItineraryWithRoute(itinerary, { apiKey, body, langua
           itinerary.days[i].intercity_transit = enrichedDay.intercity_transit;
         }
         const enrichedStops = enrichedDay.stops || enrichedDay.places || [];
-        if (itinerary.days[i] && enrichedStops.length > 0) {
+        // PR2 r2: 배치가 stop 을 뺀 날은 결과가 0곳이어도 그대로 반영한다 — 건너뛰면 원본(자정 넘김 관광 등)이 되살아났다.
+        const placementRemoved = Number(enrichedDay._routePlacementRemoved) > 0;
+        if (itinerary.days[i] && enrichedDay._routeMealRemoved === true) itinerary.days[i]._routeMealRemoved = true; // 종단 게이트 필수 끼니 검사 표식
+        if (itinerary.days[i] && (enrichedStops.length > 0 || placementRemoved)) {
           const odsayCount = enrichedStops.filter((p) => p.transit_from_prev?.source === 'odsay').length;
           const geoCount = enrichedStops.filter((p) => p.lat != null).length;
           console.log(`[planner] Day ${i + 1}: ${enrichedStops.length} stops, ${geoCount} geocoded, ${odsayCount} ODsay routes`);
@@ -229,12 +232,13 @@ export async function enrichItineraryWithRoute(itinerary, { apiKey, body, langua
           itinerary.days[i].stops = enrichedStops.map((p, j) => {
             // PR2: 원래 위치(_ri)로 같은 stop 을 찾는다 — 없으면(옛 호출) 순번. _ri 는 출력에 남기지 않는다.
             const original = itinerary.days[i].stops[Number.isInteger(p._ri) ? p._ri : j] || {};
-            const { _ri, ...routed } = p;
+            const { _ri, _transitReset, _blockMealRole, ...routed } = p;
             const merged = {
               ...original,
               ...routed,
               start_time: p.start_time || original.start_time,
-              transit_from_prev: p.transit_from_prev != null ? p.transit_from_prev : original.transit_from_prev,
+              // r2: 앞 stop 이 빠져 구간이 바뀐 stop 은 옛(빠진 장소에서 오던) 안내로 되돌리지 않는다.
+              transit_from_prev: (p.transit_from_prev != null || _transitReset) ? (p.transit_from_prev || null) : original.transit_from_prev,
               travelFromPrev: p.travelFromPrev || null,
               entry_fee_krw: original.entry_fee_krw,
               reservation_required: original.reservation_required,
@@ -243,6 +247,7 @@ export async function enrichItineraryWithRoute(itinerary, { apiKey, body, langua
             };
             // RouteAgent 가 재배치하며 지운 end_time 은 원본 병합으로 되살리지 않는다.
             if (merged.start_time !== original.start_time && !/^(?:[01]?\d|2[0-3]):[0-5]\d$/.test(String(routed.end_time || ''))) delete merged.end_time;
+            delete merged._blockMealRole; // blockMode 구제 표식(배치용) — 저장하지 않는다
             return merged;
           });
           // 2026-05-08 신규: lodging bookend 필드 day-level merge.
