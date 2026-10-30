@@ -15,7 +15,7 @@ import { tourSlotBody, SLOT_REJECT_LABELS } from '@/lib/tourSlotBooking';
 import { fillPrice } from '@/lib/aiPlannerPrice';
 import { charterCheckoutExpectedUsd, charterUsdFromKrw } from '@/lib/charterUsd';
 import { GuestSignupNudge } from '@/components/GuestSignupNudge';
-import { usePaymentRecovery, reconcilePayment, classifyCaptureResponse, recoveryCopy, recoveryHeadline, PLANNER_RECOVERY_SCOPE, isPlannerProduct, isSameProduct, storePaymentRecovery, type CaptureOutcome } from '@/lib/paymentRecovery';
+import { usePaymentRecovery, reconcilePayment, classifyCaptureResponse, recoveryCopy, recoveryHeadline, PLANNER_RECOVERY_SCOPE, isPlannerProduct, isSameProduct, storePaymentRecovery, readPaymentRecovery, type PaymentRecovery, type CaptureOutcome } from '@/lib/paymentRecovery';
 import type { Language } from '@/i18n';
 
 // SDK 차단·로드 실패 시 fallback — paypal.me QR (외부 redirect, paypalobjects.com 무관).
@@ -218,13 +218,25 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
   const captureInFlight = useRef(false);
   const [reconciling, setReconciling] = useState(false);
   const rc = recoveryCopy(lang);
-  // r5: 결과를 기다리는 포인터 저장 — 새로 시작한 결제(fresh)만 이 화면의 상품·단건 흐름. 같은 주문 확인(복원 포인터)은 포인터의
-  //   원래 상품·흐름을 그대로 둔다(중간 단계 pending·review·auth·오류가 다른 상품 주문을 이 화면 상품으로 덮어 썼다 → final 때 거짓 확정).
-  function keepWaiting(orderID: string, fresh: boolean, state: { paymentStatus: 'CAPTURED' | 'CAPTURE_UNKNOWN' | 'NOT_CAPTURED'; review: boolean; authRequired?: boolean }) {
-    const restored = !fresh && recoveryRef.current && recoveryRef.current.orderID === orderID ? recoveryRef.current : null;
-    remember({ orderID, flow: restored ? restored.flow : 'single', productType: restored ? restored.productType : productType, ...state });
+  // r6: 같은 주문 확인을 시작한 포인터를 고정한다. 다른 탭에서 삭제·이동·교체한 뒤 도착한
+  // 응답은 저장·성공 처리에 쓰지 않는다. StorageEvent 전달 전에도 실제 저장소를 함께 대조한다.
+  function isCurrentCheck(checked: PaymentRecovery | null): boolean {
+    if (!checked) return false;
+    const same = (current: PaymentRecovery | null) => !!current
+      && current.orderID === checked.orderID && current.flow === checked.flow
+      && current.productType === checked.productType && current.updatedAt === checked.updatedAt;
+    return same(recoveryRef.current)
+      && same(readPaymentRecovery(checked.flow, keepRecoveryUntilFulfilled ? PLANNER_RECOVERY_SCOPE : undefined));
   }
-  async function applyCaptureOutcome(outcome: CaptureOutcome, orderID: string, fresh: boolean) {
+  function keepWaiting(orderID: string, fresh: boolean, state: { paymentStatus: 'CAPTURED' | 'CAPTURE_UNKNOWN' | 'NOT_CAPTURED'; review: boolean; authRequired?: boolean }, checked: PaymentRecovery | null) {
+    if (!fresh) {
+      if (checked && isCurrentCheck(checked)) remember({ orderID: checked.orderID, flow: checked.flow, productType: checked.productType, ...state });
+      return;
+    }
+    remember({ orderID, flow: 'single', productType, ...state });
+  }
+  async function applyCaptureOutcome(outcome: CaptureOutcome, orderID: string, fresh: boolean, checked: PaymentRecovery | null = null) {
+    if (!fresh && (checked?.orderID !== orderID || !isCurrentCheck(checked))) return;
     if (outcome.kind === 'final') {
       const result = outcome.data as { payerName?: string; payerEmail?: string; amount?: string };
       if (fresh) {
@@ -234,9 +246,9 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
       // A restored pointer for a different product never feeds this product's success callback.
       //   r4: …nor this product's success screen ("Booking Confirmed!"·driver notice). An unknown product counts as different.
       //   A planner order found here moves to the planner key so the planner page can still issue the plan.
-      const sameProduct = fresh || isSameProduct(recovery?.productType, productType);
+      const sameProduct = fresh || isSameProduct(checked?.productType, productType);
       if (!sameProduct) {
-        const other = recovery;
+        const other = checked;
         clearRecovery(orderID);
         if (other && isPlannerProduct(other.productType) && !keepRecoveryUntilFulfilled) {
           storePaymentRecovery({ ...other, paymentStatus: 'CAPTURED', review: false }, PLANNER_RECOVERY_SCOPE);
@@ -258,17 +270,17 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
       return;
     }
     if (outcome.kind === 'review') {
-      keepWaiting(orderID, fresh, { paymentStatus: outcome.captured ? 'CAPTURED' : 'NOT_CAPTURED', review: true });
+      keepWaiting(orderID, fresh, { paymentStatus: outcome.captured ? 'CAPTURED' : 'NOT_CAPTURED', review: true }, checked);
       setPaymentReview({ orderID, captureID: outcome.captureID, paymentCaptured: outcome.captured });
       setShowPaypal(false); setLoading(false); setRateInfo(null);
       return;
     }
-    if (outcome.kind === 'pending') { keepWaiting(orderID, fresh, { paymentStatus: outcome.status, review: false }); setShowPaypal(false); setRateInfo(null); return; }
+    if (outcome.kind === 'pending') { keepWaiting(orderID, fresh, { paymentStatus: outcome.status, review: false }, checked); setShowPaypal(false); setRateInfo(null); return; }
     if (outcome.kind === 'auth_required') {
       // 403 is answered before the provider is called: no money moved. A fresh order from this page session
       // must not lock the whole flow (2026-10-10 R2); only a restored pointer keeps the "same device" notice.
       if (fresh) { clearRecovery(orderID); setError(rc.authRequired); setShowPaypal(false); buttonsRendered.current = false; return; }
-      keepWaiting(orderID, fresh, { paymentStatus: 'CAPTURE_UNKNOWN', review: false, authRequired: true }); setShowPaypal(false); setRateInfo(null); return;
+      keepWaiting(orderID, fresh, { paymentStatus: 'CAPTURE_UNKNOWN', review: false, authRequired: true }, checked); setShowPaypal(false); setRateInfo(null); return;
     }
     if (outcome.kind === 'not_captured') {
       const prepayMsg = plannerPrepayMessage(p, outcome.preCaptureCode, outcome.message);
@@ -286,16 +298,21 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
     void posthogTrack('payment_failed', { planType: productType, reason: 'capture_rejected' });
     setError(outcome.message); setShowPaypal(false); buttonsRendered.current = false;
     if (fresh) {
+      const pointer = recoveryRef.current;
+      const evidencePointer = pointer && pointer.orderID === orderID ? { ...pointer } : null;
       const evidence = await reconcilePayment('single', orderID);
-      if (evidence.kind === 'not_captured') { clearRecovery(orderID); return; }
-      if (evidence.kind === 'final' || evidence.kind === 'review' || evidence.kind === 'refunded') { await applyCaptureOutcome(evidence, orderID, false); return; }
+      // 미결제 증거도 공통 경로로 처리해 QR 송금 뒤의 재결제 금지 안내를 유지한다.
+      await applyCaptureOutcome(evidence, orderID, false, evidencePointer);
+      return;
     }
-    keepWaiting(orderID, fresh, { paymentStatus: 'CAPTURE_UNKNOWN', review: false });
+    keepWaiting(orderID, fresh, { paymentStatus: 'CAPTURE_UNKNOWN', review: false }, checked);
   }
   async function checkSameOrder() {
-    if (!recovery || reconciling) return;
+    const pointer = recoveryRef.current;
+    if (!pointer || reconciling) return;
+    const checked = { ...pointer };
     setReconciling(true);
-    try { await applyCaptureOutcome(await reconcilePayment(recovery.flow, recovery.orderID), recovery.orderID, false); }
+    try { await applyCaptureOutcome(await reconcilePayment(checked.flow, checked.orderID), checked.orderID, false, checked); }
     finally { setReconciling(false); }
   }
   // Latest-callback refs for the PayPal Buttons effect: the SDK config captured once at render time must

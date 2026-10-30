@@ -412,9 +412,10 @@ describe('manual-payment-request (QR / paypal.me) — same pre-payment check bef
   });
   const report = (extra: Dict) => ({ bookingRef: 'CT-20991201-123', productType: 'ai-planner-full', passengers: 1, priceKRW: 14000, customerEmail: 'g@e.x', ...extra });
   it('report after remittance: a failing check is recorded for the operator, never dropped (money may have moved)', async () => {
-    const { res, store } = await run(report({ plannerInput: input({ startDate: todayKST() }) }));
+    foodHolder.rows = realIndex();
+    const { res, store } = await run(report({ plannerInput: input({ regions: ['서울', '인천'] }) }));
     expect(res.status).toBe(200);
-    expect(store.get('pending_bookings/CT-20991201-123')).toMatchObject({ status: 'AWAITING_VERIFICATION', prepayCheckFailed: { code: 'PLANNER_DATE_TOO_SOON' } });
+    expect(store.get('pending_bookings/CT-20991201-123')).toMatchObject({ status: 'AWAITING_VERIFICATION', prepayCheckFailed: { code: 'DIETARY_COVERAGE_UNAVAILABLE' } });
   });
   it('report with a passing check stores the same normalized input + fingerprint as createPaypalOrder', async () => {
     const { store } = await run(report({ plannerInput: input() }));

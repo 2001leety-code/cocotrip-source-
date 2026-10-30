@@ -98,7 +98,7 @@ describe('PayPalBookingButton — GA4 전환 배선 가드 (dead-code 회귀 방
     //   applyCaptureOutcome(outcome, orderID, fresh) on the 'final' outcome; orderID is still data.orderID from onApprove.
     expect(src).toMatch(/trackPaidConversion\(\{[\s\S]*?transactionId:\s*orderID[\s\S]*?value:\s*checkoutAmountUSD[\s\S]*?currency:\s*'USD'/);
     // the call sits inside applyCaptureOutcome's `final` branch, gated on a fresh capture
-    const fnIdx = src.indexOf('async function applyCaptureOutcome(outcome: CaptureOutcome, orderID: string, fresh: boolean)');
+    const fnIdx = src.indexOf('async function applyCaptureOutcome(');
     expect(fnIdx).toBeGreaterThan(-1);
     const callIdx = src.indexOf('trackPaidConversion({', fnIdx);
     expect(callIdx).toBeGreaterThan(fnIdx);

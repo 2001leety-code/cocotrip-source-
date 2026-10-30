@@ -35,7 +35,7 @@ import { notify } from './_shared/notify.js';
 import { confirmBookingAsPaid } from './_shared/booking-confirm.js';
 import { checkIpRateLimit, getClientIp } from './_shared/ip-rate-limit.js';
 import { USD_TO_KRW } from './_shared/exchange-rate.js';
-import { isPrepayCheckedProduct, checkPlannerOrderInput, loadPrepayFoodIndex, prepaySnapshotFields } from './_shared/prepay-coverage.js';
+import { isPrepayCheckedProduct, checkPlannerOrderInput, normalizePrepayInput, checkPrepayCoverage, loadPrepayFoodIndex, prepaySnapshotFields } from './_shared/prepay-coverage.js';
 
 // ── 어드민 bypass 허용 이메일 목록 ──────────────────────────────────────
 // paymentGate.js / capturePaypalOrder.js 와 동일 패턴.
@@ -112,7 +112,17 @@ export default async function handler(req, res) {
     //   만들지 않는다. 검사 = createPaypalOrder 와 같은 함수(정규화·출발일 > KST 오늘·식이 커버리지). 쓰기 0·rate limit 전.
     const prepayChecked = isPrepayCheckedProduct(productType);
     const prepayFoodIndex = prepayChecked ? await loadPrepayFoodIndex() : null;
-    const prepayCheck = prepayChecked ? checkPlannerOrderInput(body.plannerInput, prepayFoodIndex) : null;
+    // 송금 신고는 이미 돈이 움직였을 수 있어 출발일 경과로 막지 않는다. QR 안내 전 검사만 미래 날짜를 요구한다.
+    let prepayCheck = null;
+    if (prepayChecked) {
+      prepayCheck = body.checkOnly === true
+        ? checkPlannerOrderInput(body.plannerInput, prepayFoodIndex)
+        : normalizePrepayInput(body.plannerInput);
+      if (body.checkOnly !== true && prepayCheck.ok) {
+        const coverage = checkPrepayCoverage(prepayCheck.input, prepayFoodIndex);
+        if (!coverage.ok) prepayCheck = coverage;
+      }
+    }
     if (body.checkOnly === true) {
       if (!prepayChecked) {
         res.writeHead(400, JSON_HEADERS);
@@ -307,7 +317,9 @@ export default async function handler(req, res) {
         `<b>이메일:</b> ${customerEmail}`,
         customerPhone ? `<b>연락처:</b> ${customerPhone}` : null,
         prepayCheck && !prepayCheck.ok
-          ? `⚠️ <b>AI 플래너 결제 전 확인 실패:</b> ${prepayCheck.code}${prepayCheck.details ? ` (${prepayCheck.details})` : ''} — 입금 확인 시 자동 생성 불가, 환불 검토`
+          ? (prepayCheck.code === 'DIETARY_COVERAGE_UNAVAILABLE'
+            ? `⚠️ <b>AI 플래너 신고 시 식이 확인 실패:</b> ${prepayCheck.code} — 입금 및 생성 요청의 식이 조건을 확인하세요`
+            : `⚠️ <b>AI 플래너 신고 입력 확인 필요:</b> ${prepayCheck.code} — 결제 확인 후 정규화 가능한 첫 생성 요청이 식이 확인을 통과하면 입력이 고정됩니다`)
           : null,
         '',
         '🔍 <i>PayPal 거래내역에서 <code>' + bookingRef + '</code> 메모 또는 ' + (customerEmail) + ' 이메일로 매칭 후</i>',
