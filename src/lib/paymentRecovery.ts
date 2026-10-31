@@ -80,6 +80,12 @@ export function removePaymentRecovery(flow: PaymentFlow, orderID: string, scope?
   try {
     const current = readPaymentRecovery(flow, scope);
     if (current && current.orderID === orderID) localStorage.removeItem(recoveryKey(flow, scope));
+    // r9: 플래너 범위를 지울 때 같은 주문의 옛 공용 키 플래너 포인터도 지운다 — 이동 저장이 실패(Quota 지속)해 공용 키에 남은 채
+    //   확정되면 플래너 마운트마다 확인 패널이 다시 떴다. removeItem 은 Quota 에서도 동작. 다른 주문·다른 상품은 건드리지 않는다.
+    if (scope === PLANNER_RECOVERY_SCOPE) {
+      const legacy = readPaymentRecovery(flow);
+      if (legacy && legacy.orderID === orderID && isPlannerProduct(legacy.productType)) localStorage.removeItem(recoveryKey(flow));
+    }
   } catch { /* stale pointer is safe to reconcile again */ }
 }
 

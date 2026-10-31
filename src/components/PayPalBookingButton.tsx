@@ -238,6 +238,10 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
   }
   // r8: 이 화면이 만든 주문의 생성 당시 상품 — 결제 대기 중 상품을 바꿔도(편도 → 왕복) 그 주문의 결과를 바뀐 상품의 성공으로 쓰지 않는다.
   const createdOrderRef = useRef<{ orderID: string; productType: string } | null>(null);
+  const deliveredRef = useRef<Set<string>>(new Set()); // r9: onPaymentSuccess 진행 중인 주문(겹침 방지 — 끝나면 해제)
+  // r9: 최신 화면 상품 — 조회 응답이 await 뒤 도착해도 지금 화면 상품과 대조한다(시작 당시 클로저 값 금지).
+  const productTypeRef = useRef(productType);
+  useEffect(() => { productTypeRef.current = productType; }, [productType]);
   const createdProductOf = (orderID: string) => (createdOrderRef.current && createdOrderRef.current.orderID === orderID ? createdOrderRef.current.productType : undefined);
   function keepWaiting(orderID: string, fresh: boolean, state: { paymentStatus: 'CAPTURED' | 'CAPTURE_UNKNOWN' | 'NOT_CAPTURED'; review: boolean; authRequired?: boolean }, checked: PaymentRecovery | null) {
     if (!fresh) {
@@ -265,7 +269,9 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
       //   (결제 대기 중 편도 → 왕복으로 바꾸면 왕복 화면에 편도 '예약 확정'이 뜨던 문제). 다르면 아래 중립 "다른 주문" 안내.
       const createdProduct = createdProductOf(orderID);
       const ownProduct = createdProduct ? createdProduct : (fresh ? productType : checked?.productType);
-      const sameProduct = (fresh || own) ? isSameProduct(ownProduct, productType) : isSameProduct(checked?.productType, productType);
+      //   r9: 화면 상품은 응답 도착 시점 값(ref) — 조회 시작 당시 클로저의 productType 이 아니라.
+      const screenProduct = productTypeRef.current;
+      const sameProduct = (fresh || own) ? isSameProduct(ownProduct, screenProduct) : isSameProduct(checked?.productType, screenProduct);
       if (!sameProduct) {
         const other: PaymentRecovery | null = checked
           ? checked
@@ -283,7 +289,13 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
         //   생성이 실패하거나 새로고침돼도 새 결제 대신 같은 주문 확인이 보인다. 지우는 쪽 = 호출자(발급 성공 시).
         if (keepRecoveryUntilFulfilled) { if (mayWrite) remember({ orderID, flow: 'single', paymentStatus: 'CAPTURED', review: false, productType }); }
         else clearRecovery(orderID);
-        setShowPaypal(false); await onPaymentSuccess(orderID); return;
+        setShowPaypal(false);
+        // r9: 진행 중(in-flight) 1회 — 자동 증거 조회와 수동 확인이 동시에 final 이어도 성공 콜백(플랜 발급 등)이 겹치지 않게.
+        //   끝나면 해제한다: 발급 실패 뒤 '같은 주문 확인' → final 의 정당한 재전달(재시도 경로)은 다시 부른다.
+        if (deliveredRef.current.has(orderID)) return;
+        deliveredRef.current.add(orderID);
+        try { await onPaymentSuccess(orderID); } finally { deliveredRef.current.delete(orderID); }
+        return;
       }
       clearRecovery(orderID);
       setSuccessData({ orderID, payerName: result.payerName || '', payerEmail: result.payerEmail || '', amount: result.amount || '' });
@@ -324,6 +336,7 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
       const evidence = await reconcilePayment('single', orderID);
       // 미결제 증거도 공통 경로로 처리해 QR 송금 뒤의 재결제 금지 안내를 유지한다.
       //   r7: 이 화면 자신의 주문 증거(own) — 포인터가 다른 주문으로 바뀌었어도 증거를 버리지 않는다(교체 포인터는 그대로).
+      //   r9: 상품 대조는 응답 도착 시점의 최신 화면 상품(productTypeRef) — 조회 도중 바뀌어도 시작 당시 상품으로 확정하지 않는다.
       await applyCaptureOutcome(evidence, orderID, false, evidencePointer, true);
       return;
     }
@@ -334,7 +347,10 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
     if (!pointer || reconciling) return;
     const checked = { ...pointer };
     setReconciling(true);
-    try { await applyCaptureOutcome(await reconcilePayment(checked.flow, checked.orderID), checked.orderID, false, checked); }
+    try {
+      const outcome = await reconcilePayment(checked.flow, checked.orderID);
+      await applyCaptureOutcome(outcome, checked.orderID, false, checked); // r9: 상품 대조는 응답 시점 최신 상품(productTypeRef)
+    }
     finally { setReconciling(false); }
   }
   // Latest-callback refs for the PayPal Buttons effect: the SDK config captured once at render time must
