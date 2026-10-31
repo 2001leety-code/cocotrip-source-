@@ -214,3 +214,30 @@ describe('r7 — coordinate-less bookends: addresses decide, the booked hotel ad
     expect(isLodgingBookendPair(far, 1, 'X')).toBe(false);
   });
 });
+
+describe('r8 — a merged same-hotel marker carries no transit (no "car 25 min · taxi ₩9,800" on the second marker)', () => {
+  const hidden = (s: Stop) => Object.keys(s).filter((k) => ['_ri', '_transitReset', '_blockMealRole'].includes(k));
+  it('coordinate-less bookends (same name + address) → second marker has no transit_from_prev / travelFromPrev, no hidden keys', async () => {
+    const H = (t: string, extra: Stop = {}) => ({ category: 'lodging', name: 'Hotel', address: '서울 중구 명동길 1', start_time: t, ...noGeo, ...extra });
+    const it8 = await run([{ day: 1, city: 'seoul', stops: [H('23:35', { stay_min: 0 }), H('23:59')] }, midDay(2), lastDay(3)], { arrivalTime: '20:35', tourEndTime: '21:00' });
+    const second = it8.days[0].stops[1];
+    expect(second.start_time).toBe(it8.days[0].stops[0].start_time);
+    expect(second.transit_from_prev == null).toBe(true);
+    expect(second.travelFromPrev == null).toBe(true);
+    for (const d of it8.days) for (const s of d.stops) expect(hidden(s)).toEqual([]);
+  });
+  it('50 m coordinate merge follows the same rule (Day2 [Hotel 22:40, Hotel 23:30] at the same point)', async () => {
+    const it8 = await run([midDay(1), { day: 2, city: 'seoul', stops: [hotel('22:40'), hotel('23:30')] }, lastDay(3)]);
+    expect(it8.days[1].stops[1].transit_from_prev == null).toBe(true);
+    expect(it8.days[1].stops[1].travelFromPrev == null).toBe(true);
+  });
+  it('a stop that is not merged keeps its transit (mid day: dinner → hotel)', async () => {
+    const it8 = await run([midDay(1), midDay(2), lastDay(3)]);
+    const last = it8.days[1].stops[it8.days[1].stops.length - 1];
+    expect(last.transit_from_prev).toBeTruthy();
+  });
+  it('pure: stitchStartMins reports merged indices only for merged stops', () => {
+    const places = [{ category: 'lodging', name: 'Hotel', ...P }, { category: 'culture', ...at(1) }, { category: 'lodging', name: 'Hotel', ...P }, { category: 'lodging', name: 'Hotel', ...P }];
+    expect(stitchStartMins(places, { firstMin: 600, legMins: [10, 10, 10], buffer: 5 }).merged).toEqual([3]);
+  });
+});

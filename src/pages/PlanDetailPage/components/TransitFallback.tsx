@@ -55,6 +55,8 @@ export function TransitFallback({
 
   const distKm = haversineKm(prevLat, prevLng, currLat, currLng);
   const distM = Math.round(distKm * 1000);
+  // PR2 r8: 같은 지점(50m 이내 — 같은 숙소 출발·복귀 표식을 서버가 합친 경우)엔 이동 안내가 없다.
+  if (distM <= 50) return null;
 
   // 거리 < 2km → 도보/택시 권장. ~70m/분 보행 속도, 택시 기본료 ₩4,800 + 거리당 추가
   // 한국 표준 택시 (1.6km 까지 기본 ₩4,800, 132m 당 ₩100 추가).

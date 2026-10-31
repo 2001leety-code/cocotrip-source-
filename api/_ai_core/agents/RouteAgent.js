@@ -811,11 +811,13 @@ export function isLodgingBookendPair(places, i, bookedAddress = '') {
  *   lo = max(창 시작, 앞 종료 + 이동 + 버퍼),
  *   hi = 창 끝 → start = max(lo, min(원래 시각 ?? lo, hi)). 창이 없거나 lo > hi = 배치 불가로 meals 에 표시.
  *   그 밖의 식사는 applyMealFloor(원래 시각보다 앞당기지 않음).
- * @returns {{starts: number[], meals: Array<{i: number, infeasible: boolean, noWindow: boolean}>}}
+ *   r8: merged = 같은 숙소로 합친 stop 의 인덱스(이동·버퍼 0) — 이동 안내 작성 단계가 그 stop 엔 이동을 쓰지 않는다.
+ * @returns {{starts: number[], meals: Array<{i: number, infeasible: boolean, noWindow: boolean}>, merged: number[]}}
  */
 export function stitchStartMins(places, { firstMin, legMins = [], buffer = SCHEDULE_BUFFER_MIN, floorIdx = -1, floorMin = null, mealOrigins = [], d1Meal = null, mergeBookend = false, bookedAddress = '' } = {}) {
     const starts = [];
     const meals = [];
+    const merged = [];
     const hasFloor = Number.isFinite(floorMin);
     const rolesTaken = new Set(); // r3: Day1 역할별 첫 식당만 '필수 끼니'(창 배치), 같은 역할 둘째(카페·디저트)는 관광처럼 뺄 수 있는 후보
     for (let i = 0; i < places.length; i++) {
@@ -824,6 +826,7 @@ export function stitchStartMins(places, { firstMin, legMins = [], buffer = SCHED
         else if (isSameLodgingMarker(places[i - 1], places[i]) || (mergeBookend && isLodgingBookendPair(places, i, bookedAddress))) {
             // r3: 같은 숙소 연속 표식 — 이동·버퍼 없이 앞 숙소에 붙이고 자정을 넘기지 않는다(손님은 이미 숙소, 휴식일 북엔드 2개 등).
             base = Math.max(starts[i - 1], Math.min(starts[i - 1] + stayOf(places[i - 1]), 24 * 60 - 1));
+            merged.push(i);
         } else {
             const chain = starts[i - 1] + stayOf(places[i - 1]) + legMins[i - 1] + buffer;
             base = hasFloor && i === floorIdx ? Math.max(floorMin, chain) : chain;
@@ -854,7 +857,7 @@ export function stitchStartMins(places, { firstMin, legMins = [], buffer = SCHED
         }
         starts.push(base);
     }
-    return { starts, meals };
+    return { starts, meals, merged };
 }
 
 /**
@@ -2090,11 +2093,22 @@ export class RouteAgent extends BaseAgent {
             if (dayPlan.stops) dayPlan.stops = places;
             if (dayPlan.places) dayPlan.places = places;
             const { starts } = stitched;
+            const mergedIdx = new Set(stitched.merged || []);
 
             for (let i = 0; i < places.length; i++) {
                 const place = places[i];
                 const newStart = this._formatTime(starts[i]);
                 if (place.start_time !== newStart) delete place.end_time; // backfillStopEndTimes 가 다시 계산
+
+                // r8: 같은 숙소로 합친 표식(이름·주소 북엔드 / 50m) — 시각처럼 이동 안내도 없다(옛 25분·택시 안내 금지).
+                //   _transitReset: 병합 단계가 원본 이동 안내로 되돌리지 않게(기존 숨은 키, 출력 전 제거).
+                if (i > 0 && mergedIdx.has(i)) {
+                    place.start_time = newStart;
+                    place.transit_from_prev = null;
+                    place.travelFromPrev = null;
+                    place._transitReset = true;
+                    continue;
+                }
 
                 // 첫 장소: 호텔 경로 있으면 사용, 없으면 null
                 if (i === 0) {
