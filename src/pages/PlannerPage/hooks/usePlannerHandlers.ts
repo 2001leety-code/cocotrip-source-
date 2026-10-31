@@ -11,7 +11,7 @@ import { track as posthogTrack } from '@/lib/posthog';
 import { buildQuickPreviewPayload } from '../lib/quickPreviewIntent';
 import { parseQuickPreviewResponse } from '../lib/quickPreviewContract';
 import { buildFullPlannerIntentPayload, buildPlannerOrderInput, applyPaidPlannerInput, type PaidPlannerInput } from '../lib/plannerIntent';
-import { removePaymentRecovery, PLANNER_RECOVERY_SCOPE } from '@/lib/paymentRecovery';
+import { removePaymentRecovery, markPlannerIssuePending, PLANNER_RECOVERY_SCOPE } from '@/lib/paymentRecovery';
 
 // feat/guest-anon-auth-pii (2026-06-15): 비로그인 게스트 + 플래그 ON 이면 격리된
 // 익명 Firebase 인스턴스(guestReader)로 로그인해 idToken 을 x-guest-anon-token 헤더로
@@ -365,9 +365,16 @@ export function usePlannerHandlers({ language, userEmail, setUserEmail }: UsePla
         throw e;
       }
 
-      // 플랜 발급 = 결제 복구 포인터를 지울 때(그 전까지는 새 결제 버튼 대신 같은 주문 확인이 보인다).
-      if (isPaidOrderId(paypalOrderId)) removePaymentRecovery('single', paypalOrderId, PLANNER_RECOVERY_SCOPE);
       const data = json.data;
+      // 플랜 발급 = 결제 복구 포인터를 지울 때(그 전까지는 새 결제 버튼 대신 같은 주문 확인이 보인다).
+      //   r15: 200 이어도 streaming(firestoreSaved:false)은 미완성 — 포인터 유지 + planId 표식, 플랜 상세가 ready 를 보면 삭제(error 면 유지).
+      //   저장 완료 응답(firestoreSaved:true)만 즉시 삭제. 플랜 주소가 없으면(NO_PLAN_URL) 아래에서 실패 처리 — 포인터 유지.
+      if (isPaidOrderId(paypalOrderId)) {
+        const issuedPlanId = data?.planId
+          || (typeof data?.planUrl === 'string' ? (data.planUrl.split('/my-plans/')[1] || '').split('?')[0] : '');
+        if (data?.firestoreSaved === true && issuedPlanId) removePaymentRecovery('single', paypalOrderId, PLANNER_RECOVERY_SCOPE);
+        else if (issuedPlanId) markPlannerIssuePending(issuedPlanId, paypalOrderId);
+      }
 
       setStreamStep(4);
       setStreamAgent('done');

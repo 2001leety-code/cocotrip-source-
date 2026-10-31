@@ -7,6 +7,7 @@
 //   - legacy 무상태 doc(옛 비스트리밍 플랜)은 저장 완료 상태이므로 'ready' 로 정규화.
 import { useEffect } from 'react';
 import { trackPlannerOutcomeFromStatus } from '@/lib/analytics';
+import { settlePlannerIssue } from '@/lib/paymentRecovery';
 
 export function usePlanCompletionTracking(
   planId: string | undefined,
@@ -18,5 +19,7 @@ export function usePlanCompletionTracking(
     try {
       trackPlannerOutcomeFromStatus(planId, status || 'ready');
     } catch { /* analytics 실패는 렌더에 영향 없음 */ }
+    // 2026-10-26 B6-1 r15: 유료 플래너 주문의 복구 포인터 정리 — ready = 발급 완료(삭제), error = 유지(같은 주문 재발급), streaming = 대기.
+    settlePlannerIssue(planId, status || 'ready');
   }, [planId, status, hasPlan]);
 }

@@ -207,6 +207,25 @@ export function isCurrentPointer(checked: PaymentRecovery | null, mine: PaymentR
   return !stored.readable || samePointer(stored.pointer, checked);
 }
 
+/**
+ * r15: 유료 플래너 주문의 "발급 진행 중" 표식 — 서버가 streaming(firestoreSaved:false)으로 200 을 주면 플랜은 아직 미완성이라
+ *   복구 포인터를 지우지 않고 planId → orderID 를 남긴다. 플랜 상세가 최종 상태를 보면 settlePlannerIssue 로 정리:
+ *   ready = 발급 완료 → 포인터 삭제 / error = 생성 실패 → 포인터 유지(플래너의 '같은 주문 확인' → 같은 주문 재발급). 저장소 실패는 무시(포인터 유지 = 안전 쪽).
+ */
+const issueKey = (planId: string) => `cocotrip:payment-recovery:issue:${planId}`;
+export function markPlannerIssuePending(planId: string, orderID: string): void {
+  try { localStorage.setItem(issueKey(planId), orderID); } catch { /* 포인터는 유지된다 */ }
+}
+export function settlePlannerIssue(planId: string, status: 'ready' | 'streaming' | 'error'): void {
+  if (status === 'streaming') return;
+  try {
+    const orderID = localStorage.getItem(issueKey(planId));
+    if (!orderID) return;
+    if (status === 'ready') removePaymentRecovery('single', orderID, PLANNER_RECOVERY_SCOPE);
+    localStorage.removeItem(issueKey(planId));
+  } catch { /* 다음 방문에 다시 정리 */ }
+}
+
 /** AI 플래너(풀) 상품인가 — 하이픈/밑줄 변형 같게. */
 export function isPlannerProduct(productType: string | undefined | null): boolean {
   return typeof productType === 'string' && productType.toLowerCase().replace(/-/g, '_') === 'ai_planner_full';
@@ -281,6 +300,15 @@ export function usePaymentRecovery(flow: PaymentFlow, scope?: string) {
       const next = parsePointer(event.newValue);
       if (next) {
         if (forgottenRef.current.has(next.orderID)) return; // r11: 이 화면이 놓은 주문은 되살리지 않는다
+        // r15: 내 주문 Q 가 있던 키가 곧바로 다른 주문 P 로 바뀜(Q → P, 사이 삭제 없음) = 비교 후 쓰기 사이 탭 경합(정상 경로는 비운 뒤 저장한다).
+        //   Q 를 잃지 않는다 — 그 키는 다시 덮지 않고, 플래너 주문이면 무덮어쓰기 규칙으로 다른 키에, 그리고 메모리(persisted:false)로 계속 표시.
+        const mine = pendingRef.current;
+        const prev = parsePointer(event.oldValue);
+        if (mine && prev && prev.orderID === mine.orderID && next.orderID !== mine.orderID) {
+          if (isPlannerProduct(mine.productType)) placeRecoveryPointer(mine, PLANNER_RECOVERY_SCOPE);
+          const kept: PaymentRecovery = { ...mine, persisted: false };
+          pendingRef.current = kept; setRecovery(kept); return;
+        }
         pendingRef.current = next; setRecovery(next); return;
       }
       // Removal by another tab counts only for the same order (that tab saw a definitive server answer).

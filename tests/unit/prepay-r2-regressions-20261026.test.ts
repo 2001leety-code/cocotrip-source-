@@ -468,7 +468,9 @@ describe('paid-order screen and copy (pre-payment vs post-payment keys)', () => 
     // r7: 포인터가 다른 탭에서 교체됐으면(mayWrite=false) 덮어쓰지 않는다.
     expect(btn).toContain("if (keepRecoveryUntilFulfilled) { if (mayWrite) remember({ orderID, flow: 'single', paymentStatus: 'CAPTURED', review: false, productType }); }");
     const hook = read('src/pages/PlannerPage/hooks/usePlannerHandlers.ts');
-    expect(hook).toContain("if (isPaidOrderId(paypalOrderId)) removePaymentRecovery('single', paypalOrderId, PLANNER_RECOVERY_SCOPE);");
+    // r15: 200 만으로 지우지 않는다 — 저장 완료(firestoreSaved:true)만 즉시 삭제, streaming 은 planId 표식(플랜 상세가 ready 때 삭제).
+    expect(hook).toContain("if (data?.firestoreSaved === true && issuedPlanId) removePaymentRecovery('single', paypalOrderId, PLANNER_RECOVERY_SCOPE);");
+    expect(hook).toContain('else if (issuedPlanId) markPlannerIssuePending(issuedPlanId, paypalOrderId);');
     expect(hook).toContain('lastValues.current = applyPaidPlannerInput(lastValues.current, issue.pinnedInput);');
   });
 });
