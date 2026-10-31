@@ -303,7 +303,10 @@ describe('CartCheckout — cart stays intact while a capture is unresolved', () 
     route({ '/api/createCartOrder': () => ({ ...pending('ORD-3'), flow: 'single' }) });
     render(<CartCheckout onClose={() => {}} />);
     fireEvent.click(screen.getByText('Confirm & pay'));
-    expect(await screen.findByText('ORD-3')).toBeInTheDocument();
+    // r13: 단건 flow 주문은 장바구니 주문이 아니다 — 장바구니 패널로 맡지 않고 중립 안내 + 원래 flow 키에 보존(덮지 않음).
+    expect(await screen.findByText(/ORD-3/)).toBeInTheDocument();
+    expect(JSON.parse(localStorage.getItem(recoveryKey('single')) || 'null')).toMatchObject({ orderID: 'ORD-3', flow: 'single' });
+    expect(localStorage.getItem(recoveryKey('cart'))).toBeNull();
     expect(buttons).toHaveLength(0);
     expect(mocks.clear).not.toHaveBeenCalled();
   });

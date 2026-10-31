@@ -19,7 +19,7 @@ import { authFetch } from '@/lib/authFetch';
 import { useGuestSignup } from '@/hooks/useGuestSignup';
 import { GuestSignupNudge } from '@/components/GuestSignupNudge';
 import type { Language } from '@/i18n';
-import { usePaymentRecovery, reconcilePayment, classifyCaptureResponse, recoveryCopy, recoveryHeadline, type CaptureOutcome } from '@/lib/paymentRecovery';
+import { usePaymentRecovery, reconcilePayment, classifyCaptureResponse, recoveryCopy, recoveryHeadline, placeForeignPending, settleForeignFinal, type CaptureOutcome, type PaymentRecovery } from '@/lib/paymentRecovery';
 
 type PaypalButtonsApi = { Buttons: (cfg: Record<string, unknown>) => { render: (sel: string) => void } };
 function getPaypal(): PaypalButtonsApi | undefined {
@@ -87,25 +87,39 @@ export function CartCheckout({ onClose, onBack }: { onClose: () => void; onBack?
   const orderRequestInFlight = useRef(false);
   // 🔴 2026-10-10 payment recovery (cart): pointer before capture, duplicate guard, same-order reconcile via
   //   /api/captureCartOrder {orderID}. The cart stays intact while pending; it is cleared only on durable success.
-  const { recovery, remember, clearRecovery } = usePaymentRecovery('cart');
+  const { recovery, remember, clearRecovery, forgetRecovery } = usePaymentRecovery('cart');
   const captureInFlight = useRef(false);
   const [reconciling, setReconciling] = useState(false);
   const rc = recoveryCopy(language);
   // 2026-10-24: 결제 성공 화면 게스트 → 회원 전환 넛지 (PayPalBookingButton 과 같은 훅). 결제 상태와 별개.
   const { signupLoading, signupError, handleGuestSignup } = useGuestSignup();
   const [payerEmail, setPayerEmail] = useState<string | null>(null);
-  async function applyOutcome(outcome: CaptureOutcome, orderId: string, fresh: boolean) {
+  // r13: checked = 확인한 복원 포인터(같은 주문 확인). 장바구니 주문(fresh 또는 flow 'cart')만 이 화면의 결제 — 그 밖(단건·플래너 등 다른 상품)은
+  //   장바구니를 비우거나 성공으로 쓰지 않고, 포인터는 원래 flow·상품 그대로 둔다(PayPalBookingButton 과 같은 헬퍼).
+  async function applyOutcome(outcome: CaptureOutcome, orderId: string, fresh: boolean, checked: PaymentRecovery | null = null) {
+    const own = fresh || !checked || checked.flow === 'cart';
+    const keep = (state: Pick<PaymentRecovery, 'paymentStatus' | 'review'> & { authRequired?: boolean }) => remember(!own && checked
+      ? { orderID: orderId, flow: checked.flow, productType: checked.productType, ...state }
+      : { orderID: orderId, flow: 'cart', ...state });
+    if (!own && checked && outcome.kind === 'final') {
+      settleForeignFinal(checked); forgetRecovery(orderId);
+      setError(rc.otherOrder.replace('{{order}}', orderId)); setStatus('idle'); return;
+    }
+    if (!own && outcome.kind === 'review') {
+      keep({ paymentStatus: outcome.captured ? 'CAPTURED' : 'NOT_CAPTURED', review: true });
+      setError(rc.otherOrderPending.replace('{{order}}', orderId)); setStatus('idle'); return;
+    }
     if (outcome.kind === 'final') {
       // 표시 전용 — 서버 확정 응답(captureCartOrder data.payerEmail)의 결제자 이메일.
       setPayerEmail(typeof outcome.data.payerEmail === 'string' && outcome.data.payerEmail ? outcome.data.payerEmail : null);
       clearRecovery(orderId); setStatus('success'); await clear(); return;
     }
-    if (outcome.kind === 'review') { remember({ orderID: orderId, flow: 'cart', paymentStatus: outcome.captured ? 'CAPTURED' : 'NOT_CAPTURED', review: true }); setStatus('review'); await clear(); return; }
-    if (outcome.kind === 'pending') { remember({ orderID: orderId, flow: 'cart', paymentStatus: outcome.status, review: false }); setStatus('idle'); return; }
+    if (outcome.kind === 'review') { keep({ paymentStatus: outcome.captured ? 'CAPTURED' : 'NOT_CAPTURED', review: true }); setStatus('review'); await clear(); return; }
+    if (outcome.kind === 'pending') { keep({ paymentStatus: outcome.status, review: false }); setStatus('idle'); return; }
     if (outcome.kind === 'auth_required') {
       // 403 precedes the provider call (no charge). A fresh order never locks the flow (2026-10-10 R2).
       if (fresh) { clearRecovery(orderId); setError(rc.authRequired); setStatus('error'); return; }
-      remember({ orderID: orderId, flow: 'cart', paymentStatus: 'CAPTURE_UNKNOWN', review: false, authRequired: true }); setStatus('idle'); return;
+      keep({ paymentStatus: 'CAPTURE_UNKNOWN', review: false, authRequired: true }); setStatus('idle'); return;
     }
     if (outcome.kind === 'not_captured') { clearRecovery(orderId); setError(outcome.message); setStatus('error'); return; }
     // Server-proven full refund: terminal, not a booking — the cart is kept, no success state.
@@ -117,12 +131,13 @@ export function CartCheckout({ onClose, onBack }: { onClose: () => void; onBack?
       if (evidence.kind === 'not_captured') { clearRecovery(orderId); return; }
       if (evidence.kind === 'final' || evidence.kind === 'review' || evidence.kind === 'refunded') { await applyOutcome(evidence, orderId, false); return; }
     }
-    remember({ orderID: orderId, flow: 'cart', paymentStatus: 'CAPTURE_UNKNOWN', review: false });
+    keep({ paymentStatus: 'CAPTURE_UNKNOWN', review: false });
   }
   async function checkSameOrder() {
     if (!recovery || reconciling) return;
+    const checked = { ...recovery };
     setReconciling(true);
-    try { await applyOutcome(await reconcilePayment(recovery.flow, recovery.orderID), recovery.orderID, false); } finally { setReconciling(false); }
+    try { await applyOutcome(await reconcilePayment(checked.flow, checked.orderID), checked.orderID, false, checked); } finally { setReconciling(false); }
   }
 
   // 1) 주문 생성 — 결제 직전 backend SSOT 재계산 (client priceKRW 무시).
@@ -137,7 +152,10 @@ export function CartCheckout({ onClose, onBack }: { onClose: () => void; onBack?
       });
       const json = await res.json();
       if (json.code === 'PAYMENT_RECOVERY_PENDING' && typeof json.orderID === 'string') {
-        remember({ orderID: json.orderID, flow: json.flow === 'single' ? 'single' : 'cart', paymentStatus: json.paymentStatus === 'CAPTURED' ? 'CAPTURED' : 'CAPTURE_UNKNOWN', review: false });
+        // r13: 서버가 준 원래 flow·상품 보존. 장바구니 주문이면 이 화면이 맡고, 아니면(단건·플래너) 덮지 않는 공용 규칙으로 그 범위에 두고 중립 안내.
+        const pointer = { orderID: json.orderID, flow: (json.flow === 'single' ? 'single' : 'cart') as 'single' | 'cart', paymentStatus: (json.paymentStatus === 'CAPTURED' ? 'CAPTURED' : 'CAPTURE_UNKNOWN') as 'CAPTURED' | 'CAPTURE_UNKNOWN', review: false, ...(typeof json.productType === 'string' ? { productType: json.productType } : {}) };
+        if (pointer.flow === 'cart') remember(pointer);
+        else { placeForeignPending(pointer); setError(rc.otherOrderPending.replace('{{order}}', json.orderID)); }
         setStatus('idle');
       } else if (json.ok && json.data && json.data.orderID) {
         setOrderID(json.data.orderID);

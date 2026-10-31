@@ -157,6 +157,27 @@ export function placeRecoveryPointer(value: Omit<PaymentRecovery, 'updatedAt'>, 
   return 'none';
 }
 
+/**
+ * r13: 이 화면 상품이 아닌 주문(서버 409 미결 주문 등)의 포인터를 그 주문 범위에 둔다 — 상품·flow 보존, 덮지 않음(placeRecoveryPointer).
+ *   PayPalBookingButton·CartCheckout 이 같은 함수를 쓴다(형제 경로 재발 방지).
+ */
+export function placeForeignPending(value: Omit<PaymentRecovery, 'updatedAt'>): 'target' | 'fallback' | 'none' {
+  return placeRecoveryPointer(value, isPlannerProduct(value.productType) ? PLANNER_RECOVERY_SCOPE : undefined);
+}
+
+/**
+ * r13: 이 화면 상품이 아닌 주문이 확정(final)으로 확인됐을 때의 포인터 정리(성공 처리·장바구니 비우기는 호출자가 하지 않는다).
+ *   플래너 주문 = 발급까지 CAPTURED 포인터가 필요 → 플래너 키로(덮지 않음, 성공 시에만 원래 키 삭제 — r10).
+ *   그 밖의 주문 = 확정이라 원래 키에서 지운다. 화면 메모리 포인터는 호출자가 forgetRecovery 로 놓는다.
+ */
+export function settleForeignFinal(p: PaymentRecovery): void {
+  if (isPlannerProduct(p.productType)) {
+    if (placeRecoveryPointer({ ...p, paymentStatus: 'CAPTURED', review: false }, PLANNER_RECOVERY_SCOPE) === 'target') removePaymentRecovery(p.flow, p.orderID);
+    return;
+  }
+  removePaymentRecovery(p.flow, p.orderID);
+}
+
 /** AI 플래너(풀) 상품인가 — 하이픈/밑줄 변형 같게. */
 export function isPlannerProduct(productType: string | undefined | null): boolean {
   return typeof productType === 'string' && productType.toLowerCase().replace(/-/g, '_') === 'ai_planner_full';

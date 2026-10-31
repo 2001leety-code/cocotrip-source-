@@ -15,7 +15,7 @@ import { tourSlotBody, SLOT_REJECT_LABELS } from '@/lib/tourSlotBooking';
 import { fillPrice } from '@/lib/aiPlannerPrice';
 import { charterCheckoutExpectedUsd, charterUsdFromKrw } from '@/lib/charterUsd';
 import { GuestSignupNudge } from '@/components/GuestSignupNudge';
-import { usePaymentRecovery, reconcilePayment, classifyCaptureResponse, recoveryCopy, recoveryHeadline, PLANNER_RECOVERY_SCOPE, isPlannerProduct, isSameProduct, placeRecoveryPointer, readPaymentRecoveryState, type PaymentRecovery, type CaptureOutcome } from '@/lib/paymentRecovery';
+import { usePaymentRecovery, reconcilePayment, classifyCaptureResponse, recoveryCopy, recoveryHeadline, PLANNER_RECOVERY_SCOPE, isPlannerProduct, isSameProduct, placeForeignPending, settleForeignFinal, readPaymentRecoveryState, type PaymentRecovery, type CaptureOutcome } from '@/lib/paymentRecovery';
 import type { Language } from '@/i18n';
 
 // SDK 차단·로드 실패 시 fallback — paypal.me QR (외부 redirect, paypalobjects.com 무관).
@@ -280,10 +280,9 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
           // r10: 플래너 주문은 발급까지 CAPTURED 포인터가 필요하다. 플래너 키에 **다른** 주문(미발급 Q)이 있으면 덮지 않고, 이동 저장이
           //   성공했을 때만 원래(공용) 키를 지운다 — 그 밖엔 공용 키에 CAPTURED 로 남겨(저장 시도, 실패해도 기존 포인터 유지) 플래너 화면이
           //   기존 이전 로직으로 처리. 이 화면은 메모리 포인터만 놓고 중립 안내(이 상품의 결제로 맡지 않는다).
-          //   r12: 충돌 검사 = 공용 헬퍼 placeRecoveryPointer(서버 409 미결 주문 저장과 같은 규칙).
-          const moved = { ...other, paymentStatus: 'CAPTURED' as const, review: false };
-          if (placeRecoveryPointer(moved, PLANNER_RECOVERY_SCOPE) === 'target') clearRecovery(orderID);
-          else forgetRecovery(orderID); // 공용 키에 P(CAPTURED 갱신 또는 기존 그대로) — 이 화면 메모리만 놓음
+          //   r12: 충돌 검사 = 공용 헬퍼 placeRecoveryPointer. r13: CartCheckout 과 같은 함수(settleForeignFinal)로.
+          settleForeignFinal(other);
+          forgetRecovery(orderID); // 이 화면 메모리만 놓음(저장소 정리는 위 헬퍼)
         } else {
           clearRecovery(orderID);
         }
@@ -852,7 +851,7 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
         const ownScope = keepRecoveryUntilFulfilled ? PLANNER_RECOVERY_SCOPE : undefined;
         if (pendingProduct && pendingScope !== ownScope) {
           // r12: 대상 키의 다른 주문(플래너 Q 등)을 덮지 않는다 — 막히면 공용 키로(Q 가 풀리면 플래너가 승계), 그마저 막히면 서버 기록이 다시 알려 줌.
-          placeRecoveryPointer(pointer, pendingScope);
+          placeForeignPending(pointer); // r13: CartCheckout 과 같은 함수
           setOtherOrderNotice({ orderID: json.orderID, pending: true });
           return;
         }
