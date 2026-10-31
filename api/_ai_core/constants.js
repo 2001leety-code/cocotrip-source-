@@ -419,6 +419,8 @@ export function lookupZoneCoord(zone) {
 // qualityMetrics.tight_schedule 이 같은 값을 기준으로 촉박 여부를 판정하므로
 // 두 곳에 따로 적지 않는다 (한쪽만 바뀌면 지표가 조용히 어긋난다).
 export const SCHEDULE_BUFFER_MIN = 5;
+/** 구간 이동 기본값(분) — 실제 경로·모델 추정이 없을 때. RouteAgent.legTransitMin 과 경로 실패 정리(blockMode)가 같은 값을 쓴다. */
+export const DEFAULT_LEG_MIN = 25;
 
 // ── Rich System Prompt Language Instructions ──────────────────────────────
 export const LANG_INSTRUCTION = {

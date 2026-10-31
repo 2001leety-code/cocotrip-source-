@@ -5,7 +5,7 @@ import { formatTransitSummary, getSubwayStationInfo, getSubwayTimetable } from "
 import { searchTransit } from "../../_transit_provider.js";
 // BUGHUNT-LOW (2026-06-14): AREX 직통 HERO 합성을 ODsay 일 때만 발동시키는 게이트용 (TMAP native 급행 보존).
 import { getTransitProvider } from "../../_transit_provider.js";
-import { AIRPORT_COORDS, AIRPORT_STATION_COORDS, AIRPORT_NAMES, CITY_CENTER_COORDS, lookupZoneCoord, SCHEDULE_BUFFER_MIN, arrivalReadyMinutes, hhmmToMin, resolveTourStartTime, resolveTourEndTime, resolveArrivalTime, singleDayMealWindows } from "../constants.js";
+import { AIRPORT_COORDS, AIRPORT_STATION_COORDS, AIRPORT_NAMES, CITY_CENTER_COORDS, lookupZoneCoord, SCHEDULE_BUFFER_MIN, DEFAULT_LEG_MIN, arrivalReadyMinutes, hhmmToMin, resolveTourStartTime, resolveTourEndTime, resolveArrivalTime, singleDayMealWindows } from "../constants.js";
 // P-launch (2026-05-31): 한글 regions('부산') → 영문 키('busan') 정규화 (멀티시티 departure city 해석용).
 import { normalizeRegionKey, regionCityKey, departureCityKey } from "../responseValidator.js";
 import { throttledTelegramAlert } from "../../_shared/telegram-throttle.js";
@@ -742,7 +742,7 @@ export function applyMealFloor(currentMin, originMin) {
 export function legTransitMin(transit, geminiOriginal) {
     return (transit && (transit.publicTransit?.duration || transit.drivingMin || transit.durationMin))
         || (geminiOriginal && geminiOriginal.est_min)
-        || 25;
+        || DEFAULT_LEG_MIN;
 }
 
 const NOT_SIGHTSEEING = new Set(['lodging', 'airport', 'airport_transfer', 'travel', 'food']);
@@ -777,6 +777,21 @@ export function isSameLodgingMarker(a, b) {
     if (!ca || !cb) return false;
     return _haversineKmPure(ca.lat, ca.lng, cb.lat, cb.lng) <= 0.05;
 }
+/**
+ * PR2 r5: 좌표로 판정할 수 없는 같은 예약 숙소의 북엔드 — 그날 마지막 두 stop 이 숙소이고 앞 숙소가 buildPrompt 의
+ *   출발 표식(stay_min 0 또는 미지정 — r5-5)이면 "같은 예약 숙소 중복 표식"(휴식일 [Hotel 23:35(0), Hotel 23:59] 등). 이름은 보지 않는다.
+ *   두 좌표가 모두 유효하면 이 규칙은 쓰지 않는다(50m 규칙만 — 좌표가 다르면 합치지 않음). 도시 이동일은 호출자가 끈다.
+ */
+export function isLodgingBookendPair(places, i) {
+    const a = places[i - 1], b = places[i];
+    if (i <= 0 || i !== places.length - 1 || stopCat(a) !== 'lodging' || stopCat(b) !== 'lodging') return false;
+    if (coordOf(a) && coordOf(b)) return false;
+    // r5-5: 출발 표식 = 체류 0 또는 체류 미지정(legacy 북엔드는 권역 placeholder 라 stay 가 빠지기도 한다). 실제 양수 체류는 별개 숙소로 본다.
+    const raw = a?.stay_min;
+    if (raw === null || raw === undefined || raw === '') return true;
+    const n = Number(raw);
+    return !Number.isFinite(n) || n <= 0;
+}
 
 /**
  * 2026-10-26 (첫날 도착 PR2) A단계 — 시작 시각(절대 분, 1440 이상도 그대로; %24·되돌림 없음). 순수.
@@ -789,7 +804,7 @@ export function isSameLodgingMarker(a, b) {
  *   그 밖의 식사는 applyMealFloor(원래 시각보다 앞당기지 않음).
  * @returns {{starts: number[], meals: Array<{i: number, infeasible: boolean, noWindow: boolean}>}}
  */
-export function stitchStartMins(places, { firstMin, legMins = [], buffer = SCHEDULE_BUFFER_MIN, floorIdx = -1, floorMin = null, mealOrigins = [], d1Meal = null } = {}) {
+export function stitchStartMins(places, { firstMin, legMins = [], buffer = SCHEDULE_BUFFER_MIN, floorIdx = -1, floorMin = null, mealOrigins = [], d1Meal = null, mergeBookend = false } = {}) {
     const starts = [];
     const meals = [];
     const hasFloor = Number.isFinite(floorMin);
@@ -797,7 +812,7 @@ export function stitchStartMins(places, { firstMin, legMins = [], buffer = SCHED
     for (let i = 0; i < places.length; i++) {
         let base;
         if (i === 0) base = hasFloor && floorIdx === 0 ? floorMin : firstMin;
-        else if (isSameLodgingMarker(places[i - 1], places[i])) {
+        else if (isSameLodgingMarker(places[i - 1], places[i]) || (mergeBookend && isLodgingBookendPair(places, i))) {
             // r3: 같은 숙소 연속 표식 — 이동·버퍼 없이 앞 숙소에 붙이고 자정을 넘기지 않는다(손님은 이미 숙소, 휴식일 북엔드 2개 등).
             base = Math.max(starts[i - 1], Math.min(starts[i - 1] + stayOf(places[i - 1]), 24 * 60 - 1));
         } else {
@@ -1588,9 +1603,10 @@ export class RouteAgent extends BaseAgent {
                 const modelFirst = firstAct >= 0 && /^\d{1,2}:\d{2}$/.test(String(places[firstAct].start_time || '').trim())
                     ? this._parseTime(places[firstAct].start_time) : R;
                 const tourEndTime = resolveTourEndTime(data);
+                // r5-6: 공항 미상·ALREADY 면 도착 시각을 넘기지 않고 창 시작 = R(입국수속·공항 이동 +160분 없이 — 위 바닥과 같은 판정).
                 const w = singleDayMealWindows({
-                    durationDays: 1, arrivalTime: arrivalHHMM, arrivalAirport: data.arrival_airport, cityKey: day1CityKey,
-                    tourStartTime: this._formatTime(safeTourStartMin), tourEndTime,
+                    durationDays: 1, ...(noAirport ? {} : { arrivalTime: arrivalHHMM }), arrivalAirport: data.arrival_airport, cityKey: day1CityKey,
+                    tourStartTime: this._formatTime(noAirport ? R : safeTourStartMin), tourEndTime,
                     ...(daysList.length === 1 ? { departureTime: data.departure_time, departureAirport: data.departure_airport } : {}),
                 }) || {};
                 const range = (x) => (x ? { from: this._parseTime(x.from), to: this._parseTime(x.to) } : null);
@@ -2039,6 +2055,7 @@ export class RouteAgent extends BaseAgent {
                 const candidate = stitchStartMins(places, {
                     firstMin: currentTime, legMins: transitResults.map((t, j) => legTransitMin(t, places[j + 1]?.transit_from_prev)), buffer: BUFFER_MIN,
                     floorIdx, floorMin: day1 ? day1.pref : null, mealOrigins: _mealOriginMins, d1Meal: day1 ? day1.meal : null,
+                    mergeBookend: !isCityChangeDay, // r5: 좌표 없는 같은 예약 숙소 북엔드(도시 이동일은 숙소가 바뀔 수 있어 제외)
                 });
                 extraMealIdx = new Set(candidate.meals.filter((m) => m.extra).map((m) => m.i));
                 const v = findStitchViolation(places, candidate, { day1TourEndMin: day1 ? day1.tourEndMin : null, lastReturnMin: dayPlan.last_to_lodging?.est_min });

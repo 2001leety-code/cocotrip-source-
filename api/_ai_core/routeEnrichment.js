@@ -151,6 +151,9 @@ export async function enrichItineraryWithRoute(itinerary, { apiKey, body, langua
     ODSAY: !!process.env.ODSAY_API_KEY,
     inputStops: totalInputStops,
   });
+  // PR2 r5-7: 호출 전 원본 stop 배열 스냅샷 — P203 타임아웃 뒤 settle(postResponsePipeline)이 day.stops 를 줄여도
+  //   늦게 끝난 병합이 _ri 로 같은 원본 stop(입장료·예약 정보)을 찾는다.
+  const originalStopsByDay = (itinerary.days || []).map((d) => (Array.isArray(d.stops) ? d.stops.slice() : []));
   try {
     const routeAgent = new RouteAgent(apiKey);
     // Wrapped as an ITINERARY OBJECT (not just days array) so RouteAgent can
@@ -231,7 +234,7 @@ export async function enrichItineraryWithRoute(itinerary, { apiKey, body, langua
 
           itinerary.days[i].stops = enrichedStops.map((p, j) => {
             // PR2: 원래 위치(_ri)로 같은 stop 을 찾는다 — 없으면(옛 호출) 순번. _ri 는 출력에 남기지 않는다.
-            const original = itinerary.days[i].stops[Number.isInteger(p._ri) ? p._ri : j] || {};
+            const original = (originalStopsByDay[i] || [])[Number.isInteger(p._ri) ? p._ri : j] || {}; // r5-7: 호출 전 스냅샷
             const { _ri, _transitReset, _blockMealRole, ...routed } = p;
             const merged = {
               ...original,

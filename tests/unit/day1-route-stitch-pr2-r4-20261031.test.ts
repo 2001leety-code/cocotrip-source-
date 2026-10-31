@@ -119,15 +119,17 @@ describe('r4-3 — route failure: no sightseeing overlaps the provisionally plac
   const sel = { day_selections: [{ day: 1, block_id: 'S1', tweak_notes: '' }, { day: 2, block_id: 'S2', tweak_notes: '' }], language: 'en' };
   const blocks = () => [block('S1', [['culture', 0], ['culture', 60], ['food', 360]]), block('S2', [['culture', 0], ['food', 180]])];
   const ctx = { apiKey: null, body: { area: 'seoul', regions: ['seoul'], language: 'en', arrivalTime: '16:30', tourEndTime: '21:00' }, language: 'en', hotel_address: '', arrival_airport: 'ICN_T1', departure_airport: 'ICN_T1', pax: 2, zone_id: null };
+  // r5: 겹침 = 앞 시작 + 체류 + 이동 기본 25 + 버퍼 5 > 다음 시작.
   const overlaps = (stops: Stop[]) => stops.some((s, i) => i > 0 && !['lodging', 'airport', 'airport_transfer', 'travel'].includes(String(stops[i - 1].category))
-    && toMin(stops[i - 1].start_time) + Number(stops[i - 1].stay_min || 60) > toMin(s.start_time));
+    && toMin(stops[i - 1].start_time) + Number(stops[i - 1].stay_min || 60) + 25 + 5 > toMin(s.start_time));
 
-  it('probe repro: RouteAgent.call throws → the 20:30 sightseeing that runs into the 20:59 dinner is removed; 19:30 kept', async () => {
+  it('probe repro: RouteAgent.call throws → sightseeing that cannot reach the 20:59 dinner (stay + 25 leg + 5 buffer) is removed', async () => {
     const itin = expandBlocksToItinerary(sel, blocks(), structuredClone(input)) as Plan;
     expect(itin.days[0].stops.map((s) => s.start_time)).toEqual(['19:30', '20:30', '20:59']);
     vi.spyOn(RouteAgent.prototype, 'call').mockRejectedValue(new Error('ODsay down'));
     await runRouteEnrichment(itin, ctx);
-    expect(itin.days[0].stops.map((s) => `${s.category}@${s.start_time}`)).toEqual(['culture@19:30', 'food@20:59']);
+    // r5: 19:30 + 60 + 25 + 5 = 21:00 > 20:59 → 19:30 도 제거(r4 는 이동을 빼서 남겼다).
+    expect(itin.days[0].stops.map((s) => `${s.category}@${s.start_time}`)).toEqual(['food@20:59']);
     expect(overlaps(itin.days[0].stops)).toBe(false);
     expect(itin.days[0].stops.some((s) => '_blockMealRole' in s)).toBe(false);
   });

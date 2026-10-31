@@ -385,6 +385,7 @@ export default async function handler(req, res) {
             specialRequest, mobility, language, PLANNER_MODE, blockModeUsed, blocksUsed, abDecision,
             isAdminBypass: gate.isAdminBypass, identifierForBucketing, handlerStart, issuanceClaim: issuance.claim, avoidStopNames, plannerIntent,
             arrivalRestDay, // 2026-10-26: worker 가 재계산 없이 같은 휴식일 판정
+            consumedCoupon: consumedCouponInfo, // PR2 r5-4: 블록모드 worker 도 결정론 422 뒤 무료 쿠폰 복구(legacy 디스패치와 같은 값)
           }),
           sendEarlyResponse: ({ planId, planUrl, debug }) => sendStreamingEarlyResponse({ res, CORS, planId, planUrl, debug }),
           buildDebug: () => buildAdminDebug({ gate, plannerMode: PLANNER_MODE, abDecision, identifierForBucketing, blockModeUsed, blocksUsed, useStreaming, itinerary }),

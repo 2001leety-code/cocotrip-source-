@@ -39,7 +39,7 @@ import {
   // 거리 보정판(estimateAirportTransitMinFrom)은 출국일에만 배선돼 있었는데 도착일도
   // 같이 쓰게 되면서 leaf 로 올렸다(2026-08-04).
   estimateAirportTransitMinFrom, hhmmToMin, arrivalReadyMinutes, arrivalRestDayInfo, departureActivityDeadlineMin,
-  MEAL_ROLE_WINDOWS, SCHEDULE_BUFFER_MIN,
+  MEAL_ROLE_WINDOWS, SCHEDULE_BUFFER_MIN, DEFAULT_LEG_MIN,
 } from './constants.js';
 import { repairAndParseJSON, normalizeRegionKey, arrivalRestDayCityKey, regionCityKey } from './responseValidator.js';
 import { stopDuplicateKey } from './qualityMetrics.js';
@@ -757,7 +757,7 @@ export function rescueFirstDayMeal(stop, m, pastMidnight, dayStartMin, capMin, k
  * PR2 r4: RouteAgent 가 배치하지 못한(일반 실패·타임아웃·병합 건너뜀 — 구제 표식이 남은) 구제 식당의 최소 결정론 정리.
  *   잠정 배치(창 끝) 시각이 앞 활동(관광·식사; 숙소·공항·이동 표식은 제외)의 시작 + 체류(누락·비숫자 60, RouteAgent 와 같은 규칙)
  *   + 버퍼와 겹치면 겹친 앞 관광을 뺀다. 앞이 식사라 뺄 수 없으면 구제 식당을 뺀다(구제 전 기준과 같은 결과) + 그날 필수 끼니 검사 표식.
- *   이동 시간은 이 경로에 없다(경로 계산 실패) — 버퍼만 반영. 표식은 지운다(저장 안 함). 제자리 수정.
+ *   실제 이동 시간은 이 경로에 없다(경로 계산 실패) — r5: 이동 기본값(DEFAULT_LEG_MIN 25분) + 버퍼로 추정. 표식은 지운다(저장 안 함). 제자리 수정.
  */
 const NOT_ACTIVITY = new Set(['lodging', 'airport', 'airport_transfer', 'travel']);
 const stayMinOf = (p) => {
@@ -779,7 +779,8 @@ export function settleUnroutedRescuedMeals(itinerary) {
         const cat = String(prev?.category || '').toLowerCase();
         if (NOT_ACTIVITY.has(cat)) continue;
         const start = hhmmToMin(prev.start_time);
-        if (start < 0 || start + stayMinOf(prev) + SCHEDULE_BUFFER_MIN <= mealStart) break; // 겹침 없음
+        // r5: 이동 추정(기본 25분, RouteAgent.legTransitMin 과 같은 상수) + 버퍼까지 — 도착이 식당 시작을 넘으면 겹침.
+        if (start < 0 || start + stayMinOf(prev) + DEFAULT_LEG_MIN + SCHEDULE_BUFFER_MIN <= mealStart) break; // 겹침 없음
         if (cat === 'food') { stops.splice(i, 1); d._routeMealRemoved = true; i -= 1; break; }
         stops.splice(j, 1); i -= 1; // 겹친 앞 관광 제거 후 그 앞을 계속 본다
       }
