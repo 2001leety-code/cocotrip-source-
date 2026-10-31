@@ -221,8 +221,9 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
   // r6: 같은 주문 확인을 시작한 포인터를 고정한다. 다른 탭에서 삭제·이동·교체한 뒤 도착한
   // 응답은 저장·성공 처리에 쓰지 않는다. StorageEvent 전달 전에도 실제 저장소를 함께 대조한다.
   // r7: 동일성 = 주문·흐름·상품(같은 주문을 다른 탭이 새 시각으로 다시 저장해도 같은 확인 — updatedAt 비교 제거).
-  //   저장소를 못 읽거나(SecurityError) 이 탭이 쓰기에 실패한 포인터(persisted=false)는 ref 비교만 — 저장소 없는 브라우저는
-  //   StorageEvent 도 없어 다른 탭 경합이 없다. 그렇지 않은데 키가 없거나 다른 주문이면(다른 탭이 지움·교체) 현재가 아니다.
+  //   저장소를 못 읽으면(SecurityError) ref 비교만 — 저장소 없는 브라우저는 StorageEvent 도 없어 다른 탭 경합이 없다.
+  //   r8: 이 탭이 쓰기에 실패한 포인터(persisted=false, Quota)라도 저장소가 읽히면 읽는다 — 키가 비었으면(이 탭이 못 쓴 정상 상태)
+  //   통과, 다른 주문이 있으면(다른 탭이 새 주문 저장) 현재가 아니다(늦은 응답이 덮어쓰지 않음). 그 밖엔 키가 없거나 다른 주문이면 현재 아님.
   function isCurrentCheck(checked: PaymentRecovery | null): boolean {
     if (!checked) return false;
     const same = (current: PaymentRecovery | null) => !!current
@@ -230,16 +231,21 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
       && current.productType === checked.productType;
     const mine = recoveryRef.current;
     if (!same(mine)) return false;
-    if (mine && mine.persisted === false) return true;
     const stored = readPaymentRecoveryState(checked.flow, keepRecoveryUntilFulfilled ? PLANNER_RECOVERY_SCOPE : undefined);
-    return !stored.readable || same(stored.pointer);
+    if (!stored.readable) return true;
+    if (mine && mine.persisted === false) return !stored.pointer || same(stored.pointer);
+    return same(stored.pointer);
   }
+  // r8: 이 화면이 만든 주문의 생성 당시 상품 — 결제 대기 중 상품을 바꿔도(편도 → 왕복) 그 주문의 결과를 바뀐 상품의 성공으로 쓰지 않는다.
+  const createdOrderRef = useRef<{ orderID: string; productType: string } | null>(null);
+  const createdProductOf = (orderID: string) => (createdOrderRef.current && createdOrderRef.current.orderID === orderID ? createdOrderRef.current.productType : undefined);
   function keepWaiting(orderID: string, fresh: boolean, state: { paymentStatus: 'CAPTURED' | 'CAPTURE_UNKNOWN' | 'NOT_CAPTURED'; review: boolean; authRequired?: boolean }, checked: PaymentRecovery | null) {
     if (!fresh) {
       if (checked && isCurrentCheck(checked)) remember({ orderID: checked.orderID, flow: checked.flow, productType: checked.productType, ...state });
       return;
     }
-    remember({ orderID, flow: 'single', productType, ...state });
+    const created = createdProductOf(orderID);
+    remember({ orderID, flow: 'single', productType: created ? created : productType, ...state }); // r8: 생성 당시 상품으로 기억
   }
   // r7: own = 이 화면이 방금 만든(fresh) 주문의 증거 조회 결과 — 포인터가 다른 탭에서 교체됐어도 증거의 orderID 가 그 주문이면
   //   적용한다(성공·NOT_CAPTURED 처리). 교체된 포인터는 건드리지 않는다(clearRecovery 의 orderID 가드 · 아래 mayWrite).
@@ -255,9 +261,15 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
       // A restored pointer for a different product never feeds this product's success callback.
       //   r4: …nor this product's success screen ("Booking Confirmed!"·driver notice). An unknown product counts as different.
       //   A planner order found here moves to the planner key so the planner page can still issue the plan.
-      const sameProduct = fresh || own || isSameProduct(checked?.productType, productType);
+      //   r8: 이 화면이 만든 주문(fresh·own)도 생성 당시 상품(스냅샷 — 없으면 증거 포인터의 상품)과 지금 화면 상품을 대조한다
+      //   (결제 대기 중 편도 → 왕복으로 바꾸면 왕복 화면에 편도 '예약 확정'이 뜨던 문제). 다르면 아래 중립 "다른 주문" 안내.
+      const createdProduct = createdProductOf(orderID);
+      const ownProduct = createdProduct ? createdProduct : (fresh ? productType : checked?.productType);
+      const sameProduct = (fresh || own) ? isSameProduct(ownProduct, productType) : isSameProduct(checked?.productType, productType);
       if (!sameProduct) {
-        const other = checked;
+        const other: PaymentRecovery | null = checked
+          ? checked
+          : (ownProduct ? { orderID, flow: 'single', productType: ownProduct, paymentStatus: 'CAPTURED', review: false, updatedAt: 0 } : null);
         clearRecovery(orderID);
         if (other && isPlannerProduct(other.productType) && !keepRecoveryUntilFulfilled) {
           storePaymentRecovery({ ...other, paymentStatus: 'CAPTURED', review: false }, PLANNER_RECOVERY_SCOPE);
@@ -824,6 +836,7 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
         return;
       }
       if (!res.ok || !json.ok) throw new Error(json.error ?? d?.error ?? 'Order creation failed');
+      if (d && typeof d.orderID === 'string') createdOrderRef.current = { orderID: d.orderID, productType }; // r8: 생성 당시 상품 스냅샷
       setRateInfo(d);
       setPaypalReady(true);
       // GA4 begin_checkout: 주문 생성 성공 → 결제창 진입 시점. "결제진입→구매" 전환율 측정(GA_ID 미설정 시 no-op).

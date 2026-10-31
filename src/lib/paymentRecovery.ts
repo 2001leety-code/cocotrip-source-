@@ -156,7 +156,8 @@ export function migrateLegacyPlannerPointer(flow: PaymentFlow): PaymentRecovery 
   if (own) return own;
   const shared = readPaymentRecovery(flow);
   if (!shared || !isPlannerProduct(shared.productType)) return null;
-  if (!writePaymentRecovery(shared, PLANNER_RECOVERY_SCOPE)) return shared;
+  // r8: 이동 저장 실패(Quota·차단) = 플래너 키 없음 → persisted:false 로 표시해 확인 결과 대조가 ref 기준으로 폴백(안 그러면 복구 영구 차단).
+  if (!writePaymentRecovery(shared, PLANNER_RECOVERY_SCOPE)) return { ...shared, persisted: false };
   removePaymentRecovery(flow, shared.orderID);
   return shared;
 }
