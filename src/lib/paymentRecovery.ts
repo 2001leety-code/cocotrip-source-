@@ -178,6 +178,35 @@ export function settleForeignFinal(p: PaymentRecovery): void {
   removePaymentRecovery(p.flow, p.orderID);
 }
 
+/**
+ * r14: 이 화면이 맡지 않는(외부) 주문인가 — flow + 상품. 장바구니 화면 = flow 가 cart 가 아니면 외부.
+ *   단건 화면 = flow 가 cart 이거나, 상품이 알려졌고 플래너 범위가 이 화면과 다르면 외부(상품 미상 단건은 이 화면 몫 — 기존 규칙).
+ *   PayPalBookingButton·CartCheckout 이 같은 함수를 쓴다.
+ */
+export function isForeignOrder(p: Pick<PaymentRecovery, 'flow' | 'productType'>, screen: { flow: PaymentFlow; planner?: boolean }): boolean {
+  if (screen.flow === 'cart') return p.flow !== 'cart';
+  if (p.flow === 'cart') return true;
+  return !!p.productType && isPlannerProduct(p.productType) !== !!screen.planner;
+}
+
+/** 같은 포인터(주문·flow·상품) — r7 동일성. */
+export function samePointer(a: PaymentRecovery | null | undefined, b: PaymentRecovery | null | undefined): boolean {
+  return !!a && !!b && a.orderID === b.orderID && a.flow === b.flow && a.productType === b.productType;
+}
+
+/**
+ * r14(공용 — r6/r7 의 PayPalBookingButton.isCurrentCheck 를 옮김): 같은 주문 확인을 시작한 포인터가 응답 도착 시점에도 현재인가.
+ *   이 화면 메모리 포인터와 같아야 하고, 저장소가 읽히면 저장된 포인터와도 같아야 한다(다른 탭이 지움·교체 = 현재 아님).
+ *   저장소를 못 읽거나(SecurityError) 이 탭이 저장하지 못한 포인터(persisted:false — Quota, 또는 r14 비교 후 쓰기가 다른 주문 때문에 막음)는
+ *   메모리 비교만 — 쓰기는 비교 후 쓰기(remember)가 막으므로 늦은 응답이 다른 주문을 덮을 수 없다.
+ */
+export function isCurrentPointer(checked: PaymentRecovery | null, mine: PaymentRecovery | null, scope?: string): boolean {
+  if (!checked || !samePointer(mine, checked)) return false;
+  if (mine && mine.persisted === false) return true;
+  const stored = readPaymentRecoveryState(checked.flow, scope);
+  return !stored.readable || samePointer(stored.pointer, checked);
+}
+
 /** AI 플래너(풀) 상품인가 — 하이픈/밑줄 변형 같게. */
 export function isPlannerProduct(productType: string | undefined | null): boolean {
   return typeof productType === 'string' && productType.toLowerCase().replace(/-/g, '_') === 'ai_planner_full';
@@ -211,7 +240,12 @@ export function usePaymentRecovery(flow: PaymentFlow, scope?: string) {
   const pendingRef = useRef<PaymentRecovery | null>(recovery);
   const remember = useCallback((value: Omit<PaymentRecovery, 'updatedAt'> & { updatedAt?: number }) => {
     const next: PaymentRecovery = { ...value, updatedAt: Date.now() };
-    const persisted = writePaymentRecovery(next, scope);
+    // r14: 비교 후 쓰기(중앙) — 그 키가 비었거나 같은 주문일 때만 저장. 다른 주문이 있으면 덮지 않고 메모리만(persisted:false),
+    //   플래너 주문이면 같은 무덮어쓰기 규칙으로 공용 키 폴백(placeRecoveryPointer). 저장소 못 읽음은 쓰기 시도(실패 = persisted:false).
+    const { readable, pointer: occupant } = readPaymentRecoveryState(next.flow, scope);
+    const blocked = readable && !!occupant && occupant.orderID !== next.orderID;
+    const persisted = blocked ? false : writePaymentRecovery(next, scope);
+    if (!persisted && isPlannerProduct(next.productType)) placeRecoveryPointer(next, PLANNER_RECOVERY_SCOPE);
     const current: PaymentRecovery = { ...next, persisted }; // 쓰기 실패 여부를 메모리 포인터에 남긴다(r7 — 확인 결과 대조 기준)
     pendingRef.current = current;
     setRecovery(current);

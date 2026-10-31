@@ -15,7 +15,7 @@ import { tourSlotBody, SLOT_REJECT_LABELS } from '@/lib/tourSlotBooking';
 import { fillPrice } from '@/lib/aiPlannerPrice';
 import { charterCheckoutExpectedUsd, charterUsdFromKrw } from '@/lib/charterUsd';
 import { GuestSignupNudge } from '@/components/GuestSignupNudge';
-import { usePaymentRecovery, reconcilePayment, classifyCaptureResponse, recoveryCopy, recoveryHeadline, PLANNER_RECOVERY_SCOPE, isPlannerProduct, isSameProduct, placeForeignPending, settleForeignFinal, readPaymentRecoveryState, type PaymentRecovery, type CaptureOutcome } from '@/lib/paymentRecovery';
+import { usePaymentRecovery, reconcilePayment, classifyCaptureResponse, recoveryCopy, recoveryHeadline, PLANNER_RECOVERY_SCOPE, isPlannerProduct, isSameProduct, placeForeignPending, settleForeignFinal, isForeignOrder, isCurrentPointer, type PaymentRecovery, type CaptureOutcome } from '@/lib/paymentRecovery';
 import type { Language } from '@/i18n';
 
 // SDK 차단·로드 실패 시 fallback — paypal.me QR (외부 redirect, paypalobjects.com 무관).
@@ -224,17 +224,9 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
   //   저장소를 못 읽으면(SecurityError) ref 비교만 — 저장소 없는 브라우저는 StorageEvent 도 없어 다른 탭 경합이 없다.
   //   r8: 이 탭이 쓰기에 실패한 포인터(persisted=false, Quota)라도 저장소가 읽히면 읽는다 — 키가 비었으면(이 탭이 못 쓴 정상 상태)
   //   통과, 다른 주문이 있으면(다른 탭이 새 주문 저장) 현재가 아니다(늦은 응답이 덮어쓰지 않음). 그 밖엔 키가 없거나 다른 주문이면 현재 아님.
+  //   r14: 판정은 공용 isCurrentPointer(CartCheckout 도 사용). 쓰기는 remember 의 비교 후 쓰기가 막는다.
   function isCurrentCheck(checked: PaymentRecovery | null): boolean {
-    if (!checked) return false;
-    const same = (current: PaymentRecovery | null) => !!current
-      && current.orderID === checked.orderID && current.flow === checked.flow
-      && current.productType === checked.productType;
-    const mine = recoveryRef.current;
-    if (!same(mine)) return false;
-    const stored = readPaymentRecoveryState(checked.flow, keepRecoveryUntilFulfilled ? PLANNER_RECOVERY_SCOPE : undefined);
-    if (!stored.readable) return true;
-    if (mine && mine.persisted === false) return !stored.pointer || same(stored.pointer);
-    return same(stored.pointer);
+    return isCurrentPointer(checked, recoveryRef.current, keepRecoveryUntilFulfilled ? PLANNER_RECOVERY_SCOPE : undefined);
   }
   // r8: 이 화면이 만든 주문의 생성 당시 상품 — 결제 대기 중 상품을 바꿔도(편도 → 왕복) 그 주문의 결과를 바뀐 상품의 성공으로 쓰지 않는다.
   const createdOrderRef = useRef<{ orderID: string; productType: string } | null>(null);
@@ -847,9 +839,8 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
         //   이 화면은 중립 안내만 — 그 주문을 이 상품의 결제로 확정하지 않는다.
         const pendingProduct = typeof json.productType === 'string' ? json.productType : undefined;
         const pointer = { orderID: json.orderID, flow: (json.flow === 'cart' ? 'cart' : 'single') as 'cart' | 'single', paymentStatus: (json.paymentStatus === 'CAPTURED' ? 'CAPTURED' : 'CAPTURE_UNKNOWN') as 'CAPTURED' | 'CAPTURE_UNKNOWN', review: false, productType: pendingProduct };
-        const pendingScope = isPlannerProduct(pendingProduct) ? PLANNER_RECOVERY_SCOPE : undefined;
-        const ownScope = keepRecoveryUntilFulfilled ? PLANNER_RECOVERY_SCOPE : undefined;
-        if (pendingProduct && pendingScope !== ownScope) {
+        // r14: 외부 주문 판별 = flow + 상품(공용 isForeignOrder — 장바구니 주문도 외부).
+        if (isForeignOrder(pointer, { flow: 'single', planner: keepRecoveryUntilFulfilled })) {
           // r12: 대상 키의 다른 주문(플래너 Q 등)을 덮지 않는다 — 막히면 공용 키로(Q 가 풀리면 플래너가 승계), 그마저 막히면 서버 기록이 다시 알려 줌.
           placeForeignPending(pointer); // r13: CartCheckout 과 같은 함수
           setOtherOrderNotice({ orderID: json.orderID, pending: true });

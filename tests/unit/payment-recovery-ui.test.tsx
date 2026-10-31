@@ -182,7 +182,8 @@ describe('PayPalBookingButton — pending pointer and same-order reconcile', () 
     route({ '/api/createPaypalOrder': () => ({ ...pending('ORD-7'), flow: 'cart' }) });
     render(<PayPalBookingButton productType="airport_seoul_central" passengers={2} priceKRW={135000} lang="en" p={{ paypalBookBtn: 'Book now' }} />);
     fireEvent.click(screen.getByText('Book now'));
-    expect(await screen.findByText('ORD-7')).toBeInTheDocument();
+    // r14: 장바구니 flow 주문은 단건 화면의 외부 주문(isForeignOrder) — 패널로 맡지 않고 중립 안내 + cart 키에 보존(덮지 않음).
+    expect(await screen.findByText(/ORD-7/)).toBeInTheDocument();
     expect(buttons).toHaveLength(0);
     expect(JSON.parse(localStorage.getItem(recoveryKey('cart')) || 'null')).toMatchObject({ orderID: 'ORD-7', flow: 'cart' });
   });
