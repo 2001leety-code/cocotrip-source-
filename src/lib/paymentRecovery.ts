@@ -181,16 +181,25 @@ export function usePaymentRecovery(flow: PaymentFlow, scope?: string) {
     setRecovery(current);
     return persisted;
   }, [scope]);
+  // r11: 플래너 범위 포인터가 풀리면(확인 결과로 해제·다른 탭 삭제) 같은 자리에서 곧바로 공용 키의 플래너 주문을 다시 승계한다 —
+  //   마운트 때만 옮기면 Q 가 풀린 뒤 공용 키에 남은 유료 P 대신 Book now 가 떴다. 동기 실행이라 판단 전 Book now 가 보이지 않는다.
+  const releaseTo = useCallback(() => {
+    const next = scope === PLANNER_RECOVERY_SCOPE ? migrateLegacyPlannerPointer(flow) : null;
+    pendingRef.current = next;
+    setRecovery(next);
+  }, [flow, scope]);
   const clearRecovery = useCallback((orderID: string) => {
     const current = pendingRef.current;
     if (current && current.orderID !== orderID) return;
     if (current) removePaymentRecovery(current.flow, orderID, scope);
-    pendingRef.current = null;
-    setRecovery(null);
-  }, [scope]);
+    releaseTo();
+  }, [scope, releaseTo]);
+  // r11: 이 화면이 놓은 주문 — 다른 탭이 같은 주문을 다시 저장해도(StorageEvent) 이 화면 패널로 되살리지 않는다(그 주문은 다른 화면 몫).
+  const forgottenRef = useRef<Set<string>>(new Set());
   /** r10: 이 화면의 메모리 포인터만 놓는다(저장소는 그대로) — 다른 상품 주문을 이 화면이 맡지 않을 때. */
   const forgetRecovery = useCallback((orderID: string) => {
     if (pendingRef.current && pendingRef.current.orderID !== orderID) return;
+    forgottenRef.current.add(orderID);
     pendingRef.current = null;
     setRecovery(null);
   }, []);
@@ -200,14 +209,18 @@ export function usePaymentRecovery(flow: PaymentFlow, scope?: string) {
       const keys = scope ? [recoveryKey(flow, scope)] : FLOWS.map((f) => recoveryKey(f));
       if (event.key && !keys.includes(event.key)) return;
       const next = parsePointer(event.newValue);
-      if (next) { pendingRef.current = next; setRecovery(next); return; }
+      if (next) {
+        if (forgottenRef.current.has(next.orderID)) return; // r11: 이 화면이 놓은 주문은 되살리지 않는다
+        pendingRef.current = next; setRecovery(next); return;
+      }
       // Removal by another tab counts only for the same order (that tab saw a definitive server answer).
+      //   r11: 플래너 범위면 그 자리에서 공용 키의 플래너 주문을 다시 승계(releaseTo).
       const previous = parsePointer(event.oldValue);
-      if (previous && pendingRef.current && pendingRef.current.orderID === previous.orderID) { pendingRef.current = null; setRecovery(null); }
+      if (previous && pendingRef.current && pendingRef.current.orderID === previous.orderID) releaseTo();
     };
     window.addEventListener('storage', sync);
     return () => window.removeEventListener('storage', sync);
-  }, [flow, scope]);
+  }, [flow, scope, releaseTo]);
   return { recovery, pendingRef, remember, clearRecovery, forgetRecovery };
 }
 
