@@ -39,7 +39,7 @@ import {
   // 거리 보정판(estimateAirportTransitMinFrom)은 출국일에만 배선돼 있었는데 도착일도
   // 같이 쓰게 되면서 leaf 로 올렸다(2026-08-04).
   estimateAirportTransitMinFrom, hhmmToMin, arrivalReadyMinutes, arrivalRestDayInfo, departureActivityDeadlineMin,
-  MEAL_ROLE_WINDOWS,
+  MEAL_ROLE_WINDOWS, SCHEDULE_BUFFER_MIN,
 } from './constants.js';
 import { repairAndParseJSON, normalizeRegionKey, arrivalRestDayCityKey, regionCityKey } from './responseValidator.js';
 import { stopDuplicateKey } from './qualityMetrics.js';
@@ -751,6 +751,40 @@ export function rescueFirstDayMeal(stop, m, pastMidnight, dayStartMin, capMin, k
   stop.start_time = `${String(Math.floor(hi / 60)).padStart(2, '0')}:${String(hi % 60).padStart(2, '0')}`;
   if (stop.end_time) delete stop.end_time; // 옛 종료 시각은 버린다(planPersister 가 체류로 다시 채움)
   return true;
+}
+
+/**
+ * PR2 r4: RouteAgent 가 배치하지 못한(일반 실패·타임아웃·병합 건너뜀 — 구제 표식이 남은) 구제 식당의 최소 결정론 정리.
+ *   잠정 배치(창 끝) 시각이 앞 활동(관광·식사; 숙소·공항·이동 표식은 제외)의 시작 + 체류(누락·비숫자 60, RouteAgent 와 같은 규칙)
+ *   + 버퍼와 겹치면 겹친 앞 관광을 뺀다. 앞이 식사라 뺄 수 없으면 구제 식당을 뺀다(구제 전 기준과 같은 결과) + 그날 필수 끼니 검사 표식.
+ *   이동 시간은 이 경로에 없다(경로 계산 실패) — 버퍼만 반영. 표식은 지운다(저장 안 함). 제자리 수정.
+ */
+const NOT_ACTIVITY = new Set(['lodging', 'airport', 'airport_transfer', 'travel']);
+const stayMinOf = (p) => {
+  const raw = p?.stay_min;
+  const n = Number(raw);
+  return raw !== null && raw !== undefined && raw !== '' && Number.isFinite(n) ? Math.max(0, Math.floor(n)) : 60;
+};
+export function settleUnroutedRescuedMeals(itinerary) {
+  for (const d of (itinerary?.days || [])) {
+    const stops = Array.isArray(d.stops) ? d.stops : [];
+    for (let i = 0; i < stops.length; i++) {
+      const meal = stops[i];
+      if (!meal || !('_blockMealRole' in meal)) continue;
+      delete meal._blockMealRole;
+      const mealStart = hhmmToMin(meal.start_time);
+      if (mealStart < 0) continue;
+      for (let j = i - 1; j >= 0; j--) {
+        const prev = stops[j];
+        const cat = String(prev?.category || '').toLowerCase();
+        if (NOT_ACTIVITY.has(cat)) continue;
+        const start = hhmmToMin(prev.start_time);
+        if (start < 0 || start + stayMinOf(prev) + SCHEDULE_BUFFER_MIN <= mealStart) break; // 겹침 없음
+        if (cat === 'food') { stops.splice(i, 1); d._routeMealRemoved = true; i -= 1; break; }
+        stops.splice(j, 1); i -= 1; // 겹친 앞 관광 제거 후 그 앞을 계속 본다
+      }
+    }
+  }
 }
 
 /** 종전 cap 에서 살아남은 음식 stop 의 역할 — 구제는 비어 있는 역할만. */

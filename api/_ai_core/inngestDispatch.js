@@ -189,7 +189,8 @@ export function buildPlanAiCompletePayload(args) {
       //   이미 payload 에 있는 건 이번 작업 이전부터의 별개 이슈.)
       ...(issuanceClaim ? { issuanceClaim } : {}),
       // PR2 r3-11: 무료 AI 쿠폰 {uid, code} — 1급 필드(같은 이유). secret 아님(쿠폰 코드는 손님 본인 것, 사용 여부는 서버 트랜잭션이 판정).
-      ...(consumedCoupon && consumedCoupon.uid && consumedCoupon.code ? { consumedCoupon: { uid: consumedCoupon.uid, code: consumedCoupon.code } } : {}),
+      //   r4: consumptionId 도 — 복구가 같은 소비일 때만 되돌린다(다음 사용 보호).
+      ...(consumedCoupon && consumedCoupon.uid && consumedCoupon.code ? { consumedCoupon: { uid: consumedCoupon.uid, code: consumedCoupon.code, consumptionId: consumedCoupon.consumptionId || null } } : {}),
     },
   };
 }

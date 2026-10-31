@@ -763,16 +763,19 @@ export const isSightseeingStop = (p) => !NOT_SIGHTSEEING.has(stopCat(p));
 /** Day1 바닥이 걸리는 stop — 첫 관광·식당(이동·숙소·공항 표식이 아니라). PR2 r3. */
 export const isDay1FloorStop = (p) => isSightseeingStop(p) || stopCat(p) === 'food';
 /**
- * 같은 숙소의 연속 표식(숙소 → 숙소)인가 — 이름(대소문자·공백 무시)이 같거나 좌표가 100m 안. PR2 r3: 이 구간은 이동·버퍼를 빼고
- *   앞 숙소에 붙인다(손님은 이미 숙소). 호텔이 바뀌는 연속 숙소(이름·좌표가 다름)는 그대로 계산·자정 검사.
+ * 같은 숙소의 연속 표식(숙소 → 숙소)인가 — PR2 r4: **두 좌표가 모두 유효할 때만** 50m 안이면 같은 숙소. 이름은 보지 않는다
+ *   (이름이 같아도 좌표가 다르면 다른 지점, 좌표 누락은 판정 불가 → 합치지 않음 — 예전엔 Number(null)=0 이라 지오코딩 실패한 두 호텔이 같다고 나왔다).
+ *   같은 숙소 구간은 이동·버퍼를 빼고 앞 숙소에 붙인다(손님은 이미 숙소). 그 밖엔 그대로 계산·자정 검사.
  */
+const coordOf = (p) => {
+    const ok = (v) => v !== null && v !== undefined && v !== '' && Number.isFinite(Number(v));
+    return ok(p?.lat) && ok(p?.lng) ? { lat: Number(p.lat), lng: Number(p.lng) } : null;
+};
 export function isSameLodgingMarker(a, b) {
     if (stopCat(a) !== 'lodging' || stopCat(b) !== 'lodging') return false;
-    const key = (p) => String(p?.name || p?.display_name || '').trim().toLowerCase();
-    if (key(a) && key(a) === key(b)) return true;
-    const la = Number(a?.lat), lna = Number(a?.lng), lb = Number(b?.lat), lnb = Number(b?.lng);
-    if (![la, lna, lb, lnb].every(Number.isFinite)) return false;
-    return _haversineKmPure(la, lna, lb, lnb) < 0.1;
+    const ca = coordOf(a), cb = coordOf(b);
+    if (!ca || !cb) return false;
+    return _haversineKmPure(ca.lat, ca.lng, cb.lat, cb.lng) <= 0.05;
 }
 
 /**

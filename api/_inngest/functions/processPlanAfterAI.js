@@ -177,7 +177,7 @@ export const processPlanAfterAI = inngest.createFunction(
       //   코드 없는 일반 실패는 저장 뒤 step 일 수 있어(정당 소비) 건드리지 않는다. restoreAiPlanCoupon 은 오류를 삼킨다.
       const failedCoupon = event?.data?.event?.data?.ctx?.consumedCoupon;
       if (failedCoupon && failedCoupon.uid && failedCoupon.code && failureCodeOf(error)) {
-        await restoreAiPlanCoupon(adminDb, failedCoupon.uid, failedCoupon.code);
+        await restoreAiPlanCoupon(adminDb, failedCoupon.uid, failedCoupon.code, failedCoupon.consumptionId); // r4: 같은 소비만(재실행 멱등)
       }
       // 운영자 escalation — sweep 30분 net 보다 빠르게 manual 환불 안내 시작 가능.
       try {

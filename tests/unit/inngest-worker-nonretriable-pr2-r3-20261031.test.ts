@@ -43,7 +43,7 @@ import { StepError } from '../../node_modules/inngest/components/StepError.js';
 type Fn = { fn: (a: unknown) => Promise<unknown>; onFailureFn: (a: unknown) => Promise<unknown> };
 const worker = processPlanAfterAI as unknown as Fn;
 const logger = { info: () => {}, warn: () => {}, error: () => {} };
-const ctx = { body: {}, area: 'seoul', dietPrefs: [], regions: ['seoul'], language: 'en', plannerMode: 'legacy', consumedCoupon: { uid: 'u1', code: 'AI-FREE-1' } };
+const ctx = { body: {}, area: 'seoul', dietPrefs: [], regions: ['seoul'], language: 'en', plannerMode: 'legacy', consumedCoupon: { uid: 'u1', code: 'AI-FREE-1', consumptionId: 'cons-A' } };
 const eventData = { planId: 'plan-abc', itinerary: { days: [] }, ctx };
 
 /** Inngest 처럼: step 콜백이 던진 오류를 실제 SDK 로 직렬화 → StepError(함수·onFailure 가 받는 모양). */
@@ -71,7 +71,7 @@ describe('r3-11 — deterministic 422 in the worker: no retry, reason code store
     expect(mark).toMatchObject({ status: 'error', _streaming_error_code: code });
     expect(Array.isArray(mark._streaming_error_details)).toBe(true);
     expect(restoreAiPlanCoupon).toHaveBeenCalledTimes(1);
-    expect(restoreAiPlanCoupon).toHaveBeenCalledWith(mockAdminDb, 'u1', 'AI-FREE-1');
+    expect(restoreAiPlanCoupon).toHaveBeenCalledWith(mockAdminDb, 'u1', 'AI-FREE-1', 'cons-A'); // r4: 소비 ID 전달
   });
   it('a generic failure (no allow-listed code) is NOT wrapped (keeps retries) and does NOT restore the coupon', async () => {
     pipelineMocks.runRouteEnrichment.mockRejectedValueOnce(new Error('ODsay 500'));
@@ -88,7 +88,7 @@ describe('r3-11 — deterministic 422 in the worker: no retry, reason code store
   });
   it('dispatch payload carries consumedCoupon {uid, code} only when both are present; handlerCore passes it', () => {
     const base = { itinerary: { days: [] }, body: {}, abReason: null, abBucket: null };
-    expect((buildPlanAiCompletePayload({ ...base, consumedCoupon: { uid: 'u1', code: 'C', extra: 'x' } }) as { ctx: Record<string, unknown> }).ctx.consumedCoupon).toEqual({ uid: 'u1', code: 'C' });
+    expect((buildPlanAiCompletePayload({ ...base, consumedCoupon: { uid: 'u1', code: 'C', consumptionId: 'cons-1', extra: 'x' } }) as { ctx: Record<string, unknown> }).ctx.consumedCoupon).toEqual({ uid: 'u1', code: 'C', consumptionId: 'cons-1' });
     expect('consumedCoupon' in (buildPlanAiCompletePayload({ ...base, consumedCoupon: null }) as { ctx: Record<string, unknown> }).ctx).toBe(false);
     expect(readFileSync(resolve(process.cwd(), 'api/_ai_core/handlerCore.js'), 'utf8')).toContain('consumedCoupon: consumedCouponInfo })) { issuance.handOff(); return; }');
   });

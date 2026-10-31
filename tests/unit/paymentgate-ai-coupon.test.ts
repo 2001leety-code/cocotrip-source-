@@ -26,6 +26,7 @@ beforeEach(() => {
 // users/{uid}/coupons.where('code','==',code).limit(1).get() + runTransaction 흐름 mock.
 function couponDb(coupon: Record<string, unknown> | null) {
   let used = (coupon?.isUsed as boolean) || false;
+  let consumptionId: unknown = coupon?.consumptionId; // PR2 r4: 소비 ID — 복구가 같은 소비일 때만 되돌린다
   const couponRef = { _ref: true, async update(data: { isUsed?: boolean }) { if ('isUsed' in data) used = data.isUsed as boolean; } };
   const col = {
     where() { return col; },   // .where().where() chain
@@ -41,8 +42,11 @@ function couponDb(coupon: Record<string, unknown> | null) {
     collection: () => ({ doc: () => ({ collection: () => col }) }),
     async runTransaction(fn: (tx: unknown) => Promise<unknown>) {
       const tx = {
-        get: async () => ({ data: () => ({ isUsed: used }) }),
-        update: (_ref: unknown, data: { isUsed?: boolean }) => { if (data.isUsed) used = true; },
+        get: async () => ({ data: () => ({ isUsed: used, consumptionId }) }),
+        update: (_ref: unknown, data: { isUsed?: boolean; consumptionId?: unknown }) => {
+          if ('isUsed' in data) used = data.isUsed as boolean;
+          if ('consumptionId' in data) consumptionId = data.consumptionId;
+        },
       };
       return fn(tx);
     },
@@ -104,9 +108,10 @@ describe('paymentGate — AI 무료 쿠폰 0원 경로 (P1-②)', () => {
     const r1 = await enforcePaymentAndRevision({ aiCouponCode: AI.code, durationDays: 2 }, db, 'u@e.com', UID);
     expect(r1.isFreeAiCoupon).toBe(true);
     // gate 가 롤백용 쿠폰 정보(uid+code)를 반환해야 함
-    expect(r1.consumedCoupon).toEqual({ uid: UID, code: AI.code });
+    //   PR2 r4: + 이번 소비 ID(복구 대조용)
+    expect(r1.consumedCoupon).toEqual({ uid: UID, code: AI.code, consumptionId: expect.any(String) });
     // plan 생성 실패 시나리오 → 쿠폰 롤백(isUsed=false)
-    await restoreAiPlanCoupon(db, UID, AI.code);
+    await restoreAiPlanCoupon(db, UID, AI.code, r1.consumedCoupon.consumptionId);
     // 롤백 후 재시도 → 쿠폰 부활로 다시 0원 통과 (1장뿐인 쿠폰 영구 소실 안 됨)
     const r2 = await enforcePaymentAndRevision({ aiCouponCode: AI.code, durationDays: 2 }, db, 'u@e.com', UID);
     expect(r2.rejection).toBeUndefined();
