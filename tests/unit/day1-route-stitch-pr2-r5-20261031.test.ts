@@ -77,7 +77,7 @@ describe('r5-1 — unrouted rescued meals: the overlap check includes the defaul
   });
 });
 
-describe('r5-2 — same booked hotel bookends without coordinates are merged by the departure marker, not by name', () => {
+describe('r5-2 / r6 — coordinate-less hotel bookends merge only on a lodging-only day with the same name', () => {
   it('Astra repro: ICN 20:35 rest day, [Hotel 23:35 (stay 0), Hotel 23:59], no coordinates → saved (was 422)', async () => {
     const it2 = await run([{ day: 1, city: 'seoul', stops: [{ category: 'lodging', name: 'Hotel', start_time: '23:35', stay_min: 0, ...noGeo }, { category: 'lodging', name: 'Hotel', start_time: '23:59', ...noGeo }] }, midDay(2), lastDay(3)], { arrivalTime: '20:35', tourEndTime: '21:00' });
     expect(it2.days[0].stops.map((s) => s.category)).toEqual(['lodging', 'lodging']);
@@ -91,12 +91,22 @@ describe('r5-2 — same booked hotel bookends without coordinates are merged by 
     await expect(run([midDay(1), { day: 2, city: 'seoul', stops: [{ category: 'lodging', name: 'Hotel A', start_time: '23:35', stay_min: 60, ...noGeo }, { category: 'lodging', name: 'Hotel B', start_time: '23:59', ...noGeo }] }, lastDay(3)]))
       .rejects.toMatchObject({ code: 'ROUTE_DAY_INFEASIBLE' });
   });
+  it.each(['0', 'missing'])('r6 Astra repro: Day2 [A 09:00, Lunch, Dinner 21:00 (125), A 23:35 (stay %s), B 23:59] with the last two hotels coordinate-less → not merged → 422', async (stay) => {
+    const A = (t: string, extra: Stop = {}) => ({ category: 'lodging', name: 'Hotel A', start_time: t, ...extra });
+    await expect(run([midDay(1), { day: 2, city: 'seoul', stops: [
+      A('09:00', { stay_min: 0, ...P }), { category: 'food', name: 'Lunch 2', start_time: '12:30', stay_min: 60, ...at(1) }, { category: 'food', name: 'Dinner 2', start_time: '21:00', stay_min: 125, ...at(2) },
+      A('23:35', { ...noGeo, ...(stay === '0' ? { stay_min: 0 } : {}) }), { category: 'lodging', name: 'Hotel B', start_time: '23:59', stay_min: 0, ...noGeo },
+    ] }, lastDay(3)])).rejects.toMatchObject({ code: 'ROUTE_DAY_INFEASIBLE' });
+  });
+  const L = (name: string, extra: Stop = {}) => ({ category: 'lodging', name, ...extra });
   it.each([
-    ['departure marker + last lodging, no coordinates', [{ category: 'lodging', stay_min: 0, ...noGeo }, { category: 'lodging', ...noGeo }], 1, true],
-    ['departure marker + last lodging, both coordinates valid (50 m rule only)', [{ category: 'lodging', stay_min: 0, ...P }, { category: 'lodging', lat: P.lat + 0.05, lng: P.lng }], 1, false],
-    ['first lodging has a real stay', [{ category: 'lodging', stay_min: 60, ...noGeo }, { category: 'lodging', ...noGeo }], 1, false],
-    ['missing stay counts as a departure marker (r5-5: legacy placeholder bookends)', [{ category: 'lodging', ...noGeo }, { category: 'lodging', ...noGeo }], 1, true],
-    ['not the last stop of the day', [{ category: 'lodging', stay_min: 0, ...noGeo }, { category: 'lodging', ...noGeo }, { category: 'culture' }], 1, false],
+    ['lodging-only day, same name, no coordinates', [L('Hotel', { stay_min: 0, ...noGeo }), L('Hotel', noGeo)], 1, true],
+    ['same name with different spacing / case', [L('Myeongdong  Hotel', noGeo), L('myeongdong hotel', noGeo)], 1, true],
+    ['both coordinates valid (50 m rule only, name ignored)', [L('Hotel', { stay_min: 0, ...P }), L('Hotel', { lat: P.lat + 0.05, lng: P.lng })], 1, false],
+    ['different names, stay 0, no coordinates (r6: stay is not evidence)', [L('Hotel A', { stay_min: 0, ...noGeo }), L('Hotel B', noGeo)], 1, false],
+    ['same name but the day has an activity', [{ category: 'culture' }, L('Hotel', { stay_min: 0, ...noGeo }), L('Hotel', noGeo)], 2, false],
+    ['no names', [L('', noGeo), L('', noGeo)], 1, false],
+    ['not the last stop of the day', [L('Hotel', { stay_min: 0, ...noGeo }), L('Hotel', noGeo), { category: 'culture' }], 1, false],
   ] as Array<[string, Stop[], number, boolean]>)('pure: %s → %s', (_n, places, i, want) => {
     expect(isLodgingBookendPair(places, i)).toBe(want);
   });
@@ -115,7 +125,7 @@ describe('r5-2 — same booked hotel bookends without coordinates are merged by 
     expect(it5.days[0].stops.map((s) => s.category)).toEqual(['lodging', 'lodging']);
   });
   it('city-change days do not merge (caller passes mergeBookend:false) — chain time with leg + buffer', () => {
-    const places = [{ category: 'lodging', stay_min: 0, ...noGeo }, { category: 'lodging', ...noGeo }];
+    const places = [{ category: 'lodging', name: 'Hotel', stay_min: 0, ...noGeo }, { category: 'lodging', name: 'Hotel', ...noGeo }];
     expect(stitchStartMins(places, { firstMin: 1400, legMins: [20], buffer: 5, mergeBookend: false }).starts).toEqual([1400, 1425]);
     expect(stitchStartMins(places, { firstMin: 1400, legMins: [20], buffer: 5, mergeBookend: true }).starts).toEqual([1400, 1400]);
   });

@@ -778,19 +778,18 @@ export function isSameLodgingMarker(a, b) {
     return _haversineKmPure(ca.lat, ca.lng, cb.lat, cb.lng) <= 0.05;
 }
 /**
- * PR2 r5: 좌표로 판정할 수 없는 같은 예약 숙소의 북엔드 — 그날 마지막 두 stop 이 숙소이고 앞 숙소가 buildPrompt 의
- *   출발 표식(stay_min 0 또는 미지정 — r5-5)이면 "같은 예약 숙소 중복 표식"(휴식일 [Hotel 23:35(0), Hotel 23:59] 등). 이름은 보지 않는다.
- *   두 좌표가 모두 유효하면 이 규칙은 쓰지 않는다(50m 규칙만 — 좌표가 다르면 합치지 않음). 도시 이동일은 호출자가 끈다.
+ * PR2 r5→r6: 좌표로 판정할 수 없는 같은 예약 숙소의 북엔드. 체류(0·누락)·좌표 누락은 동일성 근거가 아니다(r6 — 다른 호텔도 합쳐졌다).
+ *   명시 근거가 있을 때만: 그날이 **숙소뿐**(비숙소 stop 0 = 생성/휴식일 북엔드 구조)이고 마지막 두 숙소의 **정규화 이름이 같을 때**.
+ *   활동이 있는 날의 마지막 두 숙소는 합치지 않는다(실제 호텔 변경 가능 → 자정 검사). 두 좌표가 모두 유효하면 이 규칙은 쓰지 않는다
+ *   (50m 규칙만 — 좌표가 있을 때 이름이 좌표를 덮지 않는다). 도시 이동일은 호출자가 끈다.
  */
+const lodgingNameKey = (p) => String(p?.name || p?.display_name || '').trim().toLowerCase().replace(/\s+/g, ' ');
 export function isLodgingBookendPair(places, i) {
     const a = places[i - 1], b = places[i];
     if (i <= 0 || i !== places.length - 1 || stopCat(a) !== 'lodging' || stopCat(b) !== 'lodging') return false;
     if (coordOf(a) && coordOf(b)) return false;
-    // r5-5: 출발 표식 = 체류 0 또는 체류 미지정(legacy 북엔드는 권역 placeholder 라 stay 가 빠지기도 한다). 실제 양수 체류는 별개 숙소로 본다.
-    const raw = a?.stay_min;
-    if (raw === null || raw === undefined || raw === '') return true;
-    const n = Number(raw);
-    return !Number.isFinite(n) || n <= 0;
+    if (!places.every((p) => stopCat(p) === 'lodging')) return false; // 활동이 있는 날 = 합치지 않음
+    return !!lodgingNameKey(a) && lodgingNameKey(a) === lodgingNameKey(b);
 }
 
 /**
