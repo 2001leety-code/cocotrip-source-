@@ -783,13 +783,23 @@ export function isSameLodgingMarker(a, b) {
  *   활동이 있는 날의 마지막 두 숙소는 합치지 않는다(실제 호텔 변경 가능 → 자정 검사). 두 좌표가 모두 유효하면 이 규칙은 쓰지 않는다
  *   (50m 규칙만 — 좌표가 있을 때 이름이 좌표를 덮지 않는다). 도시 이동일은 호출자가 끈다.
  */
-const lodgingNameKey = (p) => String(p?.name || p?.display_name || '').trim().toLowerCase().replace(/\s+/g, ' ');
-export function isLodgingBookendPair(places, i) {
+const normKey = (v) => String(v || '').trim().toLowerCase().replace(/\s+/g, ' ');
+const lodgingNameKey = (p) => normKey(p?.name || p?.display_name);
+/*
+ * r7: 주소가 동일성의 우선 근거 — 두 주소가 다 있으면 정규화 일치 필수(같은 이름·다른 주소 = 다른 숙소, 즉시 불합치).
+ *   한쪽만 있으면 그 주소가 요청의 예약 숙소 주소(bookedAddress = RouteAgent data.hotel_address — 예약 호텔 또는 권역 anchor 주소)와
+ *   일치해야 한다(상대는 이름 일치). 둘 다 없으면 이름 일치만(권역 placeholder 북엔드).
+ */
+export function isLodgingBookendPair(places, i, bookedAddress = '') {
     const a = places[i - 1], b = places[i];
     if (i <= 0 || i !== places.length - 1 || stopCat(a) !== 'lodging' || stopCat(b) !== 'lodging') return false;
     if (coordOf(a) && coordOf(b)) return false;
     if (!places.every((p) => stopCat(p) === 'lodging')) return false; // 활동이 있는 날 = 합치지 않음
-    return !!lodgingNameKey(a) && lodgingNameKey(a) === lodgingNameKey(b);
+    if (!lodgingNameKey(a) || lodgingNameKey(a) !== lodgingNameKey(b)) return false;
+    const aa = normKey(a?.address), ab = normKey(b?.address);
+    if (aa && ab) return aa === ab;
+    if (aa || ab) return !!normKey(bookedAddress) && (aa || ab) === normKey(bookedAddress);
+    return true;
 }
 
 /**
@@ -803,7 +813,7 @@ export function isLodgingBookendPair(places, i) {
  *   그 밖의 식사는 applyMealFloor(원래 시각보다 앞당기지 않음).
  * @returns {{starts: number[], meals: Array<{i: number, infeasible: boolean, noWindow: boolean}>}}
  */
-export function stitchStartMins(places, { firstMin, legMins = [], buffer = SCHEDULE_BUFFER_MIN, floorIdx = -1, floorMin = null, mealOrigins = [], d1Meal = null, mergeBookend = false } = {}) {
+export function stitchStartMins(places, { firstMin, legMins = [], buffer = SCHEDULE_BUFFER_MIN, floorIdx = -1, floorMin = null, mealOrigins = [], d1Meal = null, mergeBookend = false, bookedAddress = '' } = {}) {
     const starts = [];
     const meals = [];
     const hasFloor = Number.isFinite(floorMin);
@@ -811,7 +821,7 @@ export function stitchStartMins(places, { firstMin, legMins = [], buffer = SCHED
     for (let i = 0; i < places.length; i++) {
         let base;
         if (i === 0) base = hasFloor && floorIdx === 0 ? floorMin : firstMin;
-        else if (isSameLodgingMarker(places[i - 1], places[i]) || (mergeBookend && isLodgingBookendPair(places, i))) {
+        else if (isSameLodgingMarker(places[i - 1], places[i]) || (mergeBookend && isLodgingBookendPair(places, i, bookedAddress))) {
             // r3: 같은 숙소 연속 표식 — 이동·버퍼 없이 앞 숙소에 붙이고 자정을 넘기지 않는다(손님은 이미 숙소, 휴식일 북엔드 2개 등).
             base = Math.max(starts[i - 1], Math.min(starts[i - 1] + stayOf(places[i - 1]), 24 * 60 - 1));
         } else {
@@ -2055,6 +2065,7 @@ export class RouteAgent extends BaseAgent {
                     firstMin: currentTime, legMins: transitResults.map((t, j) => legTransitMin(t, places[j + 1]?.transit_from_prev)), buffer: BUFFER_MIN,
                     floorIdx, floorMin: day1 ? day1.pref : null, mealOrigins: _mealOriginMins, d1Meal: day1 ? day1.meal : null,
                     mergeBookend: !isCityChangeDay, // r5: 좌표 없는 같은 예약 숙소 북엔드(도시 이동일은 숙소가 바뀔 수 있어 제외)
+                    bookedAddress: data.hotel_address || '', // r7: 요청의 예약 숙소(또는 권역 anchor) 주소 — 한쪽만 주소가 있을 때의 대조 기준
                 });
                 extraMealIdx = new Set(candidate.meals.filter((m) => m.extra).map((m) => m.i));
                 const v = findStitchViolation(places, candidate, { day1TourEndMin: day1 ? day1.tourEndMin : null, lastReturnMin: dayPlan.last_to_lodging?.est_min });

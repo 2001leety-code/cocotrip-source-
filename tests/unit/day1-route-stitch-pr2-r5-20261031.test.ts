@@ -183,3 +183,34 @@ describe('r5-7 — P203 timeout, then a late RouteAgent merge after settle short
     for (const s of itin.days[0].stops) expect(s.entry_fee_krw, String(s.name)).toBeDefined();
   }, 30000);
 });
+
+describe('r7 — coordinate-less bookends: addresses decide, the booked hotel address breaks a one-sided tie', () => {
+  const runWith = async (stops: Stop[], hotel_address = '') => {
+    const itinerary: Plan = { days: [{ day: 1, city: 'seoul', stops }, midDay(2), lastDay(3)] };
+    await enrichItineraryWithRoute(itinerary, { apiKey: null, body: { area: 'seoul', regions: ['seoul'], language: 'en', arrivalTime: '20:35', tourEndTime: '21:00' }, language: 'en', hotel_address, arrival_airport: 'ICN_T1', departure_airport: 'ICN_T1', pax: 2, zone_id: null });
+    return itinerary;
+  };
+  const H = (t: string, address?: string, extra: Stop = {}) => ({ category: 'lodging', name: 'Hotel', start_time: t, ...noGeo, ...(address ? { address } : {}), ...extra });
+  it('Astra repro: same name, different addresses, no coordinates → not merged → 422', async () => {
+    await expect(runWith([H('23:35', '서울 중구 명동길 1', { stay_min: 0 }), H('23:59', '서울 강남구 테헤란로 2')])).rejects.toMatchObject({ code: 'ROUTE_DAY_INFEASIBLE' });
+  });
+  it.each([
+    ['same name, same address', '서울 중구 명동길 1', '서울 중구 명동길 1', ''],
+    ['same name, no addresses (zone placeholder bookends)', undefined, undefined, ''],
+    ['same name, one address = the booked hotel address', '서울 중구 명동길 1', undefined, '서울 중구 명동길 1'],
+  ] as Array<[string, string | undefined, string | undefined, string]>)('rest day, %s → merged, saved', async (_n, a1, a2, booked) => {
+    const it7 = await runWith([H('23:35', a1, { stay_min: 0 }), H('23:59', a2)], booked);
+    expect(it7.days[0].stops.map((s) => s.category)).toEqual(['lodging', 'lodging']);
+  });
+  it('one address that is not the booked hotel → not merged → 422', async () => {
+    await expect(runWith([H('23:35', '부산 해운대구 1', { stay_min: 0 }), H('23:59')], '서울 중구 명동길 1')).rejects.toMatchObject({ code: 'ROUTE_DAY_INFEASIBLE' });
+  });
+  it('an optional dinner removed first → the same address rule still applies (different addresses → 422)', async () => {
+    await expect(runWith([H('23:30', '서울 중구 명동길 1', { stay_min: 0 }), { category: 'food', name: 'Dinner', start_time: '23:40', stay_min: 60, ...at(1) }, H('23:59', '서울 강남구 테헤란로 2')]))
+      .rejects.toMatchObject({ code: 'ROUTE_DAY_INFEASIBLE' });
+  });
+  it('pure: valid coordinates on both still use the 50 m rule only (addresses not consulted)', () => {
+    const far = [{ category: 'lodging', name: 'Hotel', address: 'X', ...P }, { category: 'lodging', name: 'Hotel', address: 'X', lat: P.lat + 0.05, lng: P.lng }];
+    expect(isLodgingBookendPair(far, 1, 'X')).toBe(false);
+  });
+});
