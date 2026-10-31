@@ -214,7 +214,7 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
   //   order is reconciled through the capture endpoint ({orderID} only). Cleared only on durable success or
   //   provider-proven nonpayment. While present: no new order, no SDK reload, no QR fallback.
   // 결제 뒤 이행(플랜 발급)까지 포인터를 유지하는 상품(AI 플래너)은 전용 범위 — 다른 상품 결제 버튼을 막지 않는다(r3).
-  const { recovery, pendingRef: recoveryRef, remember, clearRecovery } = usePaymentRecovery('single', keepRecoveryUntilFulfilled ? PLANNER_RECOVERY_SCOPE : undefined);
+  const { recovery, pendingRef: recoveryRef, remember, clearRecovery, forgetRecovery } = usePaymentRecovery('single', keepRecoveryUntilFulfilled ? PLANNER_RECOVERY_SCOPE : undefined);
   const captureInFlight = useRef(false);
   const [reconciling, setReconciling] = useState(false);
   const rc = recoveryCopy(lang);
@@ -276,9 +276,17 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
         const other: PaymentRecovery | null = checked
           ? checked
           : (ownProduct ? { orderID, flow: 'single', productType: ownProduct, paymentStatus: 'CAPTURED', review: false, updatedAt: 0 } : null);
-        clearRecovery(orderID);
         if (other && isPlannerProduct(other.productType) && !keepRecoveryUntilFulfilled) {
-          storePaymentRecovery({ ...other, paymentStatus: 'CAPTURED', review: false }, PLANNER_RECOVERY_SCOPE);
+          // r10: 플래너 주문은 발급까지 CAPTURED 포인터가 필요하다. 플래너 키에 **다른** 주문(미발급 Q)이 있으면 덮지 않고, 이동 저장이
+          //   성공했을 때만 원래(공용) 키를 지운다 — 그 밖엔 공용 키에 CAPTURED 로 남겨(저장 시도, 실패해도 기존 포인터 유지) 플래너 화면이
+          //   기존 이전 로직으로 처리. 이 화면은 메모리 포인터만 놓고 중립 안내(이 상품의 결제로 맡지 않는다).
+          const moved = { ...other, paymentStatus: 'CAPTURED' as const, review: false };
+          const target = readPaymentRecoveryState(other.flow, PLANNER_RECOVERY_SCOPE).pointer;
+          const free = !target || target.orderID === orderID;
+          if (free && storePaymentRecovery(moved, PLANNER_RECOVERY_SCOPE)) clearRecovery(orderID);
+          else { storePaymentRecovery(moved); forgetRecovery(orderID); }
+        } else {
+          clearRecovery(orderID);
         }
         setOtherOrderNotice({ orderID, pending: false });
         setShowPaypal(false); setRateInfo(null);

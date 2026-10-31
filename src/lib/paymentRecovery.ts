@@ -188,6 +188,12 @@ export function usePaymentRecovery(flow: PaymentFlow, scope?: string) {
     pendingRef.current = null;
     setRecovery(null);
   }, [scope]);
+  /** r10: 이 화면의 메모리 포인터만 놓는다(저장소는 그대로) — 다른 상품 주문을 이 화면이 맡지 않을 때. */
+  const forgetRecovery = useCallback((orderID: string) => {
+    if (pendingRef.current && pendingRef.current.orderID !== orderID) return;
+    pendingRef.current = null;
+    setRecovery(null);
+  }, []);
   useEffect(() => {
     const sync = (event: StorageEvent) => {
       // 범위 포인터는 자기 키만, 공용 포인터는 종전 그대로(두 flow 공용 키).
@@ -202,7 +208,7 @@ export function usePaymentRecovery(flow: PaymentFlow, scope?: string) {
     window.addEventListener('storage', sync);
     return () => window.removeEventListener('storage', sync);
   }, [flow, scope]);
-  return { recovery, pendingRef, remember, clearRecovery };
+  return { recovery, pendingRef, remember, clearRecovery, forgetRecovery };
 }
 
 export const PAYMENT_RECOVERY_COPY = {
