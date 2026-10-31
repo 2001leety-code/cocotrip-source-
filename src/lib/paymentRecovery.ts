@@ -142,6 +142,21 @@ export function storePaymentRecovery(value: Omit<PaymentRecovery, 'updatedAt'>, 
   return writePaymentRecovery({ ...value, updatedAt: Date.now() }, scope);
 }
 
+/**
+ * r12: 다른 범위 키에 포인터를 **덮지 않고** 둔다(r10 이동 분기·서버 409 미결 주문 저장이 같은 규칙). 대상 키가 비었거나 같은 주문일 때만
+ *   저장 → 'target'. 대상이 플래너 키인데 다른 주문(미발급 Q)이 있거나 저장 실패면 공용 키(비었거나 같은 주문일 때)에 → 'fallback' —
+ *   Q 가 풀리면 플래너 훅의 승계(releaseTo → migrateLegacyPlannerPointer)가 이어받는다(순차 복구). 둘 다 막히면 'none'(서버 기록이 다시 알려 줌).
+ */
+export function placeRecoveryPointer(value: Omit<PaymentRecovery, 'updatedAt'>, scope?: string): 'target' | 'fallback' | 'none' {
+  const tryAt = (s?: string) => {
+    const { pointer } = readPaymentRecoveryState(value.flow, s);
+    return (!pointer || pointer.orderID === value.orderID) && storePaymentRecovery(value, s);
+  };
+  if (tryAt(scope)) return 'target';
+  if (scope === PLANNER_RECOVERY_SCOPE && tryAt(undefined)) return 'fallback';
+  return 'none';
+}
+
 /** AI 플래너(풀) 상품인가 — 하이픈/밑줄 변형 같게. */
 export function isPlannerProduct(productType: string | undefined | null): boolean {
   return typeof productType === 'string' && productType.toLowerCase().replace(/-/g, '_') === 'ai_planner_full';
