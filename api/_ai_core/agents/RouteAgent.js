@@ -2102,13 +2102,16 @@ export class RouteAgent extends BaseAgent {
 
                 // r8: 같은 숙소로 합친 표식(이름·주소 북엔드 / 50m) — 시각처럼 이동 안내도 없다(옛 25분·택시 안내 금지).
                 //   _transitReset: 병합 단계가 원본 이동 안내로 되돌리지 않게(기존 숨은 키, 출력 전 제거).
+                //   r10: 저장되는 표식 same_lodging_as_prev — 저장 뒤 재계산·품질 지표가 "병합 null" 을 "경로 실패 null" 과 구분(mergedLodging.js).
                 if (i > 0 && mergedIdx.has(i)) {
                     place.start_time = newStart;
                     place.transit_from_prev = null;
                     place.travelFromPrev = null;
                     place._transitReset = true;
+                    place.same_lodging_as_prev = true;
                     continue;
                 }
+                delete place.same_lodging_as_prev; // 다시 배치했는데 병합이 아니면 옛 표식 제거
 
                 // 첫 장소: 호텔 경로 있으면 사용, 없으면 null
                 if (i === 0) {

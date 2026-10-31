@@ -251,6 +251,7 @@ export async function enrichItineraryWithRoute(itinerary, { apiKey, body, langua
             // RouteAgent 가 재배치하며 지운 end_time 은 원본 병합으로 되살리지 않는다.
             if (merged.start_time !== original.start_time && !/^(?:[01]?\d|2[0-3]):[0-5]\d$/.test(String(routed.end_time || ''))) delete merged.end_time;
             delete merged._blockMealRole; // blockMode 구제 표식(배치용) — 저장하지 않는다
+            if (p.same_lodging_as_prev !== true) delete merged.same_lodging_as_prev; // r10: 이번 배치가 병합하지 않았으면 원본의 옛 표식을 되살리지 않는다
             return merged;
           });
           // 2026-05-08 신규: lodging bookend 필드 day-level merge.

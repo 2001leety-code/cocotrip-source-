@@ -28,6 +28,7 @@ import { formatTransitSummary } from './_odsay_helper.js';
 import { searchTransit } from './_transit_provider.js';
 // NCP Maps 키 해석 + geocode 호출 SSOT — 키 목록 복제 금지 (mood-route.js:45~ 주석).
 import { geocode, resolveNcpKeys } from './_shared/mood-route.js';
+import { isMergedLodgingStop } from './_ai_core/mergedLodging.js'; // PR2 r10: 같은 숙소 병합 표식(이동 0)
 
 export const maxDuration = 60;
 export const config = { runtime: 'nodejs' };
@@ -151,6 +152,11 @@ export default async function handler(req, res) {
     const BUFFER_MIN = 5;
 
     for (const idx of staleIndices) {
+      // PR2 r10: 같은 숙소로 합친 표식은 이동이 없다 — 재조회하지 않는다(편집으로 앞 stop 이 바뀌면 isMergedLodgingStop 이 거짓 = 일반 재조회).
+      if (isMergedLodgingStop(stops, idx)) {
+        stops[idx].transit_from_prev = null;
+        continue;
+      }
       if (idx === 0) {
         // First stop has no prev -- just clear stale
         if (stops[0].transit_from_prev) {
@@ -243,6 +249,14 @@ export default async function handler(req, res) {
     if (stops[stitchFrom - 1] && stops[stitchFrom - 1].start_time) {
       let currentMin = parseTime(stops[stitchFrom - 1].start_time);
       for (let i = stitchFrom; i < stops.length; i++) {
+        // PR2 r10: 같은 숙소 병합 = 이동·버퍼 0, 앞 숙소 시각 + 체류(명시 0 유지)·자정 넘김 금지 — RouteAgent.stitchStartMins 와 같은 규칙.
+        if (isMergedLodgingStop(stops, i)) {
+          const raw = stops[i - 1].stay_min;
+          const stay = raw !== null && raw !== undefined && raw !== '' && Number.isFinite(Number(raw)) ? Math.max(0, Math.floor(Number(raw))) : 60;
+          currentMin = Math.max(currentMin, Math.min(currentMin + stay, 24 * 60 - 1));
+          stops[i].start_time = formatTime(currentMin);
+          continue;
+        }
         const prevStay = stops[i - 1].stay_min || 60;
         const transitMin = (stops[i].transit_from_prev && stops[i].transit_from_prev.est_min) || 25;
         currentMin += prevStay + transitMin + BUFFER_MIN;
