@@ -15,7 +15,7 @@ import { tourSlotBody, SLOT_REJECT_LABELS } from '@/lib/tourSlotBooking';
 import { fillPrice } from '@/lib/aiPlannerPrice';
 import { charterCheckoutExpectedUsd, charterUsdFromKrw } from '@/lib/charterUsd';
 import { GuestSignupNudge } from '@/components/GuestSignupNudge';
-import { usePaymentRecovery, reconcilePayment, classifyCaptureResponse, recoveryCopy, recoveryHeadline, isPlannerProduct, isSameProduct, placeForeignPending, settleForeignFinal, isForeignOrder, isCurrentPointer, type PaymentRecovery, type CaptureOutcome } from '@/lib/paymentRecovery';
+import { usePaymentRecovery, reconcilePayment, classifyCaptureResponse, recoveryCopy, recoveryHeadline, isPlannerProduct, isSameProduct, placeForeignPending, settleForeignFinal, isForeignOrder, isCurrentPointer, beginCapture, endCapture, isCaptureInFlight, isRecoveryDone, type PaymentRecovery, type CaptureOutcome } from '@/lib/paymentRecovery';
 import type { Language } from '@/i18n';
 
 // SDK 차단·로드 실패 시 fallback — paypal.me QR (외부 redirect, paypalobjects.com 무관).
@@ -215,11 +215,18 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
   //   provider-proven nonpayment. While present: no new order, no SDK reload, no QR fallback.
   // 결제 뒤 이행(플랜 발급)까지 포인터를 유지하는 상품(AI 플래너)은 전용 범위 — 다른 상품 결제 버튼을 막지 않는다(r3).
   //   r16: 주문별 저장 — 이 화면이 맡는 주문 = 플래너면 플래너 주문, 그 밖은 지금 상품과 같은(또는 상품 미상) 단건 주문.
-  const { recovery, pendingRef: recoveryRef, remember, clearRecovery, forgetRecovery, refresh: refreshRecovery } = usePaymentRecovery({ flow: 'single', planner: keepRecoveryUntilFulfilled, productType });
-  // r17-6: 이 탭의 capture 진행 중 — '같은 주문 확인'을 막는다(capture 가 서버 시도 기록보다 늦게 닿으면 no_attempt_record 로 오판).
-  const [capturing, setCapturing] = useState(false);
-  const captureInFlight = useRef(false);
+  // r19: captureBusy = 이 화면 주문의 capture 가 이 탭에서 진행 중(모듈 집합 — 언마운트·재마운트에도 유지) → '같은 주문 확인' 비활성.
+  const { recovery, pendingRef: recoveryRef, remember, clearRecovery, forgetRecovery, refresh: refreshRecovery, captureBusy } = usePaymentRecovery({ flow: 'single', planner: keepRecoveryUntilFulfilled, productType });
   const [reconciling, setReconciling] = useState(false);
+  // r19: 결제 결과 문구는 그 주문에 묶는다 — 다른 주문의 복구 패널엔 안 보이고, 최종이 아닌 문구는 그 주문이 CAPTURED·완료가 되면 지운다.
+  //   message 가 지금 error 와 같을 때만 유효(다른 경로가 error 를 바꾸면 태그는 자동 무효).
+  const [errorOrder, setErrorOrder] = useState<{ orderID: string; final: boolean; message: string } | null>(null);
+  function orderError(message: string, orderID: string, final: boolean) { setError(message); setErrorOrder({ orderID, final, message }); }
+  const tagged = errorOrder && errorOrder.message === error ? errorOrder : null;
+  // 렌더 중 조정(조건이 곧 거짓이 된다): 최종이 아닌 그 주문 문구는 그 주문이 CAPTURED 로 보이거나 완료되면 지운다.
+  if (tagged && !tagged.final && ((recovery && recovery.orderID === tagged.orderID && recovery.paymentStatus === 'CAPTURED') || isRecoveryDone(tagged.orderID))) {
+    setError(null); setErrorOrder(null);
+  }
   const rc = recoveryCopy(lang);
   // r6~r16: 같은 주문 확인을 시작한 포인터가 응답 도착 시점에도 이 화면의 선택 주문이고, 완료 표식이 없고, 주문별 저장값이 남아 있을 때만
   //   결과를 저장·성공 처리에 쓴다(다른 탭이 끝냈으면 버림). 동일성 = 주문·흐름·상품(updatedAt 아님). 공용 isCurrentPointer(CartCheckout 도 사용).
@@ -310,27 +317,26 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
     if (outcome.kind === 'auth_required') {
       // 403 is answered before the provider is called: no money moved. A fresh order from this page session
       // must not lock the whole flow (2026-10-10 R2); only a restored pointer keeps the "same device" notice.
-      if (fresh) { clearRecovery(orderID); setError(rc.authRequired); setShowPaypal(false); buttonsRendered.current = false; return; }
+      if (fresh) { clearRecovery(orderID); orderError(rc.authRequired, orderID, true); setShowPaypal(false); buttonsRendered.current = false; return; }
       keepWaiting(orderID, fresh, { paymentStatus: 'CAPTURE_UNKNOWN', review: false, authRequired: true }, checked); setShowPaypal(false); setRateInfo(null); return;
     }
     if (outcome.kind === 'not_captured') {
       const prepayMsg = plannerPrepayMessage(p, outcome.preCaptureCode, outcome.message);
-      // r17-6: no_attempt_record(시도 기록 없음)는 영구 완료가 아니다 — 완료 표식 없이 놓아 뒤에 오는 실제 결과가 다시 저장되게.
-      //   r18: 확인 시작 때 본 레코드(checked)와 상태가 같을 때만 — 그 사이 더 새로운 결과(CAPTURED 등)가 저장됐으면 놓지 않고 그 주문을 계속 보인다.
-      const released = clearRecovery(orderID, { provisional: outcome.noAttempt === true, expected: checked });
-      if (!released) { setShowPaypal(false); return; }
-      // r4/r5: QR 을 한 번 보여 준 흐름이면 별도 SDK 주문의 어떤 '미결제' 응답(사전 거부·order-VOIDED·no_attempt_record …)도
+      // r19: 미결제 응답은 최종(서버가 그 주문을 묘비로 영구 차단 — 구 서버 no_attempt_record 는 분류 단계에서 UNKNOWN) → 완료 처리.
+      clearRecovery(orderID);
+      // r4/r5: QR 을 한 번 보여 준 흐름이면 별도 SDK 주문의 어떤 '미결제' 응답(사전 거부·order-VOIDED …)도
       //   "다시 결제할 수 있어요/결제 안 됨" 으로 안내하지 않는다 — 손님이 QR 로 송금했을 수 있다. 다시 결제 금지 + QR 신고 경로 유지.
-      if (qrSession) setError(rc.warn);
-      else { setError(prepayMsg || outcome.message); setQrBlocked(!!prepayMsg); }
+      //   r19: 서버 영어 원문·내부 사유 코드 대신 4개 언어 rc.notCaptured.
+      if (qrSession) orderError(rc.warn, orderID, true);
+      else { orderError(prepayMsg || rc.notCaptured, orderID, true); setQrBlocked(!!prepayMsg); }
       setShowPaypal(false); buttonsRendered.current = false; return;
     }
     // Server-proven full refund: terminal, not a booking — no success, no conversion; payment controls return.
-    if (outcome.kind === 'refunded') { clearRecovery(orderID); setError(outcome.message); setShowPaypal(false); setRateInfo(null); buttonsRendered.current = false; return; }
+    if (outcome.kind === 'refunded') { clearRecovery(orderID); orderError(outcome.message, orderID, true); setShowPaypal(false); setRateInfo(null); buttonsRendered.current = false; return; }
     // Generic failure: an error code alone never proves the provider was not called. Keep the pointer; on a
     // fresh request ask the server once for durable evidence (an absent attempt record => NOT_CAPTURED).
     void posthogTrack('payment_failed', { planType: productType, reason: 'capture_rejected' });
-    setError(outcome.message); setShowPaypal(false); buttonsRendered.current = false;
+    orderError(outcome.message, orderID, false); setShowPaypal(false); buttonsRendered.current = false;
     if (fresh) {
       const pointer = recoveryRef.current;
       const evidencePointer = pointer && pointer.orderID === orderID ? { ...pointer } : null;
@@ -345,7 +351,7 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
   }
   async function checkSameOrder() {
     const pointer = recoveryRef.current;
-    if (!pointer || reconciling || captureInFlight.current) return; // r17-6: 이 탭 capture 진행 중엔 확인하지 않는다
+    if (!pointer || reconciling || isCaptureInFlight(pointer.orderID)) return; // r19: 이 탭 capture 진행 중(모듈 집합)엔 확인하지 않는다
     const checked = { ...pointer };
     setReconciling(true);
     try {
@@ -617,9 +623,7 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
       // 모바일 호환: 주문은 미리 생성됨 → ID만 동기 반환 (async 금지 — 모바일 팝업 차단 방지)
       createOrder: () => rateInfo.orderID,
       onApprove: async (data: { orderID: string }) => {
-        if (captureInFlight.current) return;
-        captureInFlight.current = true;
-        setCapturing(true);
+        if (!beginCapture(data.orderID)) return; // r19: 모듈 수준 — 재마운트된 화면도 이 주문 capture 진행 중을 안다
         // Pointer first — if the capture request vanishes (tab close, network), the order is still known.
         rememberRef.current({ orderID: data.orderID, flow: 'single', paymentStatus: 'CAPTURE_UNKNOWN', review: false, productType });
         try {
@@ -684,8 +688,7 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
           setShowPaypal(false);
           setRateInfo(null);
         } finally {
-          captureInFlight.current = false;
-          setCapturing(false);
+          endCapture(data.orderID);
         }
       },
       onCancel: () => {
@@ -1041,6 +1044,8 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
   }
 
   // 🔴 Unresolved same-order payment: hides create / SDK reload / QR until the server answers durably.
+  //   r19: 패널 안에는 그 주문의 최종이 아닌 문구(또는 주문에 묶이지 않은 문구)만 — 다른 주문의 "결제 안 됨"·이 주문의 최종 문구 금지.
+  const panelError = recovery && error && !(tagged && (tagged.orderID !== recovery.orderID || tagged.final)) ? error : null;
   if (recovery) {
     return (
       <div className="cocotrip-mobile-paypal rounded-xl border border-amber-400/30 bg-amber-500/10 px-4 py-3 space-y-2 customer-paypal-recovery">
@@ -1048,9 +1053,9 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
         <p className="text-xs text-white/70">{rc.detail}</p>
         <p className="text-xs text-amber-300">{rc.warn}</p>
         <div className="flex justify-between text-xs text-white/70"><span>{rc.order}</span><span className="font-mono text-white/90">{recovery.orderID}</span></div>
-        {error && <p className="text-xs text-red-300">{error}</p>}
+        {panelError && <p className="text-xs text-red-300">{panelError}</p>}
         <div className="flex gap-2">
-          <button type="button" onClick={checkSameOrder} disabled={reconciling || capturing || recovery.authRequired === true}
+          <button type="button" onClick={checkSameOrder} disabled={reconciling || captureBusy || recovery.authRequired === true}
             className="flex-1 min-h-[40px] rounded-lg text-sm font-semibold bg-[#7C5CFC] text-white disabled:opacity-50">{reconciling ? rc.checking : rc.check}</button>
           <a href="https://wa.me/821087140611" target="_blank" rel="noopener noreferrer" className="flex-1 min-h-[40px] py-2 rounded-lg border border-white/15 text-white/70 text-sm text-center">{rc.contact}</a>
         </div>

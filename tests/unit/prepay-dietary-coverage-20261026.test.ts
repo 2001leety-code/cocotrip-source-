@@ -209,13 +209,15 @@ describe('capturePaypalOrder — re-check right before a NEW capture POST', () =
     const captureCalls = fetchSpy.mock.calls.filter((c) => /\/capture$/.test(String(c[0])));
     return { res: res._out, captureCalls, store: (dbHolder.db as ReturnType<typeof memDb>)._store };
   };
-  it('coverage lost after the order (data changed) → capture 0 calls, proven not-captured answer, attempt released', async () => {
+  it('coverage lost after the order (data changed) → capture 0 calls, proven not-captured answer, order voided', async () => {
     foodHolder.rows = [];
     const { res, captureCalls, store } = await run(snapshot());
     expect(captureCalls).toHaveLength(0);
     expect(res.status).toBe(422);
     expect(res.body).toMatchObject({ code: 'PAYMENT_NOT_CAPTURED', paymentStatus: 'NOT_CAPTURED', preCaptureCode: 'DIETARY_COVERAGE_UNAVAILABLE', orderID: ORDER });
-    expect([...store.keys()].some((k) => k.startsWith('used_paypal_orders/'))).toBe(false);
+    // r19: the attempt becomes a void tombstone (no intent) instead of being deleted — this order can never be captured later.
+    expect(store.get(`used_paypal_orders/${ORDER}`)).toMatchObject({ status: 'void_not_captured', captureState: 'not_captured', reason: 'DIETARY_COVERAGE_UNAVAILABLE' });
+    expect(store.get(`used_paypal_orders/${ORDER}`)).not.toHaveProperty('intent');
   });
   it('old unpaid order without the checked input → capture 0 calls, PREPAY_INPUT_MISSING (create a new order)', async () => {
     const legacy = snapshot(); delete (legacy as Dict).prepayInput; delete (legacy as Dict).prepayInputVersion;

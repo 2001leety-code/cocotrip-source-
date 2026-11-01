@@ -34,7 +34,7 @@ vi.mock('react-router-dom', async () => {
   return { Link: ({ children, to }: { children: React.ReactNode; to: string }) => R.createElement('a', { href: to }, children), useNavigate: () => vi.fn() };
 });
 
-import { recoveryKey, readRecoveryOrder, saveRecoveryOrder, isRecoveryDone, dropRecoveryOrder, resetPaymentRecoveryMemory } from '../../src/lib/paymentRecovery';
+import { recoveryKey, readRecoveryOrder, saveRecoveryOrder, isRecoveryDone, finishRecoveryOrder, resetPaymentRecoveryMemory } from '../../src/lib/paymentRecovery';
 import { PayPalBookingButton } from '../../src/components/PayPalBookingButton';
 import { CartPanel } from '../../src/components/CartButton';
 
@@ -69,11 +69,14 @@ describe('r18-1 — a legacy-key order never gets a done marker from no_attempt_
     expect(readRecoveryOrder('ORD-L')).not.toBeNull(); // 옛 키에서 다시 복사
     expect(shownOrder()).toBe('ORD-L');
   });
-  it('dropRecoveryOrder on a legacy-key order only removes the order key (no done marker)', () => {
+  // r19: dropRecoveryOrder 삭제 — 옛 키 주문은 서버의 최종 order_voided 로만 끝난다(완료 표식, 옛 키는 그대로 두고 숨김).
+  it('legacy cart order + order_voided → done marker, hidden (legacy key untouched)', () => {
     localStorage.setItem(recoveryKey('cart'), JSON.stringify({ orderID: 'CART-L', flow: 'cart', paymentStatus: 'CAPTURE_UNKNOWN', review: false, updatedAt: 1 }));
     expect(readRecoveryOrder('CART-L')).not.toBeNull();
-    expect(dropRecoveryOrder('CART-L')).toBe(true);
-    expect(isRecoveryDone('CART-L')).toBe(false);
+    finishRecoveryOrder('CART-L');
+    expect(isRecoveryDone('CART-L')).toBe(true);
+    expect(readRecoveryOrder('CART-L')).toBeNull();
+    expect(localStorage.getItem(recoveryKey('cart'))).not.toBeNull();
   });
 });
 
@@ -103,18 +106,15 @@ describe('r18-2 — a late no_attempt answer never removes a CAPTURED saved in b
     expect(screen.queryByText(NOT_DONE)).toBeNull();
     expect(screen.getByText('CART-R')).toBeInTheDocument();
   });
-  it('unchanged record → the no_attempt answer still releases it (no done marker)', async () => {
+  // r19: no_attempt_record 는 UNKNOWN — 상태가 그대로여도 놓지 않는다(새 서버가 묘비로 최종 답을 준다).
+  it('unchanged record → an old-server no_attempt answer keeps it (UNKNOWN, no done marker, no "pay again")', async () => {
     saveRecoveryOrder({ orderID: 'ORD-U', flow: 'single', paymentStatus: 'CAPTURE_UNKNOWN', review: false, productType: 'charter_dmz' });
     mocks.authFetch.mockImplementation(async (u: string) => { if (u === '/api/capturePaypalOrder') return reply(409, noAttempt('ORD-U')); throw new Error(`OFFLINE ${u}`); });
     render(booking());
     await act(async () => { fireEvent.click(screen.getByText('Check this order')); await tick(); });
-    expect(readRecoveryOrder('ORD-U')).toBeNull();
+    expect(readRecoveryOrder('ORD-U')).not.toBeNull();
     expect(isRecoveryDone('ORD-U')).toBe(false);
-  });
-  it('dropRecoveryOrder(expected=null) keeps a record that appeared after the check started', () => {
-    saveRecoveryOrder({ orderID: 'ORD-N', flow: 'single', paymentStatus: 'CAPTURED', review: false, productType: 'charter_dmz' });
-    expect(dropRecoveryOrder('ORD-N', null)).toBe(false);
-    expect(readRecoveryOrder('ORD-N')).not.toBeNull();
+    expect(screen.queryByText(NOT_DONE)).toBeNull();
   });
 });
 

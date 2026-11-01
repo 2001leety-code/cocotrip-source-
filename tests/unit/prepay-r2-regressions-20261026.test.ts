@@ -35,7 +35,7 @@ vi.mock('../../api/_shared/booking-confirm.js', () => ({ confirmBookingAsPaid: a
 vi.mock('../../api/_shared/ip-rate-limit.js', () => ({ checkIpRateLimit: async () => ({ ok: true }), getClientIp: () => '1.2.3.4' }));
 
 import { normalizePrepayInput, prepayFingerprint, prepayInputSummary } from '../../api/_shared/prepay-coverage.js';
-import { reconcileCapture, CLAIM_LEASE_MS } from '../../api/_shared/payment-fulfillment-recovery.js';
+import { reconcileCapture, CLAIM_LEASE_MS, isCheckoutUnresolved } from '../../api/_shared/payment-fulfillment-recovery.js';
 import { applyPaidPlannerInput, buildPlannerOrderInput, type PaidPlannerInput } from '../../src/pages/PlannerPage/lib/plannerIntent';
 import { resolvePaidOrderErrorMessage, resolveErrorMessage } from '../../src/pages/PlannerPage/hooks/errorMessages';
 import type { PlannerFormValues } from '../../src/components/PlannerForm';
@@ -202,7 +202,7 @@ describe('capture state machine after a pre-capture refusal (adversarial seq + A
     expect(out.status).toBe(422);
     expect(out.body).toMatchObject({ code: 'PAYMENT_NOT_CAPTURED', paymentStatus: 'NOT_CAPTURED', preCaptureCode: 'DIETARY_COVERAGE_UNAVAILABLE' });
     expect(calls).toEqual(['GET']);
-    expect(lockOf()).toBeUndefined();
+    expect(lockOf()).toMatchObject({ status: 'void_not_captured', captureState: 'not_captured' }); // r19: tombstone, not deleted
   });
 
   it('Astra seq: first lookup PAYER_ACTION_REQUIRED, a second would say APPROVED — never POSTed after the refusal; record kept even long after', async () => {
@@ -252,27 +252,30 @@ describe('capture state machine after a pre-capture refusal (adversarial seq + A
     const out = await call({ orderID: ORDER, reconcile: true });
     expect(calls).toEqual([]);
     expect(out.body).toMatchObject({ code: 'PAYMENT_NOT_CAPTURED', preCaptureCode: 'DIETARY_COVERAGE_UNAVAILABLE' });
-    expect(lockOf()).toBeUndefined();
+    expect(lockOf()).toMatchObject({ status: 'void_not_captured', captureState: 'not_captured' }); // r19: tombstone, not deleted
   });
 
-  it('I: corrupt snapshot input (no cities) → the check fails BEFORE any attempt record: 503, PayPal 0 calls, nothing left to block new orders', async () => {
+  // r19: the failed check now voids this order (tombstone) instead of deleting the record — the tombstone never blocks
+  //   new orders (captureState not_captured), and a retry of the same order answers order_voided (pay with a new order).
+  it('I: corrupt snapshot input (no cities) → the check fails before any capture call: 503, PayPal 0 calls, nothing left to block new orders', async () => {
     dbHolder.db = memDb({ [`paypal_order_snapshots/${ORDER}`]: { ...snapshot(), prepayInput: { version: 1, startDate: '2099-12-01', diets: ['halal'] } } });
     const calls = paypal({});
     const out = await call({ orderID: ORDER });
     expect(out.status).toBe(503);
     expect(out.body).toMatchObject({ code: 'ORDER_CHECK_UNAVAILABLE' });
     expect(calls).toEqual([]);
-    expect(lockOf()).toBeUndefined();
+    expect(lockOf()).toMatchObject({ status: 'void_not_captured', captureState: 'not_captured', reason: 'ORDER_CHECK_UNAVAILABLE' });
+    expect(isCheckoutUnresolved(lockOf(), null)).toBe(false);
   });
 
-  it('fresh attempt + refusal → zero PayPal order calls (no GET, no POST), attempt released', async () => {
+  it('fresh attempt + refusal → zero PayPal order calls (no GET, no POST), order voided', async () => {
     dbHolder.db = memDb({ [`paypal_order_snapshots/${ORDER}`]: snapshot() });
     foodHolder.rows = [];
     const calls = paypal({});
     const out = await call({ orderID: ORDER });
     expect(calls).toEqual([]);
     expect(out.body).toMatchObject({ code: 'PAYMENT_NOT_CAPTURED', preCaptureCode: 'DIETARY_COVERAGE_UNAVAILABLE' });
-    expect(lockOf()).toBeUndefined();
+    expect(lockOf()).toMatchObject({ status: 'void_not_captured', captureState: 'not_captured' }); // r19: tombstone, not deleted
   });
 
   it('reconcileCapture(forbidPost): an APPROVED order answers unknown and postCapture is never called; a reused lookup skips the GET', async () => {

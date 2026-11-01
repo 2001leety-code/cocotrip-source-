@@ -35,11 +35,12 @@ const unknownBranch = src.slice(unknownIdx, src.indexOf('pendingCapture: false',
 
 // Fake Firestore: one attempt doc, runTransaction runs the callback against it.
 function fakeAttempt(lock: Record<string, unknown>) {
-  const state = { deleted: false };
+  const state = { deleted: false, written: null as Record<string, unknown> | null };
   const ref = {};
   const tx = {
     get: async () => ({ exists: true, data: () => lock }),
     delete: () => { state.deleted = true; },
+    set: (_ref: unknown, value: Record<string, unknown>) => { state.written = value; },
   };
   const db = { runTransaction: async (fn: (t: typeof tx) => Promise<void>) => fn(tx) };
   return { attempt: { db, ref, claimToken: 't1' }, state };
@@ -85,7 +86,9 @@ describe('PR #427 CY4 — capture failure rolls back the coupon', () => {
     expect(notCapturedIdx).toBeGreaterThan(-1);
     expect(unknownIdx).toBeGreaterThan(notCapturedIdx);
     expect(notCapturedBranch).toMatch(/couponLockRef\.update\(\s*\{[^}]*isUsed:\s*false/);
-    expect(notCapturedBranch).toMatch(/discardAttempt\(attempt\)/);
+    // r19: the order lock becomes a void tombstone (voidOrUnknown → discardAttempt) BEFORE the coupon is released; a failed void = UNKNOWN.
+    expect(notCapturedBranch).toMatch(/voidOrUnknown\(reconciled\.reason\)/);
+    expect(notCapturedBranch.indexOf('voidOrUnknown(')).toBeLessThan(notCapturedBranch.indexOf('isUsed: false'));
     expect(notCapturedBranch).toMatch(/res\.writeHead\(\s*409/);
   });
 
@@ -106,18 +109,22 @@ describe('PR #427 CY4 — capture failure rolls back the coupon', () => {
 });
 
 describe('PR #427 CY4 — coupon-fail releases the order lock so the user can retry', () => {
-  it('coupon catch block deletes the used_paypal_orders lock', () => {
+  // r19: the coupon-fail order is voided (tombstone) instead of deleted — the customer retries with a NEW order.
+  it('coupon catch block voids the used_paypal_orders lock (failure = UNKNOWN)', () => {
     const couponCatchIdx = src.indexOf('catch (couponErr)');
     expect(couponCatchIdx).toBeGreaterThan(-1);
     const section = src.slice(couponCatchIdx, couponCatchIdx + 1500);
-    // 2026-10-10 recovery rewrite: `lockRef.delete()` → discardAttempt(attempt) (transactional delete of used_paypal_orders/{orderID})
-    expect(section).toMatch(/discardAttempt\(attempt\)/);
+    expect(section).toMatch(/voidOrUnknown\(`coupon-\$\{code\}`\)/);
+    expect(section).toMatch(/return unknownResponse\(\)/);
   });
 
-  it('discardAttempt deletes the order lock on a fresh claim, but never one whose capture is verified/durable', async () => {
-    const fresh = fakeAttempt({ claimToken: 't1' });
-    await discardAttempt(fresh.attempt);
-    expect(fresh.state.deleted).toBe(true);
+  it('discardAttempt voids the order lock on a fresh claim (tombstone, no delete), but never one whose capture is verified/durable', async () => {
+    const fresh = fakeAttempt({ claimToken: 't1', flow: 'single', environment: 'live', intent: { body: {} }, userEmail: 'x@example.invalid' });
+    await discardAttempt(fresh.attempt, 'coupon-COUPON_ALREADY_USED');
+    expect(fresh.state.deleted).toBe(false);
+    expect(fresh.state.written).toMatchObject({ status: 'void_not_captured', captureState: 'not_captured', reason: 'coupon-COUPON_ALREADY_USED', claimUntil: 0 });
+    expect(fresh.state.written).not.toHaveProperty('intent');
+    expect(fresh.state.written).not.toHaveProperty('userEmail');
     const paid = fakeAttempt({ claimToken: 't1', captureVerified: { amountValue: '10.00' } });
     await expect(discardAttempt(paid.attempt)).rejects.toMatchObject({ code: 'CLAIM_LOST' });
     expect(paid.state.deleted).toBe(false);

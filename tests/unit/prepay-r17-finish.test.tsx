@@ -121,35 +121,37 @@ describe('r17-6 — a capture in flight is never turned into "you can pay again"
     act(() => { approving = buttons[buttons.length - 1].onApprove({ orderID: 'ORD-F' }); });
     return () => approving;
   }
-  it('F1 charter: during capture the check button is disabled; another tab\'s no_attempt answer leaves no done marker; the late PENDING keeps the panel (no Book now)', async () => {
+  // r19: 미시도 전용 임시 해제(dropRecoveryOrder)는 없어졌다 — 구 서버 no_attempt_record 는 UNKNOWN(주문 유지), 새 서버는 묘비로 최종 답.
+  it('F1 charter: during capture the check button is disabled; the order stays saved; the late PENDING keeps the panel (no Book now)', async () => {
     let answer!: (v: unknown) => void;
     const done = await approveInFlight(booking('charter_dmz'), new Promise((r) => { answer = r; }));
     expect(screen.getByText('Check this order')).toBeDisabled();
-    await act(async () => { const { dropRecoveryOrder } = await import('../../src/lib/paymentRecovery'); dropRecoveryOrder('ORD-F'); }); // 다른 탭의 no_attempt_record
-    expect(readRecoveryOrder('ORD-F')).toBeNull();
+    expect(readRecoveryOrder('ORD-F')).not.toBeNull();
     await act(async () => { answer(reply(202, pendingBody('ORD-F'))); await done(); });
     expect(readRecoveryOrder('ORD-F')).not.toBeNull();
     expect(shownOrder()).toBe('ORD-F');
     expect(screen.queryByText('Book now')).toBeNull();
   });
-  it('F3 planner: no_attempt from another tab mid-capture, then the real final → plan issuance continues (onPaymentSuccess once, CAPTURED kept)', async () => {
+  it('F3 planner: mid-capture the order stays saved, then the real final → plan issuance continues (onPaymentSuccess once, CAPTURED kept)', async () => {
     let answer!: (v: unknown) => void;
     const success = vi.fn(async () => {});
     const done = await approveInFlight(<PayPalBookingButton productType="ai-planner-full" passengers={1} priceKRW={14000} lang="en" keepRecoveryUntilFulfilled onPaymentSuccess={success} p={{ paypalBookBtn: 'Book now' }} />, new Promise((r) => { answer = r; }));
-    await act(async () => { const { dropRecoveryOrder } = await import('../../src/lib/paymentRecovery'); dropRecoveryOrder('ORD-F'); });
+    expect(readRecoveryOrder('ORD-F')).not.toBeNull();
     await act(async () => { answer(reply(200, { ok: true, finalized: true, data: { orderID: 'ORD-F', amount: '100', currency: 'USD' } })); await done(); });
     expect(success).toHaveBeenCalledTimes(1);
     expect(readRecoveryOrder('ORD-F')).toMatchObject({ paymentStatus: 'CAPTURED' });
   });
-  it('a restored order whose check answers no_attempt_record is released WITHOUT a done marker (a later real result can be saved)', async () => {
+  // r19: a (late, old-server) no_attempt_record is "no attempt at that moment" — UNKNOWN: order kept, no done marker, no "pay again".
+  it('a restored order whose check answers no_attempt_record stays unresolved (UNKNOWN) — kept, no done marker, no "pay again"', async () => {
     saveRecoveryOrder({ orderID: 'ORD-R', flow: 'single', paymentStatus: 'CAPTURE_UNKNOWN', review: false, productType: 'charter_dmz' });
     mocks.authFetch.mockImplementation(async (url: string) => { if (url === '/api/capturePaypalOrder') return reply(409, noAttempt('ORD-R')); throw new Error(`OFFLINE ${url}`); });
     render(booking('charter_dmz'));
     await act(async () => { fireEvent.click(screen.getByText('Check this order')); await new Promise((r) => setTimeout(r, 10)); });
-    expect(readRecoveryOrder('ORD-R')).toBeNull();
+    expect(readRecoveryOrder('ORD-R')).not.toBeNull();
     const { isRecoveryDone } = await import('../../src/lib/paymentRecovery');
     expect(isRecoveryDone('ORD-R')).toBe(false);
-    expect(saveRecoveryOrder({ orderID: 'ORD-R', flow: 'single', paymentStatus: 'CAPTURED', review: false, productType: 'charter_dmz' })).not.toBeNull();
+    expect(shownOrder()).toBe('ORD-R');
+    expect(screen.queryByText(/You can pay again|start a new payment/)).toBeNull();
   });
   it('F4 cart: during the cart capture the check button is disabled', async () => {
     const buttons: ButtonsConfig[] = [];
@@ -168,10 +170,11 @@ describe('r17-6 — a capture in flight is never turned into "you can pay again"
     act(() => { void buttons[buttons.length - 1].onApprove({ orderID: 'CART-F' }); });
     expect(await screen.findByText('Check this order')).toBeDisabled();
   });
-  it('classifyCaptureResponse marks no_attempt_record evidence', async () => {
+  it('classifyCaptureResponse: no_attempt_record = UNKNOWN (r19), order_voided / plain NOT_CAPTURED = final nonpayment', async () => {
     const { classifyCaptureResponse } = await import('../../src/lib/paymentRecovery');
-    expect(classifyCaptureResponse(noAttempt('X'), 'X')).toMatchObject({ kind: 'not_captured', noAttempt: true });
-    expect(classifyCaptureResponse({ ...noAttempt('X'), evidence: undefined }, 'X')).not.toHaveProperty('noAttempt');
+    expect(classifyCaptureResponse(noAttempt('X'), 'X')).toEqual({ kind: 'pending', status: 'CAPTURE_UNKNOWN' });
+    expect(classifyCaptureResponse({ ...noAttempt('X'), evidence: 'order_voided' }, 'X')).toMatchObject({ kind: 'not_captured' });
+    expect(classifyCaptureResponse({ ...noAttempt('X'), evidence: undefined }, 'X')).toMatchObject({ kind: 'not_captured' });
   });
 });
 

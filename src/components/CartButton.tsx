@@ -107,6 +107,7 @@ function CartPanelInner() {
     function handleOutside(e: MouseEvent) {
       if (panelRef.current && !panelRef.current.contains(e.target as Node)) {
         setIsOpen(false);
+        setShowCheckout(false); // r19: 모든 닫기에서 고정 해제
       }
     }
     if (isOpen) document.addEventListener('mousedown', handleOutside);
@@ -143,7 +144,7 @@ function CartPanelInner() {
                 <h2 className="text-white font-semibold text-lg customer-cart-title">{c.title || 'Cart'}</h2>
                 <span className="text-white/55 text-sm">({items.length})</span>
               </div>
-              <button onClick={() => setIsOpen(false)} className="p-1.5 rounded-lg hover:bg-white/10">
+              <button onClick={() => { setIsOpen(false); setShowCheckout(false); }} className="p-1.5 rounded-lg hover:bg-white/10">
                 <X size={18} className="text-white/50" />
               </button>
             </div>
@@ -161,7 +162,8 @@ function CartPanelInner() {
                 empty 분기가 앞서면 그 순간 CartCheckout 이 언마운트되어 결과 화면(성공 안내,
                 그리고 "다시 결제하지 마세요" 경고)이 아예 렌더되지 않는다.
                 showCheckout 은 item 목록 분기, 또는 빈 장바구니 + 미해결 주문(r18 고정)일 때만 true —
-                닫기(onClose)로 풀린다. */}
+                r19: 모든 닫기(Done·X·바깥 클릭)로 풀리고, 확인할 주문이 사라지면 CartCheckout 이 onBack 으로 푼다
+                (이 탭의 성공·검토 결과 화면은 닫을 때까지 유지). */}
             {loading ? (
               <div className="flex items-center justify-center py-20">
                 <div className="w-6 h-6 border-2 border-[#7C5CFC] border-t-transparent animate-spin rounded-full" />

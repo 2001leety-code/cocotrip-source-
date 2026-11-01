@@ -116,11 +116,13 @@ describe('captureCartOrder — parent + every stable child + each intent commit 
     expect(provider.calls).toHaveLength(1);
   });
 
-  it('a definitive decline releases the record; a reconcile with no record is NOT_CAPTURED evidence', async () => {
+  // r19: the decline voids the order (tombstone); every later call — check or new capture — answers order_voided, no provider call.
+  it('a definitive decline voids the order; a later reconcile or capture answers order_voided with zero provider calls', async () => {
     provider.push({ method: 'POST', reply: { status: 422, body: { details: [{ issue: 'ORDER_NOT_APPROVED' }] } } });
     expect((await call({ orderID: ORDER })).body).toMatchObject({ code: 'PAYMENT_NOT_CAPTURED', retryable: true });
-    expect(db.rows.has(LOCK)).toBe(false);
-    expect((await call({ orderID: ORDER, reconcile: true })).body).toMatchObject({ code: 'PAYMENT_NOT_CAPTURED', evidence: 'no_attempt_record' });
+    expect(db.rows.get(LOCK)).toMatchObject({ status: 'void_not_captured', reason: 'ORDER_NOT_APPROVED' });
+    expect((await call({ orderID: ORDER, reconcile: true })).body).toMatchObject({ code: 'PAYMENT_NOT_CAPTURED', evidence: 'order_voided' });
+    expect((await call({ orderID: ORDER })).body).toMatchObject({ code: 'PAYMENT_NOT_CAPTURED', evidence: 'order_voided' });
     expect(provider.calls).toHaveLength(1);
   });
 });

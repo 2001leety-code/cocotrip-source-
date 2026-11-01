@@ -25,6 +25,7 @@ import {
   makeRetryPersister, recordProcessorResult, updateAttempt,
   releaseAttemptClaim, discardAttempt, finalizeAttempt, pendingPaymentResponse, notCapturedResponse, withBackoff,
   buildFullRefundProof, readFullRefundProof, fullRefundProofMatchesCapture, fetchPaypalOrder,
+  resolveAbsentAttempt, orderVoidedResponse,
 } from './_shared/payment-fulfillment-recovery.js';
 import { checkPrepayCoverage, loadPrepayFoodIndex, isPrepayCheckedProduct, startDateTooSoon, PREPAY_INPUT_VERSION } from './_shared/prepay-coverage.js';
 
@@ -250,13 +251,12 @@ export default async function handler(req, res) {
       return res.end(JSON.stringify(_err('The original checkout session is required for this order', 'RECOVERY_AUTH_REQUIRED')));
     }
 
-    // 1. Access Token + baseUrl from shared helper.
-    // P314 (2026-05-30): sandbox e2e 토글. capture = 실제 돈 빠지는 곳 → resolveIsSandbox
+    // 1. Environment. P314 (2026-05-30): sandbox e2e 토글. capture = 실제 돈 빠지는 곳 → resolveIsSandbox
     // 이중 가드 (VERCEL_ENV!=='production' AND PAYPAL_ENV==='sandbox') 로 prod 무조건 live.
     // sandbox 결정 시 prod 로그에서 즉시 감지되도록 경고 (prod 에 찍히면 안 됨).
+    // r19: the OAuth token is fetched only AFTER the attempt record decided (a voided order => zero provider calls).
     const _isSandboxCapture = resolveIsSandbox();
     if (_isSandboxCapture) console.warn('[capturePaypalOrder] ⚠️ SANDBOX MODE — 실제 결제 아님 (preview e2e)');
-    const { accessToken, baseUrl: PAYPAL_BASE_URL } = await getPaypalAccessToken(_isSandboxCapture);
 
     // 1.5 Duplicate orderID guard — used_paypal_orders 중복 방지.
     //
@@ -357,11 +357,29 @@ export default async function handler(req, res) {
       db: dbForLock, orderID, flow: 'single', environment: _environment, requestKey: `${orderID}-cap`,
       intent, userEmail, product: product || 'unknown', createIfMissing: !_reconcileOnly, allowRecovery: _sameOrderProven,
     });
-    if (acquired.kind === 'absent') {
-      // No attempt record = this contract never called the provider for this order (records are created
-      // before any POST and discarded only on provider-proven nonpayment). Durable evidence of no capture.
+    if (acquired.kind === 'voided') {
+      // r19 tombstone: proven nonpayment, permanently closed — same answer for a new capture and a check, zero provider calls.
       res.writeHead(409, JSON_CORS);
-      return res.end(JSON.stringify({ ...notCapturedResponse({ orderID, flow: 'single', reason: 'no_attempt_record' }), evidence: 'no_attempt_record' }));
+      return res.end(JSON.stringify(orderVoidedResponse({ orderID, flow: 'single' })));
+    }
+    if (acquired.kind === 'absent') {
+      // r19: "no record right now" is not proof — read PayPal, then void in a transaction only if still absent.
+      const out = await resolveAbsentAttempt({
+        db: dbForLock, orderID, flow: 'single', environment: _environment, proven: _sameOrderProven,
+        lookupOrder: async () => {
+          const token = await getPaypalAccessToken(_isSandboxCapture);
+          return fetchPaypalOrder({ baseUrl: token.baseUrl, accessToken: token.accessToken, orderID });
+        },
+      });
+      if (out.alert) {
+        await throttledTelegramAlert({
+          key: `single-absent-captured-${orderID}`, channel: 'admin', severity: 'critical',
+          message: [`🚨 <b>단건 — 시도 기록 없이 PayPal 결제 완료</b>`, `<b>OrderID:</b> <code>${orderID}</code>`, '→ 기록 유실·옛 주문. 묘비 안 씀, 손님에겐 "결제 접수 — 다시 결제 금지". PayPal 에서 확인 후 수동 예약/환불 판단.'].join('\n'),
+          context: { orderID, reason: out.alert },
+        }).catch(() => {});
+      }
+      res.writeHead(out.status, JSON_CORS);
+      return res.end(JSON.stringify(out.body));
     }
     if (acquired.kind === 'unauthorized') {
       // Existing attempt but no proof of same-order ownership: generic answer, no private data, no writes.
@@ -404,6 +422,24 @@ export default async function handler(req, res) {
     }
     const attempt = acquired.attempt;
     const stages = (attempt.lock && attempt.lock.stages) || {};
+    let accessToken; let PAYPAL_BASE_URL;
+    try {
+      ({ accessToken, baseUrl: PAYPAL_BASE_URL } = await getPaypalAccessToken(_isSandboxCapture));
+    } catch (tokenErr) {
+      await releaseAttemptClaim(attempt); // no POST happened: the record stays 'none' for the same-order retry
+      throw tokenErr;
+    }
+    // r19: proven nonpayment => tombstone. A failed void (claim lost / money evidence) is never answered NOT_CAPTURED.
+    const voidOrUnknown = async (reason) => {
+      try { await discardAttempt(attempt, reason); return true; } catch (voidErr) {
+        console.warn('[capturePaypalOrder] void tombstone not written — answering UNKNOWN:', orderID, voidErr.message);
+        return false;
+      }
+    };
+    const unknownResponse = () => {
+      res.writeHead(202, JSON_CORS);
+      return res.end(JSON.stringify(pendingPaymentResponse({ orderID, flow: 'single', paymentStatus: 'CAPTURE_UNKNOWN' })));
+    };
 
     // 🔴 2026-10-26 B6-1: AI 플래너(풀) — **새 capture POST 직전** 저장 입력으로 식이 커버리지 재검사(주문 후 자료가
     //   바뀌었을 수 있다). postCapture 안에서 던지면 '결제 결과 불명'이 되므로 그 앞의 명시적 사전 거부 분기다.
@@ -439,7 +475,7 @@ export default async function handler(req, res) {
         res.writeHead(202, JSON_CORS);
         return res.end(JSON.stringify(pendingPaymentResponse({ orderID, flow: 'single', paymentStatus: 'CAPTURE_UNKNOWN' })));
       } else {
-        await discardAttempt(attempt).catch((e) => console.warn('[capturePaypalOrder] attempt discard after pre-capture block (non-fatal):', e.message));
+        if (!(await voidOrUnknown(preCaptureBlock.code))) return unknownResponse();
         console.warn('[capturePaypalOrder] AI planner pre-capture block — no capture:', orderID, preCaptureBlock.code, preCaptureBlock.details || '');
         if (preCaptureBlock.unavailable) {
           res.writeHead(503, JSON_CORS);
@@ -501,10 +537,8 @@ export default async function handler(req, res) {
           console.error('[capturePaypalOrder] coupon pre-lock failed during recovery — continuing without coupon:', orderID);
           notifyOperator('coupon-race', `<code>${orderID}</code>\n복구 중 쿠폰 선점 실패: ${code} — 예약은 계속 진행, 쿠폰 수동 확인`).catch(() => {});
         } else {
-          // capture 0회 — 주문 lock 해제, 사용자가 다른 쿠폰/쿠폰 없이 재시도 가능.
-          await discardAttempt(attempt).catch((e) => {
-            console.warn('[capturePaypalOrder] lock release after coupon fail (non-fatal):', e.message);
-          });
+          // capture 0회 — r19: 이 주문은 묘비(다시 결제 = 새 주문, 다른 쿠폰/쿠폰 없이). 묘비 실패 = UNKNOWN.
+          if (!(await voidOrUnknown(`coupon-${code}`))) return unknownResponse();
         // 운영자 알림 — 쿠폰 race 발생을 인지 (수동 환불 불필요 — capture 안 일어났음).
         notifyOperator('coupon-race',
           `<code>${orderID}</code>\n사유: ${code}\n쿠폰: ${couponDocId} (uid ${couponUserId.slice(0, 8)})\n→ capture 전 차단 — 환불 불필요`
@@ -536,15 +570,14 @@ export default async function handler(req, res) {
     };
     const reconciled = await reconcileCapture({ attempt, orderID, baseUrl: PAYPAL_BASE_URL, accessToken, postCapture, forbidPost: forbidCapturePost, lookup: preCaptureLookup });
     if (reconciled.state === 'not_captured') {
-      // PR #427 (CY4): capture never happened — release coupon + order lock so the user can pay again.
+      // PR #427 (CY4): capture never happened — r19: void this order first (the customer pays again with a NEW order),
+      //   then release the coupon. A failed void keeps the coupon reservation (UNKNOWN).
+      if (!(await voidOrUnknown(reconciled.reason))) return unknownResponse();
       if (couponLockRef) {
         couponLockRef.update({ isUsed: false, usedAt: null, usedOrderID: null, pendingCapture: false }).catch((e) => {
           console.warn('[capturePaypalOrder] coupon release after capture fail (non-fatal):', e.message);
         });
       }
-      await discardAttempt(attempt).catch((delErr) => {
-        console.warn('[capturePaypalOrder] lock release failed (CY1 retry path):', delErr.message);
-      });
       console.warn('[capturePaypalOrder] capture not completed:', orderID, reconciled.reason);
       res.writeHead(409, JSON_CORS);
       return res.end(JSON.stringify(notCapturedResponse({ orderID, flow: 'single', reason: reconciled.reason })));

@@ -92,7 +92,8 @@ describe('r7-1 — storage unreadable (SecurityError): check results still apply
   it('capture PENDING → Check → NOT_CAPTURED → pointer cleared, payment possible again', async () => {
     captures([pending('ORD-1'), notCaptured('ORD-1')]);
     await payThenCheck(vi.fn());
-    expect(await screen.findByText(/You can start a new payment/)).toBeInTheDocument();
+    // r19: 서버 영어 원문 대신 4개 언어 rc.notCaptured("…You can pay again.")
+    expect(await screen.findByText(/You can pay again/)).toBeInTheDocument();
     expect(screen.queryByText('Check this order')).toBeNull();
   });
 });

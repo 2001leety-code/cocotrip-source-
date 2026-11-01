@@ -19,7 +19,7 @@ import { authFetch } from '@/lib/authFetch';
 import { useGuestSignup } from '@/hooks/useGuestSignup';
 import { GuestSignupNudge } from '@/components/GuestSignupNudge';
 import type { Language } from '@/i18n';
-import { usePaymentRecovery, reconcilePayment, classifyCaptureResponse, recoveryCopy, recoveryHeadline, placeForeignPending, isForeignOrder, isCurrentPointer, type CaptureOutcome, type PaymentRecovery } from '@/lib/paymentRecovery';
+import { usePaymentRecovery, reconcilePayment, classifyCaptureResponse, recoveryCopy, recoveryHeadline, placeForeignPending, isForeignOrder, isCurrentPointer, beginCapture, endCapture, isCaptureInFlight, isRecoveryDone, type CaptureOutcome, type PaymentRecovery } from '@/lib/paymentRecovery';
 
 type PaypalButtonsApi = { Buttons: (cfg: Record<string, unknown>) => { render: (sel: string) => void } };
 function getPaypal(): PaypalButtonsApi | undefined {
@@ -87,12 +87,24 @@ export function CartCheckout({ onClose, onBack }: { onClose: () => void; onBack?
   const orderRequestInFlight = useRef(false);
   // 🔴 2026-10-10 payment recovery (cart): pointer before capture, duplicate guard, same-order reconcile via
   //   /api/captureCartOrder {orderID}. The cart stays intact while pending; it is cleared only on durable success.
-  const { recovery, pendingRef, remember, clearRecovery, refresh: refreshRecovery } = usePaymentRecovery({ flow: 'cart' });
-  // r17-6: 이 탭 capture 진행 중엔 '같은 주문 확인' 비활성(capture 가 서버 시도 기록보다 늦으면 no_attempt_record 오판).
-  const [capturing, setCapturing] = useState(false);
-  const captureInFlight = useRef(false);
+  // r19: captureBusy = 이 주문 capture 가 이 탭에서 진행 중(모듈 집합 — 패널을 닫았다 열어도 유지) → '같은 주문 확인' 비활성.
+  const { recovery, pendingRef, remember, clearRecovery, refresh: refreshRecovery, captureBusy } = usePaymentRecovery({ flow: 'cart' });
   const [reconciling, setReconciling] = useState(false);
   const rc = recoveryCopy(language);
+  // r19: 결제 결과 문구는 그 주문에 묶는다(PayPalBookingButton 과 같은 규칙) — 다른 주문의 복구 패널엔 안 보이고,
+  //   최종이 아닌 문구는 그 주문이 CAPTURED·완료가 되면 지운다. message 가 지금 error 와 같을 때만 유효.
+  const [errorOrder, setErrorOrder] = useState<{ orderID: string; final: boolean; message: string } | null>(null);
+  function orderError(message: string, orderID: string, final: boolean) { setError(message); setErrorOrder({ orderID, final, message }); }
+  const tagged = errorOrder && errorOrder.message === error ? errorOrder : null;
+  if (tagged && !tagged.final && ((recovery && recovery.orderID === tagged.orderID && recovery.paymentStatus === 'CAPTURED') || isRecoveryDone(tagged.orderID))) {
+    setError(null); setErrorOrder(null);
+  }
+  const panelError = recovery && error && !(tagged && (tagged.orderID !== recovery.orderID || tagged.final)) ? error : null;
+  // r19 (B13): 빈 장바구니로 들어온 확인 화면에서 확인할 주문이 사라지면(다른 탭이 끝냄) 빈 장바구니 안내로 — 이 탭의 결과 화면
+  //   (성공·검토·오류)은 닫을 때까지 유지(status 가 idle 일 때만).
+  useEffect(() => {
+    if (!recovery && items.length === 0 && status === 'idle' && onBack) onBack();
+  }, [recovery, items.length, status, onBack]);
   // 2026-10-24: 결제 성공 화면 게스트 → 회원 전환 넛지 (PayPalBookingButton 과 같은 훅). 결제 상태와 별개.
   const { signupLoading, signupError, handleGuestSignup } = useGuestSignup();
   const [payerEmail, setPayerEmail] = useState<string | null>(null);
@@ -110,29 +122,23 @@ export function CartCheckout({ onClose, onBack }: { onClose: () => void; onBack?
     if (outcome.kind === 'pending') { keep({ paymentStatus: outcome.status, review: false }); setStatus('idle'); return; }
     if (outcome.kind === 'auth_required') {
       // 403 precedes the provider call (no charge). A fresh order never locks the flow (2026-10-10 R2).
-      if (fresh) { clearRecovery(orderId); setError(rc.authRequired); setStatus('error'); return; }
+      if (fresh) { clearRecovery(orderId); orderError(rc.authRequired, orderId, true); setStatus('error'); return; }
       keep({ paymentStatus: 'CAPTURE_UNKNOWN', review: false, authRequired: true }); setStatus('idle'); return;
     }
-    // r17-6: no_attempt_record 는 영구 완료가 아니다 — 완료 표식 없이 놓는다.
-    //   r18: 확인 시작 때 본 레코드와 상태가 같을 때만 놓는다(그 사이 더 새로운 결과가 저장됐으면 유지 + 재조회).
-    if (outcome.kind === 'not_captured') {
-      if (!clearRecovery(orderId, { provisional: outcome.noAttempt === true, expected: checked })) { setStatus('idle'); return; }
-      setError(outcome.message); setStatus('error'); return;
-    }
+    // r19: 미결제 응답은 최종(서버 묘비 — 구 서버 no_attempt_record 는 분류 단계에서 UNKNOWN) → 완료 처리 + 4개 언어 안내.
+    if (outcome.kind === 'not_captured') { clearRecovery(orderId); orderError(rc.notCaptured, orderId, true); setStatus('error'); return; }
     // Server-proven full refund: terminal, not a booking — the cart is kept, no success state.
-    if (outcome.kind === 'refunded') { clearRecovery(orderId); setError(outcome.message); setStatus('error'); return; }
+    if (outcome.kind === 'refunded') { clearRecovery(orderId); orderError(outcome.message, orderId, true); setStatus('error'); return; }
     // Generic error: keep the pointer unless the server gives durable evidence of no capture.
-    setError(outcome.message); setStatus('error');
+    orderError(outcome.message, orderId, false); setStatus('error');
     if (fresh) {
-      const seen = pendingRef.current && pendingRef.current.orderID === orderId ? { ...pendingRef.current } : null; // r18: 조회 시작 때 본 레코드
       const evidence = await reconcilePayment('cart', orderId);
-      if (evidence.kind === 'not_captured') { clearRecovery(orderId, { provisional: evidence.noAttempt === true, expected: seen }); return; }
-      if (evidence.kind === 'final' || evidence.kind === 'review' || evidence.kind === 'refunded') { await applyOutcome(evidence, orderId, false); return; }
+      if (evidence.kind === 'not_captured' || evidence.kind === 'final' || evidence.kind === 'review' || evidence.kind === 'refunded') { await applyOutcome(evidence, orderId, false); return; }
     }
     keep({ paymentStatus: 'CAPTURE_UNKNOWN', review: false });
   }
   async function checkSameOrder() {
-    if (!recovery || reconciling || captureInFlight.current) return; // r17-6
+    if (!recovery || reconciling || isCaptureInFlight(recovery.orderID)) return; // r19: 모듈 집합
     const checked = { ...recovery };
     setReconciling(true);
     try { await applyOutcome(await reconcilePayment(checked.flow, checked.orderID), checked.orderID, false, checked); } finally { setReconciling(false); }
@@ -219,9 +225,7 @@ export function CartCheckout({ onClose, onBack }: { onClose: () => void; onBack?
     pp.Buttons({
       createOrder: () => orderID,
       onApprove: async (data: { orderID: string }) => {
-        if (captureInFlight.current) return;
-        captureInFlight.current = true;
-        setCapturing(true);
+        if (!beginCapture(data.orderID)) return; // r19: 모듈 수준 — 패널을 닫았다 열어도 이 주문 capture 진행 중을 안다
         remember({ orderID: data.orderID, flow: 'cart', paymentStatus: 'CAPTURE_UNKNOWN', review: false });
         setStatus('processing');
         try {
@@ -236,8 +240,7 @@ export function CartCheckout({ onClose, onBack }: { onClose: () => void; onBack?
           remember({ orderID: data.orderID, flow: 'cart', paymentStatus: 'CAPTURE_UNKNOWN', review: false });
           setStatus('idle');
         } finally {
-          captureInFlight.current = false;
-          setCapturing(false);
+          endCapture(data.orderID);
         }
       },
       onCancel: () => { setStatus('ready'); rendered.current = false; },
@@ -274,8 +277,8 @@ export function CartCheckout({ onClose, onBack }: { onClose: () => void; onBack?
         <p className="text-white/55 text-sm mb-2">{rc.detail}</p>
         <p className="text-amber-300 text-xs mb-3 bg-amber-500/10 border border-amber-400/30 rounded-xl px-3 py-2">{rc.warn}</p>
         <p className="text-xs text-white/60 mb-4">{rc.order}: <span className="font-mono text-white/90">{recovery.orderID}</span></p>
-        {error && <p className="text-red-400/80 text-xs mb-3">{error}</p>}
-        <button onClick={checkSameOrder} disabled={reconciling || capturing || recovery.authRequired === true}
+        {panelError && <p className="text-red-400/80 text-xs mb-3">{panelError}</p>}
+        <button onClick={checkSameOrder} disabled={reconciling || captureBusy || recovery.authRequired === true}
           className="px-5 py-2.5 min-h-[44px] rounded-xl text-sm font-semibold bg-[#7C5CFC] text-white disabled:opacity-50">
           {reconciling ? rc.checking : rc.check}
         </button>

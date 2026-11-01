@@ -30,6 +30,7 @@ import {
   isSameOrderProven, isLegacyOpenSnapshot, verifyBearerUid, validateIntent, acquirePaymentAttempt, reconcileCapture, summarizeVerifiedCapture,
   persistBookingsAtomically, shouldDispatchRetry, releaseHeldIntents, makeRetryPersister, recordProcessorResult, updateAttempt,
   releaseAttemptClaim, discardAttempt, finalizeAttempt, pendingPaymentResponse, notCapturedResponse, withBackoff,
+  resolveAbsentAttempt, orderVoidedResponse, fetchPaypalOrder,
 } from './_shared/payment-fulfillment-recovery.js';
 
 export const maxDuration = 60;
@@ -103,7 +104,7 @@ export default async function handler(req, res) {
 
     const isSandbox = resolveIsSandbox();
     if (isSandbox) console.warn('[captureCartOrder] SANDBOX MODE — 실제 결제 아님 (preview e2e)');
-    const { accessToken, baseUrl: PAYPAL_BASE_URL } = await getPaypalAccessToken(isSandbox);
+    // r19: the OAuth token is fetched only after the attempt record decided (a voided order => zero provider calls).
 
     // 1. Attempt record (used_paypal_orders lock + frozen intent + exclusive claim). Storage failure => capture 0.
     let intent;
@@ -117,9 +118,28 @@ export default async function handler(req, res) {
       db, orderID, flow: 'cart', environment: isSandbox ? 'sandbox' : 'live', requestKey: `${orderID}-cart-cap`, intent, userEmail, product: 'cart',
       createIfMissing: !reconcileOnly, allowRecovery: sameOrderProven,
     });
-    if (acquired.kind === 'absent') {
+    if (acquired.kind === 'voided') {
       res.writeHead(409, JSON_CORS);
-      return res.end(JSON.stringify({ ...notCapturedResponse({ orderID, flow: 'cart', reason: 'no_attempt_record' }), evidence: 'no_attempt_record' }));
+      return res.end(JSON.stringify(orderVoidedResponse({ orderID, flow: 'cart' })));
+    }
+    if (acquired.kind === 'absent') {
+      // r19: read PayPal, then void in a transaction only if the record is still absent (resolveAbsentAttempt).
+      const out = await resolveAbsentAttempt({
+        db, orderID, flow: 'cart', environment: isSandbox ? 'sandbox' : 'live', proven: sameOrderProven,
+        lookupOrder: async () => {
+          const token = await getPaypalAccessToken(isSandbox);
+          return fetchPaypalOrder({ baseUrl: token.baseUrl, accessToken: token.accessToken, orderID });
+        },
+      });
+      if (out.alert) {
+        await throttledTelegramAlert({
+          key: `cart-absent-captured-${orderID}`, channel: 'admin', severity: 'critical',
+          message: [`🚨 <b>CART — 시도 기록 없이 PayPal 결제 완료</b>`, `<b>OrderID:</b> <code>${orderID}</code>`, '→ 기록 유실·옛 주문. 묘비 안 씀, 손님에겐 "결제 접수 — 다시 결제 금지". PayPal 에서 확인 후 수동 처리.'].join('\n'),
+          context: { orderID, reason: out.alert },
+        }).catch(() => {});
+      }
+      res.writeHead(out.status, JSON_CORS);
+      return res.end(JSON.stringify(out.body));
     }
     if (acquired.kind === 'unauthorized') {
       console.warn('[captureCartOrder] recovery refused without same-order proof:', orderID);
@@ -150,6 +170,13 @@ export default async function handler(req, res) {
     const attempt = acquired.attempt;
     const stages = (attempt.lock && attempt.lock.stages) || {};
     const savedEmail = attempt.recovering ? ((attempt.lock.intent.body && attempt.lock.intent.body.userEmail) || '') : userEmail;
+    let accessToken; let PAYPAL_BASE_URL;
+    try {
+      ({ accessToken, baseUrl: PAYPAL_BASE_URL } = await getPaypalAccessToken(isSandbox));
+    } catch (tokenErr) {
+      await releaseAttemptClaim(attempt); // no POST happened: the record stays for the same-order retry
+      throw tokenErr;
+    }
 
     // 2. 캡처/대조 — unknown 은 락 유지 + 202, provider 가 증명한 미결제만 락 해제.
     const postCapture = async () => {
@@ -169,7 +196,12 @@ export default async function handler(req, res) {
     };
     const reconciled = await reconcileCapture({ attempt, orderID, baseUrl: PAYPAL_BASE_URL, accessToken, postCapture });
     if (reconciled.state === 'not_captured') {
-      await discardAttempt(attempt).catch(() => {});
+      // r19: tombstone (claim-checked). A failed void is never answered NOT_CAPTURED — UNKNOWN keeps the lock.
+      try { await discardAttempt(attempt, reconciled.reason); } catch (voidErr) {
+        console.warn('[captureCartOrder] void tombstone not written — answering UNKNOWN:', orderID, voidErr.message);
+        res.writeHead(202, JSON_CORS);
+        return res.end(JSON.stringify(pendingPaymentResponse({ orderID, flow: 'cart', paymentStatus: 'CAPTURE_UNKNOWN' })));
+      }
       res.writeHead(409, JSON_CORS);
       return res.end(JSON.stringify(notCapturedResponse({ orderID, flow: 'cart', reason: reconciled.reason })));
     }
