@@ -48,6 +48,15 @@ export function isLodgingBookendPair(places, i, bookedAddress = '') {
 }
 
 /**
+ * PR2 r12: 유효 예약 숙소 주소 — 손님 호텔 주소, 없으면 권역 대표 주소(requestShaper.routeHotelAddress 와 같은 규칙).
+ *   source = 요청 body·RouteAgent data·저장된 plan.input 어느 것이든(같은 필드 이름). 생성·재계산·품질 집계가 이 한 함수로 같은 값을 얻는다.
+ */
+export function effectiveBookedAddress(source) {
+  const s = source && typeof source === 'object' ? source : {};
+  return String(s.hotel_address || s.recommended_zone_address || '').trim();
+}
+
+/**
  * 저장된 stops[i] 가 앞 숙소와 합친 같은 숙소 표식인가 = 표식(생성 때 병합) **그리고** 지금도 같은 규칙으로 같은 숙소.
  *   bookedAddress: 예약 숙소 주소(재계산 = plan.input.hotel_address). 모르면 '' — 한쪽 주소만 있는 쌍은 합치지 않는 보수 쪽.
  */

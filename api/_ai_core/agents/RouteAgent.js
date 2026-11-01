@@ -11,7 +11,7 @@ import { normalizeRegionKey, regionCityKey, departureCityKey } from "../response
 import { throttledTelegramAlert } from "../../_shared/telegram-throttle.js";
 // Phase 3 (2026-05-27): zone_courses Firestore transit_matrix cache — ODsay 호출 절감.
 import { lookupTransitCache, getTransitCacheStats } from "../transitCache.js";
-import { isSameLodgingMarker, isLodgingBookendPair } from "../mergedLodging.js"; // PR2 r11: 같은 숙소 판정 공용 모듈
+import { isSameLodgingMarker, isLodgingBookendPair, effectiveBookedAddress } from "../mergedLodging.js"; // PR2 r11/r12: 같은 숙소 판정 공용 모듈
 // PR-C (2026-06-01, FEATURE_CHARTER_HERO_PRICE OFF default): 공항픽업 가격 SSOT.
 // 차터 도착 HERO 가격 표시용 — airport_transfer_prices[zoneKey].priceKRW (읽기 전용).
 import { loadPricingSpec } from "../../_shared/pricing.js";
@@ -2033,7 +2033,7 @@ export class RouteAgent extends BaseAgent {
                     firstMin: currentTime, legMins: transitResults.map((t, j) => legTransitMin(t, places[j + 1]?.transit_from_prev)), buffer: BUFFER_MIN,
                     floorIdx, floorMin: day1 ? day1.pref : null, mealOrigins: _mealOriginMins, d1Meal: day1 ? day1.meal : null,
                     mergeBookend: !isCityChangeDay, // r5: 좌표 없는 같은 예약 숙소 북엔드(도시 이동일은 숙소가 바뀔 수 있어 제외)
-                    bookedAddress: data.hotel_address || '', // r7: 요청의 예약 숙소(또는 권역 anchor) 주소 — 한쪽만 주소가 있을 때의 대조 기준
+                    bookedAddress: effectiveBookedAddress(data), // r7/r12: 예약 숙소(또는 권역) 주소 — 재계산·품질 집계와 같은 함수
                 });
                 extraMealIdx = new Set(candidate.meals.filter((m) => m.extra).map((m) => m.i));
                 const v = findStitchViolation(places, candidate, { day1TourEndMin: day1 ? day1.tourEndMin : null, lastReturnMin: dayPlan.last_to_lodging?.est_min });

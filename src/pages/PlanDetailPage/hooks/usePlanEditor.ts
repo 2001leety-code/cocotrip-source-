@@ -26,10 +26,16 @@ interface StopData {
 /**
  * PR2 r11: 편집으로 앞 stop 이 바뀐 stop 을 재조회 대상으로 — 이동 객체가 있으면 _stale, 없으면(같은 숙소로 합친 표식 등 null)
  *   stop 단위 _stale_transit(서버 recalc-transit 이 읽고 지움). 그리고 "앞 숙소와 같은 숙소" 표식은 관계가 바뀌었으니 해제. 0번은 제외.
+ *   r12: before = 편집 전 배열(같은 stop 객체). 병합 표식 stop 의 앞 stop 이 편집 전과 **같으면**(관계 그대로) 아무것도 안 한다 —
+ *   다른 곳 삭제·재정렬로 병합 쌍에 가짜 이동(25+5)이 붙던 문제.
  */
-export function markStopStale(stops: PlanStop[], i: number): void {
+export function markStopStale(stops: PlanStop[], i: number, before?: PlanStop[]): void {
   const s = stops[i] as (PlanStop & { _stale_transit?: boolean; same_lodging_as_prev?: boolean }) | undefined;
   if (!s || i === 0) return;
+  if (s.same_lodging_as_prev && before) {
+    const bi = before.indexOf(s);
+    if (bi > 0 && before[bi - 1] === stops[i - 1]) return;
+  }
   if (s.transit_from_prev) s.transit_from_prev._stale = true;
   else s._stale_transit = true;
   delete s.same_lodging_as_prev;
@@ -59,11 +65,11 @@ export function usePlanEditor(
   }
 
   // Mark transit as stale for stops adjacent to changes
-  function markStale(stops: PlanStop[], affectedIdx: number) {
+  function markStale(stops: PlanStop[], affectedIdx: number, before?: PlanStop[]) {
     // The stop AT affectedIdx and the one AFTER it get _stale
     //   PR2 r11: 이동이 null 인 stop(같은 숙소로 합친 표식 등)도 앞 stop 이 바뀌었으니 재조회 대상(stop 단위 _stale_transit),
-    //   그리고 "앞 숙소와 같은 숙소" 표식은 관계가 바뀌었으므로 해제(서버 recalc 가 일반 구간으로 다시 계산).
-    for (const i of [affectedIdx, affectedIdx + 1]) markStopStale(stops, i);
+    //   그리고 "앞 숙소와 같은 숙소" 표식은 관계가 바뀌었으므로 해제(서버 recalc 가 일반 구간으로 다시 계산). r12: 관계 그대로면 유지.
+    for (const i of [affectedIdx, affectedIdx + 1]) markStopStale(stops, i, before);
   }
 
   // Call /api/recalc-transit to refresh stale segments
@@ -107,10 +113,11 @@ export function usePlanEditor(
     const snapshot = structuredClone(plan) as PlanDocument;
     const nextDays = structuredClone(plan.itinerary.days || []) as PlanDay[];
     const stops = (nextDays[dayIdx]?.stops || []) as PlanStop[];
+    const before = stops.slice(); // r12: 편집 전 앞 stop 대조용(같은 객체)
     stops.splice(stopIdx, 1);
     // Mark neighbors stale
     if (stops[stopIdx]) {
-      markStale(stops, stopIdx);
+      markStale(stops, stopIdx, before);
     }
     // Re-number orders
     stops.forEach((s, i) => { s.order = i + 1; });
@@ -173,12 +180,13 @@ export function usePlanEditor(
     const snapshot = structuredClone(plan) as PlanDocument;
     const nextDays = structuredClone(plan.itinerary.days || []) as PlanDay[];
     const stops = (nextDays[dayIdx]?.stops || []) as PlanStop[];
+    const before = stops.slice(); // r12: 편집 전 앞 stop 대조용
     const [moved] = stops.splice(oldIdx, 1);
     stops.splice(newIdx, 0, moved);
     // Mark all affected range stale
     const minIdx = Math.min(oldIdx, newIdx);
     const maxIdx = Math.max(oldIdx, newIdx);
-    for (let i = minIdx; i <= maxIdx + 1 && i < stops.length; i++) markStopStale(stops, i); // PR2 r11: null 이동도 재조회
+    for (let i = minIdx; i <= maxIdx + 1 && i < stops.length; i++) markStopStale(stops, i, before); // PR2 r11/r12: null 이동도 재조회, 병합 쌍 그대로면 유지
     // Re-number orders
     stops.forEach((s, i) => { s.order = i + 1; });
     nextDays[dayIdx].stops = stops;
@@ -209,7 +217,7 @@ export function usePlanEditor(
     if (order.length !== stops.length) return;
     if ([...order].sort((a, b) => a - b).some((v, i) => v !== i)) return;
     const reordered = order.map((i) => stops[i]);
-    reordered.forEach((s, i) => { s.order = i + 1; markStopStale(reordered, i); }); // PR2 r11: null 이동도 재조회·병합 표식 해제
+    reordered.forEach((s, i) => { s.order = i + 1; markStopStale(reordered, i, stops); }); // PR2 r11/r12: null 이동도 재조회, 병합 쌍 그대로면 유지
     nextDays[dayIdx].stops = reordered;
 
     stripArrivalRestNoteIfDay1Active({ days: nextDays }); // 2026-10-26: Day1 에 식당·관광이 생기면 휴식 안내 제거(저장 전)

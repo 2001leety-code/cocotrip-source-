@@ -28,7 +28,7 @@ import { formatTransitSummary } from './_odsay_helper.js';
 import { searchTransit } from './_transit_provider.js';
 // NCP Maps 키 해석 + geocode 호출 SSOT — 키 목록 복제 금지 (mood-route.js:45~ 주석).
 import { geocode, resolveNcpKeys } from './_shared/mood-route.js';
-import { isMergedLodgingStop } from './_ai_core/mergedLodging.js'; // PR2 r10: 같은 숙소 병합 표식(이동 0)
+import { isMergedLodgingStop, effectiveBookedAddress } from './_ai_core/mergedLodging.js'; // PR2 r10/r12: 같은 숙소 병합 표식(이동 0)
 
 export const maxDuration = 60;
 export const config = { runtime: 'nodejs' };
@@ -101,8 +101,8 @@ export default async function handler(req, res) {
 
     const day = JSON.parse(JSON.stringify(days[dayIndex])); // deep clone
     const stops = day.stops || [];
-    // PR2 r11: 같은 숙소 재확인의 예약 숙소 주소(RouteAgent 와 같은 규칙 — 모르면 '' = 한쪽 주소 쌍은 합치지 않는 보수 쪽).
-    const bookedAddress = (plan.input && plan.input.hotel_address) || '';
+    // PR2 r11/r12: 같은 숙소 재확인의 예약 숙소 주소 = 생성 때와 같은 함수(손님 호텔 주소, 없으면 저장된 권역 주소).
+    const bookedAddress = effectiveBookedAddress(plan.input);
 
     // Find stale indices
     const staleIndices = [];

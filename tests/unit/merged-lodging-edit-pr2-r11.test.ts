@@ -28,7 +28,9 @@ vi.mock('../../api/_transit_provider.js', () => ({ searchTransit: async () => nu
 vi.mock('../../api/_shared/user-auth.js', () => ({ verifyUserToken: async () => ({ ok: false }), default: async () => ({ ok: false }) }));
 
 import { markStopStale } from '../../src/pages/PlanDetailPage/hooks/usePlanEditor';
-import { isMergedLodgingStop, isSameLodgingMarker, isLodgingBookendPair, SAME_LODGING_FIELD } from '../../api/_ai_core/mergedLodging.js';
+import { isMergedLodgingStop, isSameLodgingMarker, isLodgingBookendPair, SAME_LODGING_FIELD, effectiveBookedAddress } from '../../api/_ai_core/mergedLodging.js';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import * as routeAgentModule from '../../api/_ai_core/agents/RouteAgent.js';
 import { computeQualityScore } from '../../api/_ai_core/qualityMetrics.js';
 
@@ -103,5 +105,75 @@ describe('r11-2 — one identity rule for generation, recalculation and quality 
   it('normal merges still recheck true (same coordinates; same name + no coordinates on a lodging-only day)', () => {
     expect(isMergedLodgingStop([hotel('22:40'), hotel('22:40', { [SAME_LODGING_FIELD]: true })], 1)).toBe(true);
     expect(isMergedLodgingStop([hotel('22:40', { lat: null, lng: null }), hotel('22:40', { lat: null, lng: null, [SAME_LODGING_FIELD]: true })], 1)).toBe(true);
+  });
+});
+
+describe('r12-1 — the editor releases a merged marker only when its previous stop really changed', () => {
+  const day = () => [
+    { category: 'culture', name: 'A', start_time: '09:00', stay_min: 60, lat: P.lat + 0.02, lng: P.lng },
+    { category: 'culture', name: 'B', start_time: '10:30', stay_min: 60, lat: P.lat + 0.01, lng: P.lng, transit_from_prev: { est_min: 20 } },
+    hotel('12:00', { transit_from_prev: { est_min: 20 } }),
+    hotel('13:00', { transit_from_prev: null, [SAME_LODGING_FIELD]: true }),
+  ] as any[];
+  it('Astra repro: [A, B, Hotel, Merged] delete B → merged pair untouched → recalc keeps it at hotel + stay (11:30, not 12:00)', async () => {
+    const stops = day();
+    const before = stops.slice();
+    stops.splice(1, 1); // deleteStop 과 같은 순서
+    markStopStale(stops, 1, before); markStopStale(stops, 2, before);
+    expect(stops[2][SAME_LODGING_FIELD]).toBe(true);
+    expect('_stale_transit' in stops[2]).toBe(false);
+    const { stops: out } = await recalc(stops);
+    expect(out[1].start_time).toBe('10:30'); // 09:00 + 60 + 25 + 5
+    expect(out[2].start_time).toBe('11:30'); // 10:30 + 숙소 체류 60, 이동 0
+    expect(out[2].transit_from_prev == null).toBe(true);
+  });
+  it('reorder A↔B (applyStopOrder) → merged pair untouched', () => {
+    const stops = day();
+    const reordered = [stops[1], stops[0], stops[2], stops[3]];
+    reordered.forEach((_s, i) => markStopStale(reordered, i, stops));
+    expect(reordered[3][SAME_LODGING_FIELD]).toBe(true);
+    expect('_stale_transit' in reordered[3]).toBe(false);
+  });
+  it('the previous stop really changed (middle hotel deleted) → released + re-query (r11 behaviour kept)', () => {
+    const stops = day();
+    const before = stops.slice();
+    stops.splice(2, 1);
+    markStopStale(stops, 2, before);
+    expect(SAME_LODGING_FIELD in stops[2]).toBe(false);
+    expect(stops[2]._stale_transit).toBe(true);
+  });
+});
+
+describe('r12-2 — one effective booked-hotel address (hotel, else zone) for generation, recalculation and quality', () => {
+  it('effectiveBookedAddress: hotel address wins, then the zone address, else empty', () => {
+    expect(effectiveBookedAddress({ hotel_address: 'H', recommended_zone_address: 'Z' })).toBe('H');
+    expect(effectiveBookedAddress({ hotel_address: null, recommended_zone_address: 'Z' })).toBe('Z');
+    expect(effectiveBookedAddress(undefined)).toBe('');
+  });
+  const pair = () => [
+    hotel('23:00', { stay_min: 0, address: '서울 마포구 홍익대학교', lat: null, lng: null, transit_from_prev: { _stale: true } }),
+    hotel('23:00', { lat: null, lng: null, transit_from_prev: null, [SAME_LODGING_FIELD]: true }),
+  ];
+  it('Astra repro: one address = the saved zone address → recalc keeps the merge (no 25 + 5)', async () => {
+    const { stops: out } = await recalc(pair(), { hotel_address: null, recommended_zone_address: '서울 마포구 홍익대학교' });
+    expect(out[1].start_time).toBe('23:00');
+    expect(out[1].transit_from_prev == null).toBe(true);
+  });
+  it('a different zone address → not merged (normal leg)', async () => {
+    const { stops: out } = await recalc(pair(), { hotel_address: null, recommended_zone_address: '부산 해운대구 1' });
+    expect(out[1].start_time).toBe('00:30'); // 일반 구간: 23:00 + (기존 recalc 의 체류 0→60) + 25 + 5 = Astra 재현의 00:30
+  });
+  it('quality score with the zone address: a real merge is not a route failure; the persister and RouteAgent use the same function', () => {
+    const itin = { days: [{ day: 1, stops: [
+      hotel('22:40', { address: '서울 마포구 홍익대학교', lat: null, lng: null }),
+      hotel('22:40', { transit_from_prev: null, [SAME_LODGING_FIELD]: true }),
+    ] }] };
+    const zone = effectiveBookedAddress({ hotel_address: null, recommended_zone_address: '서울 마포구 홍익대학교' });
+    expect(computeQualityScore(itin, [], 'seoul', [], { hotelAddress: zone }).metrics.route_failure).toEqual({ total: 0, count: 0 });
+    expect(computeQualityScore(itin, [], 'seoul', [], {}).metrics.route_failure).toEqual({ total: 1, count: 1 });
+    const read = (p: string) => readFileSync(resolve(process.cwd(), p), 'utf8');
+    expect(read('api/_ai_core/planPersister.js')).toContain('hotelAddress: effectiveBookedAddress({ hotel_address, recommended_zone_address: body?.recommended_zone_address })');
+    expect(read('api/_ai_core/agents/RouteAgent.js')).toContain('bookedAddress: effectiveBookedAddress(data)');
+    expect(read('api/recalc-transit.js')).toContain('const bookedAddress = effectiveBookedAddress(plan.input);');
   });
 });
