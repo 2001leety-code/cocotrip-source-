@@ -140,19 +140,31 @@ export function saveRecoveryOrder(value: Omit<PaymentRecovery, 'updatedAt' | 'cr
   return result;
 }
 
-/** 서버가 입증한 종료 — 완료 표식 먼저, 그 다음 주문 키 삭제. 표식 저장 실패면 원본 보존(이 탭에서만 숨김). @returns 표식 저장 여부 */
 /**
- * r17-6: 영구 완료가 아닌 미결제 증거(no_attempt_record) — 완료 표식 없이 주문 키만 지운다. 같은 주문의 실제 결과(진행 중이던 capture 의
- *   PENDING·final)가 뒤에 오면 다시 저장된다. 단 옛 키에도 있는 주문은 다시 복사돼 패널이 되살아나므로 그때만 완료로 처리한다
- *   (옛 키 주문은 이 탭이 지금 capture 중인 주문일 수 없다 — 새 주문은 주문 키에만 쓴다).
+ * r17-6/r18: 영구 완료가 아닌 미결제 증거(no_attempt_record) — **어떤 경우에도 완료 표식을 만들지 않고** 주문 키만 지운다.
+ *   같은 주문의 실제 결과(진행 중이던 capture 의 PENDING·final)가 뒤에 오면 다시 저장된다. 옛 키에도 있으면 다음 조회 때 다시 복사돼
+ *   패널이 돌아오는데 그게 정상이다(옛 키 존재 ≠ 종료 증거 — 구버전 탭이 capture 중일 수 있다).
+ *   expected: 확인을 시작할 때 본 레코드 — 지금 저장값의 상태(paymentStatus·review·updatedAt)가 다르면 그 사이 더 새로운 결과가
+ *   저장된 것이므로 지우지 않는다(false). null = 시작 때 레코드가 없었음 → 지금 있으면 그 사이 저장된 것이라 유지. @returns 지웠는지
  */
-export function dropRecoveryOrder(orderID: string): void {
-  if (LEGACY_KEYS.some((k) => { const p = parsePointer(getRaw(k)); return !!p && p.orderID === orderID; })) { finishRecoveryOrder(orderID); return; }
+export function dropRecoveryOrder(orderID: string, expected?: PaymentRecovery | null): boolean {
+  if (expected !== undefined) {
+    const now = readRecoveryOrder(orderID);
+    const same = expected
+      ? !!now && now.paymentStatus === expected.paymentStatus && now.review === expected.review && (now.updatedAt || 0) === (expected.updatedAt || 0)
+      : !now;
+    if (!same) {
+      notifyRecoveryChange();
+      return false;
+    }
+  }
   memoryOrders.delete(orderID);
   try { localStorage.removeItem(orderRecoveryKey(orderID)); } catch { /* 메모리에서는 빠졌다 */ }
   notifyRecoveryChange();
+  return true;
 }
 
+/** 서버가 입증한 종료 — 완료 표식 먼저, 그 다음 주문 키 삭제. 표식 저장 실패면 원본 보존(이 탭에서만 숨김). @returns 표식 저장 여부 */
 export function finishRecoveryOrder(orderID: string): boolean {
   let marked = false;
   try { localStorage.setItem(doneRecoveryKey(orderID), String(Date.now())); marked = true; } catch { /* 원본 보존 */ }
@@ -349,14 +361,24 @@ export function usePaymentRecovery(screen: RecoveryScreen) {
     refresh();
     return !!saved && saved.persisted !== false;
   }, [refresh]);
-  /** opts.provisional: 영구 완료가 아닌 증거(no_attempt_record) — 완료 표식 없이 놓는다(r17-6). */
-  const clearRecovery = useCallback((orderID: string, opts?: { provisional?: boolean }) => {
+  /**
+   * opts.provisional: 영구 완료가 아닌 증거(no_attempt_record) — 완료 표식 없이 놓는다(r17-6).
+   *   opts.expected: 확인 시작 때 본 레코드 — 그 사이 상태가 바뀌었으면(더 새로운 결과) 지우지 않고 그 주문을 계속 보인다(r18).
+   * @returns 놓았는지(provisional 이 상태 변화로 거부되면 false)
+   */
+  const clearRecovery = useCallback((orderID: string, opts?: { provisional?: boolean; expected?: PaymentRecovery | null }): boolean => {
     const current = pendingRef.current;
-    if (current && current.orderID !== orderID) return;
+    if (current && current.orderID !== orderID) return false;
+    if (opts && opts.provisional) {
+      const dropped = dropRecoveryOrder(orderID, opts.expected);
+      if (dropped && pinnedRef.current === orderID) pinnedRef.current = null;
+      refresh();
+      return dropped;
+    }
     if (pinnedRef.current === orderID) pinnedRef.current = null;
-    if (opts && opts.provisional) dropRecoveryOrder(orderID);
-    else finishRecoveryOrder(orderID);
+    finishRecoveryOrder(orderID);
     refresh();
+    return true;
   }, [refresh]);
   const forgetRecovery = useCallback((orderID: string) => {
     if (pendingRef.current && pendingRef.current.orderID !== orderID) return;

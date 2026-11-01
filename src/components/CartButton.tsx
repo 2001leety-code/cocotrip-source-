@@ -100,6 +100,8 @@ function CartPanelInner() {
   // B6-1 r17: 미해결 장바구니 결제 주문 — 장바구니가 비어도(앞 주문 성공 뒤 비움) 같은 주문 확인 화면으로 들어갈 수 있어야 한다.
   const { recovery: pendingCartOrder } = usePaymentRecovery({ flow: 'cart' });
   const panelRef = useRef<HTMLDivElement>(null);
+  // r18: 빈 장바구니 + 미해결 주문으로 들어온 확인 화면은 고정 — 확정되며 주문 기록이 지워져도 결과 화면을 닫을 때까지 유지.
+  if (isOpen && !showCheckout && !loading && items.length === 0 && pendingCartOrder) setShowCheckout(true);
 
   useEffect(() => {
     function handleOutside(e: MouseEvent) {
@@ -158,13 +160,13 @@ function CartPanelInner() {
                 결제 완료/PAYMENT_REVIEW 후 CartCheckout 이 장바구니를 비우는데(중복결제 방지),
                 empty 분기가 앞서면 그 순간 CartCheckout 이 언마운트되어 결과 화면(성공 안내,
                 그리고 "다시 결제하지 마세요" 경고)이 아예 렌더되지 않는다.
-                showCheckout 은 아래 item 목록 분기에서만 true 가 되므로(= items 존재가 전제)
-                빈 장바구니로 체크아웃 화면에 갇힐 일은 없다. */}
+                showCheckout 은 item 목록 분기, 또는 빈 장바구니 + 미해결 주문(r18 고정)일 때만 true —
+                닫기(onClose)로 풀린다. */}
             {loading ? (
               <div className="flex items-center justify-center py-20">
                 <div className="w-6 h-6 border-2 border-[#7C5CFC] border-t-transparent animate-spin rounded-full" />
               </div>
-            ) : showCheckout || (items.length === 0 && pendingCartOrder) ? (
+            ) : showCheckout ? (
               <Suspense fallback={<div className="flex items-center justify-center py-20"><div className="w-6 h-6 border-2 border-[#7C5CFC] border-t-transparent animate-spin rounded-full" /></div>}>
                 <CartCheckout
                   onClose={() => { setShowCheckout(false); setIsOpen(false); }}

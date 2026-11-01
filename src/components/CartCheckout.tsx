@@ -114,14 +114,19 @@ export function CartCheckout({ onClose, onBack }: { onClose: () => void; onBack?
       keep({ paymentStatus: 'CAPTURE_UNKNOWN', review: false, authRequired: true }); setStatus('idle'); return;
     }
     // r17-6: no_attempt_record 는 영구 완료가 아니다 — 완료 표식 없이 놓는다.
-    if (outcome.kind === 'not_captured') { clearRecovery(orderId, { provisional: outcome.noAttempt === true }); setError(outcome.message); setStatus('error'); return; }
+    //   r18: 확인 시작 때 본 레코드와 상태가 같을 때만 놓는다(그 사이 더 새로운 결과가 저장됐으면 유지 + 재조회).
+    if (outcome.kind === 'not_captured') {
+      if (!clearRecovery(orderId, { provisional: outcome.noAttempt === true, expected: checked })) { setStatus('idle'); return; }
+      setError(outcome.message); setStatus('error'); return;
+    }
     // Server-proven full refund: terminal, not a booking — the cart is kept, no success state.
     if (outcome.kind === 'refunded') { clearRecovery(orderId); setError(outcome.message); setStatus('error'); return; }
     // Generic error: keep the pointer unless the server gives durable evidence of no capture.
     setError(outcome.message); setStatus('error');
     if (fresh) {
+      const seen = pendingRef.current && pendingRef.current.orderID === orderId ? { ...pendingRef.current } : null; // r18: 조회 시작 때 본 레코드
       const evidence = await reconcilePayment('cart', orderId);
-      if (evidence.kind === 'not_captured') { clearRecovery(orderId, { provisional: evidence.noAttempt === true }); return; }
+      if (evidence.kind === 'not_captured') { clearRecovery(orderId, { provisional: evidence.noAttempt === true, expected: seen }); return; }
       if (evidence.kind === 'final' || evidence.kind === 'review' || evidence.kind === 'refunded') { await applyOutcome(evidence, orderId, false); return; }
     }
     keep({ paymentStatus: 'CAPTURE_UNKNOWN', review: false });

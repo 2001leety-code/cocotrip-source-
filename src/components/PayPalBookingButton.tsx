@@ -316,7 +316,9 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
     if (outcome.kind === 'not_captured') {
       const prepayMsg = plannerPrepayMessage(p, outcome.preCaptureCode, outcome.message);
       // r17-6: no_attempt_record(시도 기록 없음)는 영구 완료가 아니다 — 완료 표식 없이 놓아 뒤에 오는 실제 결과가 다시 저장되게.
-      clearRecovery(orderID, { provisional: outcome.noAttempt === true });
+      //   r18: 확인 시작 때 본 레코드(checked)와 상태가 같을 때만 — 그 사이 더 새로운 결과(CAPTURED 등)가 저장됐으면 놓지 않고 그 주문을 계속 보인다.
+      const released = clearRecovery(orderID, { provisional: outcome.noAttempt === true, expected: checked });
+      if (!released) { setShowPaypal(false); return; }
       // r4/r5: QR 을 한 번 보여 준 흐름이면 별도 SDK 주문의 어떤 '미결제' 응답(사전 거부·order-VOIDED·no_attempt_record …)도
       //   "다시 결제할 수 있어요/결제 안 됨" 으로 안내하지 않는다 — 손님이 QR 로 송금했을 수 있다. 다시 결제 금지 + QR 신고 경로 유지.
       if (qrSession) setError(rc.warn);
