@@ -695,6 +695,10 @@ export async function enforcePaymentAndRevision(body, adminDb, authenticatedEmai
         //   r3: 소유자 → 고정 입력 대조 → 커버리지(거부 시 운영자 알림) → 발급권. ownerUid = createPaypalOrder 와 같은 신원 기준.
         // 🔴 B6-1 r16: 완료 전용 조회를 입력 대조·식이 검사보다 먼저(결제 검증은 위에서 끝남) — 이미 발급된 주문은 DUPLICATE_ORDER.
         //   발급권 선점(claimPlanIssuance)은 옮기지 않는다(식이 실패 전에 잠기면 정당한 재시도가 막힌다). 조회 실패는 아래 claim 이 판정.
+        //   r17: 소유자 검사가 완료 조회보다 먼저 — 다른 UID 에 완료·미완료가 FORBIDDEN 으로 같아야 한다(완료 여부 노출 금지).
+        if (snapData.ownerUid && snapData.ownerUid !== ownerUid) {
+          return reject(403, 'FORBIDDEN', 'Order does not belong to the authenticated user');
+        }
         let alreadyIssued = false;
         try {
           alreadyIssued = await isPlanIssuanceComplete(adminDb, paypalOrderId);

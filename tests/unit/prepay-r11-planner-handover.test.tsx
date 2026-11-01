@@ -32,7 +32,7 @@ vi.mock('react-router-dom', async () => {
 });
 
 import { PayPalBookingButton } from '../../src/components/PayPalBookingButton';
-import { recoveryKey, PLANNER_RECOVERY_SCOPE, readRecoveryOrder, isRecoveryDone, saveRecoveryOrder } from '../../src/lib/paymentRecovery';
+import { recoveryKey, PLANNER_RECOVERY_SCOPE, readRecoveryOrder, isRecoveryDone, saveRecoveryOrder, orderRecoveryKey, doneRecoveryKey } from '../../src/lib/paymentRecovery';
 
 const SHARED = recoveryKey('single');
 const PLANNER = recoveryKey('single', PLANNER_RECOVERY_SCOPE);
@@ -73,10 +73,13 @@ describe('r11-1 — when the planner key\'s order is released, the paid planner 
     localStorage.setItem(PLANNER, q);
     render(planner());
     expect(shownOrder()).toBe('ORD-Q');
+    // r17: 다른 탭(새 코드)의 해결 = 완료 표식 → 주문 키 삭제(옛 키는 건드리지 않는다). 이벤트는 재조회 신호.
     await act(async () => {
-      localStorage.removeItem(PLANNER); // 다른 탭이 확정 답을 보고 지움
-      window.dispatchEvent(new StorageEvent('storage', { key: PLANNER, oldValue: q, newValue: null }));
+      localStorage.setItem(doneRecoveryKey('ORD-Q'), '1'); // 다른 탭이 확정 답을 보고 끝냄
+      localStorage.removeItem(orderRecoveryKey('ORD-Q'));
+      window.dispatchEvent(new StorageEvent('storage', { key: doneRecoveryKey('ORD-Q'), oldValue: null, newValue: '1' }));
     });
+    expect(localStorage.getItem(PLANNER)).toBe(q);
     expect(shownOrder()).toBe('ORD-P');
     expect(screen.queryByText('Book now')).toBeNull();
   });
@@ -118,13 +121,14 @@ describe('r11-2 — an order this screen let go is not revived by another tab re
     render(charter());
     await act(async () => { fireEvent.click(await screen.findByText('Check this order')); await new Promise((r) => setTimeout(r, 10)); });
     expect(await screen.findByText(/confirmed for a different order/)).toBeInTheDocument();
-    expect(isRecoveryDone('ORD-P')).toBe(true);
+    // r17: 상품 미상 주문은 final 이어도 완료 처리하지 않는다(미발급 유료 플래너일 수 있음) — 이 화면에서만 놓는다.
+    expect(isRecoveryDone('ORD-P')).toBe(false);
     await act(async () => {
       localStorage.setItem(SHARED, unknown('CAPTURED'));
       window.dispatchEvent(new StorageEvent('storage', { key: SHARED, oldValue: null, newValue: unknown('CAPTURED') }));
     });
-    expect(saveRecoveryOrder({ orderID: 'ORD-P', flow: 'single', paymentStatus: 'CAPTURED', review: false })).toBeNull();
-    expect(shownOrder()).toBeNull();
+    expect(saveRecoveryOrder({ orderID: 'ORD-P', flow: 'single', paymentStatus: 'CAPTURED', review: false })).not.toBeNull(); // r17: 미해결로 유지
+    expect(shownOrder()).toBeNull(); // 이 화면은 놓았으므로 되살리지 않는다
     expect(screen.getByText(/confirmed for a different order/)).toBeInTheDocument();
     expect(onSuccess).not.toHaveBeenCalled();
   });

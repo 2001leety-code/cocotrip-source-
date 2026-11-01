@@ -71,12 +71,16 @@ function parkedCheck(orderID: string, first: 'NETWORK' | 'PENDING' | 'FINAL') {
   });
   return st;
 }
-async function otherTabRemoves(key: string, raw: string) {
+// r17: 새 코드 탭의 해결 = 완료 표식 먼저, 그 다음 주문 키 삭제(finishRecoveryOrder 와 같은 순서). event=false 면 이벤트 지연.
+async function otherTabFinishes(orderID: string, event = true) {
   await act(async () => {
-    localStorage.removeItem(key);
-    window.dispatchEvent(new StorageEvent('storage', { key, oldValue: raw, newValue: null }));
+    localStorage.setItem(doneRecoveryKey(orderID), '1');
+    localStorage.removeItem(orderRecoveryKey(orderID));
+    if (event) window.dispatchEvent(new StorageEvent('storage', { key: doneRecoveryKey(orderID), oldValue: null, newValue: '1' }));
   });
 }
+// r17: 새 코드 탭의 같은 주문 갱신·새 주문 = 그 주문 키에 기록.
+const otherTabWritesOrder = (orderID: string, record: string) => localStorage.setItem(orderRecoveryKey(orderID), record);
 
 describe('T1 two tabs: pointer resolved+removed by the other tab while this tab is checking', () => {
   it.each([['NETWORK'], ['PENDING']] as const)('tour order on the charter page, in-flight check answers %s', async (first) => {
@@ -91,13 +95,14 @@ describe('T1 two tabs: pointer resolved+removed by the other tab while this tab 
     render(<PayPalBookingButton productType="charter_dmz" passengers={2} dateStart="2099-12-05" priceKRW={135000} lang="en" p={{ paypalBookBtn: 'Book now' }} />);
     fireEvent.click(screen.getByText('Check this order'));
     await waitFor(() => expect(st.release).not.toBeNull());
-    await otherTabRemoves(SHARED, raw); // 구버전 탭이 옛 키를 지움(전환 기간)
+    await otherTabFinishes('ORD-T'); // r17: 다른 탭(새 코드)이 그 주문을 끝냄 — 완료 표식 → 주문 키 삭제
 
     await act(async () => { st.release!(); await new Promise((r) => setTimeout(r, 10)); });
     const after = localStorage.getItem(SHARED);
 
-    expect(after).toBeNull();
+    expect(after).toBe(raw); // r17: 옛 키는 새 코드가 지우지 않는다(완료 표식이 가린다)
     expect(readRecoveryOrder('ORD-T')).toBeNull(); // r16: 늦은 응답이 주문별 키로 되살리지 않는다
+    expect(localStorage.getItem(orderRecoveryKey('ORD-T'))).toBeNull();
     const again = screen.queryByText('Check this order') as HTMLButtonElement | null;
     if (again && !again.disabled) { await act(async () => { fireEvent.click(again); await new Promise(r => setTimeout(r, 20)); }); }
     const confirmed = !!screen.queryByText('Booking Confirmed!');
@@ -113,12 +118,13 @@ describe('T1 two tabs: pointer resolved+removed by the other tab while this tab 
     render(<PayPalBookingButton productType="charter_dmz" passengers={2} priceKRW={135000} lang="en" onPaymentSuccess={onPaymentSuccess} p={{ paypalBookBtn: 'Book now' }} />);
     fireEvent.click(screen.getByText('Check this order'));
     await waitFor(() => expect(st.release).not.toBeNull());
-    await otherTabRemoves(SHARED, raw);
+    await otherTabFinishes('ORD-T'); // r17: 새 코드 탭의 해결(완료 표식 → 주문 키 삭제)
     await act(async () => { st.release!(); await new Promise((r) => setTimeout(r, 10)); });
     const again = screen.queryByText('Check this order') as HTMLButtonElement | null;
     if (again && !again.disabled) { await act(async () => { fireEvent.click(again); await new Promise(r => setTimeout(r, 20)); }); }
 
     expect(onPaymentSuccess).not.toHaveBeenCalled();
+    expect(readRecoveryOrder('ORD-T')).toBeNull();
   });
 
   it('migration of a planner pointer never triggers the charter success callback', async () => {
@@ -201,7 +207,8 @@ describe('Q - QR shown, SDK capture generic error, reconcile evidence NOT_CAPTUR
 
 describe('r6 different order replaces pointer during recovery', () => {
   it.each(['NETWORK', 'PENDING'] as const)('preserves the new pointer when the old check returns %s', async (first) => {
-    // r16: 공용 키 교체는 구버전 탭에서만 가능(전환 기간). 차터 화면이 맡는 상품 미상 주문 ORD-T 가 교체되는 경우.
+    // r16: 차터 화면이 맡는 상품 미상 주문 ORD-T 가 다른 주문으로 바뀌는 경우.
+    // r17: 새 코드 탭의 "교체" = ORD-T 해결(완료 표식 → 주문 키 삭제) + 새 주문 ORD-NEW 를 자기 주문 키에 기록.
     const old = unknownPointer('ORD-T');
     const replacement = pointer('ORD-NEW', 'charter_dmz');
     localStorage.setItem(SHARED, old);
@@ -210,12 +217,11 @@ describe('r6 different order replaces pointer during recovery', () => {
     render(<PayPalBookingButton productType="charter_dmz" passengers={2} priceKRW={135000} lang="en" onPaymentSuccess={success} p={{ paypalBookBtn: 'Book now' }} />);
     fireEvent.click(screen.getByText('Check this order'));
     await waitFor(() => expect(st.release).not.toBeNull());
-    await act(async () => {
-      localStorage.setItem(SHARED, replacement);
-      window.dispatchEvent(new StorageEvent('storage', { key: SHARED, oldValue: old, newValue: replacement }));
-    });
+    otherTabWritesOrder('ORD-NEW', replacement);
+    await otherTabFinishes('ORD-T');
     await act(async () => { st.release!(); await new Promise(r => setTimeout(r, 10)); });
-    expect(localStorage.getItem(SHARED)).toBe(replacement); // r16: 옛 키는 쓰지 않는다
+    expect(localStorage.getItem(SHARED)).toBe(old); // r16: 옛 키는 쓰지 않는다
+    expect(localStorage.getItem(orderRecoveryKey('ORD-NEW'))).toBe(replacement); // 늦은 응답이 새 주문을 덮지 않는다
     expect(readRecoveryOrder('ORD-NEW')).toMatchObject({ orderID: 'ORD-NEW', productType: 'charter_dmz' });
     expect(readRecoveryOrder('ORD-T')).toBeNull(); // 늦은 ORD-T 응답이 주문별 키로 되살리지 않는다
     const again = screen.queryByText('Check this order') as HTMLButtonElement | null;
@@ -236,13 +242,16 @@ describe('r6 storage changes before a storage event arrives', () => {
     render(<PayPalBookingButton productType="charter_dmz" passengers={2} priceKRW={135000} lang="en" onPaymentSuccess={success} p={{ paypalBookBtn: 'Book now' }} />);
     fireEvent.click(screen.getByText('Check this order'));
     await waitFor(() => expect(st.release).not.toBeNull());
+    const copied = localStorage.getItem(orderRecoveryKey('ORD-P')); // r17: 첫 읽기에 옛 키 주문이 주문 키로 복사됨
+    expect(copied).not.toBeNull();
+    // r17: delete = 새 코드 탭의 완전한 해결(완료 표식 → 주문 키 삭제), move = 완료 표식만 쓴 중간 순간. 둘 다 이벤트 지연.
     if (change === 'move') localStorage.setItem(doneRecoveryKey('ORD-P'), '1'); // storage event intentionally delayed
-    else localStorage.removeItem(SHARED); // storage event intentionally delayed
+    else await otherTabFinishes('ORD-P', false); // storage event intentionally delayed
     await act(async () => { st.release!(); await new Promise(r => setTimeout(r, 10)); });
     expect(readRecoveryOrder('ORD-P')).toBeNull();
-    expect(localStorage.getItem(orderRecoveryKey('ORD-P'))).toBeNull(); // 늦은 응답이 주문별 키를 쓰지 않는다
-    if (change === 'move') expect(localStorage.getItem(SHARED)).toBe(raw); // 옛 키는 지우지 않는다(완료 표식이 가린다)
-    else expect(localStorage.getItem(SHARED)).toBeNull();
+    // 늦은 응답이 주문별 키를 쓰지 않는다(move = 복사본 그대로, delete = 지워진 채)
+    expect(localStorage.getItem(orderRecoveryKey('ORD-P'))).toBe(change === 'move' ? copied : null);
+    expect(localStorage.getItem(SHARED)).toBe(raw); // 옛 키는 지우지 않는다(완료 표식이 가린다)
     expect(success).not.toHaveBeenCalled();
     expect(screen.queryByText('Booking Confirmed!')).toBeNull();
     expect(screen.queryByText(/different order/)).toBeNull();
@@ -252,13 +261,15 @@ describe('r6 storage changes before a storage event arrives', () => {
     ['product', { productType: 'tour_dmz_day' }, 'PENDING'], ['product', { productType: 'tour_dmz_day' }, 'FINAL'],
   ] as const)('same order with changed %s is not overwritten by stale %s evidence', async (_name, change, outcome) => {
     const raw = pointer('ORD-C', 'charter_dmz'); localStorage.setItem(SHARED, raw);
-    const replacement = JSON.stringify({ ...JSON.parse(raw), ...change });
     const st = parkedCheck('ORD-C', outcome); const success = vi.fn();
     render(<PayPalBookingButton productType="charter_dmz" passengers={2} priceKRW={135000} lang="en" onPaymentSuccess={success} p={{ paypalBookBtn: 'Book now' }} />);
     fireEvent.click(screen.getByText('Check this order')); await waitFor(() => expect(st.release).not.toBeNull());
-    localStorage.setItem(SHARED, replacement); // storage event intentionally delayed
+    // r17: 새 코드 탭의 같은 주문 변경 = 그 주문 키에 기록(옛 키 아님).
+    const replacement = JSON.stringify({ ...JSON.parse(localStorage.getItem(orderRecoveryKey('ORD-C')) || raw), ...change });
+    otherTabWritesOrder('ORD-C', replacement); // storage event intentionally delayed
     await act(async () => { st.release!(); await new Promise(r => setTimeout(r, 10)); });
-    expect(localStorage.getItem(SHARED)).toBe(replacement);
+    expect(localStorage.getItem(orderRecoveryKey('ORD-C'))).toBe(replacement);
+    expect(localStorage.getItem(SHARED)).toBe(raw);
     // r16: 옛 키뿐 아니라 실효 저장값(주문별 키 우선)도 늦은 증거로 덮이지 않아야 한다.
     expect(readRecoveryOrder('ORD-C')).toMatchObject(change);
     expect(success).not.toHaveBeenCalled();
@@ -267,11 +278,12 @@ describe('r6 storage changes before a storage event arrives', () => {
   // r7: 같은 주문·흐름·상품을 다른 탭이 새 시각으로 다시 저장한 것은 교체가 아니다 — 이 탭의 결과를 버리지 않는다.
   it.each(['PENDING', 'FINAL'] as const)('r7: same order re-saved with a new timestamp → the %s result still applies', async (outcome) => {
     const raw = pointer('ORD-C', 'charter_dmz'); localStorage.setItem(SHARED, raw);
-    const resaved = JSON.stringify({ ...JSON.parse(raw), updatedAt: 2 });
     const st = parkedCheck('ORD-C', outcome); const success = vi.fn();
     render(<PayPalBookingButton productType="charter_dmz" passengers={2} priceKRW={135000} lang="en" onPaymentSuccess={success} p={{ paypalBookBtn: 'Book now' }} />);
     fireEvent.click(screen.getByText('Check this order')); await waitFor(() => expect(st.release).not.toBeNull());
-    localStorage.setItem(SHARED, resaved);
+    // r17: 새 코드 탭의 재저장 = 그 주문 키에 새 시각으로 기록.
+    const resaved = JSON.stringify({ ...JSON.parse(localStorage.getItem(orderRecoveryKey('ORD-C')) || raw), updatedAt: 2 });
+    otherTabWritesOrder('ORD-C', resaved);
     await act(async () => { st.release!(); await new Promise(r => setTimeout(r, 10)); });
     if (outcome === 'FINAL') expect(success).toHaveBeenCalledWith('ORD-C');
     else expect(readRecoveryOrder('ORD-C')).toMatchObject({ orderID: 'ORD-C', productType: 'charter_dmz' }); // r16: 주문별 키

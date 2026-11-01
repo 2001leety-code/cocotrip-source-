@@ -130,8 +130,11 @@ describe('r9-2 — onPaymentSuccess never overlaps for one order, but a legitima
     await openButtons();
     let approving!: Promise<void>;
     act(() => { approving = buttons[buttons.length - 1].onApprove({ orderID: 'ORD-1' }); });
-    fireEvent.click(await screen.findByText('Check this order')); // 자동 조회 진행 중 수동 확인
-    await waitFor(() => expect(mocks.authFetch.mock.calls.filter(([u]) => u === '/api/capturePaypalOrder').length).toBe(3));
+    // r17: 이 탭 capture(+자동 증거 조회) 진행 중엔 '같은 주문 확인'이 비활성 — 수동 확인이 겹칠 수 없다(no_attempt_record 오판 방지).
+    const check = await screen.findByText('Check this order');
+    expect(check).toBeDisabled();
+    fireEvent.click(check);
+    await waitFor(() => expect(mocks.authFetch.mock.calls.filter(([u]) => u === '/api/capturePaypalOrder').length).toBe(2));
     await act(async () => { auto.resolve([200, final('ORD-1')]); manual.resolve([200, final('ORD-1')]); await new Promise((r) => setTimeout(r, 10)); });
     expect(success).toHaveBeenCalledTimes(1);
     await act(async () => { finishIssuance(); await approving; });

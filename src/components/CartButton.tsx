@@ -13,6 +13,7 @@ import { useCart } from '@/hooks/useCart';
 import { useAuth } from '@/hooks/useAuth';
 import { useLanguage } from '@/hooks/useLanguage';
 import { isCartEnabled, type CartItemBooking } from '@/lib/cart-types';
+import { usePaymentRecovery } from '@/lib/paymentRecovery';
 // CartCheckout 는 결제 진입(showCheckout) 시에만 필요 → lazy split (main 번들 환원, size-limit 130KB).
 const CartCheckout = lazy(() => import('./CartCheckout').then((m) => ({ default: m.CartCheckout })));
 
@@ -96,6 +97,8 @@ function CartPanelInner() {
   const c = (t as { cart?: Record<string, string> }).cart || {};
   const [isOpen, setIsOpen] = useState(false);
   const [showCheckout, setShowCheckout] = useState(false);
+  // B6-1 r17: 미해결 장바구니 결제 주문 — 장바구니가 비어도(앞 주문 성공 뒤 비움) 같은 주문 확인 화면으로 들어갈 수 있어야 한다.
+  const { recovery: pendingCartOrder } = usePaymentRecovery({ flow: 'cart' });
   const panelRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -161,7 +164,7 @@ function CartPanelInner() {
               <div className="flex items-center justify-center py-20">
                 <div className="w-6 h-6 border-2 border-[#7C5CFC] border-t-transparent animate-spin rounded-full" />
               </div>
-            ) : showCheckout ? (
+            ) : showCheckout || (items.length === 0 && pendingCartOrder) ? (
               <Suspense fallback={<div className="flex items-center justify-center py-20"><div className="w-6 h-6 border-2 border-[#7C5CFC] border-t-transparent animate-spin rounded-full" /></div>}>
                 <CartCheckout
                   onClose={() => { setShowCheckout(false); setIsOpen(false); }}

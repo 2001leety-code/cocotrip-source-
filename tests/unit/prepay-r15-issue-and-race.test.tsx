@@ -37,7 +37,7 @@ vi.mock('@/lib/charterUsd', () => ({ charterCheckoutExpectedUsd: () => undefined
 vi.mock('@/components/GuestSignupNudge', () => ({ GuestSignupNudge: () => null }));
 vi.mock('qrcode', () => ({ default: { toDataURL: async () => 'data:image/png;base64,AAAA' } }));
 
-import { recoveryKey, PLANNER_RECOVERY_SCOPE, settlePlannerIssue, markPlannerIssuePending, readRecoveryOrder, isRecoveryDone, saveRecoveryOrder } from '../../src/lib/paymentRecovery';
+import { recoveryKey, PLANNER_RECOVERY_SCOPE, settlePlannerIssue, markPlannerIssuePending, readRecoveryOrder, isRecoveryDone } from '../../src/lib/paymentRecovery';
 import { usePlanCompletionTracking } from '../../src/pages/PlanDetailPage/hooks/usePlanCompletionTracking';
 const { usePlannerHandlers } = await import('../../src/pages/PlannerPage/hooks/usePlannerHandlers');
 const { PayPalBookingButton } = await import('../../src/components/PayPalBookingButton');
@@ -104,7 +104,8 @@ describe('r15-2 — a tab whose key was overwritten in the compare/write race ke
   it('my planner Q on the planner key → another tab writes P over it (Q → P event) → Q panel stays, Q moved to the shared key, P untouched', async () => {
     // r16: 내 주문 Q 는 자기 주문 키에 산다 — 다른(구버전) 탭이 옛 플래너 키에 P 를 써도 Q 를 덮을 수 없다.
     //   Q 패널(고정) 유지, P 는 별개 주문으로 그대로, 공용 키로 피신할 필요 없음, Book now 없음.
-    saveRecoveryOrder({ orderID: 'ORD-Q', flow: 'single', paymentStatus: 'CAPTURED', review: false, productType: 'ai_planner_full' });
+    // r17: 원래 의도대로 **옛 키의 Q 로 시작**(r16 은 새 키로 바꿔 옛 키 → 주문 키 복사 누락을 가렸다). 읽는 순간 주문 키로 복사돼야 Q 가 남는다.
+    localStorage.setItem(PLANNER, ptr('ORD-Q'));
     render(<PayPalBookingButton productType="ai-planner-full" passengers={1} priceKRW={14000} lang="en" keepRecoveryUntilFulfilled onPaymentSuccess={vi.fn(async () => {})} p={{ paypalBookBtn: 'Book now' }} />);
     const p = ptr('ORD-P');
     await act(async () => { localStorage.setItem(PLANNER, p); window.dispatchEvent(new StorageEvent('storage', { key: PLANNER, oldValue: null, newValue: p })); });
@@ -115,7 +116,9 @@ describe('r15-2 — a tab whose key was overwritten in the compare/write race ke
     expect(listed('ORD-Q')).toBe('ORD-Q');
     expect(listed('ORD-P')).toBe('ORD-P');
   });
-  it('single tab, normal sequence (remove then write) still follows the other tab', async () => {
+  it('old-version tab removes its legacy Q then writes P → Q (already copied to its order key) stays shown until checked; P is listed too', async () => {
+    // r17: 옛 키 Q 는 읽는 순간 주문 키로 복사된다 — 구버전 탭이 옛 키를 비우고 P 를 써도 Q 는 미해결로 남고(패널 고정),
+    //   손님이 '같은 주문 확인' 한 번으로 서버 답을 받아 정리한다(옛 키 삭제만으로는 완료로 보지 않는다 — 완료 표식만 완료).
     const q = ptr('ORD-Q', 'charter_dmz', 'CAPTURE_UNKNOWN');
     localStorage.setItem(SHARED, q);
     render(<PayPalBookingButton productType="charter_dmz" passengers={2} priceKRW={135000} lang="en" onPaymentSuccess={vi.fn()} p={{ paypalBookBtn: 'Book now' }} />);
@@ -124,6 +127,8 @@ describe('r15-2 — a tab whose key was overwritten in the compare/write race ke
       localStorage.removeItem(SHARED); window.dispatchEvent(new StorageEvent('storage', { key: SHARED, oldValue: q, newValue: null }));
       localStorage.setItem(SHARED, p); window.dispatchEvent(new StorageEvent('storage', { key: SHARED, oldValue: null, newValue: p }));
     });
-    expect((document.querySelector('.customer-paypal-recovery .font-mono') as HTMLElement | null)?.textContent).toBe('ORD-P');
+    expect((document.querySelector('.customer-paypal-recovery .font-mono') as HTMLElement | null)?.textContent).toBe('ORD-Q');
+    expect(listed('ORD-P')).toBe('ORD-P');
+    expect(screen.queryByText('Book now')).toBeNull();
   });
 });

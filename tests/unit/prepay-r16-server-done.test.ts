@@ -103,6 +103,24 @@ describe('r16 — an already issued order answers DUPLICATE_ORDER before the die
   });
 });
 
+describe('r17 — the owner check comes before the completion check (no completion leak to another user)', () => {
+  const owned = (issuance: Dict | null) => {
+    const n = normalizePrepayInput(input()); if (!n.ok) throw new Error('n');
+    return memDb({
+      [`paypal_order_snapshots/${ORDER}`]: { productType: 'ai-planner-full', expectedUSD: '9.90', expectedCurrency: 'USD', expectedKRW: 14000, prepayInput: n.input, prepayInputVersion: 1, prepayFingerprint: prepayFingerprint(n.input), ownerUid: 'owner-1' },
+      ...(issuance ? { [`plan_issued_orders/${ORDER}`]: issuance } : {}),
+    });
+  };
+  it.each([['issued', { status: 'ISSUED', planId: 'PLAN-1' }], ['not issued', null]] as Array<[string, Dict | null]>)('another uid, %s → FORBIDDEN (same answer)', async (_n, issuance) => {
+    const r = await enforcePaymentAndRevision({ ...input(), paypalOrderId: ORDER }, owned(issuance), 'x@e.x', 'intruder', { loadFoodIndex: async () => [HALAL_SEOUL] });
+    expect(r.rejection).toMatchObject({ statusCode: 403, code: 'FORBIDDEN' });
+  });
+  it('the owner, issued → DUPLICATE_ORDER', async () => {
+    const r = await enforcePaymentAndRevision({ ...input(), paypalOrderId: ORDER }, owned({ status: 'ISSUED', planId: 'PLAN-1' }), 'o@e.x', 'owner-1', { loadFoodIndex: async () => [] });
+    expect(r.rejection).toMatchObject({ code: 'DUPLICATE_ORDER' });
+  });
+});
+
 describe('r16 — isPlanIssuanceComplete (read-only)', () => {
   const readyPlan = { status: 'ready', planId: 'PLAN-1', input: { paypalOrderId: ORDER } };
   it.each([

@@ -87,7 +87,9 @@ export function CartCheckout({ onClose, onBack }: { onClose: () => void; onBack?
   const orderRequestInFlight = useRef(false);
   // 🔴 2026-10-10 payment recovery (cart): pointer before capture, duplicate guard, same-order reconcile via
   //   /api/captureCartOrder {orderID}. The cart stays intact while pending; it is cleared only on durable success.
-  const { recovery, pendingRef, remember, clearRecovery } = usePaymentRecovery({ flow: 'cart' });
+  const { recovery, pendingRef, remember, clearRecovery, refresh: refreshRecovery } = usePaymentRecovery({ flow: 'cart' });
+  // r17-6: 이 탭 capture 진행 중엔 '같은 주문 확인' 비활성(capture 가 서버 시도 기록보다 늦으면 no_attempt_record 오판).
+  const [capturing, setCapturing] = useState(false);
   const captureInFlight = useRef(false);
   const [reconciling, setReconciling] = useState(false);
   const rc = recoveryCopy(language);
@@ -97,7 +99,7 @@ export function CartCheckout({ onClose, onBack }: { onClose: () => void; onBack?
   // r16: 장바구니 화면은 장바구니(cart) 주문만 맡는다(주문별 저장 — 다른 상품 주문은 이 화면에 선택되지 않는다).
   async function applyOutcome(outcome: CaptureOutcome, orderId: string, fresh: boolean, checked: PaymentRecovery | null = null) {
     // 늦은 응답 대조 — 확인을 시작한 주문이 아직 현재일 때만(다른 탭이 끝냈으면 버림). PayPalBookingButton 과 같은 공용 판정.
-    if (!fresh && checked && !isCurrentPointer(checked, pendingRef.current)) return;
+    if (!fresh && checked && !isCurrentPointer(checked, pendingRef.current)) { refreshRecovery(); return; } // r17-8: 버릴 때 재조회
     const keep = (state: Pick<PaymentRecovery, 'paymentStatus' | 'review'> & { authRequired?: boolean }) => remember({ orderID: orderId, flow: 'cart', ...state });
     if (outcome.kind === 'final') {
       // 표시 전용 — 서버 확정 응답(captureCartOrder data.payerEmail)의 결제자 이메일.
@@ -111,20 +113,21 @@ export function CartCheckout({ onClose, onBack }: { onClose: () => void; onBack?
       if (fresh) { clearRecovery(orderId); setError(rc.authRequired); setStatus('error'); return; }
       keep({ paymentStatus: 'CAPTURE_UNKNOWN', review: false, authRequired: true }); setStatus('idle'); return;
     }
-    if (outcome.kind === 'not_captured') { clearRecovery(orderId); setError(outcome.message); setStatus('error'); return; }
+    // r17-6: no_attempt_record 는 영구 완료가 아니다 — 완료 표식 없이 놓는다.
+    if (outcome.kind === 'not_captured') { clearRecovery(orderId, { provisional: outcome.noAttempt === true }); setError(outcome.message); setStatus('error'); return; }
     // Server-proven full refund: terminal, not a booking — the cart is kept, no success state.
     if (outcome.kind === 'refunded') { clearRecovery(orderId); setError(outcome.message); setStatus('error'); return; }
     // Generic error: keep the pointer unless the server gives durable evidence of no capture.
     setError(outcome.message); setStatus('error');
     if (fresh) {
       const evidence = await reconcilePayment('cart', orderId);
-      if (evidence.kind === 'not_captured') { clearRecovery(orderId); return; }
+      if (evidence.kind === 'not_captured') { clearRecovery(orderId, { provisional: evidence.noAttempt === true }); return; }
       if (evidence.kind === 'final' || evidence.kind === 'review' || evidence.kind === 'refunded') { await applyOutcome(evidence, orderId, false); return; }
     }
     keep({ paymentStatus: 'CAPTURE_UNKNOWN', review: false });
   }
   async function checkSameOrder() {
-    if (!recovery || reconciling) return;
+    if (!recovery || reconciling || captureInFlight.current) return; // r17-6
     const checked = { ...recovery };
     setReconciling(true);
     try { await applyOutcome(await reconcilePayment(checked.flow, checked.orderID), checked.orderID, false, checked); } finally { setReconciling(false); }
@@ -213,6 +216,7 @@ export function CartCheckout({ onClose, onBack }: { onClose: () => void; onBack?
       onApprove: async (data: { orderID: string }) => {
         if (captureInFlight.current) return;
         captureInFlight.current = true;
+        setCapturing(true);
         remember({ orderID: data.orderID, flow: 'cart', paymentStatus: 'CAPTURE_UNKNOWN', review: false });
         setStatus('processing');
         try {
@@ -228,6 +232,7 @@ export function CartCheckout({ onClose, onBack }: { onClose: () => void; onBack?
           setStatus('idle');
         } finally {
           captureInFlight.current = false;
+          setCapturing(false);
         }
       },
       onCancel: () => { setStatus('ready'); rendered.current = false; },
@@ -265,7 +270,7 @@ export function CartCheckout({ onClose, onBack }: { onClose: () => void; onBack?
         <p className="text-amber-300 text-xs mb-3 bg-amber-500/10 border border-amber-400/30 rounded-xl px-3 py-2">{rc.warn}</p>
         <p className="text-xs text-white/60 mb-4">{rc.order}: <span className="font-mono text-white/90">{recovery.orderID}</span></p>
         {error && <p className="text-red-400/80 text-xs mb-3">{error}</p>}
-        <button onClick={checkSameOrder} disabled={reconciling || recovery.authRequired === true}
+        <button onClick={checkSameOrder} disabled={reconciling || capturing || recovery.authRequired === true}
           className="px-5 py-2.5 min-h-[44px] rounded-xl text-sm font-semibold bg-[#7C5CFC] text-white disabled:opacity-50">
           {reconciling ? rc.checking : rc.check}
         </button>
