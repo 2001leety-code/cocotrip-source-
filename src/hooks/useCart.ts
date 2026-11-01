@@ -13,8 +13,13 @@ import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from './useAuth';
 import { stripUndefined, type CartItem } from '@/lib/cart-types';
 import {
-  getLocalCart, addToLocalCart, removeFromLocalCart, clearLocalCart, mergeGuestCart,
+  getLocalCart, addToLocalCart, removeFromLocalCart, clearLocalCart, mergeGuestCart, CART_LS_KEY,
 } from '@/lib/cart-storage';
+
+// 2026-11-01 결제 r20: 게스트 장바구니는 훅 인스턴스마다 localStorage 를 한 번 읽었다 — 결제가 끝나 다른 인스턴스(언마운트된 결제 화면)·
+//   다른 탭이 비워도 이 화면엔 결제 끝난 상품과 'Confirm & pay' 가 남았다(재결제 위험). 같은 탭 쓰기 알림 + storage 이벤트로 다시 읽는다.
+const guestCartListeners = new Set<() => void>();
+const notifyGuestCart = () => { for (const fn of [...guestCartListeners]) fn(); };
 
 export function useCart() {
   const { user } = useAuth();
@@ -29,6 +34,16 @@ export function useCart() {
       setLoading(false);
     }
   }
+
+  // ── 게스트: 같은 탭의 다른 인스턴스·다른 탭이 바꾼 장바구니를 다시 읽는다 (r20) ──
+  useEffect(() => {
+    if (userId) return;
+    const reread = () => setItems(getLocalCart());
+    const onStorage = (e: StorageEvent) => { if (!e.key || e.key === CART_LS_KEY) reread(); };
+    guestCartListeners.add(reread);
+    window.addEventListener('storage', onStorage);
+    return () => { guestCartListeners.delete(reread); window.removeEventListener('storage', onStorage); };
+  }, [userId]);
 
   // ── Firestore 실시간 구독 (로그인) / localStorage (게스트) ──
   useEffect(() => {
@@ -86,6 +101,7 @@ export function useCart() {
       }
     } else {
       setItems(addToLocalCart(full));
+      notifyGuestCart();
     }
   }, [userId]);
 
@@ -101,6 +117,7 @@ export function useCart() {
       catch (err) { console.warn('[useCart] remove failed:', err); }
     } else {
       setItems(removeFromLocalCart(id));
+      notifyGuestCart();
     }
   }, [userId]);
 
@@ -117,6 +134,7 @@ export function useCart() {
     } else {
       clearLocalCart();
       setItems([]);
+      notifyGuestCart();
     }
   }, [userId, items]);
 

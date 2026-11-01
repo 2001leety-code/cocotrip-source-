@@ -85,10 +85,10 @@ describe('PR #427 CY4 — capture failure rolls back the coupon', () => {
   it('provider-proven nonpayment releases the coupon (isUsed=false) and the order lock, then answers 409', () => {
     expect(notCapturedIdx).toBeGreaterThan(-1);
     expect(unknownIdx).toBeGreaterThan(notCapturedIdx);
-    expect(notCapturedBranch).toMatch(/couponLockRef\.update\(\s*\{[^}]*isUsed:\s*false/);
-    // r19: the order lock becomes a void tombstone (voidOrUnknown → discardAttempt) BEFORE the coupon is released; a failed void = UNKNOWN.
-    expect(notCapturedBranch).toMatch(/voidOrUnknown\(reconciled\.reason\)/);
-    expect(notCapturedBranch.indexOf('voidOrUnknown(')).toBeLessThan(notCapturedBranch.indexOf('isUsed: false'));
+    // r20: the order lock (tombstone, or delete without proof) and the coupon release commit in ONE transaction
+    //   (discardAttempt releaseCoupon) — no fire-and-forget coupon update left; a failed transaction = UNKNOWN (both kept).
+    expect(notCapturedBranch).toMatch(/voidOrUnknown\(reconciled\.reason, couponLockRef\)/);
+    expect(notCapturedBranch).not.toMatch(/couponLockRef\.update\(/);
     expect(notCapturedBranch).toMatch(/res\.writeHead\(\s*409/);
   });
 
@@ -133,10 +133,12 @@ describe('PR #427 CY4 — coupon-fail releases the order lock so the user can re
     expect(durable.state.deleted).toBe(false);
   });
 
-  it('coupon catch block returns 409 (not 500) so the client knows to retry', () => {
+  // r20: only a business rejection (COUPON_ALREADY_USED …) is final (409); infrastructure errors are 503 + claim release.
+  it('coupon catch block returns 409 for a business rejection and 503 (claim released, no Firestore text) for a transient error', () => {
     const couponCatchIdx = src.indexOf('catch (couponErr)');
-    const section = src.slice(couponCatchIdx, couponCatchIdx + 1500);
+    const section = src.slice(couponCatchIdx, couponCatchIdx + 2500);
     expect(section).toMatch(/res\.writeHead\(\s*409/);
+    expect(section).toMatch(/!COUPON_REJECTIONS\.includes\(code\)[\s\S]*releaseAttemptClaim\(attempt\)[\s\S]*res\.writeHead\(503/);
   });
 });
 

@@ -215,9 +215,9 @@ describe('capturePaypalOrder — re-check right before a NEW capture POST', () =
     expect(captureCalls).toHaveLength(0);
     expect(res.status).toBe(422);
     expect(res.body).toMatchObject({ code: 'PAYMENT_NOT_CAPTURED', paymentStatus: 'NOT_CAPTURED', preCaptureCode: 'DIETARY_COVERAGE_UNAVAILABLE', orderID: ORDER });
-    // r19: the attempt becomes a void tombstone (no intent) instead of being deleted — this order can never be captured later.
-    expect(store.get(`used_paypal_orders/${ORDER}`)).toMatchObject({ status: 'void_not_captured', captureState: 'not_captured', reason: 'DIETARY_COVERAGE_UNAVAILABLE' });
-    expect(store.get(`used_paypal_orders/${ORDER}`)).not.toHaveProperty('intent');
+    // r20: this request carries no same-order proof (no cookie / owner) → the attempt is only deleted (r18), never a
+    //   tombstone — knowing an orderID must not void it. Proven requests are voided (prepay-r20-server.test.ts).
+    expect(store.has(`used_paypal_orders/${ORDER}`)).toBe(false);
   });
   it('old unpaid order without the checked input → capture 0 calls, PREPAY_INPUT_MISSING (create a new order)', async () => {
     const legacy = snapshot(); delete (legacy as Dict).prepayInput; delete (legacy as Dict).prepayInputVersion;

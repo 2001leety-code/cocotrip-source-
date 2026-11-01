@@ -255,17 +255,17 @@ describe('capture state machine after a pre-capture refusal (adversarial seq + A
     expect(lockOf()).toMatchObject({ status: 'void_not_captured', captureState: 'not_captured' }); // r19: tombstone, not deleted
   });
 
-  // r19: the failed check now voids this order (tombstone) instead of deleting the record — the tombstone never blocks
-  //   new orders (captureState not_captured), and a retry of the same order answers order_voided (pay with a new order).
-  it('I: corrupt snapshot input (no cities) → the check fails before any capture call: 503, PayPal 0 calls, nothing left to block new orders', async () => {
+  it('I: corrupt snapshot input (no cities) → the check fails before any capture call: 503, PayPal 0 calls, the same order stays retryable', async () => {
     dbHolder.db = memDb({ [`paypal_order_snapshots/${ORDER}`]: { ...snapshot(), prepayInput: { version: 1, startDate: '2099-12-01', diets: ['halal'] } } });
     const calls = paypal({});
     const out = await call({ orderID: ORDER });
     expect(out.status).toBe(503);
     expect(out.body).toMatchObject({ code: 'ORDER_CHECK_UNAVAILABLE' });
     expect(calls).toEqual([]);
-    expect(lockOf()).toMatchObject({ status: 'void_not_captured', captureState: 'not_captured', reason: 'ORDER_CHECK_UNAVAILABLE' });
-    expect(isCheckoutUnresolved(lockOf(), null)).toBe(false);
+    // r20: a temporary check failure is not nonpayment proof — no tombstone; only the claim is released (record as before
+    //   any POST), so the same order can be retried once the check works.
+    expect(lockOf()).toMatchObject({ status: 'pending', captureState: 'none', claimUntil: 0 });
+    expect(isCheckoutUnresolved(lockOf(), null)).toBe(true);
   });
 
   it('fresh attempt + refusal → zero PayPal order calls (no GET, no POST), order voided', async () => {

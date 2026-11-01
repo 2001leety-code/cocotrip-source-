@@ -75,6 +75,8 @@ export const maxDuration = 60;
 export const config = { runtime: 'nodejs' };
 
 // ── 표준 응답 래퍼 ──
+// r20: 쿠폰 선점의 사업 규칙 거절(최종 — 이 주문 종결). 그 밖의 예외(Firestore·네트워크)는 일시 오류.
+const COUPON_REJECTIONS = ['COUPON_NOT_FOUND', 'COUPON_REVOKED', 'COUPON_ALREADY_USED'];
 const _ok  = (data) => ({ ok: true, data });
 const _err = (msg, code = 'UNKNOWN_ERROR') => ({ ok: false, error: msg, code });
 
@@ -430,8 +432,10 @@ export default async function handler(req, res) {
       throw tokenErr;
     }
     // r19: proven nonpayment => tombstone. A failed void (claim lost / money evidence) is never answered NOT_CAPTURED.
-    const voidOrUnknown = async (reason) => {
-      try { await discardAttempt(attempt, reason); return true; } catch (voidErr) {
+    //   r20: only a request WITH same-order proof writes the tombstone; without proof the attempt is just deleted (r18) —
+    //   knowing an orderID must not let anyone void someone else's order. releaseCoupon = same transaction.
+    const voidOrUnknown = async (reason, releaseCoupon = null) => {
+      try { await discardAttempt(attempt, reason, { voidOrder: _sameOrderProven, releaseCoupon }); return true; } catch (voidErr) {
         console.warn('[capturePaypalOrder] void tombstone not written — answering UNKNOWN:', orderID, voidErr.message);
         return false;
       }
@@ -475,12 +479,16 @@ export default async function handler(req, res) {
         res.writeHead(202, JSON_CORS);
         return res.end(JSON.stringify(pendingPaymentResponse({ orderID, flow: 'single', paymentStatus: 'CAPTURE_UNKNOWN' })));
       } else {
-        if (!(await voidOrUnknown(preCaptureBlock.code))) return unknownResponse();
-        console.warn('[capturePaypalOrder] AI planner pre-capture block — no capture:', orderID, preCaptureBlock.code, preCaptureBlock.details || '');
         if (preCaptureBlock.unavailable) {
+          // r20: a temporary check failure is not proof of nonpayment — like an OAuth failure, only the claim is released
+          //   (record stays as before any POST; the same order can be retried). Never a tombstone.
+          await releaseAttemptClaim(attempt);
+          console.warn('[capturePaypalOrder] AI planner pre-capture check unavailable — claim released, no capture:', orderID);
           res.writeHead(503, JSON_CORS);
           return res.end(JSON.stringify(_err(preCaptureBlock.message, preCaptureBlock.code)));
         }
+        if (!(await voidOrUnknown(preCaptureBlock.code))) return unknownResponse();
+        console.warn('[capturePaypalOrder] AI planner pre-capture block — no capture:', orderID, preCaptureBlock.code, preCaptureBlock.details || '');
         // 돈이 움직이지 않았음을 증명하는 기존 '미결제' 응답 모양 — 클라 복구 포인터가 풀리고 새 결제가 가능하다.
         //   preCaptureCode 로 사유(커버리지 불가·출발일·옛 주문)를 알려 손님 언어 안내를 고르게 한다.
         res.writeHead(preCaptureBlock.status, JSON_CORS);
@@ -536,8 +544,13 @@ export default async function handler(req, res) {
           // Money may already be captured — never abandon the order over a coupon; operator decides.
           console.error('[capturePaypalOrder] coupon pre-lock failed during recovery — continuing without coupon:', orderID);
           notifyOperator('coupon-race', `<code>${orderID}</code>\n복구 중 쿠폰 선점 실패: ${code} — 예약은 계속 진행, 쿠폰 수동 확인`).catch(() => {});
+        } else if (!COUPON_REJECTIONS.includes(code)) {
+          // r20: Firestore/네트워크 등 일시 오류 = 미결제 증거 아님 — claim 만 풀고(같은 주문 재시도 가능) 묘비 없음. 원문은 응답에 넣지 않는다.
+          await releaseAttemptClaim(attempt);
+          res.writeHead(503, JSON_CORS);
+          return res.end(JSON.stringify(_err('Could not reserve the coupon right now — please retry', 'COUPON_CHECK_UNAVAILABLE')));
         } else {
-          // capture 0회 — r19: 이 주문은 묘비(다시 결제 = 새 주문, 다른 쿠폰/쿠폰 없이). 묘비 실패 = UNKNOWN.
+          // capture 0회 — 쿠폰 사업 규칙 거절만 최종: 이 주문은 묘비(증명 없는 요청이면 기록 삭제), 다시 결제 = 새 주문. 실패 = UNKNOWN.
           if (!(await voidOrUnknown(`coupon-${code}`))) return unknownResponse();
         // 운영자 알림 — 쿠폰 race 발생을 인지 (수동 환불 불필요 — capture 안 일어났음).
         notifyOperator('coupon-race',
@@ -570,14 +583,10 @@ export default async function handler(req, res) {
     };
     const reconciled = await reconcileCapture({ attempt, orderID, baseUrl: PAYPAL_BASE_URL, accessToken, postCapture, forbidPost: forbidCapturePost, lookup: preCaptureLookup });
     if (reconciled.state === 'not_captured') {
-      // PR #427 (CY4): capture never happened — r19: void this order first (the customer pays again with a NEW order),
-      //   then release the coupon. A failed void keeps the coupon reservation (UNKNOWN).
-      if (!(await voidOrUnknown(reconciled.reason))) return unknownResponse();
-      if (couponLockRef) {
-        couponLockRef.update({ isUsed: false, usedAt: null, usedOrderID: null, pendingCapture: false }).catch((e) => {
-          console.warn('[capturePaypalOrder] coupon release after capture fail (non-fatal):', e.message);
-        });
-      }
+      // PR #427 (CY4): capture never happened — r20: the order is voided (or, without proof, its attempt deleted) AND the
+      //   coupon reserved by it released in ONE transaction: a voided order can never keep the coupon (isUsed/pendingCapture).
+      //   A failed transaction changes neither (UNKNOWN keeps both reservations).
+      if (!(await voidOrUnknown(reconciled.reason, couponLockRef))) return unknownResponse();
       console.warn('[capturePaypalOrder] capture not completed:', orderID, reconciled.reason);
       res.writeHead(409, JSON_CORS);
       return res.end(JSON.stringify(notCapturedResponse({ orderID, flow: 'single', reason: reconciled.reason })));

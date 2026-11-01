@@ -44,7 +44,7 @@ import {
   ensureFullRefundProof,
 } from './_shared/refund-ledger.js';
 import { releaseSlotForCanceledOrder } from './_shared/slot-capacity.js';
-import { quarantineVoidedCapture } from './_shared/payment-fulfillment-recovery.js';
+import { quarantineVoidedCapture, markVoidConflictAlerted } from './_shared/payment-fulfillment-recovery.js';
 import { recordPaymentReview } from './_shared/payment-review.js';
 
 // PR #423 (CZ6): disable Vercel's auto-bodyParser so we receive the raw
@@ -714,12 +714,20 @@ export default async function handler(req, res) {
             return respondRetryable(res, 'void_conflict_store_failed', e.message);
           }
           if (conflict) {
-            if (!conflict.already) {
-              await alertAdmin(
-                '🚨 <b>PayPal Webhook — 미결제로 닫은 주문에 결제 완료</b>\n\n' +
-                `PayPal Order: <code>${paypalOrderId}</code>\nPayPal TX: <code>${paypalTxId}</code>\n금액: $${amountUSD} ${currency}\n` +
-                '→ payment_reviews 격리됨. 예약 미확정 · 자동 환불 없음 — 수동 확정/환불 판단.'
-              );
+            // r20: "alert sent" is recorded apart from "conflict recorded" (voidConflict.alertedAtMs): a redelivery after a
+            //   failed review write (already=true) still alerts once. A failed send = retryable (PayPal redelivers).
+            if (!conflict.alerted) {
+              try {
+                await notify('admin',
+                  '🚨 <b>PayPal Webhook — 미결제로 닫은 주문에 결제 완료</b>\n\n' +
+                  `PayPal Order: <code>${paypalOrderId}</code>\nPayPal TX: <code>${paypalTxId}</code>\n금액: $${amountUSD} ${currency}\n` +
+                  '→ payment_reviews 격리됨. 예약 미확정 · 자동 환불 없음 — 수동 확정/환불 판단.'
+                );
+              } catch (e) {
+                return respondRetryable(res, 'void_conflict_alert_failed', e.message);
+              }
+              await markVoidConflictAlerted({ db: adminDb, orderID: paypalOrderId })
+                .catch((e) => console.warn('[paypal-webhook] void-conflict alert mark failed (a redelivery may alert again):', e.message));
             }
             try {
               await logWebhookEventStrict({

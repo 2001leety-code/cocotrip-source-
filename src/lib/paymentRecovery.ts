@@ -74,7 +74,12 @@ export const orderRecoveryKey = (orderID: string) => `${PREFIX}order:${orderID}`
 export const doneRecoveryKey = (orderID: string) => `${PREFIX}done:${orderID}`;
 const LEGACY_KEYS = [recoveryKey('single'), recoveryKey('single', PLANNER_RECOVERY_SCOPE), recoveryKey('cart')];
 const memoryOrders = new Map<string, PaymentRecovery>(); // 저장 실패한 이 탭의 주문(persisted:false)
-const memoryDone = new Set<string>();                     // 완료 표식 저장에 실패한 주문(이 탭에서만 숨김)
+/**
+ * r20: 완료 표식의 종류 — 'final' = 확정·환불(서버 최종), 'void' = 미결제 종료(order_voided 등). 미결제 종료는 서버가 나중에
+ *   CAPTURED·검토를 보이면(webhook 충돌) 그 증거가 이긴다(saveRecoveryOrder). 저장값: final = 시각(옛 형식 그대로), void = 'void:'+시각.
+ */
+export type DoneKind = 'final' | 'void';
+const memoryDone = new Map<string, DoneKind>();            // 완료 표식 저장에 실패한 주문(이 탭에서만 숨김)
 const listeners = new Set<() => void>();
 /**
  * r19: 이 탭에서 capture 요청이 진행 중인 주문 — 모듈 수준(패널 닫기·재마운트에도 유지). 버튼·장바구니의 '같은 주문 확인'
@@ -90,8 +95,29 @@ export function beginCapture(orderID: string): boolean {
 export function endCapture(orderID: string): void { if (capturesInFlight.delete(orderID)) notifyRecoveryChange(); }
 export const isCaptureInFlight = (orderID: string): boolean => capturesInFlight.has(orderID);
 
-/** 테스트 전용 — 모듈 메모리(저장 실패 주문·완료·진행 중 capture) 초기화. */
-export function resetPaymentRecoveryMemory(): void { memoryOrders.clear(); memoryDone.clear(); capturesInFlight.clear(); }
+/**
+ * r20: 이 탭에서 끝난 capture 의 결과 — capture 를 시작한 화면이 그 사이 언마운트됐을 때만 남는다(주문별). 다시 마운트된
+ *   CartCheckout·PayPalBookingButton 이 이것으로 성공·검토·미결제 화면을 띄우고, 닫을 때 dismissCaptureResult.
+ */
+export type CaptureResult = { orderID: string; flow: PaymentFlow; productType?: string; outcome: CaptureOutcome };
+const captureResults = new Map<string, CaptureResult>();
+export function recordCaptureResult(result: CaptureResult): void {
+  const kind = result.outcome.kind;
+  if (kind !== 'final' && kind !== 'review' && kind !== 'not_captured') return;
+  captureResults.set(result.orderID, result);
+  notifyRecoveryChange();
+}
+export function dismissCaptureResult(orderID: string): void { if (captureResults.delete(orderID)) notifyRecoveryChange(); }
+/** 이 flow 의 끝난 결과를 모두 닫는다(장바구니 패널 닫기). */
+export function dismissCaptureResults(flow: PaymentFlow): void {
+  let changed = false;
+  for (const [id, r] of captureResults) if (r.flow === flow) { captureResults.delete(id); changed = true; }
+  if (changed) notifyRecoveryChange();
+}
+const captureResultFor = (screen: RecoveryScreen): CaptureResult | null => [...captureResults.values()].find((r) => matchesScreen(r, screen)) || null;
+
+/** 테스트 전용 — 모듈 메모리(저장 실패 주문·완료·진행 중 capture·끝난 결과) 초기화. */
+export function resetPaymentRecoveryMemory(): void { memoryOrders.clear(); memoryDone.clear(); capturesInFlight.clear(); captureResults.clear(); }
 
 /** r19: 같은 주문의 두 기록 중 남길 쪽 — 더 강한 상태(CAPTURED > 그 밖) 우선, 같으면 updatedAt 최신(같으면 b). 강등 금지. */
 const statusRank = (p: PaymentRecovery) => (p.paymentStatus === 'CAPTURED' ? 1 : 0);
@@ -114,6 +140,10 @@ function subscribeRecovery(fn: () => void): () => void {
   return () => { listeners.delete(fn); };
 }
 
+const isVoidDone = (orderID: string): boolean => {
+  const raw = getRaw(doneRecoveryKey(orderID));
+  return raw !== null ? raw.startsWith('void:') : memoryDone.get(orderID) === 'void';
+};
 export function isRecoveryDone(orderID: string): boolean {
   return memoryDone.has(orderID) || getRaw(doneRecoveryKey(orderID)) !== null;
 }
@@ -151,9 +181,14 @@ export function readRecoveryOrder(orderID: string): PaymentRecovery | null {
 /**
  * 자기 주문 키에만 저장(createdAt 유지). 완료된 주문은 되살리지 않는다(null). 저장 실패 = 메모리(persisted:false).
  *   r19: 이미 CAPTURED 로 알려진 주문은 UNKNOWN 으로 내려 저장하지 않는다(늦은 pending·이 탭 onApprove 표식이 결제 증거를 가리지 않게).
+ *   r20: 미결제 종료('void') 표식은 서버의 CAPTURED·검토 증거가 이긴다 — 표식을 걷고 저장(설명 없이 막히지 않게). 확정('final')은 그대로.
  */
 export function saveRecoveryOrder(value: Omit<PaymentRecovery, 'updatedAt' | 'createdAt' | 'persisted'>): PaymentRecovery | null {
-  if (isRecoveryDone(value.orderID)) return null;
+  if (isRecoveryDone(value.orderID)) {
+    if (!isVoidDone(value.orderID) || !(value.paymentStatus === 'CAPTURED' || value.review)) return null;
+    memoryDone.delete(value.orderID);
+    try { localStorage.removeItem(doneRecoveryKey(value.orderID)); } catch { /* 메모리 표식은 걷혔다 */ }
+  }
   const existing = readRecoveryOrder(value.orderID);
   const paymentStatus = existing && existing.paymentStatus === 'CAPTURED' ? 'CAPTURED' : value.paymentStatus;
   const record: PaymentRecovery = { ...value, paymentStatus, v: 2, createdAt: existing && existing.createdAt ? existing.createdAt : Date.now(), updatedAt: Date.now() };
@@ -166,10 +201,13 @@ export function saveRecoveryOrder(value: Omit<PaymentRecovery, 'updatedAt' | 'cr
 }
 
 /** 서버가 입증한 종료 — 완료 표식 먼저, 그 다음 주문 키 삭제. 표식 저장 실패면 원본 보존(이 탭에서만 숨김). @returns 표식 저장 여부 */
-export function finishRecoveryOrder(orderID: string): boolean {
+export function finishRecoveryOrder(orderID: string, kind: DoneKind = 'final'): boolean {
+  // r20: 이미 확정('final') 표식이면 미결제('void')로 내리지 않는다.
+  const effective: DoneKind = kind === 'void' && isRecoveryDone(orderID) && !isVoidDone(orderID) ? 'final' : kind;
+  const value = effective === 'void' ? `void:${Date.now()}` : String(Date.now());
   let marked = false;
-  try { localStorage.setItem(doneRecoveryKey(orderID), String(Date.now())); marked = true; } catch { /* 원본 보존 */ }
-  if (!marked) memoryDone.add(orderID);
+  try { localStorage.setItem(doneRecoveryKey(orderID), value); marked = true; } catch { /* 원본 보존 */ }
+  if (!marked) memoryDone.set(orderID, effective);
   memoryOrders.delete(orderID);
   if (marked) { try { localStorage.removeItem(orderRecoveryKey(orderID)); } catch { /* 완료 표식이 우선한다 */ } }
   notifyRecoveryChange();
@@ -340,14 +378,19 @@ export function usePaymentRecovery(screen: RecoveryScreen) {
   // r19: 이 화면 주문의 capture 가 이 탭에서 진행 중인가(모듈 집합 — 재마운트에도 유지). '같은 주문 확인' disabled 에 쓴다.
   const [captureBusy, setCaptureBusy] = useState(() => !!initial && isCaptureInFlight(initial.orderID));
   const busyRef = useRef(captureBusy);
+  // r20: 이 화면이 맡는 주문의 끝난 capture 결과(capture 를 시작한 화면이 언마운트된 뒤 도착한 것) — 닫을 때까지 결과 화면.
+  const [captureResult, setCaptureResult] = useState<CaptureResult | null>(() => captureResultFor({ flow, planner, productType }));
+  const resultRef = useRef(captureResult);
   const refresh = useCallback(() => {
     const next = pick();
     const busy = !!next && isCaptureInFlight(next.orderID);
     if (busy !== busyRef.current) { busyRef.current = busy; setCaptureBusy(busy); }
+    const result = captureResultFor({ flow, planner, productType });
+    if (result !== resultRef.current) { resultRef.current = result; setCaptureResult(result); }
     if (sameRecovery(pendingRef.current, next)) return;
     pendingRef.current = next;
     setRecovery(next);
-  }, [pick]);
+  }, [pick, flow, planner, productType]);
   // r17: 화면 조건(flow·플래너·상품)이 바뀌면 즉시 재선택(구독 교체만 하면 상품 전환 뒤 그 상품 주문 대신 Book now 가 남았다).
   //   고정된(확인 중) 주문은 그대로 유지된다(selectRecovery).
   //   r17-8: bfcache 복원(pageshow persisted)도 재조회 — 첫 렌더와 구독 사이·숨은 동안 놓친 변경으로 끝난 주문 패널이 고착되지 않게.
@@ -368,12 +411,15 @@ export function usePaymentRecovery(screen: RecoveryScreen) {
     refresh();
     return !!saved && saved.persisted !== false;
   }, [refresh]);
-  /** 서버가 입증한 종료(확정·환불·최종 미결제 order_voided) — 완료 표식. r19: 미시도 전용 임시 해제(provisional)는 없앴다. */
-  const clearRecovery = useCallback((orderID: string) => {
+  /**
+   * 서버가 입증한 종료(확정·환불·최종 미결제 order_voided) — 완료 표식. r19: 미시도 전용 임시 해제(provisional)는 없앴다.
+   *   r20 kind: 'void' = 미결제 종료(서버가 나중에 CAPTURED·검토를 보이면 그 증거가 이긴다), 'final' = 확정·환불.
+   */
+  const clearRecovery = useCallback((orderID: string, kind: DoneKind = 'final') => {
     const current = pendingRef.current;
     if (current && current.orderID !== orderID) return;
     if (pinnedRef.current === orderID) pinnedRef.current = null;
-    finishRecoveryOrder(orderID);
+    finishRecoveryOrder(orderID, kind);
     refresh();
   }, [refresh]);
   const forgetRecovery = useCallback((orderID: string) => {
@@ -382,7 +428,7 @@ export function usePaymentRecovery(screen: RecoveryScreen) {
     if (pinnedRef.current === orderID) pinnedRef.current = null;
     refresh();
   }, [refresh]);
-  return { recovery, pendingRef, remember, clearRecovery, forgetRecovery, refresh, captureBusy };
+  return { recovery, pendingRef, remember, clearRecovery, forgetRecovery, refresh, captureBusy, captureResult };
 }
 
 export const PAYMENT_RECOVERY_COPY = {

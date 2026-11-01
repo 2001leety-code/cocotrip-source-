@@ -183,7 +183,7 @@ describe('PR #425 CY1 — capturePaypalOrder lock is transactional + releasable'
     const unknown = capture.indexOf("reconciled.state !== 'captured'");
     expect(notCaptured).toBeGreaterThan(-1);
     expect(unknown).toBeGreaterThan(notCaptured);
-    expect(capture.slice(notCaptured, unknown)).toMatch(/voidOrUnknown\(reconciled\.reason\)/); // r19: tombstone via discardAttempt, failure = UNKNOWN
+    expect(capture.slice(notCaptured, unknown)).toMatch(/voidOrUnknown\(reconciled\.reason, couponLockRef\)/); // r19/r20: tombstone (+coupon) via discardAttempt, failure = UNKNOWN
     const unknownBranch = capture.slice(unknown, capture.indexOf('return res.end', unknown));
     expect(unknownBranch).not.toMatch(/discardAttempt|\.delete\(/);
     expect(unknownBranch).toMatch(/releaseAttemptClaim\(attempt\)/);

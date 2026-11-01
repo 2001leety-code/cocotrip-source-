@@ -197,7 +197,8 @@ export default async function handler(req, res) {
     const reconciled = await reconcileCapture({ attempt, orderID, baseUrl: PAYPAL_BASE_URL, accessToken, postCapture });
     if (reconciled.state === 'not_captured') {
       // r19: tombstone (claim-checked). A failed void is never answered NOT_CAPTURED — UNKNOWN keeps the lock.
-      try { await discardAttempt(attempt, reconciled.reason); } catch (voidErr) {
+      //   r20: tombstone only with same-order proof; without it the attempt is just deleted (orderID alone voids nothing).
+      try { await discardAttempt(attempt, reconciled.reason, { voidOrder: sameOrderProven }); } catch (voidErr) {
         console.warn('[captureCartOrder] void tombstone not written — answering UNKNOWN:', orderID, voidErr.message);
         res.writeHead(202, JSON_CORS);
         return res.end(JSON.stringify(pendingPaymentResponse({ orderID, flow: 'cart', paymentStatus: 'CAPTURE_UNKNOWN' })));

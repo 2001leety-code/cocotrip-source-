@@ -123,6 +123,18 @@ describe('r19 cart — tombstone contract', () => {
     expect(db.rows.get(LOCK)).toMatchObject({ status: 'pending' });
   });
 
+  // r20-1: knowing a cart orderID (no cookie / owner) must not void it — the unproven decline only deletes its attempt.
+  it('r20: an unproven first capture that is declined deletes its attempt (no tombstone); the owner then pays the approved order', async () => {
+    provider.push({ method: 'POST', reply: { status: 422, body: { details: [{ issue: 'ORDER_NOT_APPROVED' }] } } });
+    const attacker = await call({ orderID: ORDER }, {});
+    expect(attacker.body).toMatchObject({ code: 'PAYMENT_NOT_CAPTURED' });
+    expect(db.rows.has(LOCK)).toBe(false);
+    provider.push({ method: 'POST', reply: { status: 201, body: { id: ORDER, status: 'COMPLETED', payer: { email_address: 'payer@example.invalid', name: { given_name: 'P', surname: 'Q' } }, purchase_units: [{ payments: { captures: [{ id: 'CAP-1', status: 'COMPLETED', amount: { value: '100.00', currency_code: 'USD' } }] } }] } } });
+    const owner = await call({ orderID: ORDER, userEmail: 'buyer@example.invalid' });
+    expect(owner.status).toBe(200);
+    expect(owner.body).toMatchObject({ ok: true, finalized: true });
+  });
+
   it('a posted attempt with lookup CREATED stays UNKNOWN (no tombstone, no POST)', async () => {
     db.rows.set(LOCK, { ...inFlightLock(), claimUntil: 0 });
     provider.push({ method: 'GET', reply: { status: 200, body: { id: ORDER, status: 'CREATED' } } });

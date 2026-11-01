@@ -13,7 +13,7 @@ import { useCart } from '@/hooks/useCart';
 import { useAuth } from '@/hooks/useAuth';
 import { useLanguage } from '@/hooks/useLanguage';
 import { isCartEnabled, type CartItemBooking } from '@/lib/cart-types';
-import { usePaymentRecovery } from '@/lib/paymentRecovery';
+import { usePaymentRecovery, dismissCaptureResults } from '@/lib/paymentRecovery';
 // CartCheckout 는 결제 진입(showCheckout) 시에만 필요 → lazy split (main 번들 환원, size-limit 130KB).
 const CartCheckout = lazy(() => import('./CartCheckout').then((m) => ({ default: m.CartCheckout })));
 
@@ -98,16 +98,20 @@ function CartPanelInner() {
   const [isOpen, setIsOpen] = useState(false);
   const [showCheckout, setShowCheckout] = useState(false);
   // B6-1 r17: 미해결 장바구니 결제 주문 — 장바구니가 비어도(앞 주문 성공 뒤 비움) 같은 주문 확인 화면으로 들어갈 수 있어야 한다.
-  const { recovery: pendingCartOrder } = usePaymentRecovery({ flow: 'cart' });
+  //   r20: captureResult = 이 탭에서 끝났지만 결과 화면이 아직 안 보인 장바구니 결제(결제 화면이 그 사이 닫힘) — 열면 그 결과 화면.
+  const { recovery: pendingCartOrder, captureResult: cartResult } = usePaymentRecovery({ flow: 'cart' });
   const panelRef = useRef<HTMLDivElement>(null);
   // r18: 빈 장바구니 + 미해결 주문으로 들어온 확인 화면은 고정 — 확정되며 주문 기록이 지워져도 결과 화면을 닫을 때까지 유지.
-  if (isOpen && !showCheckout && !loading && items.length === 0 && pendingCartOrder) setShowCheckout(true);
+  if (isOpen && !showCheckout && !loading && ((items.length === 0 && pendingCartOrder) || cartResult)) setShowCheckout(true);
+  // r19: 모든 닫기에서 고정 해제 / r20: 이어받은 결과 화면도 닫힌다.
+  const closePanel = () => { setIsOpen(false); setShowCheckout(false); dismissCaptureResults('cart'); };
 
   useEffect(() => {
     function handleOutside(e: MouseEvent) {
       if (panelRef.current && !panelRef.current.contains(e.target as Node)) {
         setIsOpen(false);
-        setShowCheckout(false); // r19: 모든 닫기에서 고정 해제
+        setShowCheckout(false);
+        dismissCaptureResults('cart');
       }
     }
     if (isOpen) document.addEventListener('mousedown', handleOutside);
@@ -144,7 +148,7 @@ function CartPanelInner() {
                 <h2 className="text-white font-semibold text-lg customer-cart-title">{c.title || 'Cart'}</h2>
                 <span className="text-white/55 text-sm">({items.length})</span>
               </div>
-              <button onClick={() => { setIsOpen(false); setShowCheckout(false); }} className="p-1.5 rounded-lg hover:bg-white/10">
+              <button onClick={closePanel} className="p-1.5 rounded-lg hover:bg-white/10">
                 <X size={18} className="text-white/50" />
               </button>
             </div>
