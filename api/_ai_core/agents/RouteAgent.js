@@ -11,7 +11,7 @@ import { normalizeRegionKey, regionCityKey, departureCityKey } from "../response
 import { throttledTelegramAlert } from "../../_shared/telegram-throttle.js";
 // Phase 3 (2026-05-27): zone_courses Firestore transit_matrix cache — ODsay 호출 절감.
 import { lookupTransitCache, getTransitCacheStats } from "../transitCache.js";
-import { isSameLodgingMarker, isLodgingBookendPair, effectiveBookedAddress } from "../mergedLodging.js"; // PR2 r11/r12: 같은 숙소 판정 공용 모듈
+import { isSameLodgingMarker, isLodgingBookendPair, effectiveBookedAddress, stayMinOf } from "../mergedLodging.js"; // PR2 r11/r12: 같은 숙소 판정 공용 모듈
 // PR-C (2026-06-01, FEATURE_CHARTER_HERO_PRICE OFF default): 공항픽업 가격 SSOT.
 // 차터 도착 HERO 가격 표시용 — airport_transfer_prices[zoneKey].priceKRW (읽기 전용).
 import { loadPricingSpec } from "../../_shared/pricing.js";
@@ -754,11 +754,7 @@ const stopCat = (p) => String(p?.category || '').toLowerCase();
  *   예전 `Number(stay_min) || 60` 은 0분 표식을 60분으로 바꿔 준비 (종료−85, 종료−60] 의 유일한 저녁을 밀어냈고,
  *   음수는 시각을 거꾸로 돌렸다. end_time 백필(planPersister.computeEndTime)도 같은 숫자를 쓴다.
  */
-const stayOf = (p) => {
-    const raw = p?.stay_min;
-    const n = Number(raw);
-    return raw !== null && raw !== undefined && raw !== '' && Number.isFinite(n) ? Math.max(0, Math.floor(n)) : 60;
-};
+const stayOf = stayMinOf; // PR2 r13: recalc-transit 과 같은 함수(mergedLodging.js)
 /** 관광 stop(숙소·공항·이동·식사가 아닌 것) — 배치 단계가 빼는 대상. */
 export const isSightseeingStop = (p) => !NOT_SIGHTSEEING.has(stopCat(p));
 /** Day1 바닥이 걸리는 stop — 첫 관광·식당(이동·숙소·공항 표식이 아니라). PR2 r3. */

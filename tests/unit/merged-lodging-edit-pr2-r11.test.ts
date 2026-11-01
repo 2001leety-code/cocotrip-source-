@@ -161,7 +161,8 @@ describe('r12-2 — one effective booked-hotel address (hotel, else zone) for ge
   });
   it('a different zone address → not merged (normal leg)', async () => {
     const { stops: out } = await recalc(pair(), { hotel_address: null, recommended_zone_address: '부산 해운대구 1' });
-    expect(out[1].start_time).toBe('00:30'); // 일반 구간: 23:00 + (기존 recalc 의 체류 0→60) + 25 + 5 = Astra 재현의 00:30
+    // r13: 일반 구간 23:00 + 체류 0(명시 0 유지 — 예전 0→60 버그면 00:30) + 25 + 5
+    expect(out[1].start_time).toBe('23:30');
   });
   it('quality score with the zone address: a real merge is not a route failure; the persister and RouteAgent use the same function', () => {
     const itin = { days: [{ day: 1, stops: [

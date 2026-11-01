@@ -20,6 +20,16 @@ function distanceM(a, b) {
 }
 
 /**
+ * 체류 분 — PR2 r3→r13: 명시된 숫자는 그대로(0 = 숙소 출발 표식, 음수는 0), 누락·빈값·비숫자만 기본 60.
+ *   RouteAgent(생성 stitch)·recalc-transit(편집 후 재계산) 공용 — 예전 `stay_min || 60` 은 0분 표식을 60분으로 읽었다.
+ */
+export function stayMinOf(p) {
+  const raw = p?.stay_min;
+  const n = Number(raw);
+  return raw !== null && raw !== undefined && raw !== '' && Number.isFinite(n) ? Math.max(0, Math.floor(n)) : 60;
+}
+
+/**
  * 같은 숙소의 연속 표식(숙소 → 숙소) — PR2 r4: **두 좌표가 모두 유효할 때만** 50m 안이면 같은 숙소. 이름은 보지 않는다
  *   (이름이 같아도 좌표가 다르면 다른 지점, 좌표 누락은 판정 불가 → 합치지 않음 — Number(null)=0 함정 제거).
  */

@@ -28,7 +28,7 @@ import { formatTransitSummary } from './_odsay_helper.js';
 import { searchTransit } from './_transit_provider.js';
 // NCP Maps 키 해석 + geocode 호출 SSOT — 키 목록 복제 금지 (mood-route.js:45~ 주석).
 import { geocode, resolveNcpKeys } from './_shared/mood-route.js';
-import { isMergedLodgingStop, effectiveBookedAddress } from './_ai_core/mergedLodging.js'; // PR2 r10/r12: 같은 숙소 병합 표식(이동 0)
+import { isMergedLodgingStop, isSameLodgingMarker, isLodgingBookendPair, effectiveBookedAddress, stayMinOf, SAME_LODGING_FIELD } from './_ai_core/mergedLodging.js'; // PR2 r10/r12/r13: 같은 숙소 병합 표식(이동 0)·체류 규칙
 
 export const maxDuration = 60;
 export const config = { runtime: 'nodejs' };
@@ -151,6 +151,15 @@ export default async function handler(req, res) {
       }
     }
 
+    // PR2 r13: 편집으로 새로 이웃한 같은 숙소(표식 없음)도 생성과 같은 규칙이면 병합 표식을 단다 — 편집된 구간(stale)에서만.
+    //   규칙 = RouteAgent.stitchStartMins: 50m 좌표 규칙, 또는 도시 이동일이 아닌 날의 좌표 없는 북엔드(mergeBookend: !isCityChangeDay).
+    const cityChangeDay = !!(day.intercity_transit && day.intercity_transit.mode);
+    for (const idx of staleIndices) {
+      if (idx > 0 && (isSameLodgingMarker(stops[idx - 1], stops[idx]) || (!cityChangeDay && isLodgingBookendPair(stops, idx, bookedAddress)))) {
+        stops[idx][SAME_LODGING_FIELD] = true;
+      }
+    }
+
     // 4. Recalculate transit for each stale segment
     let recalculated = 0;
     const BUFFER_MIN = 5;
@@ -255,13 +264,11 @@ export default async function handler(req, res) {
       for (let i = stitchFrom; i < stops.length; i++) {
         // PR2 r10: 같은 숙소 병합 = 이동·버퍼 0, 앞 숙소 시각 + 체류(명시 0 유지)·자정 넘김 금지 — RouteAgent.stitchStartMins 와 같은 규칙.
         if (isMergedLodgingStop(stops, i, bookedAddress)) {
-          const raw = stops[i - 1].stay_min;
-          const stay = raw !== null && raw !== undefined && raw !== '' && Number.isFinite(Number(raw)) ? Math.max(0, Math.floor(Number(raw))) : 60;
-          currentMin = Math.max(currentMin, Math.min(currentMin + stay, 24 * 60 - 1));
+          currentMin = Math.max(currentMin, Math.min(currentMin + stayMinOf(stops[i - 1]), 24 * 60 - 1));
           stops[i].start_time = formatTime(currentMin);
           continue;
         }
-        const prevStay = stops[i - 1].stay_min || 60;
+        const prevStay = stayMinOf(stops[i - 1]); // r13: 명시 0 은 0(생성 규칙과 같음) — 예전 `|| 60` 은 편집 한 번에 +60분
         const transitMin = (stops[i].transit_from_prev && stops[i].transit_from_prev.est_min) || 25;
         currentMin += prevStay + transitMin + BUFFER_MIN;
         stops[i].start_time = formatTime(currentMin);
