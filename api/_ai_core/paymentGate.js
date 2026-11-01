@@ -15,7 +15,7 @@ import { isReviewFulfillable, PAYMENT_REVIEW_RESOLUTION } from '../_shared/payme
 import { throttledTelegramAlert } from '../_shared/telegram-throttle.js';
 import { isAiPlannerFullProduct } from '../_shared/ai-planner-policy.js';
 import { toMinorUnits, verifyCaptureIntegrity } from '../_shared/paypal-capture-verify.js';
-import { claimPlanIssuance, PLAN_ISSUANCE_CODE } from '../_shared/plan-issuance.js';
+import { claimPlanIssuance, isPlanIssuanceComplete, PLAN_ISSUANCE_CODE } from '../_shared/plan-issuance.js';
 import { shapeRequest } from './requestShaper.js';
 import { checkStartDateTooSoon } from './validateStartDate.js';
 import { enforceDietaryCoverage, hasSafetyDiet } from './dietaryCoverageGate.js';
@@ -693,6 +693,17 @@ export async function enforcePaymentAndRevision(body, adminDb, authenticatedEmai
         //   DUPLICATE 로 막히는 self-DoS 가 된다.
         // 🔴 B6-1: 발급권 선점 전에 결제 주문 ↔ 요청 입력 바인딩(새 주문 = 지문 대조, 옛 결제 주문 = 1회 고정).
         //   r3: 소유자 → 고정 입력 대조 → 커버리지(거부 시 운영자 알림) → 발급권. ownerUid = createPaypalOrder 와 같은 신원 기준.
+        // 🔴 B6-1 r16: 완료 전용 조회를 입력 대조·식이 검사보다 먼저(결제 검증은 위에서 끝남) — 이미 발급된 주문은 DUPLICATE_ORDER.
+        //   발급권 선점(claimPlanIssuance)은 옮기지 않는다(식이 실패 전에 잠기면 정당한 재시도가 막힌다). 조회 실패는 아래 claim 이 판정.
+        let alreadyIssued = false;
+        try {
+          alreadyIssued = await isPlanIssuanceComplete(adminDb, paypalOrderId);
+        } catch (doneErr) {
+          console.warn('[planner] issuance completion pre-check 실패 → claim 단계가 판정:', doneErr.message);
+        }
+        if (alreadyIssued) {
+          return reject(403, 'DUPLICATE_ORDER', 'Order already used', 'This payment has already been used to generate a plan.');
+        }
         let bound;
         try {
           bound = await bindPrepayInputBeforeClaim(adminDb, paypalOrderId,

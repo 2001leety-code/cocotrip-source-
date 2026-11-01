@@ -37,7 +37,7 @@ vi.mock('@/lib/charterUsd', () => ({ charterCheckoutExpectedUsd: () => undefined
 vi.mock('@/components/GuestSignupNudge', () => ({ GuestSignupNudge: () => null }));
 vi.mock('qrcode', () => ({ default: { toDataURL: async () => 'data:image/png;base64,AAAA' } }));
 
-import { recoveryKey, PLANNER_RECOVERY_SCOPE, settlePlannerIssue, markPlannerIssuePending } from '../../src/lib/paymentRecovery';
+import { recoveryKey, PLANNER_RECOVERY_SCOPE, settlePlannerIssue, markPlannerIssuePending, readRecoveryOrder, isRecoveryDone, saveRecoveryOrder } from '../../src/lib/paymentRecovery';
 import { usePlanCompletionTracking } from '../../src/pages/PlanDetailPage/hooks/usePlanCompletionTracking';
 const { usePlannerHandlers } = await import('../../src/pages/PlannerPage/hooks/usePlannerHandlers');
 const { PayPalBookingButton } = await import('../../src/components/PayPalBookingButton');
@@ -47,6 +47,8 @@ const SHARED = recoveryKey('single');
 const ORDER = '5O190127TN364715T';
 const ptr = (orderID: string, productType = 'ai_planner_full', status = 'CAPTURED') => JSON.stringify({ orderID, flow: 'single', paymentStatus: status, review: false, productType, updatedAt: 1 });
 const orderOn = (k: string) => { const v = localStorage.getItem(k); return v ? (JSON.parse(v) as { orderID: string }).orderID : null; };
+// r16: 옛 플래너 키는 읽기만(지우지 않음) — "유지/삭제"는 미해결 목록에 그 주문이 남았는가(완료 표식이면 빠짐)로 본다.
+const listed = (id = ORDER) => readRecoveryOrder(id)?.orderID || null;
 
 beforeEach(() => { cleanup(); vi.clearAllMocks(); localStorage.clear(); });
 afterEach(() => { vi.restoreAllMocks(); try { localStorage.clear(); } catch { /* */ } });
@@ -62,50 +64,56 @@ async function issue(data: Record<string, unknown>) {
 describe('r15-1 — the paid planner pointer is cleared only once the plan is really issued', () => {
   it('streaming 200 (firestoreSaved:false) → pointer kept; plan detail sees ready → removed', async () => {
     await issue({ planId: 'plan-s', planUrl: '/my-plans/plan-s', status: 'streaming', firestoreSaved: false });
-    expect(orderOn(PLANNER)).toBe(ORDER);
+    expect(listed()).toBe(ORDER);
     const { rerender } = renderHook(({ status }) => usePlanCompletionTracking('plan-s', status, true), { initialProps: { status: 'streaming' as 'streaming' | 'ready' | 'error' } });
-    expect(orderOn(PLANNER)).toBe(ORDER);
+    expect(listed()).toBe(ORDER);
     rerender({ status: 'ready' });
-    expect(orderOn(PLANNER)).toBeNull();
+    expect(listed()).toBeNull(); // r16: 완료 표식 → 목록에서 빠짐
+    expect(isRecoveryDone(ORDER)).toBe(true);
   });
   it('streaming 200 → worker fails (error) → pointer kept → the planner shows "Check this order", not Book now', async () => {
     await issue({ planId: 'plan-e', planUrl: '/my-plans/plan-e', status: 'streaming', firestoreSaved: false });
     renderHook(() => usePlanCompletionTracking('plan-e', 'error', true));
-    expect(orderOn(PLANNER)).toBe(ORDER);
+    expect(listed()).toBe(ORDER);
     render(<PayPalBookingButton productType="ai-planner-full" passengers={1} priceKRW={14000} lang="en" keepRecoveryUntilFulfilled onPaymentSuccess={vi.fn(async () => {})} p={{ paypalBookBtn: 'Book now' }} />);
     expect(screen.getByText('Check this order')).toBeInTheDocument();
     expect(screen.queryByText('Book now')).toBeNull();
   });
   it('saved 200 (firestoreSaved:true) → removed at once', async () => {
     await issue({ planId: 'plan-r', planUrl: '/my-plans/plan-r', firestoreSaved: true });
-    expect(orderOn(PLANNER)).toBeNull();
+    expect(listed()).toBeNull(); // r16: 완료 표식 → 목록에서 빠짐
+    expect(isRecoveryDone(ORDER)).toBe(true);
   });
   it('200 without a plan address → pointer kept (NO_PLAN_URL path)', async () => {
     await issue({ status: 'streaming', firestoreSaved: false });
-    expect(orderOn(PLANNER)).toBe(ORDER);
+    expect(listed()).toBe(ORDER);
   });
   it('pure: settlePlannerIssue only acts on the marked plan; streaming waits', () => {
     localStorage.setItem(PLANNER, ptr(ORDER));
     markPlannerIssuePending('plan-x', ORDER);
     settlePlannerIssue('plan-other', 'ready');
     settlePlannerIssue('plan-x', 'streaming');
-    expect(orderOn(PLANNER)).toBe(ORDER);
+    expect(listed()).toBe(ORDER);
     settlePlannerIssue('plan-x', 'ready');
-    expect(orderOn(PLANNER)).toBeNull();
+    expect(listed()).toBeNull(); // r16: 완료 표식 → 목록에서 빠짐(옛 키는 읽기만)
+    expect(localStorage.getItem('cocotrip:payment-recovery:issue:plan-x')).toBeNull();
   });
 });
 
 describe('r15-2 — a tab whose key was overwritten in the compare/write race keeps its own order', () => {
   it('my planner Q on the planner key → another tab writes P over it (Q → P event) → Q panel stays, Q moved to the shared key, P untouched', async () => {
-    const q = ptr('ORD-Q');
-    localStorage.setItem(PLANNER, q);
+    // r16: 내 주문 Q 는 자기 주문 키에 산다 — 다른(구버전) 탭이 옛 플래너 키에 P 를 써도 Q 를 덮을 수 없다.
+    //   Q 패널(고정) 유지, P 는 별개 주문으로 그대로, 공용 키로 피신할 필요 없음, Book now 없음.
+    saveRecoveryOrder({ orderID: 'ORD-Q', flow: 'single', paymentStatus: 'CAPTURED', review: false, productType: 'ai_planner_full' });
     render(<PayPalBookingButton productType="ai-planner-full" passengers={1} priceKRW={14000} lang="en" keepRecoveryUntilFulfilled onPaymentSuccess={vi.fn(async () => {})} p={{ paypalBookBtn: 'Book now' }} />);
     const p = ptr('ORD-P');
-    await act(async () => { localStorage.setItem(PLANNER, p); window.dispatchEvent(new StorageEvent('storage', { key: PLANNER, oldValue: q, newValue: p })); });
+    await act(async () => { localStorage.setItem(PLANNER, p); window.dispatchEvent(new StorageEvent('storage', { key: PLANNER, oldValue: null, newValue: p })); });
     expect((document.querySelector('.customer-paypal-recovery .font-mono') as HTMLElement | null)?.textContent).toBe('ORD-Q');
     expect(screen.queryByText('Book now')).toBeNull();
     expect(orderOn(PLANNER)).toBe('ORD-P');
-    expect(orderOn(SHARED)).toBe('ORD-Q');
+    expect(orderOn(SHARED)).toBeNull();
+    expect(listed('ORD-Q')).toBe('ORD-Q');
+    expect(listed('ORD-P')).toBe('ORD-P');
   });
   it('single tab, normal sequence (remove then write) still follows the other tab', async () => {
     const q = ptr('ORD-Q', 'charter_dmz', 'CAPTURE_UNKNOWN');

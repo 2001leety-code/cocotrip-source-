@@ -27,7 +27,7 @@ vi.mock('react-router-dom', async () => {
 });
 
 import { CartCheckout } from '../../src/components/CartCheckout';
-import { recoveryKey, PLANNER_RECOVERY_SCOPE } from '../../src/lib/paymentRecovery';
+import { recoveryKey, PLANNER_RECOVERY_SCOPE, readRecoveryOrder } from '../../src/lib/paymentRecovery';
 
 const SHARED = recoveryKey('single');
 const PLANNER = recoveryKey('single', PLANNER_RECOVERY_SCOPE);
@@ -35,7 +35,6 @@ const CART = recoveryKey('cart');
 const ptr = (orderID: string, status: string, productType = 'ai_planner_full') => JSON.stringify({ orderID, flow: 'single', paymentStatus: status, review: false, productType, updatedAt: 1 });
 const read = (k: string) => { const v = localStorage.getItem(k); return v ? JSON.parse(v) as { orderID: string; paymentStatus: string; productType?: string; flow: string } : null; };
 const reply = (status: number, body: unknown) => ({ ok: status < 300, status, json: async () => body });
-const final = (orderID: string) => ({ ok: true, finalized: true, data: { orderID, amount: '100', currency: 'USD', payerName: 'P', payerEmail: 'p@example.invalid' } });
 
 beforeEach(() => { cleanup(); vi.clearAllMocks(); });
 afterEach(() => { vi.restoreAllMocks(); try { localStorage.clear(); } catch { /* */ } });
@@ -53,34 +52,37 @@ describe('r13 — CartCheckout keeps foreign orders intact', () => {
     expect(screen.getByText(/still being confirmed/)).toBeInTheDocument();
     expect(read(SHARED)).toMatchObject({ orderID: 'ORD-P', productType: 'ai_planner_full', flow: 'single' }); // 상품 정보 보존
     expect(read(PLANNER)?.orderID).toBe('ORD-Q');
+    expect(readRecoveryOrder('ORD-P')).toMatchObject({ productType: 'ai_planner_full', flow: 'single' }); // r16: 그 주문 키에도 상품 그대로
     expect(read(CART)).toBeNull();
     expect(mocks.clear).not.toHaveBeenCalled();
   });
   it('a planner order announced to the cart (other tab) → Check → final → cart NOT cleared, no success, P moved to the planner key as CAPTURED', async () => {
-    mocks.authFetch.mockImplementation(async (url: string) => {
-      if (url === '/api/capturePaypalOrder') return reply(200, final('ORD-P'));
-      throw new Error(`OFFLINE: unexpected ${url}`);
-    });
+    // r16: 장바구니 화면은 cart 주문만 맡는다 — 다른 탭이 알린 플래너 단건 주문은 패널·확인·성공·장바구니 비우기 없이 그대로 남는다(플래너 화면 몫).
+    mocks.authFetch.mockImplementation(async (url: string) => { throw new Error(`OFFLINE: unexpected ${url}`); });
     render(<CartCheckout onClose={() => {}} />);
     const p = ptr('ORD-P', 'CAPTURE_UNKNOWN');
     await act(async () => { localStorage.setItem(SHARED, p); window.dispatchEvent(new StorageEvent('storage', { key: SHARED, oldValue: null, newValue: p })); });
-    await act(async () => { fireEvent.click(await screen.findByText('Check this order')); await new Promise((r) => setTimeout(r, 10)); });
+    expect(screen.queryByText('Check this order')).toBeNull();
+    expect(screen.getByText('Confirm & pay')).toBeInTheDocument();
+    expect(mocks.authFetch).not.toHaveBeenCalled();
     expect(mocks.clear).not.toHaveBeenCalled();
     expect(screen.queryByText('Booking confirmed!')).toBeNull();
-    expect(screen.getByText(/confirmed for a different order/)).toBeInTheDocument();
-    expect(read(PLANNER)).toMatchObject({ orderID: 'ORD-P', paymentStatus: 'CAPTURED' });
-    expect(read(SHARED)).toBeNull();
+    expect(readRecoveryOrder('ORD-P')).toMatchObject({ orderID: 'ORD-P', flow: 'single', productType: 'ai_planner_full', paymentStatus: 'CAPTURE_UNKNOWN' });
+    expect(localStorage.getItem(SHARED)).toBe(p);
   });
   it('a foreign single order still pending → its pointer keeps flow + product (not rewritten as a cart order)', async () => {
+    // r16: 다른 탭이 알린 단건 주문은 장바구니 화면에 선택되지 않는다. 결제 시도 → 서버 409(그 단건 미결) → 원래 flow·상품 그대로 보존 + 중립 안내.
     mocks.authFetch.mockImplementation(async (url: string) => {
-      if (url === '/api/capturePaypalOrder') return reply(202, { ok: false, code: 'PAYMENT_RECOVERY_PENDING', orderID: 'ORD-T', flow: 'single', paymentStatus: 'CAPTURED', finalized: false });
+      if (url === '/api/createCartOrder') return reply(409, { ok: false, code: 'PAYMENT_RECOVERY_PENDING', orderID: 'ORD-T', flow: 'single', paymentStatus: 'CAPTURED', productType: 'tour_dmz' });
       throw new Error(`OFFLINE: unexpected ${url}`);
     });
     render(<CartCheckout onClose={() => {}} />);
     const t = ptr('ORD-T', 'CAPTURE_UNKNOWN', 'tour_dmz');
     await act(async () => { localStorage.setItem(SHARED, t); window.dispatchEvent(new StorageEvent('storage', { key: SHARED, oldValue: null, newValue: t })); });
-    await act(async () => { fireEvent.click(await screen.findByText('Check this order')); await new Promise((r) => setTimeout(r, 10)); });
-    expect(read(SHARED)).toMatchObject({ orderID: 'ORD-T', flow: 'single', productType: 'tour_dmz', paymentStatus: 'CAPTURED' });
+    expect(screen.queryByText('Check this order')).toBeNull();
+    await act(async () => { fireEvent.click(screen.getByText('Confirm & pay')); await new Promise((r) => setTimeout(r, 10)); });
+    expect(screen.getByText(/still being confirmed/)).toBeInTheDocument();
+    expect(readRecoveryOrder('ORD-T')).toMatchObject({ orderID: 'ORD-T', flow: 'single', productType: 'tour_dmz', paymentStatus: 'CAPTURED' });
     expect(read(CART)).toBeNull();
     expect(mocks.clear).not.toHaveBeenCalled();
   });
@@ -91,7 +93,7 @@ describe('r13 — CartCheckout keeps foreign orders intact', () => {
     });
     render(<CartCheckout onClose={() => {}} />);
     await act(async () => { fireEvent.click(screen.getByText('Confirm & pay')); await new Promise((r) => setTimeout(r, 10)); });
-    await waitFor(() => expect(read(CART)).toMatchObject({ orderID: 'CART-1', flow: 'cart' }));
+    await waitFor(() => expect(readRecoveryOrder('CART-1')).toMatchObject({ orderID: 'CART-1', flow: 'cart' })); // r16: 주문별 키
     expect(screen.getByText('Check this order')).toBeInTheDocument();
   });
 });

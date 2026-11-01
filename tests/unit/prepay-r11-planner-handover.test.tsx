@@ -32,11 +32,12 @@ vi.mock('react-router-dom', async () => {
 });
 
 import { PayPalBookingButton } from '../../src/components/PayPalBookingButton';
-import { recoveryKey, PLANNER_RECOVERY_SCOPE } from '../../src/lib/paymentRecovery';
+import { recoveryKey, PLANNER_RECOVERY_SCOPE, readRecoveryOrder, isRecoveryDone, saveRecoveryOrder } from '../../src/lib/paymentRecovery';
 
 const SHARED = recoveryKey('single');
 const PLANNER = recoveryKey('single', PLANNER_RECOVERY_SCOPE);
-const ptr = (orderID: string, status: string, productType = 'ai_planner_full') => JSON.stringify({ orderID, flow: 'single', paymentStatus: status, review: false, productType, updatedAt: 1 });
+// r16: 화면은 createdAt(옛 키 = updatedAt) → orderID 순으로 고른다 — "Q 를 먼저 보는" 이야기를 위해 P 를 더 늦게(updatedAt 2).
+const ptr = (orderID: string, status: string, productType = 'ai_planner_full', updatedAt = orderID === 'ORD-P' ? 2 : 1) => JSON.stringify({ orderID, flow: 'single', paymentStatus: status, review: false, productType, updatedAt });
 const shownOrder = () => (document.querySelector('.customer-paypal-recovery .font-mono') as HTMLElement | null)?.textContent || null;
 const notCaptured = (orderID: string) => ({ ok: false, code: 'PAYMENT_NOT_CAPTURED', orderID, flow: 'single', paymentStatus: 'NOT_CAPTURED', finalized: false, error: 'Payment was not completed. You can start a new payment.' });
 const final = (orderID: string) => ({ ok: true, finalized: true, data: { orderID, amount: '100', currency: 'USD', payerName: 'P', payerEmail: 'p@example.invalid' } });
@@ -61,8 +62,10 @@ describe('r11-1 — when the planner key\'s order is released, the paid planner 
     await act(async () => { fireEvent.click(screen.getByText('Check this order')); await new Promise((r) => setTimeout(r, 10)); });
     expect(shownOrder()).toBe('ORD-P');
     expect(screen.queryByText('Book now')).toBeNull();
-    expect(JSON.parse(localStorage.getItem(PLANNER) || 'null')).toMatchObject({ orderID: 'ORD-P', paymentStatus: 'CAPTURED' });
-    expect(localStorage.getItem(SHARED)).toBeNull();
+    // r16: 이전 없음 — P 는 자기 주문(옛 공용 키 그대로, 읽기만)으로 CAPTURED 유지, Q 는 목록에서 빠짐.
+    expect(readRecoveryOrder('ORD-P')).toMatchObject({ orderID: 'ORD-P', paymentStatus: 'CAPTURED' });
+    expect(localStorage.getItem(SHARED)).toBe(ptr('ORD-P', 'CAPTURED'));
+    expect(readRecoveryOrder('ORD-Q')).toBeNull();
   });
   it('another tab deletes Q (StorageEvent) → P panel, no Book now', async () => {
     localStorage.setItem(SHARED, ptr('ORD-P', 'CAPTURED'));
@@ -92,15 +95,37 @@ describe('r11-1 — when the planner key\'s order is released, the paid planner 
 
 describe('r11-2 — an order this screen let go is not revived by another tab re-saving it', () => {
   it('charter screen: P (planner) final → neutral notice; another tab re-saves P → still the notice, no panel (once only)', async () => {
+    // r16: 플래너 P 는 처음부터 차터 화면 몫이 아니다 — 다른 탭이 다시 저장해도 패널 없음(Book now).
     localStorage.setItem(SHARED, ptr('ORD-P', 'CAPTURE_UNKNOWN'));
-    localStorage.setItem(PLANNER, ptr('ORD-Q', 'CAPTURE_UNKNOWN')); // r10 (a): P 는 공용 키에 남는다
+    localStorage.setItem(PLANNER, ptr('ORD-Q', 'CAPTURE_UNKNOWN'));
+    const onSuccess = vi.fn();
+    const charter = () => <PayPalBookingButton productType="charter_dmz" passengers={2} priceKRW={135000} lang="en" onPaymentSuccess={onSuccess} p={{ paypalBookBtn: 'Book now' }} />;
+    render(charter());
+    expect(shownOrder()).toBeNull();
+    await act(async () => {
+      localStorage.setItem(SHARED, ptr('ORD-P', 'CAPTURED'));
+      window.dispatchEvent(new StorageEvent('storage', { key: SHARED, oldValue: null, newValue: ptr('ORD-P', 'CAPTURED') }));
+    });
+    expect(shownOrder()).toBeNull();
+    expect(screen.getByText('Book now')).toBeInTheDocument();
+    cleanup(); localStorage.clear();
+
+    // r16: '1회만' 불변식은 이 화면이 맡는 상품 미상 주문으로 — final → 중립 안내 + 완료 표식. 다른 탭(구버전)이 옛 키에 다시 저장하거나
+    //   새 코드가 다시 저장하려 해도(완료 주문은 저장 거부) 패널로 되살아나지 않는다.
+    const unknown = (status: string) => JSON.stringify({ orderID: 'ORD-P', flow: 'single', paymentStatus: status, review: false, updatedAt: 1 });
+    localStorage.setItem(SHARED, unknown('CAPTURE_UNKNOWN'));
     captureReplies(final('ORD-P'), 200);
-    render(<PayPalBookingButton productType="charter_dmz" passengers={2} priceKRW={135000} lang="en" onPaymentSuccess={vi.fn()} p={{ paypalBookBtn: 'Book now' }} />);
+    render(charter());
     await act(async () => { fireEvent.click(await screen.findByText('Check this order')); await new Promise((r) => setTimeout(r, 10)); });
     expect(await screen.findByText(/confirmed for a different order/)).toBeInTheDocument();
-    const again = ptr('ORD-P', 'CAPTURED');
-    await act(async () => { window.dispatchEvent(new StorageEvent('storage', { key: SHARED, oldValue: null, newValue: again })); });
+    expect(isRecoveryDone('ORD-P')).toBe(true);
+    await act(async () => {
+      localStorage.setItem(SHARED, unknown('CAPTURED'));
+      window.dispatchEvent(new StorageEvent('storage', { key: SHARED, oldValue: null, newValue: unknown('CAPTURED') }));
+    });
+    expect(saveRecoveryOrder({ orderID: 'ORD-P', flow: 'single', paymentStatus: 'CAPTURED', review: false })).toBeNull();
     expect(shownOrder()).toBeNull();
     expect(screen.getByText(/confirmed for a different order/)).toBeInTheDocument();
+    expect(onSuccess).not.toHaveBeenCalled();
   });
 });

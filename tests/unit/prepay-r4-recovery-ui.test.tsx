@@ -33,7 +33,7 @@ vi.mock('react-router-dom', async () => {
 });
 
 import { PayPalBookingButton } from '../../src/components/PayPalBookingButton';
-import { recoveryKey, PLANNER_RECOVERY_SCOPE } from '../../src/lib/paymentRecovery';
+import { recoveryKey, PLANNER_RECOVERY_SCOPE, readRecoveryOrder } from '../../src/lib/paymentRecovery';
 
 type ButtonsConfig = { onApprove: (data: { orderID: string }) => Promise<void> };
 const buttons: ButtonsConfig[] = [];
@@ -68,8 +68,9 @@ describe('r4-1 — legacy planner pointer in the shared key is migrated to the p
     planner(onPaymentSuccess);
     expect(screen.getByText('Check this order')).toBeInTheDocument();
     expect(screen.queryByText('Book now')).toBeNull();
-    expect(localStorage.getItem(SHARED)).toBeNull();
-    expect(JSON.parse(localStorage.getItem(PLANNER) || 'null')).toMatchObject({ orderID: 'ORD-P' });
+    // r16: 옛 공용 키는 읽기만(이전·삭제 없음) — 플래너 화면이 그 주문을 그대로 맡는다.
+    expect(localStorage.getItem(SHARED)).not.toBeNull();
+    expect(readRecoveryOrder('ORD-P')).toMatchObject({ orderID: 'ORD-P' });
     fireEvent.click(screen.getByText('Check this order'));
     await waitFor(() => expect(onPaymentSuccess).toHaveBeenCalledWith('ORD-P'));
   });
@@ -100,19 +101,26 @@ describe('r4-2 — other products never confirm a planner order as their own (As
       expect(localStorage.getItem(SHARED)).toBeNull();
       expect(JSON.parse(localStorage.getItem(PLANNER) || 'null')).toMatchObject({ orderID: 'ORD-P', productType: 'ai-planner-full' });
     });
-  it('an old shared pointer with NO product (or a planner one) checked on a charter page → neutral notice; a planner order moves to the planner key', async () => {
+  it('an old shared pointer with NO product (or a planner one) on a charter page → never this page\'s confirmation; the planner order stays for the planner page', async () => {
+    // r16: 플래너 주문은 플래너 화면만 맡는다 — 차터 화면엔 패널이 없고 Book now → 서버 409(미결 플래너 주문) → 중립 안내.
     localStorage.setItem(SHARED, plannerPointer('CAPTURE_UNKNOWN'));
     mocks.authFetch.mockImplementation(async (url: string) => {
+      if (url === '/api/createPaypalOrder') return reply(409, { ok: false, code: 'PAYMENT_RECOVERY_PENDING', orderID: 'ORD-P', flow: 'single', paymentStatus: 'CAPTURE_UNKNOWN', productType: 'ai-planner-full', finalized: false });
       if (url === '/api/capturePaypalOrder') return reply(200, final('ORD-P'));
       throw new Error(`OFFLINE: unexpected ${url}`);
     });
     const onPaymentSuccess = vi.fn();
     render(<PayPalBookingButton productType="charter_dmz" passengers={2} priceKRW={135000} lang="en" onPaymentSuccess={onPaymentSuccess} p={{ paypalBookBtn: 'Book now' }} />);
-    fireEvent.click(screen.getByText('Check this order'));
-    expect(await screen.findByText(/This payment was confirmed for a different order \(ORD-P\)/)).toBeInTheDocument();
+    expect(screen.queryByText('Check this order')).toBeNull();
+    fireEvent.click(screen.getByText('Book now'));
+    expect(await screen.findByText(/Another order \(ORD-P\) in this browser is still being confirmed/)).toBeInTheDocument();
     expect(screen.queryByText('Booking Confirmed!')).toBeNull();
     expect(onPaymentSuccess).not.toHaveBeenCalled();
-    expect(JSON.parse(localStorage.getItem(PLANNER) || 'null')).toMatchObject({ orderID: 'ORD-P', paymentStatus: 'CAPTURED' });
+    expect(readRecoveryOrder('ORD-P')).toMatchObject({ orderID: 'ORD-P', productType: 'ai-planner-full' });
+    cleanup();
+    planner(); // r16: 플래너 화면은 그 주문을 '같은 주문 확인'으로 맡는다(새 결제 아님)
+    expect(screen.getByText('Check this order')).toBeInTheDocument();
+    expect(screen.queryByText('Book now')).toBeNull();
 
     cleanup(); localStorage.clear();
     localStorage.setItem(SHARED, JSON.stringify({ orderID: 'ORD-X', flow: 'single', paymentStatus: 'CAPTURE_UNKNOWN', review: false, updatedAt: 1 }));

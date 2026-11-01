@@ -35,7 +35,7 @@ vi.mock('react-router-dom', async () => {
 });
 
 import { PayPalBookingButton } from '../../src/components/PayPalBookingButton';
-import { recoveryKey, PLANNER_RECOVERY_SCOPE } from '../../src/lib/paymentRecovery';
+import { recoveryKey, PLANNER_RECOVERY_SCOPE, orderRecoveryKey, readRecoveryOrder } from '../../src/lib/paymentRecovery';
 
 type ButtonsConfig = { onApprove: (data: { orderID: string }) => Promise<void> };
 const buttons: ButtonsConfig[] = [];
@@ -65,14 +65,17 @@ describe('planner CAPTURED pointer is scoped to the planner (charter / tour / In
     await act(async () => { await buttons[0].onApprove({ orderID: 'ORD-P' }); });
     await waitFor(() => expect(onPaymentSuccess).toHaveBeenCalledWith('ORD-P'));
 
-    const planner = JSON.parse(localStorage.getItem(recoveryKey('single', PLANNER_RECOVERY_SCOPE)) || 'null');
+    // r16: 플래너 전용 범위 키 → 그 주문 자신의 키(order:ORD-P)에 CAPTURED 로 유지. 옛 범위 키는 쓰지 않는다.
+    const planner = JSON.parse(localStorage.getItem(orderRecoveryKey('ORD-P')) || 'null');
     expect(planner).toMatchObject({ orderID: 'ORD-P', paymentStatus: 'CAPTURED', productType: 'ai-planner-full' });
     expect(localStorage.getItem(recoveryKey('single'))).toBeNull();
+    expect(localStorage.getItem(recoveryKey('single', PLANNER_RECOVERY_SCOPE))).toBeNull();
 
     cleanup();
     render(<PayPalBookingButton productType="charter_dmz" passengers={2} priceKRW={135000} lang="en" p={{ paypalBookBtn: 'Book now' }} />);
     expect(screen.getByText('Book now')).toBeInTheDocument();
     expect(screen.queryByText('Check this order')).toBeNull();
+    expect(readRecoveryOrder('ORD-P')).toMatchObject({ paymentStatus: 'CAPTURED' }); // r16: 차터 화면은 플래너 주문을 건드리지 않는다
   });
 
   it('a reloaded planner page still sees its own pointer (same order check instead of a new payment)', () => {

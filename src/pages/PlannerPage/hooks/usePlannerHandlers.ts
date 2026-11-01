@@ -11,7 +11,7 @@ import { track as posthogTrack } from '@/lib/posthog';
 import { buildQuickPreviewPayload } from '../lib/quickPreviewIntent';
 import { parseQuickPreviewResponse } from '../lib/quickPreviewContract';
 import { buildFullPlannerIntentPayload, buildPlannerOrderInput, applyPaidPlannerInput, type PaidPlannerInput } from '../lib/plannerIntent';
-import { removePaymentRecovery, markPlannerIssuePending, PLANNER_RECOVERY_SCOPE } from '@/lib/paymentRecovery';
+import { finishPaidPlannerOrder, markPlannerIssuePending } from '@/lib/paymentRecovery';
 
 // feat/guest-anon-auth-pii (2026-06-15): 비로그인 게스트 + 플래그 ON 이면 격리된
 // 익명 Firebase 인스턴스(guestReader)로 로그인해 idToken 을 x-guest-anon-token 헤더로
@@ -372,7 +372,7 @@ export function usePlannerHandlers({ language, userEmail, setUserEmail }: UsePla
       if (isPaidOrderId(paypalOrderId)) {
         const issuedPlanId = data?.planId
           || (typeof data?.planUrl === 'string' ? (data.planUrl.split('/my-plans/')[1] || '').split('?')[0] : '');
-        if (data?.firestoreSaved === true && issuedPlanId) removePaymentRecovery('single', paypalOrderId, PLANNER_RECOVERY_SCOPE);
+        if (data?.firestoreSaved === true && issuedPlanId) finishPaidPlannerOrder(paypalOrderId); // r16: 완료 표식 → 주문·연결 issue 정리
         else if (issuedPlanId) markPlannerIssuePending(issuedPlanId, paypalOrderId);
       }
 
@@ -415,7 +415,7 @@ export function usePlannerHandlers({ language, userEmail, setUserEmail }: UsePla
       // 결제된 주문의 생성 실패 = 결제 후 안내(다시 결제하지 마세요) + 새 결제 버튼 대신 같은 주문 재시도.
       //   이미 발급된 주문(DUPLICATE_ORDER)은 복구 포인터만 정리한다.
       if (isPaidOrderId(paypalOrderId)) {
-        if (payload.code === 'DUPLICATE_ORDER') removePaymentRecovery('single', paypalOrderId, PLANNER_RECOVERY_SCOPE);
+        if (payload.code === 'DUPLICATE_ORDER') finishPaidPlannerOrder(paypalOrderId); // r16: 이미 발급된 주문 — 완료 표식 후 정리
         else setPaidOrderIssue({ orderId: paypalOrderId, code: payload.code, pinnedInput: (err as { pinnedInput?: PaidPlannerInput | null }).pinnedInput || null });
       }
       setIsGeneratingPlan(false);

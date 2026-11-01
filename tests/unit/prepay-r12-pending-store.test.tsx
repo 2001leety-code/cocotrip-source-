@@ -31,7 +31,7 @@ vi.mock('react-router-dom', async () => {
 });
 
 import { PayPalBookingButton } from '../../src/components/PayPalBookingButton';
-import { recoveryKey, PLANNER_RECOVERY_SCOPE, placeRecoveryPointer } from '../../src/lib/paymentRecovery';
+import { recoveryKey, PLANNER_RECOVERY_SCOPE, placeForeignPending, readRecoveryOrder, listRecoveryOrders, orderRecoveryKey } from '../../src/lib/paymentRecovery';
 
 const SHARED = recoveryKey('single');
 const PLANNER = recoveryKey('single', PLANNER_RECOVERY_SCOPE);
@@ -63,12 +63,15 @@ describe('r12 — a pending order handed back by the server never overwrites ano
     await act(async () => { fireEvent.click(screen.getByText('Book now')); await new Promise((r) => setTimeout(r, 10)); });
     expect(screen.getByText(/still being confirmed/)).toBeInTheDocument(); // 중립 안내(pending)
     expect(read(PLANNER)).toMatchObject({ orderID: 'ORD-Q', paymentStatus: 'CAPTURED' });
-    expect(read(SHARED)).toMatchObject({ orderID: 'ORD-P', paymentStatus: 'CAPTURE_UNKNOWN' });
+    // r16: P 는 공용 키가 아니라 자기 주문 키에(Q 와 별개) — 둘 다 남는다.
+    expect(read(SHARED)).toBeNull();
+    expect(readRecoveryOrder('ORD-P')).toMatchObject({ orderID: 'ORD-P', paymentStatus: 'CAPTURE_UNKNOWN', productType: 'ai_planner_full' });
+    expect(readRecoveryOrder('ORD-Q')).toMatchObject({ orderID: 'ORD-Q', paymentStatus: 'CAPTURED' });
     cleanup();
     render(planner());
-    expect(shownOrder()).toBe('ORD-Q'); // Q 보존
+    expect(shownOrder()).toBe('ORD-Q'); // Q 보존 — r16: 오래된 주문(createdAt) 먼저
     await act(async () => { fireEvent.click(screen.getByText('Check this order')); await new Promise((r) => setTimeout(r, 10)); });
-    expect(shownOrder()).toBe('ORD-P'); // 순차 복구(r11 승계)
+    expect(shownOrder()).toBe('ORD-P'); // 순차 복구 — r16: Q 해결 뒤 다음 미해결 주문
     expect(screen.queryByText('Book now')).toBeNull();
   });
   it('target key empty → stored there as before (planner P → planner key)', async () => {
@@ -78,22 +81,29 @@ describe('r12 — a pending order handed back by the server never overwrites ano
     });
     render(charter());
     await act(async () => { fireEvent.click(screen.getByText('Book now')); await new Promise((r) => setTimeout(r, 10)); });
-    expect(read(PLANNER)?.orderID).toBe('ORD-P');
+    // r16: 자기 주문 키에 저장(옛 범위 키는 쓰지 않는다) — 플래너 화면이 맡는다.
+    expect(readRecoveryOrder('ORD-P')).toMatchObject({ orderID: 'ORD-P', productType: 'ai_planner_full' });
+    expect(read(orderRecoveryKey('ORD-P'))?.orderID).toBe('ORD-P');
+    expect(read(PLANNER)).toBeNull();
     expect(read(SHARED)).toBeNull();
   });
   it('same order already on the target key → updated, still one copy', () => {
+    // r16: placeRecoveryPointer(target) → placeForeignPending/saveRecoveryOrder: 같은 주문은 갱신(createdAt 유지), 목록엔 1건.
     localStorage.setItem(PLANNER, ptr('ORD-P', 'CAPTURE_UNKNOWN'));
-    expect(placeRecoveryPointer({ orderID: 'ORD-P', flow: 'single', paymentStatus: 'CAPTURED', review: false, productType: 'ai_planner_full' }, PLANNER_RECOVERY_SCOPE)).toBe('target');
-    expect(read(PLANNER)?.paymentStatus).toBe('CAPTURED');
+    expect(placeForeignPending({ orderID: 'ORD-P', flow: 'single', paymentStatus: 'CAPTURED', review: false, productType: 'ai_planner_full' })).toMatchObject({ paymentStatus: 'CAPTURED', createdAt: 1 });
+    expect(readRecoveryOrder('ORD-P')?.paymentStatus).toBe('CAPTURED');
+    expect(listRecoveryOrders().filter((o) => o.orderID === 'ORD-P')).toHaveLength(1);
     expect(read(SHARED)).toBeNull();
   });
   it('helper: both keys hold other orders → none (nothing overwritten); shared target blocked → none (no planner fallback)', () => {
+    // r16: 'none'(저장 포기) → 다른 주문을 덮을 길 자체가 없으므로 각자 주문 키에 저장된다 — Q·C 불변, P·T 추가, 아무것도 소실 없음.
     localStorage.setItem(PLANNER, ptr('ORD-Q', 'CAPTURED'));
     localStorage.setItem(SHARED, ptr('ORD-C', 'CAPTURE_UNKNOWN', 'charter_dmz'));
     const p = { orderID: 'ORD-P', flow: 'single' as const, paymentStatus: 'CAPTURE_UNKNOWN' as const, review: false, productType: 'ai_planner_full' };
-    expect(placeRecoveryPointer(p, PLANNER_RECOVERY_SCOPE)).toBe('none');
-    expect(placeRecoveryPointer({ ...p, productType: 'tour_dmz' })).toBe('none');
+    expect(placeForeignPending(p)).toMatchObject({ orderID: 'ORD-P' });
+    expect(placeForeignPending({ ...p, orderID: 'ORD-T', productType: 'tour_dmz' })).toMatchObject({ orderID: 'ORD-T', productType: 'tour_dmz' });
     expect(read(PLANNER)?.orderID).toBe('ORD-Q');
     expect(read(SHARED)?.orderID).toBe('ORD-C');
+    expect(listRecoveryOrders().map((o) => o.orderID).sort()).toEqual(['ORD-C', 'ORD-P', 'ORD-Q', 'ORD-T']);
   });
 });

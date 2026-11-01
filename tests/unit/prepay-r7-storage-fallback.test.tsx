@@ -34,6 +34,7 @@ vi.mock('react-router-dom', async () => {
 });
 
 import { PayPalBookingButton } from '../../src/components/PayPalBookingButton';
+import { resetPaymentRecoveryMemory } from '../../src/lib/paymentRecovery';
 
 type ButtonsConfig = { onApprove: (data: { orderID: string }) => Promise<void> };
 const buttons: ButtonsConfig[] = [];
@@ -66,6 +67,7 @@ async function payThenCheck(onPaymentSuccess: () => void) {
 
 beforeEach(() => {
   cleanup(); vi.clearAllMocks(); buttons.length = 0;
+  resetPaymentRecoveryMemory(); // r16: 저장 실패 주문·완료는 모듈 메모리(persisted:false) — 테스트 간 누수 방지
   vi.stubEnv('VITE_PAYPAL_CLIENT_ID', 'offline-client');
   vi.stubEnv('VITE_PAYPAL_ME_USERNAME', 'offline-user');
   (window as unknown as { paypal: unknown }).paypal = { Buttons: (cfg: ButtonsConfig) => { buttons.push(cfg); return { render: () => {}, isEligible: () => true }; }, FUNDING: {} };

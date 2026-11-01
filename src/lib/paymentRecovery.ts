@@ -19,6 +19,9 @@ export type PaymentRecovery = {
   authRequired?: boolean;
   productType?: string;
   updatedAt: number;
+  /** r16: 주문별 저장 버전·고정 생성 시각(목록 정렬 — createdAt → orderID). 옛 범위 키 포인터엔 없다(updatedAt 으로 대체). */
+  v?: number;
+  createdAt?: number;
   /** r7: 메모리 전용 — 이 탭의 remember 가 저장소에 실제로 썼는가(false = 쓰기 실패: 시크릿 모드 Quota·차단). 저장소에서 읽은 포인터엔 없다. */
   persisted?: boolean;
 };
@@ -37,7 +40,6 @@ export type CaptureOutcome =
  */
 export const recoveryKey = (flow: PaymentFlow, scope?: string) => `cocotrip:payment-recovery:${flow}${scope ? `:${scope}` : ''}`;
 export const PLANNER_RECOVERY_SCOPE = 'ai-planner';
-const FLOWS: PaymentFlow[] = ['single', 'cart'];
 
 function parsePointer(raw: string | null): PaymentRecovery | null {
   if (!raw) return null;
@@ -50,43 +52,96 @@ function parsePointer(raw: string | null): PaymentRecovery | null {
       paymentStatus: value.paymentStatus === 'CAPTURED' ? 'CAPTURED' : value.paymentStatus === 'NOT_CAPTURED' ? 'NOT_CAPTURED' : 'CAPTURE_UNKNOWN',
       productType: typeof value.productType === 'string' ? value.productType : undefined,
       updatedAt: Number(value.updatedAt) || 0,
+      ...(Number(value.createdAt) > 0 ? { createdAt: Number(value.createdAt) } : {}),
+      ...(Number(value.v) > 0 ? { v: Number(value.v) } : {}),
     };
   } catch {
     return null; // unreadable pointer: the server cookie record still blocks new orders
   }
 }
 
-export function readPaymentRecovery(flow: PaymentFlow, scope?: string): PaymentRecovery | null {
-  try { return parsePointer(localStorage.getItem(recoveryKey(flow, scope))); } catch { return null; }
-}
-
-/**
- * r7: 저장소 상태를 "못 읽음(SecurityError — 쿠키 전면 차단·일부 웹뷰)" 과 "키 없음(다른 탭이 지움)" 으로 구분해 읽는다.
- *   readPaymentRecovery 는 둘 다 null 이라 확인 결과 대조에 쓰면 저장소 없는 브라우저의 모든 결과가 버려졌다.
+/*
+ * ── r16 저장 구조(Astra 설계 A): 주문별 키 + 별도 완료 표식 ───────────────────────────────────────────────
+ *   주문 `cocotrip:payment-recovery:order:<orderID>` = 기존 필드 + v + 고정 createdAt (개인정보·공용 목록 키 없음, 목록 = 키 열거).
+ *   완료 `cocotrip:payment-recovery:done:<orderID>` = 서버가 입증한 종료. **완료 표식을 먼저 쓰고** 주문 키를 지운다 —
+ *     모든 읽기·저장이 완료 표식을 우선하므로 늦은 쓰기·지연 이벤트로 끝난 주문이 되살아나지 않는다. 표식 저장 실패면 원본 보존(이 탭만 숨김).
+ *   쓰기는 자기 주문 키에만 → 다른 주문을 덮거나 지우는 경로가 구조적으로 없다(r10~r15 의 범위 키 경합 덧댐을 대체).
+ *   옛 범위 키(`…:single`·`…:single:ai-planner`·`…:cart`)는 전환 기간 **읽기만**(구버전 탭이 살아 있을 수 있음 — 삭제·전역 이전 표시 금지).
+ *   저장 실패(Quota·SecurityError) = 탭 공용 주문별 메모리(persisted:false). 미해결 주문은 개수·나이로 버리지 않는다.
  */
-export function readPaymentRecoveryState(flow: PaymentFlow, scope?: string): { readable: boolean; pointer: PaymentRecovery | null } {
-  let raw: string | null;
-  try { raw = localStorage.getItem(recoveryKey(flow, scope)); } catch { return { readable: false, pointer: null }; }
-  return { readable: true, pointer: parsePointer(raw) };
+const PREFIX = 'cocotrip:payment-recovery:';
+export const orderRecoveryKey = (orderID: string) => `${PREFIX}order:${orderID}`;
+export const doneRecoveryKey = (orderID: string) => `${PREFIX}done:${orderID}`;
+const LEGACY_KEYS = [recoveryKey('single'), recoveryKey('single', PLANNER_RECOVERY_SCOPE), recoveryKey('cart')];
+const memoryOrders = new Map<string, PaymentRecovery>(); // 저장 실패한 이 탭의 주문(persisted:false)
+const memoryDone = new Set<string>();                     // 완료 표식 저장에 실패한 주문(이 탭에서만 숨김)
+const listeners = new Set<() => void>();
+
+/** 테스트 전용 — 모듈 메모리(저장 실패 주문·완료) 초기화. */
+export function resetPaymentRecoveryMemory(): void { memoryOrders.clear(); memoryDone.clear(); }
+
+const getRaw = (key: string): string | null => { try { return localStorage.getItem(key); } catch { return null; } };
+function notifyRecoveryChange() { for (const fn of [...listeners]) { try { fn(); } catch { /* 구독자 오류는 다른 화면에 영향 없음 */ } } }
+let storageHooked = false;
+/** 같은 탭 구독(중앙 함수 쓰기 뒤) + 다른 탭 storage 이벤트 = 재조회 신호만(이벤트 값은 적용하지 않는다). */
+function subscribeRecovery(fn: () => void): () => void {
+  listeners.add(fn);
+  if (!storageHooked && typeof window !== 'undefined') {
+    storageHooked = true;
+    window.addEventListener('storage', (event) => { if (!event.key || event.key.startsWith(PREFIX)) notifyRecoveryChange(); });
+  }
+  return () => { listeners.delete(fn); };
 }
 
-export function writePaymentRecovery(value: PaymentRecovery, scope?: string): boolean {
-  const stored = { ...value };
-  delete stored.persisted; // 메모리 전용 표식은 저장하지 않는다
-  try { localStorage.setItem(recoveryKey(value.flow, scope), JSON.stringify(stored)); return true; } catch { return false; }
+export function isRecoveryDone(orderID: string): boolean {
+  return memoryDone.has(orderID) || getRaw(doneRecoveryKey(orderID)) !== null;
 }
 
-export function removePaymentRecovery(flow: PaymentFlow, orderID: string, scope?: string): void {
-  try {
-    const current = readPaymentRecovery(flow, scope);
-    if (current && current.orderID === orderID) localStorage.removeItem(recoveryKey(flow, scope));
-    // r9: 플래너 범위를 지울 때 같은 주문의 옛 공용 키 플래너 포인터도 지운다 — 이동 저장이 실패(Quota 지속)해 공용 키에 남은 채
-    //   확정되면 플래너 마운트마다 확인 패널이 다시 떴다. removeItem 은 Quota 에서도 동작. 다른 주문·다른 상품은 건드리지 않는다.
-    if (scope === PLANNER_RECOVERY_SCOPE) {
-      const legacy = readPaymentRecovery(flow);
-      if (legacy && legacy.orderID === orderID && isPlannerProduct(legacy.productType)) localStorage.removeItem(recoveryKey(flow));
-    }
-  } catch { /* stale pointer is safe to reconcile again */ }
+/** 미해결 주문 전부(완료 제외) — createdAt → orderID 순. 옛 키 < 주문 키 < 이 탭 메모리 순으로 우선. */
+export function listRecoveryOrders(): PaymentRecovery[] {
+  const byId = new Map<string, PaymentRecovery>();
+  for (const key of LEGACY_KEYS) {
+    const p = parsePointer(getRaw(key));
+    if (p && !byId.has(p.orderID)) byId.set(p.orderID, { ...p, createdAt: p.createdAt || p.updatedAt || 0 });
+  }
+  let keys: string[] = [];
+  try { for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); if (k && k.startsWith(`${PREFIX}order:`)) keys.push(k); } } catch { keys = []; }
+  for (const key of keys) {
+    const p = parsePointer(getRaw(key));
+    if (p && key === orderRecoveryKey(p.orderID)) byId.set(p.orderID, p);
+  }
+  for (const [id, p] of memoryOrders) byId.set(id, p);
+  return [...byId.values()]
+    .filter((p) => !isRecoveryDone(p.orderID))
+    .sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0) || (a.orderID < b.orderID ? -1 : a.orderID > b.orderID ? 1 : 0));
+}
+
+export function readRecoveryOrder(orderID: string): PaymentRecovery | null {
+  return listRecoveryOrders().find((p) => p.orderID === orderID) || null;
+}
+
+/** 자기 주문 키에만 저장(createdAt 유지). 완료된 주문은 되살리지 않는다(null). 저장 실패 = 메모리(persisted:false). */
+export function saveRecoveryOrder(value: Omit<PaymentRecovery, 'updatedAt' | 'createdAt' | 'persisted'>): PaymentRecovery | null {
+  if (isRecoveryDone(value.orderID)) return null;
+  const existing = readRecoveryOrder(value.orderID);
+  const record: PaymentRecovery = { ...value, v: 2, createdAt: existing && existing.createdAt ? existing.createdAt : Date.now(), updatedAt: Date.now() };
+  let persisted = true;
+  try { localStorage.setItem(orderRecoveryKey(value.orderID), JSON.stringify(record)); memoryOrders.delete(value.orderID); } catch { persisted = false; }
+  const result: PaymentRecovery = persisted ? record : { ...record, persisted: false };
+  if (!persisted) memoryOrders.set(value.orderID, result);
+  notifyRecoveryChange();
+  return result;
+}
+
+/** 서버가 입증한 종료 — 완료 표식 먼저, 그 다음 주문 키 삭제. 표식 저장 실패면 원본 보존(이 탭에서만 숨김). @returns 표식 저장 여부 */
+export function finishRecoveryOrder(orderID: string): boolean {
+  let marked = false;
+  try { localStorage.setItem(doneRecoveryKey(orderID), String(Date.now())); marked = true; } catch { /* 원본 보존 */ }
+  if (!marked) memoryDone.add(orderID);
+  memoryOrders.delete(orderID);
+  if (marked) { try { localStorage.removeItem(orderRecoveryKey(orderID)); } catch { /* 완료 표식이 우선한다 */ } }
+  notifyRecoveryChange();
+  return marked;
 }
 
 export function isFinalPayment(json: Record<string, unknown>, orderID: string): boolean {
@@ -137,74 +192,45 @@ export async function reconcilePayment(flow: PaymentFlow, orderID: string): Prom
   }
 }
 
-/** 다른 범위 키에 포인터 저장(이 화면의 hook 상태는 바꾸지 않는다) — 시각은 여기서 찍는다. */
-export function storePaymentRecovery(value: Omit<PaymentRecovery, 'updatedAt'>, scope?: string): boolean {
-  return writePaymentRecovery({ ...value, updatedAt: Date.now() }, scope);
-}
-
 /**
- * r12: 다른 범위 키에 포인터를 **덮지 않고** 둔다(r10 이동 분기·서버 409 미결 주문 저장이 같은 규칙). 대상 키가 비었거나 같은 주문일 때만
- *   저장 → 'target'. 대상이 플래너 키인데 다른 주문(미발급 Q)이 있거나 저장 실패면 공용 키(비었거나 같은 주문일 때)에 → 'fallback' —
- *   Q 가 풀리면 플래너 훅의 승계(releaseTo → migrateLegacyPlannerPointer)가 이어받는다(순차 복구). 둘 다 막히면 'none'(서버 기록이 다시 알려 줌).
+ * r16: 화면이 맡는 주문 — 플래너 = 플래너 상품 단건, 일반 단건 = 현재 상품과 같은(또는 상품 미상) 단건, 장바구니 = cart.
+ *   그 밖(다른 상품·다른 flow)은 외부 주문 = 중립 안내. PayPalBookingButton·CartCheckout 이 같은 함수를 쓴다.
  */
-export function placeRecoveryPointer(value: Omit<PaymentRecovery, 'updatedAt'>, scope?: string): 'target' | 'fallback' | 'none' {
-  const tryAt = (s?: string) => {
-    const { pointer } = readPaymentRecoveryState(value.flow, s);
-    return (!pointer || pointer.orderID === value.orderID) && storePaymentRecovery(value, s);
-  };
-  if (tryAt(scope)) return 'target';
-  if (scope === PLANNER_RECOVERY_SCOPE && tryAt(undefined)) return 'fallback';
-  return 'none';
+export type RecoveryScreen = { flow: PaymentFlow; planner?: boolean; productType?: string };
+export function matchesScreen(p: Pick<PaymentRecovery, 'flow' | 'productType'>, screen: RecoveryScreen): boolean {
+  if (screen.flow === 'cart') return p.flow === 'cart';
+  if (p.flow !== 'single') return false;
+  if (screen.planner) return isPlannerProduct(p.productType);
+  if (isPlannerProduct(p.productType)) return false;
+  return !p.productType || !screen.productType || isSameProduct(p.productType, screen.productType);
+}
+export function isForeignOrder(p: Pick<PaymentRecovery, 'flow' | 'productType'>, screen: RecoveryScreen): boolean {
+  return !matchesScreen(p, screen);
+}
+
+/** 이 화면 상품이 아닌 주문(서버 409 미결 주문 등) — 그 주문 키에 상품·flow 그대로(다른 주문을 덮을 수 없다). */
+export function placeForeignPending(value: Omit<PaymentRecovery, 'updatedAt' | 'createdAt' | 'persisted'>): PaymentRecovery | null {
+  return saveRecoveryOrder(value);
 }
 
 /**
- * r13: 이 화면 상품이 아닌 주문(서버 409 미결 주문 등)의 포인터를 그 주문 범위에 둔다 — 상품·flow 보존, 덮지 않음(placeRecoveryPointer).
- *   PayPalBookingButton·CartCheckout 이 같은 함수를 쓴다(형제 경로 재발 방지).
- */
-export function placeForeignPending(value: Omit<PaymentRecovery, 'updatedAt'>): 'target' | 'fallback' | 'none' {
-  return placeRecoveryPointer(value, isPlannerProduct(value.productType) ? PLANNER_RECOVERY_SCOPE : undefined);
-}
-
-/**
- * r13: 이 화면 상품이 아닌 주문이 확정(final)으로 확인됐을 때의 포인터 정리(성공 처리·장바구니 비우기는 호출자가 하지 않는다).
- *   플래너 주문 = 발급까지 CAPTURED 포인터가 필요 → 플래너 키로(덮지 않음, 성공 시에만 원래 키 삭제 — r10).
- *   그 밖의 주문 = 확정이라 원래 키에서 지운다. 화면 메모리 포인터는 호출자가 forgetRecovery 로 놓는다.
+ * 이 화면 상품이 아닌 주문이 확정(final)으로 확인됐을 때(성공 처리·장바구니 비우기는 호출자가 하지 않는다).
+ *   플래너 주문 = 발급까지 CAPTURED 로 그 주문 키에 유지(플래너 화면이 맡는다 — CAPTURED 만으로 완료 처리 금지). 그 밖 = 완료.
  */
 export function settleForeignFinal(p: PaymentRecovery): void {
-  if (isPlannerProduct(p.productType)) {
-    if (placeRecoveryPointer({ ...p, paymentStatus: 'CAPTURED', review: false }, PLANNER_RECOVERY_SCOPE) === 'target') removePaymentRecovery(p.flow, p.orderID);
-    return;
-  }
-  removePaymentRecovery(p.flow, p.orderID);
+  if (isPlannerProduct(p.productType)) saveRecoveryOrder({ orderID: p.orderID, flow: p.flow, productType: p.productType, paymentStatus: 'CAPTURED', review: false });
+  else finishRecoveryOrder(p.orderID);
 }
 
 /**
- * r14: 이 화면이 맡지 않는(외부) 주문인가 — flow + 상품. 장바구니 화면 = flow 가 cart 가 아니면 외부.
- *   단건 화면 = flow 가 cart 이거나, 상품이 알려졌고 플래너 범위가 이 화면과 다르면 외부(상품 미상 단건은 이 화면 몫 — 기존 규칙).
- *   PayPalBookingButton·CartCheckout 이 같은 함수를 쓴다.
+ * 같은 주문 확인을 시작한 포인터가 응답 도착 시점에도 현재인가 — 이 화면이 지금 선택한 주문(주문·flow·상품)과 같고,
+ *   완료 표식이 없고, 주문별 저장값(또는 이 탭 메모리)이 아직 있다. updatedAt 은 동일성 기준이 아니다.
  */
-export function isForeignOrder(p: Pick<PaymentRecovery, 'flow' | 'productType'>, screen: { flow: PaymentFlow; planner?: boolean }): boolean {
-  if (screen.flow === 'cart') return p.flow !== 'cart';
-  if (p.flow === 'cart') return true;
-  return !!p.productType && isPlannerProduct(p.productType) !== !!screen.planner;
-}
-
-/** 같은 포인터(주문·flow·상품) — r7 동일성. */
-export function samePointer(a: PaymentRecovery | null | undefined, b: PaymentRecovery | null | undefined): boolean {
-  return !!a && !!b && a.orderID === b.orderID && a.flow === b.flow && a.productType === b.productType;
-}
-
-/**
- * r14(공용 — r6/r7 의 PayPalBookingButton.isCurrentCheck 를 옮김): 같은 주문 확인을 시작한 포인터가 응답 도착 시점에도 현재인가.
- *   이 화면 메모리 포인터와 같아야 하고, 저장소가 읽히면 저장된 포인터와도 같아야 한다(다른 탭이 지움·교체 = 현재 아님).
- *   저장소를 못 읽거나(SecurityError) 이 탭이 저장하지 못한 포인터(persisted:false — Quota, 또는 r14 비교 후 쓰기가 다른 주문 때문에 막음)는
- *   메모리 비교만 — 쓰기는 비교 후 쓰기(remember)가 막으므로 늦은 응답이 다른 주문을 덮을 수 없다.
- */
-export function isCurrentPointer(checked: PaymentRecovery | null, mine: PaymentRecovery | null, scope?: string): boolean {
-  if (!checked || !samePointer(mine, checked)) return false;
-  if (mine && mine.persisted === false) return true;
-  const stored = readPaymentRecoveryState(checked.flow, scope);
-  return !stored.readable || samePointer(stored.pointer, checked);
+export function isCurrentPointer(checked: PaymentRecovery | null, mine: PaymentRecovery | null): boolean {
+  const same = (p: PaymentRecovery | null) => !!p && !!checked && p.orderID === checked.orderID && p.flow === checked.flow && p.productType === checked.productType;
+  if (!checked || !same(mine)) return false;
+  // 저장값도 같은 주문·흐름·상품이어야 한다(다른 탭이 같은 주문을 다른 flow·상품으로 고쳤는데 이벤트 전이면 = 현재 아님).
+  return !isRecoveryDone(checked.orderID) && same(readRecoveryOrder(checked.orderID));
 }
 
 /**
@@ -217,13 +243,27 @@ export function markPlannerIssuePending(planId: string, orderID: string): void {
   try { localStorage.setItem(issueKey(planId), orderID); } catch { /* 포인터는 유지된다 */ }
 }
 export function settlePlannerIssue(planId: string, status: 'ready' | 'streaming' | 'error'): void {
-  if (status === 'streaming') return;
+  if (status === 'streaming') return; // 둘 다 유지
+  const orderID = getRaw(issueKey(planId));
+  if (!orderID) return;
+  if (status === 'ready') { finishPaidPlannerOrder(orderID); return; }
+  try { localStorage.removeItem(issueKey(planId)); } catch { /* 다음 방문에 다시 정리 */ } // error = issue 만 삭제(주문 유지 → 같은 주문 재발급)
+}
+
+/**
+ * r16: 유료 플래너 주문 발급 완료(ready · 저장 완료 200 · DUPLICATE_ORDER) — 완료 표식 기록 후 그 주문과 연결된 issue 전부 정리.
+ *   완료 표식 저장에 실패하면 issue 도 남긴다(다음 방문에 다시 정리).
+ */
+export function finishPaidPlannerOrder(orderID: string): void {
+  if (!finishRecoveryOrder(orderID)) return;
   try {
-    const orderID = localStorage.getItem(issueKey(planId));
-    if (!orderID) return;
-    if (status === 'ready') removePaymentRecovery('single', orderID, PLANNER_RECOVERY_SCOPE);
-    localStorage.removeItem(issueKey(planId));
-  } catch { /* 다음 방문에 다시 정리 */ }
+    const stale: string[] = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      if (k && k.startsWith(`${PREFIX}issue:`) && localStorage.getItem(k) === orderID) stale.push(k);
+    }
+    for (const k of stale) localStorage.removeItem(k);
+  } catch { /* 완료 표식이 우선한다 */ }
 }
 
 /** AI 플래너(풀) 상품인가 — 하이픈/밑줄 변형 같게. */
@@ -238,87 +278,59 @@ export function isSameProduct(a: string | undefined | null, b: string | undefine
 }
 
 /**
- * 2026-10-26 B6-1 r4: 배포 전 번들이 공용 키에 남긴 플래너 포인터를 플래너 범위로 한 번 옮긴다(플래너 키가 비어 있을 때만).
- *   옮긴 포인터는 플래너 화면에서 처음부터 '다시 결제하지 마세요' → 같은 주문 확인 → 플랜 발급 재시도로 이어진다.
+ * r16 훅 — 화면당 패널 1건. 확인 중인(선택해 고정한) 주문을 유지하고, 그 주문이 끝나면 createdAt → orderID 순으로 이 화면이 맡는
+ *   다음 미해결 주문을 바로 고른다(옛 범위 키의 주문 포함 — 읽기만). 다른 탭·같은 탭 변경 = 재조회(이벤트 값은 쓰지 않는다).
+ *   remember = 그 주문 키에 저장 + 고정 / clearRecovery = 서버가 입증한 종료(완료 표식 → 삭제) / forgetRecovery = 이 화면에서만 놓음.
  */
-export function migrateLegacyPlannerPointer(flow: PaymentFlow): PaymentRecovery | null {
-  const own = readPaymentRecovery(flow, PLANNER_RECOVERY_SCOPE);
-  if (own) return own;
-  const shared = readPaymentRecovery(flow);
-  if (!shared || !isPlannerProduct(shared.productType)) return null;
-  // r8: 이동 저장 실패(Quota·차단) = 플래너 키 없음 → persisted:false 로 표시해 확인 결과 대조가 ref 기준으로 폴백(안 그러면 복구 영구 차단).
-  if (!writePaymentRecovery(shared, PLANNER_RECOVERY_SCOPE)) return { ...shared, persisted: false };
-  removePaymentRecovery(flow, shared.orderID);
-  return shared;
+const sameRecovery = (a: PaymentRecovery | null, b: PaymentRecovery | null) => (a === b) || (!!a && !!b && JSON.stringify(a) === JSON.stringify(b));
+/** 고정 주문이 아직 미해결이면 그 주문, 아니면 이 화면이 맡는 첫 미해결 주문(createdAt → orderID). 순수. */
+export function selectRecovery(all: PaymentRecovery[], screen: RecoveryScreen, pinnedID: string | null, hidden: Set<string>): PaymentRecovery | null {
+  const pinned = pinnedID ? all.find((o) => o.orderID === pinnedID) : undefined;
+  if (pinned) return pinned;
+  return all.find((o) => !hidden.has(o.orderID) && matchesScreen(o, screen)) || null;
 }
-
-export function usePaymentRecovery(flow: PaymentFlow, scope?: string) {
-  const [recovery, setRecovery] = useState<PaymentRecovery | null>(() => (scope === PLANNER_RECOVERY_SCOPE
-    ? migrateLegacyPlannerPointer(flow)
-    : readPaymentRecovery(flow, scope)));
-  const pendingRef = useRef<PaymentRecovery | null>(recovery);
-  const remember = useCallback((value: Omit<PaymentRecovery, 'updatedAt'> & { updatedAt?: number }) => {
-    const next: PaymentRecovery = { ...value, updatedAt: Date.now() };
-    // r14: 비교 후 쓰기(중앙) — 그 키가 비었거나 같은 주문일 때만 저장. 다른 주문이 있으면 덮지 않고 메모리만(persisted:false),
-    //   플래너 주문이면 같은 무덮어쓰기 규칙으로 공용 키 폴백(placeRecoveryPointer). 저장소 못 읽음은 쓰기 시도(실패 = persisted:false).
-    const { readable, pointer: occupant } = readPaymentRecoveryState(next.flow, scope);
-    const blocked = readable && !!occupant && occupant.orderID !== next.orderID;
-    const persisted = blocked ? false : writePaymentRecovery(next, scope);
-    if (!persisted && isPlannerProduct(next.productType)) placeRecoveryPointer(next, PLANNER_RECOVERY_SCOPE);
-    const current: PaymentRecovery = { ...next, persisted }; // 쓰기 실패 여부를 메모리 포인터에 남긴다(r7 — 확인 결과 대조 기준)
-    pendingRef.current = current;
-    setRecovery(current);
-    return persisted;
-  }, [scope]);
-  // r11: 플래너 범위 포인터가 풀리면(확인 결과로 해제·다른 탭 삭제) 같은 자리에서 곧바로 공용 키의 플래너 주문을 다시 승계한다 —
-  //   마운트 때만 옮기면 Q 가 풀린 뒤 공용 키에 남은 유료 P 대신 Book now 가 떴다. 동기 실행이라 판단 전 Book now 가 보이지 않는다.
-  const releaseTo = useCallback(() => {
-    const next = scope === PLANNER_RECOVERY_SCOPE ? migrateLegacyPlannerPointer(flow) : null;
+export function usePaymentRecovery(screen: RecoveryScreen) {
+  const { flow, planner, productType } = screen;
+  const [initial] = useState<PaymentRecovery | null>(() => selectRecovery(listRecoveryOrders(), { flow, planner, productType }, null, new Set()));
+  const pinnedRef = useRef<string | null>(initial ? initial.orderID : null);
+  const hiddenRef = useRef<Set<string>>(new Set());
+  const pick = useCallback((): PaymentRecovery | null => {
+    const next = selectRecovery(listRecoveryOrders(), { flow, planner, productType }, pinnedRef.current, hiddenRef.current);
+    pinnedRef.current = next ? next.orderID : null;
+    return next;
+  }, [flow, planner, productType]);
+  const [recovery, setRecovery] = useState<PaymentRecovery | null>(initial);
+  const pendingRef = useRef<PaymentRecovery | null>(initial);
+  const refresh = useCallback(() => {
+    const next = pick();
+    if (sameRecovery(pendingRef.current, next)) return;
     pendingRef.current = next;
     setRecovery(next);
-  }, [flow, scope]);
+  }, [pick]);
+  useEffect(() => subscribeRecovery(refresh), [refresh]);
+  const remember = useCallback((value: Omit<PaymentRecovery, 'updatedAt'> & { updatedAt?: number }) => {
+    hiddenRef.current.delete(value.orderID);
+    pinnedRef.current = value.orderID;
+    const saved = saveRecoveryOrder({
+      orderID: value.orderID, flow: value.flow, paymentStatus: value.paymentStatus, review: value.review,
+      ...(value.authRequired ? { authRequired: true } : {}), ...(value.productType ? { productType: value.productType } : {}),
+    });
+    refresh();
+    return !!saved && saved.persisted !== false;
+  }, [refresh]);
   const clearRecovery = useCallback((orderID: string) => {
     const current = pendingRef.current;
     if (current && current.orderID !== orderID) return;
-    if (current) removePaymentRecovery(current.flow, orderID, scope);
-    releaseTo();
-  }, [scope, releaseTo]);
-  // r11: 이 화면이 놓은 주문 — 다른 탭이 같은 주문을 다시 저장해도(StorageEvent) 이 화면 패널로 되살리지 않는다(그 주문은 다른 화면 몫).
-  const forgottenRef = useRef<Set<string>>(new Set());
-  /** r10: 이 화면의 메모리 포인터만 놓는다(저장소는 그대로) — 다른 상품 주문을 이 화면이 맡지 않을 때. */
+    if (pinnedRef.current === orderID) pinnedRef.current = null;
+    finishRecoveryOrder(orderID);
+    refresh();
+  }, [refresh]);
   const forgetRecovery = useCallback((orderID: string) => {
     if (pendingRef.current && pendingRef.current.orderID !== orderID) return;
-    forgottenRef.current.add(orderID);
-    pendingRef.current = null;
-    setRecovery(null);
-  }, []);
-  useEffect(() => {
-    const sync = (event: StorageEvent) => {
-      // 범위 포인터는 자기 키만, 공용 포인터는 종전 그대로(두 flow 공용 키).
-      const keys = scope ? [recoveryKey(flow, scope)] : FLOWS.map((f) => recoveryKey(f));
-      if (event.key && !keys.includes(event.key)) return;
-      const next = parsePointer(event.newValue);
-      if (next) {
-        if (forgottenRef.current.has(next.orderID)) return; // r11: 이 화면이 놓은 주문은 되살리지 않는다
-        // r15: 내 주문 Q 가 있던 키가 곧바로 다른 주문 P 로 바뀜(Q → P, 사이 삭제 없음) = 비교 후 쓰기 사이 탭 경합(정상 경로는 비운 뒤 저장한다).
-        //   Q 를 잃지 않는다 — 그 키는 다시 덮지 않고, 플래너 주문이면 무덮어쓰기 규칙으로 다른 키에, 그리고 메모리(persisted:false)로 계속 표시.
-        const mine = pendingRef.current;
-        const prev = parsePointer(event.oldValue);
-        if (mine && prev && prev.orderID === mine.orderID && next.orderID !== mine.orderID) {
-          if (isPlannerProduct(mine.productType)) placeRecoveryPointer(mine, PLANNER_RECOVERY_SCOPE);
-          const kept: PaymentRecovery = { ...mine, persisted: false };
-          pendingRef.current = kept; setRecovery(kept); return;
-        }
-        pendingRef.current = next; setRecovery(next); return;
-      }
-      // Removal by another tab counts only for the same order (that tab saw a definitive server answer).
-      //   r11: 플래너 범위면 그 자리에서 공용 키의 플래너 주문을 다시 승계(releaseTo).
-      const previous = parsePointer(event.oldValue);
-      if (previous && pendingRef.current && pendingRef.current.orderID === previous.orderID) releaseTo();
-    };
-    window.addEventListener('storage', sync);
-    return () => window.removeEventListener('storage', sync);
-  }, [flow, scope, releaseTo]);
+    hiddenRef.current.add(orderID);
+    if (pinnedRef.current === orderID) pinnedRef.current = null;
+    refresh();
+  }, [refresh]);
   return { recovery, pendingRef, remember, clearRecovery, forgetRecovery };
 }
 

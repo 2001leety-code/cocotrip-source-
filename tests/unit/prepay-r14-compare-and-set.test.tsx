@@ -34,7 +34,7 @@ vi.mock('react-router-dom', async () => {
 
 import { PayPalBookingButton } from '../../src/components/PayPalBookingButton';
 import { CartCheckout } from '../../src/components/CartCheckout';
-import { recoveryKey, PLANNER_RECOVERY_SCOPE, isForeignOrder } from '../../src/lib/paymentRecovery';
+import { recoveryKey, PLANNER_RECOVERY_SCOPE, isForeignOrder, readRecoveryOrder } from '../../src/lib/paymentRecovery';
 
 type ButtonsConfig = { onApprove: (data: { orderID: string }) => Promise<void> };
 const buttons: ButtonsConfig[] = [];
@@ -87,16 +87,24 @@ describe('r14 — PayPalBookingButton write sites never overwrite another order'
     await approveWhileAnotherTabWrites(SHARED, ptr('ORD-Q', 'single', 'tour_dmz'), async () => reply(202, pending('ORD-P')));
     expect(orderOn(SHARED)).toBe('ORD-Q');
     expect(screen.getByText('Check this order')).toBeInTheDocument(); // 이 탭은 자기 주문 P 를 계속 확인(메모리)
+    expect(readRecoveryOrder('ORD-P')).toMatchObject({ productType: 'charter_dmz' }); // r16: P 는 자기 주문 키 — 둘 다 남는다
+    expect(readRecoveryOrder('ORD-Q')).not.toBeNull();
   });
   it('Button:687 (capture throws) — Q kept', async () => {
     await approveWhileAnotherTabWrites(SHARED, ptr('ORD-Q', 'single', 'tour_dmz'), async () => { throw new Error('network'); });
     expect(orderOn(SHARED)).toBe('ORD-Q');
+    expect(readRecoveryOrder('ORD-P')).toMatchObject({ paymentStatus: 'CAPTURE_UNKNOWN' }); // r16: 자기 주문 키
   });
   it('Astra #3 / Button:296 — new planner payment P final while the planner key became Q → Q kept, P goes to the shared key', async () => {
+    // r16: 공용 키로 피신할 필요가 없다 — P 는 자기 주문 키에 CAPTURED, Q 는 옛 플래너 키 그대로(둘 다 미해결로 남음, 이 화면은 P 고정).
     const planner = <PayPalBookingButton productType="ai-planner-full" passengers={1} priceKRW={14000} lang="en" keepRecoveryUntilFulfilled onPaymentSuccess={vi.fn(async () => {})} p={{ paypalBookBtn: 'Book now' }} />;
     await approveWhileAnotherTabWrites(PLANNER, ptr('ORD-Q', 'single', 'ai_planner_full', 'CAPTURED'), async () => reply(200, final('ORD-P')), planner);
     expect(orderOn(PLANNER)).toBe('ORD-Q');
-    expect(orderOn(SHARED)).toBe('ORD-P');
+    expect(orderOn(SHARED)).toBeNull();
+    expect(readRecoveryOrder('ORD-P')).toMatchObject({ orderID: 'ORD-P', paymentStatus: 'CAPTURED' });
+    expect(readRecoveryOrder('ORD-Q')).toMatchObject({ orderID: 'ORD-Q', paymentStatus: 'CAPTURED' });
+    expect(screen.getByText('ORD-P')).toBeInTheDocument();
+    expect(screen.queryByText('Book now')).toBeNull();
   });
   it('Astra #2 / Button:858 — a cart order (flow cart, productType cart) from the server is foreign: the cart key\'s Q is kept, notice shown', async () => {
     localStorage.setItem(CART, ptr('ORD-Q', 'cart'));
@@ -117,10 +125,13 @@ describe('r14 — PayPalBookingButton write sites never overwrite another order'
     render(charter());
     await act(async () => { fireEvent.click(screen.getByText('Book now')); await new Promise((r) => setTimeout(r, 10)); });
     expect(orderOn(SHARED)).toBe('ORD-Q');
+    expect(readRecoveryOrder('ORD-P')).not.toBeNull(); // r16: P 는 자기 주문 키(상품 미상 → 이 화면이 맡음)
   });
   it('same order is still updated; an empty key is still written', async () => {
+    // r16: 갱신은 그 주문 키에(옛 공용 키는 쓰지 않는다) — 실효 값 = 주문별 키.
     await approveWhileAnotherTabWrites(SHARED, ptr('ORD-P', 'single', 'charter_dmz'), async () => reply(202, { ...pending('ORD-P'), paymentStatus: 'CAPTURED' }));
-    expect(JSON.parse(localStorage.getItem(SHARED) || 'null')).toMatchObject({ orderID: 'ORD-P', paymentStatus: 'CAPTURED' });
+    expect(readRecoveryOrder('ORD-P')).toMatchObject({ orderID: 'ORD-P', paymentStatus: 'CAPTURED' });
+    expect(localStorage.getItem(SHARED)).toBe(ptr('ORD-P', 'single', 'charter_dmz'));
   });
 });
 
@@ -140,10 +151,12 @@ describe('r14 — CartCheckout write sites never overwrite another order', () =>
   it('Cart:226 + 101 (pointer before capture, then pending) — another tab\'s cart Q kept', async () => {
     await approveCart(async () => reply(202, pending('CART-P', 'cart')), () => localStorage.setItem(CART, ptr('CART-Q', 'cart')));
     expect(orderOn(CART)).toBe('CART-Q');
+    expect(readRecoveryOrder('CART-P')).toMatchObject({ flow: 'cart' }); // r16: 자기 주문 키 — 둘 다 남는다
   });
   it('Cart:237 (capture throws) — cart Q kept', async () => {
     await approveCart(async () => { throw new Error('network'); }, () => localStorage.setItem(CART, ptr('CART-Q', 'cart')));
     expect(orderOn(CART)).toBe('CART-Q');
+    expect(readRecoveryOrder('CART-P')).toMatchObject({ flow: 'cart' }); // r16: 자기 주문 키
   });
   it('Cart:157 (409 own cart order) while another tab wrote cart Q without an event → Q kept', async () => {
     mocks.authFetch.mockImplementation(async (url: string) => {
@@ -153,21 +166,22 @@ describe('r14 — CartCheckout write sites never overwrite another order', () =>
     render(<CartCheckout onClose={() => {}} />);
     await act(async () => { fireEvent.click(screen.getByText('Confirm & pay')); await new Promise((r) => setTimeout(r, 10)); });
     expect(orderOn(CART)).toBe('CART-Q');
+    expect(readRecoveryOrder('CART-P')).toMatchObject({ flow: 'cart' }); // r16: 자기 주문 키
   });
   it('Astra #1 / Cart:101 — checking a foreign planner P; another tab replaces the shared key with unissued Q (event) → late P pending dropped, Q kept', async () => {
-    let answer!: (v: unknown) => void;
-    mocks.authFetch.mockImplementation(async (url: string) => {
-      if (url === '/api/capturePaypalOrder') return new Promise((r) => { answer = r; });
-      throw new Error(`OFFLINE: unexpected ${url}`);
-    });
+    // r16: 장바구니 화면은 단건(플래너) 주문을 맡지 않는다 — 확인 자체가 시작되지 않고, 다른 탭이 옛 키를 Q 로 바꿔도
+    //   이 화면은 아무것도 쓰지 않으며(Q 보존) 장바구니도 그대로.
+    mocks.authFetch.mockImplementation(async (url: string) => { throw new Error(`OFFLINE: unexpected ${url}`); });
     render(<CartCheckout onClose={() => {}} />);
     const p = ptr('ORD-P', 'single', 'ai_planner_full');
     await act(async () => { localStorage.setItem(SHARED, p); window.dispatchEvent(new StorageEvent('storage', { key: SHARED, oldValue: null, newValue: p })); });
-    fireEvent.click(await screen.findByText('Check this order'));
+    expect(screen.queryByText('Check this order')).toBeNull();
     const q = ptr('ORD-Q', 'single', 'ai_planner_full', 'CAPTURED');
     await act(async () => { localStorage.setItem(SHARED, q); window.dispatchEvent(new StorageEvent('storage', { key: SHARED, oldValue: p, newValue: q })); });
-    await act(async () => { answer(reply(202, pending('ORD-P'))); await new Promise((r) => setTimeout(r, 10)); });
+    expect(screen.queryByText('Check this order')).toBeNull();
+    expect(mocks.authFetch).not.toHaveBeenCalled();
     expect(orderOn(SHARED)).toBe('ORD-Q');
+    expect(readRecoveryOrder('ORD-Q')).toMatchObject({ paymentStatus: 'CAPTURED' });
     expect(mocks.clear).not.toHaveBeenCalled();
   });
 });

@@ -31,12 +31,11 @@ vi.mock('react-router-dom', async () => {
 });
 
 import { PayPalBookingButton } from '../../src/components/PayPalBookingButton';
-import { recoveryKey, PLANNER_RECOVERY_SCOPE } from '../../src/lib/paymentRecovery';
+import { recoveryKey, readRecoveryOrder } from '../../src/lib/paymentRecovery';
 
 type ButtonsConfig = { onApprove: (data: { orderID: string }) => Promise<void> };
 const buttons: ButtonsConfig[] = [];
 const SHARED = recoveryKey('single');
-const PLANNER = recoveryKey('single', PLANNER_RECOVERY_SCOPE);
 const reply = (status: number, body: unknown) => ({ ok: status < 300, status, json: async () => body });
 const final = (orderID: string) => ({ ok: true, finalized: true, data: { orderID, amount: '9.90', currency: 'USD', payerName: 'P', payerEmail: 'p@example.invalid' } });
 const pending = (orderID: string, extra: Record<string, unknown> = {}) => ({ ok: false, code: 'PAYMENT_RECOVERY_PENDING', orderID, flow: 'single', paymentStatus: 'CAPTURE_UNKNOWN', finalized: false, ...extra });
@@ -76,12 +75,28 @@ describe('r5-1 — intermediate check results keep the restored pointer\'s produ
     ['X3 legacy planner pointer, K-pop page, network error', 'ORD-P', 'ai-planner-full', 'kpop_shuttle_oneway', 'NETWORK'],
     ['relabel auth_required, tour page', 'ORD-P', 'ai-planner-full', 'tour_dmz_day', { ok: false, code: 'RECOVERY_AUTH_REQUIRED' }],
   ])('%s → Check → final: neutral notice, never this page\'s confirmation', async (_label, orderID, owner, page, middle) => {
+    // r16: 다른 상품(투어·플래너) 주문은 이 화면에 선택되지 않는다 — 패널 없이 Book now, 서버 409(그 주문 미결) → 중립 안내.
+    //   그 주문은 원래 상품·flow 그대로 남는다(이 화면 상품으로 바뀌지 않음).
     localStorage.setItem(SHARED, pointer(orderID, owner));
-    captures([middle, final(orderID)]);
+    captures([middle, final(orderID)], (url) => (url === '/api/createPaypalOrder' ? reply(409, pending(orderID, { productType: owner })) : null));
     const onPaymentSuccess = vi.fn();
     render(<PayPalBookingButton productType={page} passengers={2} priceKRW={135000} lang="en" onPaymentSuccess={onPaymentSuccess} p={{ paypalBookBtn: 'Book now' }} />);
+    expect(screen.queryByText('Check this order')).toBeNull();
+    await act(async () => { fireEvent.click(screen.getByText('Book now')); });
+    expect(await screen.findByText(new RegExp(`Another order \\(${orderID}\\) in this browser is still being confirmed`))).toBeInTheDocument();
+    expect(readRecoveryOrder(orderID)).toMatchObject({ orderID, productType: owner, flow: 'single' });
+    expect(screen.queryByText('Booking Confirmed!')).toBeNull();
+    expect(onPaymentSuccess).not.toHaveBeenCalled();
+
+    // r16: 중간 단계가 상품을 덮지 않는다는 원래 회귀는 이 화면이 맡는 '상품 미상' 주문으로 — 이 화면 상품으로 재표기되지 않고, final 은 중립 안내.
+    cleanup(); localStorage.clear();
+    localStorage.setItem(SHARED, JSON.stringify({ orderID, flow: 'single', paymentStatus: 'CAPTURE_UNKNOWN', review: false, updatedAt: 1 }));
+    captures([middle, final(orderID)]);
+    render(<PayPalBookingButton productType={page} passengers={2} priceKRW={135000} lang="en" onPaymentSuccess={onPaymentSuccess} p={{ paypalBookBtn: 'Book now' }} />);
     await check();
-    expect(JSON.parse(localStorage.getItem(SHARED) || 'null')).toMatchObject({ orderID, productType: owner, flow: 'single' });
+    const kept = readRecoveryOrder(orderID);
+    expect(kept).toMatchObject({ orderID, flow: 'single' });
+    expect(kept?.productType).toBeUndefined();
     // review 화면·auth_required(같은 기기 전용 — 확인 버튼 비활성)는 포인터 보존과 거짓 확정 없음만 확인
     expect(screen.queryByText('Booking Confirmed!')).toBeNull();
     const again = screen.queryByText('Check this order') as HTMLButtonElement | null;
@@ -90,15 +105,16 @@ describe('r5-1 — intermediate check results keep the restored pointer\'s produ
       expect(await screen.findByText(new RegExp(`different order \\(${orderID}\\)`))).toBeInTheDocument();
       expect(screen.queryByText('Booking Confirmed!')).toBeNull();
       expect(onPaymentSuccess).not.toHaveBeenCalled();
-      if (owner === 'ai-planner-full') expect(JSON.parse(localStorage.getItem(PLANNER) || 'null')).toMatchObject({ orderID, paymentStatus: 'CAPTURED' });
     }
   });
   it('relabel A2: charter page WITHOUT onPaymentSuccess → no "Booking Confirmed!"; the planner page then offers "Check this order", not "Book now"', async () => {
     localStorage.setItem(SHARED, pointer('ORD-P', 'ai-planner-full'));
-    captures([pending('ORD-P'), final('ORD-P')]);
+    // r16: 차터 화면은 플래너 주문을 맡지 않는다 — Book now → 409(미결 플래너 주문) → 중립 안내, 기사 안내·확정 없음.
+    captures([pending('ORD-P'), final('ORD-P')], (url) => (url === '/api/createPaypalOrder' ? reply(409, pending('ORD-P', { productType: 'ai-planner-full' })) : null));
     render(<PayPalBookingButton productType="charter_dmz" passengers={2} priceKRW={135000} lang="en" p={{ paypalBookBtn: 'Book now' }} />);
-    await check(); await check();
-    expect(await screen.findByText(/different order \(ORD-P\)/)).toBeInTheDocument();
+    expect(screen.queryByText('Check this order')).toBeNull();
+    await act(async () => { fireEvent.click(screen.getByText('Book now')); });
+    expect(await screen.findByText(/Another order \(ORD-P\) in this browser is still being confirmed/)).toBeInTheDocument();
     expect(screen.queryByText('Booking Confirmed!')).toBeNull();
     expect(screen.queryByText(/Driver details/)).toBeNull();
     cleanup();
@@ -110,10 +126,11 @@ describe('r5-1 — intermediate check results keep the restored pointer\'s produ
     captures([pending('ORD-T'), final('ORD-T')], (url) => (url === '/api/createPaypalOrder' ? reply(409, pending('ORD-T', { productType: 'tour_dmz_day' })) : null));
     render(<PayPalBookingButton productType="charter_dmz" passengers={2} priceKRW={135000} lang="en" p={{ paypalBookBtn: 'Book now' }} />);
     await act(async () => { fireEvent.click(screen.getByText('Book now')); });
-    await check();
-    expect(JSON.parse(localStorage.getItem(SHARED) || 'null')).toMatchObject({ productType: 'tour_dmz_day' });
-    await check();
-    expect(await screen.findByText(/different order \(ORD-T\)/)).toBeInTheDocument();
+    // r16: 투어 주문은 그 주문 키에 투어 상품 그대로 — 차터 화면은 맡지 않고(패널·확인 버튼 없음) 미결 중립 안내만, 다시 결제 경로 없음.
+    expect(await screen.findByText(/Another order \(ORD-T\) in this browser is still being confirmed/)).toBeInTheDocument();
+    expect(readRecoveryOrder('ORD-T')).toMatchObject({ productType: 'tour_dmz_day', flow: 'single' });
+    expect(screen.queryByText('Check this order')).toBeNull();
+    expect(screen.queryByText('Book now')).toBeNull();
     expect(screen.queryByText('Booking Confirmed!')).toBeNull();
   });
   it('a NEW payment on this page still records this page\'s product (fresh path unchanged)', async () => {
@@ -122,7 +139,7 @@ describe('r5-1 — intermediate check results keep the restored pointer\'s produ
     fireEvent.click(screen.getByText('Book now'));
     await waitFor(() => expect(buttons).toHaveLength(1));
     await act(async () => { await buttons[0].onApprove({ orderID: 'ORD-N' }); });
-    expect(JSON.parse(localStorage.getItem(SHARED) || 'null')).toMatchObject({ orderID: 'ORD-N', productType: 'charter_dmz' });
+    expect(readRecoveryOrder('ORD-N')).toMatchObject({ orderID: 'ORD-N', productType: 'charter_dmz' }); // r16: 주문별 키
   });
 });
 

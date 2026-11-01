@@ -33,7 +33,7 @@ vi.mock('react-router-dom', async () => {
 });
 
 import { PayPalBookingButton } from '../../src/components/PayPalBookingButton';
-import { recoveryKey, PLANNER_RECOVERY_SCOPE } from '../../src/lib/paymentRecovery';
+import { recoveryKey, PLANNER_RECOVERY_SCOPE, readRecoveryOrder, resetPaymentRecoveryMemory } from '../../src/lib/paymentRecovery';
 
 type ButtonsConfig = { onApprove: (data: { orderID: string }) => Promise<void> };
 const buttons: ButtonsConfig[] = [];
@@ -59,6 +59,7 @@ const button = (productType: string, onPaymentSuccess: () => void) => (
 
 beforeEach(() => {
   cleanup(); vi.clearAllMocks(); buttons.length = 0;
+  resetPaymentRecoveryMemory(); // r16: setItem Quota mock → 모듈 메모리 주문 — 테스트 간 누수 방지
   vi.stubEnv('VITE_PAYPAL_CLIENT_ID', 'offline-client');
   vi.stubEnv('VITE_PAYPAL_ME_USERNAME', 'offline-user');
   (window as unknown as { paypal: unknown }).paypal = { Buttons: (cfg: ButtonsConfig) => { buttons.push(cfg); return { render: () => {}, isEligible: () => true }; }, FUNDING: {} };
@@ -109,7 +110,9 @@ describe('r8-2 — legacy planner pointer: moving it to the planner key fails �
     captures([[200, final('ORD-P')]], 'ORD-P');
     const success = vi.fn(async () => {});
     render(<PayPalBookingButton productType="ai-planner-full" passengers={1} priceKRW={14000} lang="en" keepRecoveryUntilFulfilled onPaymentSuccess={success} p={{ paypalBookBtn: 'Book now' }} />);
-    expect(localStorage.getItem(recoveryKey('single', PLANNER_RECOVERY_SCOPE))).toBeNull(); // 이동 실패(전용 키 없음)
+    // r16: 이동 자체가 없다 — 옛 공용 키는 읽기만(삭제·이전 없음), 플래너 화면이 그대로 맡는다.
+    expect(localStorage.getItem(recoveryKey('single', PLANNER_RECOVERY_SCOPE))).toBeNull();
+    expect(localStorage.getItem(SINGLE)).not.toBeNull();
     await act(async () => { fireEvent.click(await screen.findByText('Check this order')); await new Promise((r) => setTimeout(r, 10)); });
     await waitFor(() => expect(success).toHaveBeenCalledTimes(1));
     expect(success).toHaveBeenCalledWith('ORD-P');
@@ -130,5 +133,8 @@ describe('r8-3 — a never-persisted pointer still reads a readable storage: ano
     localStorage.setItem(SINGLE, NEW); // 다른 탭(StorageEvent 전)
     await act(async () => { fireEvent.click(screen.getByText('Check this order')); await new Promise((r) => setTimeout(r, 10)); });
     expect(localStorage.getItem(SINGLE)).toBe(NEW);
+    // r16: 주문별 저장 — NEW 는 그대로, OLD 도 자기 주문으로 남는다(어느 쪽도 덮이거나 사라지지 않음).
+    expect(readRecoveryOrder('ORD-NEW')).toMatchObject({ productType: 'tour_dmz' });
+    expect(readRecoveryOrder('ORD-OLD')).toMatchObject({ productType: 'charter_oneway' });
   });
 });

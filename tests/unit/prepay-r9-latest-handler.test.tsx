@@ -33,7 +33,7 @@ vi.mock('react-router-dom', async () => {
 });
 
 import { PayPalBookingButton } from '../../src/components/PayPalBookingButton';
-import { removePaymentRecovery, PLANNER_RECOVERY_SCOPE } from '../../src/lib/paymentRecovery';
+import { finishPaidPlannerOrder, readRecoveryOrder, isRecoveryDone, resetPaymentRecoveryMemory } from '../../src/lib/paymentRecovery';
 
 type ButtonsConfig = { onApprove: (data: { orderID: string }) => Promise<void> };
 const buttons: ButtonsConfig[] = [];
@@ -70,6 +70,7 @@ async function openButtons() {
 
 beforeEach(() => {
   cleanup(); vi.clearAllMocks(); buttons.length = 0;
+  resetPaymentRecoveryMemory(); // r16: setItem Quota mock → 모듈 메모리 — 테스트 간 누수 방지
   vi.stubEnv('VITE_PAYPAL_CLIENT_ID', 'offline-client');
   vi.stubEnv('VITE_PAYPAL_ME_USERNAME', 'offline-user');
   (window as unknown as { paypal: unknown }).paypal = { Buttons: (cfg: ButtonsConfig) => { buttons.push(cfg); return { render: () => {}, isEligible: () => true }; }, FUNDING: {} };
@@ -160,7 +161,10 @@ describe('r9-3 — a legacy shared-key planner pointer that could not move (Quot
     const planner = () => <PayPalBookingButton productType="ai-planner-full" passengers={1} priceKRW={14000} lang="en" keepRecoveryUntilFulfilled onPaymentSuccess={vi.fn(async () => {})} p={{ paypalBookBtn: 'Book now' }} />;
     render(planner());
     await act(async () => { fireEvent.click(await screen.findByText('Check this order')); await new Promise((r) => setTimeout(r, 10)); });
-    expect(localStorage.getItem(SHARED)).toBeNull();
+    // r16: 옛 키는 지우지 않는다(읽기만). 완료 표식 저장도 Quota 로 실패 → 이 탭 메모리 완료로 목록에서 숨김(원본 보존).
+    expect(localStorage.getItem(SHARED)).not.toBeNull();
+    expect(readRecoveryOrder('ORD-P')).toBeNull();
+    expect(isRecoveryDone('ORD-P')).toBe(true);
     cleanup();
     render(planner());
     expect(screen.queryByText('Check this order')).toBeNull();
@@ -168,10 +172,13 @@ describe('r9-3 — a legacy shared-key planner pointer that could not move (Quot
   });
   it('another order / a non-planner product on the shared key is left alone', () => {
     // 공용 키의 다른 주문(차터) — 플래너 범위 삭제가 건드리지 않는다.
+    // r16: 범위 삭제(removePaymentRecovery) → 플래너 주문 완료(finishPaidPlannerOrder)는 그 주문만 끝낸다 — 다른 주문·옛 키 불변.
     const SHARED = 'cocotrip:payment-recovery:single';
     const other = JSON.stringify({ orderID: 'ORD-C', flow: 'single', paymentStatus: 'CAPTURE_UNKNOWN', review: false, productType: 'charter_dmz', updatedAt: 1 });
     localStorage.setItem(SHARED, other);
-    removePaymentRecovery('single', 'ORD-C', PLANNER_RECOVERY_SCOPE);
+    finishPaidPlannerOrder('ORD-P');
     expect(localStorage.getItem(SHARED)).toBe(other);
+    expect(readRecoveryOrder('ORD-C')).toMatchObject({ productType: 'charter_dmz' });
+    expect(isRecoveryDone('ORD-C')).toBe(false);
   });
 });
