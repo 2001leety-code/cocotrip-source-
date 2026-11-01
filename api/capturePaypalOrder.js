@@ -542,6 +542,18 @@ export default async function handler(req, res) {
       // r21: POST 전 기록을 이어받은 전체 capture 요청(증명 있는 요청만 기존 기록을 이어받는다) — 저장된 intent 대신 이 요청의 intent.
       //   같은 주문 확인(reconcile, 예약 입력 없음)은 저장된 intent 를 그대로 쓴다(아래).
       //   r22 S2: the `intent` field is replaced WHOLE (no sub-field of the previous input survives), intentProven = true.
+      //   r26: the saved coupon changes only when THIS request proves the change — its coupon owner is Bearer-verified and it is
+      //   a different coupon, or the verified coupon owner sent no coupon. Otherwise (e.g. cookie only, no Bearer: intent.coupon
+      //   computed null) the saved coupon stays in the input and is used, as main replays it (replaceAttemptIntent then keeps it).
+      const prevCoupon = attempt.lock.intent && attempt.lock.intent.coupon;
+      if (prevCoupon) {
+        const changedVerified = !!intent.coupon && _couponOwnerVerified;
+        const droppedVerified = !couponDocId && !!verifiedBuyerUid && verifiedBuyerUid === prevCoupon.couponUserId;
+        if (!changedVerified && !droppedVerified) {
+          intent = { ...intent, coupon: prevCoupon };
+          couponDocId = prevCoupon.couponDocId; couponUserId = prevCoupon.couponUserId; _couponOwnerVerified = true;
+        }
+      }
       try {
         await replaceAttemptIntent(attempt, { intent, userEmail, product: product || 'unknown', intentProven: true });
       } catch (intentErr) {

@@ -354,6 +354,24 @@ describe('r25 — the reopened panel turns into the confirmation when its order 
     expect(has('Booking Confirmed!')).toBe(true);
     expect(has(/\$\s*USD/)).toBe(false);
   });
+  // r26 (Astra #1): only an order of THIS screen's product switches the screen to its confirmation.
+  it('the screen switched product (one-way → another) while the old order\'s panel was pinned → no confirmation of the old order', async () => {
+    PR.saveRecoveryOrder({ orderID: 'ORD-X', flow: 'single', paymentStatus: 'CAPTURE_UNKNOWN', review: false, productType: 'charter_dmz' });
+    const view = render(charter('charter_dmz', '2099-12-20')); await settle();
+    expect(singlePanel()).toBe('ORD-X');
+    await act(async () => { view.rerender(charter('charter_seoul', '2099-12-20')); }); await settle();
+    expect(singlePanel()).toBe('ORD-X'); // the checked order stays pinned after the product switch (r17)
+    await otherTab([[PR.doneRecoveryKey('ORD-X'), `confirmed:${Date.now()}:${JSON.stringify({ amount: '100.00' })}`], [PR.orderRecoveryKey('ORD-X'), null]]);
+    expect(has('Booking Confirmed!')).toBe(false);
+    expect(has('$100.00 USD')).toBe(false);
+  });
+  it('an order of unknown product (old pointer without productType) → no confirmation (r24 behaviour)', async () => {
+    PR.saveRecoveryOrder({ orderID: 'ORD-U', flow: 'single', paymentStatus: 'CAPTURE_UNKNOWN', review: false });
+    render(charter()); await settle();
+    expect(singlePanel()).toBe('ORD-U');
+    await otherTab([[PR.doneRecoveryKey('ORD-U'), `confirmed:${Date.now()}`], [PR.orderRecoveryKey('ORD-U'), null]]);
+    expect(has('Booking Confirmed!')).toBe(false);
+  });
   it('another tab refunds (refunded marker) → no confirmation here; Book now as before', async () => {
     await openPanel('ORD-X');
     await otherTab([[PR.doneRecoveryKey('ORD-X'), `refunded:${Date.now()}`], [PR.orderRecoveryKey('ORD-X'), null]]);
@@ -408,6 +426,33 @@ describe('r25 — done marker format and old-marker compatibility', () => {
     expect(PR.confirmedDone('B-1')).toEqual({ amount: undefined, dateStart: undefined, dateEnd: undefined });
     expect(PR.confirmedDone('B-2')).toEqual({ amount: undefined, dateStart: undefined, dateEnd: undefined });
     set('B-3', 'confirmedXYZ'); expect(PR.confirmedDone('B-3')).toBeNull();
+  });
+  // r26 (Astra #2 / Fable low): a confirmed marker that only lives in memory (its save failed) is never overwritten by 'void:'.
+  it('confirmed save fails → storage recovers → a void for the same order writes the confirmed marker (with summary), evidence kept', () => {
+    const realSet = Storage.prototype.setItem;
+    const spy = vi.spyOn(Storage.prototype, 'setItem').mockImplementation(function (this: Storage, k: string, v: string) {
+      if (k === PR.doneRecoveryKey('M-1')) throw new Error('QuotaExceededError');
+      return realSet.call(this, k, v);
+    });
+    expect(PR.finishRecoveryOrder('M-1', 'final', 'confirmed', { amount: '100.00' })).toBe(false);
+    expect(PR.confirmedDone('M-1')).toEqual({ amount: '100.00' });
+    spy.mockRestore();
+    PR.finishRecoveryOrder('M-1', 'void');
+    expect(localStorage.getItem(PR.doneRecoveryKey('M-1'))).toMatch(/^confirmed:\d+:\{"amount":"100\.00"\}$/);
+    expect(PR.hasPaymentEvidence('M-1')).toBe(true);
+    expect(PR.saveRecoveryOrder({ orderID: 'M-1', flow: 'single', paymentStatus: 'CAPTURED', review: false, productType: 'charter_dmz' })).toBeNull(); // not revived
+  });
+  it('an old-style final kept only in memory → a later void writes a plain final time (never void:)', () => {
+    const realSet = Storage.prototype.setItem;
+    const spy = vi.spyOn(Storage.prototype, 'setItem').mockImplementation(function (this: Storage, k: string, v: string) {
+      if (k === PR.doneRecoveryKey('M-2')) throw new Error('QuotaExceededError');
+      return realSet.call(this, k, v);
+    });
+    PR.finishRecoveryOrder('M-2');
+    spy.mockRestore();
+    PR.finishRecoveryOrder('M-2', 'void');
+    expect(localStorage.getItem(PR.doneRecoveryKey('M-2'))).toMatch(/^\d+$/);
+    expect(PR.hasPaymentEvidence('M-2')).toBe(true);
   });
   it('finishRecoveryOrder writes the detail; a later void never downgrades nor strips it', () => {
     PR.finishRecoveryOrder('W-1', 'final', 'confirmed', { amount: '100.00' });

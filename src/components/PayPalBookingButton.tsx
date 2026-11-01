@@ -226,14 +226,16 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
   //   (화면 로컬 전환, 포인터 저장 없음). 환불('refunded')·세부 없는 옛 final·'void' 는 해당 없음(지금처럼 Book now·미결제 안내).
   //   확정 시점에 마운트된 화면이 없거나 새로고침 뒤면 패널이 없으므로 해당 없음 — Book now(main 과 같음, r24).
   //   금액·날짜 = 확정한 화면이 표식에 남긴 것만(날짜는 그 주문을 만든 화면이 안 생성 당시 날짜 — 없으면 줄 생략, 지금 화면 날짜 금지).
-  const shownOrderRef = useRef<string | null>(recovery ? recovery.orderID : null);
+  //   r26: 그 주문 상품이 지금 화면 상품과 같을 때만(상품을 바꾼 화면에 옛 주문의 "예약 확정"이 뜨지 않게). 상품 미상 주문 = 전환 없음(r24).
+  const shownOrderRef = useRef<PaymentRecovery | null>(recovery);
   useEffect(() => {
     const shown = shownOrderRef.current;
-    shownOrderRef.current = recovery ? recovery.orderID : null;
-    if (!shown || shown === shownOrderRef.current || showSuccess || onPaymentSuccess) return;
-    const done = isRecoveryDone(shown) ? confirmedDone(shown) : null;
+    shownOrderRef.current = recovery;
+    if (!shown || (recovery && recovery.orderID === shown.orderID) || showSuccess || onPaymentSuccess) return;
+    if (!shown.productType || !isSameProduct(shown.productType, productType)) return;
+    const done = isRecoveryDone(shown.orderID) ? confirmedDone(shown.orderID) : null;
     if (!done) return;
-    setSuccessData({ orderID: shown, payerName: '', payerEmail: '', amount: done.amount || '', ...(done.dateStart ? { dateStart: done.dateStart, dateEnd: done.dateEnd || '' } : {}) });
+    setSuccessData({ orderID: shown.orderID, payerName: '', payerEmail: '', amount: done.amount || '', ...(done.dateStart ? { dateStart: done.dateStart, dateEnd: done.dateEnd || '' } : {}) });
     setShowSuccess(true); setShowPaypal(false); setRateInfo(null);
   }, [recovery]); // eslint-disable-line react-hooks/exhaustive-deps -- 선택 주문이 바뀔 때만 판정(그 밖 값은 이 렌더 값)
   // r19: 결제 결과 문구는 그 주문에 묶는다 — 다른 주문의 복구 패널엔 안 보이고, 최종이 아닌 문구는 그 주문이 CAPTURED·완료가 되면 지운다.

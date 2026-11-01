@@ -4,7 +4,9 @@
  *   같은 쿠폰 유지 = 그대로(재선점 멱등) · 다른 주문이 쥔 쿠폰 = 안 건드림 · 형식이 잘못된 옛 id = 해제 시도 없음 ·
  *   교체 트랜잭션 실패 = 둘 다 원상(UNKNOWN 202).
  *   main 비교: main 은 저장 입력을 그대로 재생해 A 만 다룬다(새 입력 B 로 교체하지 않음) — 교체는 r21·r22 에서 생긴 경로.
- * r25-3: 기록 없음 + PayPal GET 404 RESOURCE_NOT_FOUND = 미결제(묘비 409, main 과 같음). 기록 있는 주문의 404 는 그대로(UNKNOWN).
+ * r26: 옛 쿠폰은 새 요청이 그 변경을 증명할 때만 바뀐다(Bearer 로 쿠폰 소유 검증 + 다른 쿠폰, 또는 검증된 쿠폰 주인이 쿠폰 없음).
+ *   쿠키만 있는 요청(intent.coupon 계산값 null)은 저장 쿠폰을 그대로 쓴다(main 의 재생과 같음).
+ * r26: r25-3(기록 없음 + 404 = 미결제)은 되돌림 — 조회 실패·404 는 전부 UNKNOWN(202).
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { memoryDb, fakeRes, providerFetch, completedOrder, type MemoryDb } from './helpers/payment-recovery-fixture';
@@ -50,9 +52,9 @@ const body = { orderID: ORDER, product: 'airport_seoul_central', paxCount: 2, us
 const APPROVED = { method: 'GET', reply: { status: 200, body: { id: ORDER, status: 'APPROVED' } } };
 const CAPTURED = { method: 'POST', reply: { status: 201, body: completedOrder(ORDER, '100.00') } };
 
-async function call(b: Record<string, unknown>) {
+async function call(b: Record<string, unknown>, h: Record<string, string> = headers) {
   const res = fakeRes();
-  await handler({ method: 'POST', body: b, headers }, res);
+  await handler({ method: 'POST', body: b, headers: h }, res);
   return res.state;
 }
 // A POST-less record (captureState 'none', claim expired) whose earlier input reserved coupon A for this order.
@@ -137,7 +139,7 @@ describe('r25 — replacing a POST-less input releases the coupon the old input 
     expect(db.rows.get(A)).toMatchObject({ isUsed: true, usedOrderID: ORDER, pendingCapture: true });
     expect(db.rows.get(B)).toEqual({ isUsed: false });
   });
-  it('a retry with no coupon at all also releases A', async () => {
+  it('a retry with no coupon at all (A\'s owner verified by Bearer) also releases A', async () => {
     provider.push(APPROVED, CAPTURED);
     const out = await call(body);
     expect(out.status).toBe(200);
@@ -145,16 +147,49 @@ describe('r25 — replacing a POST-less input releases the coupon the old input 
   });
 });
 
+// r26 (Fable M9): only a request that PROVES the coupon change releases the old one. A cookie-only retry (no Bearer —
+//   intent.coupon computes null even with A in the body) keeps and spends A, exactly as main replays the saved input.
+describe('r26 — the old coupon changes only on a verified change', () => {
+  const cookieOnly = { cookie };
+  it('M9 full capture, cookie only, body still names A → A kept and spent once (main: A spent); saved input keeps A', async () => {
+    provider.push(APPROVED, CAPTURED);
+    const out = await call({ ...body, couponDocId: 'CA', couponUserId: UID }, cookieOnly);
+    expect(out.status).toBe(200);
+    expect(db.rows.get(A)).toMatchObject({ isUsed: true, usedOrderID: ORDER, pendingCapture: false });
+    expect(db.rows.get(LOCK)).toMatchObject({ intent: { coupon: { couponDocId: 'CA', couponUserId: UID } } });
+  });
+  it('cookie only with no coupon in the body → A still kept and spent (an unverified request cannot drop it)', async () => {
+    provider.push(APPROVED, CAPTURED);
+    const out = await call(body, cookieOnly);
+    expect(out.status).toBe(200);
+    expect(db.rows.get(A)).toMatchObject({ isUsed: true, usedOrderID: ORDER, pendingCapture: false });
+  });
+  it('cookie only naming B → A kept and spent, B untouched (B\'s owner is not verified)', async () => {
+    provider.push(APPROVED, CAPTURED);
+    const out = await call({ ...body, couponDocId: 'CB', couponUserId: UID }, cookieOnly);
+    expect(out.status).toBe(200);
+    expect(db.rows.get(A)).toMatchObject({ isUsed: true, usedOrderID: ORDER });
+    expect(db.rows.get(B)).toEqual({ isUsed: false });
+  });
+  it('a Bearer for ANOTHER user with no coupon → A kept (only A\'s verified owner may drop it)', async () => {
+    provider.push(APPROVED, CAPTURED);
+    const out = await call(body, { cookie, authorization: 'Bearer someone-else' });
+    expect(out.status).toBe(200);
+    expect(db.rows.get(A)).toMatchObject({ isUsed: true, usedOrderID: ORDER });
+  });
+});
+
 // r25-3: no attempt record + PayPal GET 404 RESOURCE_NOT_FOUND = nonpayment (main: 409). Was: 202 "checking" forever (pointer stuck).
-describe('r25-3 — absent record and PayPal 404', () => {
+// r26: r25-3 reverted — a valid order can answer 404 under an environment/account mismatch, so every 404 is UNKNOWN (202).
+describe('r26 — absent record and PayPal 404 stay UNKNOWN (r25-3 reverted)', () => {
   const NOT_FOUND = { method: 'GET', reply: { status: 404, body: { name: 'RESOURCE_NOT_FOUND', message: 'The specified resource does not exist.' } } };
-  it('no record + 404 RESOURCE_NOT_FOUND → 409 order_voided and a tombstone (still-absent transaction path)', async () => {
+  it('no record + 404 RESOURCE_NOT_FOUND → 202 UNKNOWN, no tombstone', async () => {
     db.rows.delete(LOCK);
     provider.push(NOT_FOUND);
     const out = await call({ orderID: ORDER, reconcile: true });
-    expect(out.status).toBe(409);
-    expect(out.body).toMatchObject({ evidence: 'order_voided' });
-    expect(db.rows.get(LOCK)).toMatchObject({ status: 'void_not_captured', reason: 'no_attempt_record' });
+    expect(out.status).toBe(202);
+    expect(out.body).toMatchObject({ code: 'PAYMENT_RECOVERY_PENDING', paymentStatus: 'CAPTURE_UNKNOWN' });
+    expect(db.rows.has(LOCK)).toBe(false);
     expect(posts()).toBe(0);
   });
   it('no record + a 404 that is not RESOURCE_NOT_FOUND → 202 UNKNOWN, nothing written (unchanged)', async () => {

@@ -87,6 +87,7 @@ export type DoneKind = 'final' | 'void';
 export type DoneDetail = 'confirmed' | 'refunded';
 export interface ConfirmedSummary { amount?: string; dateStart?: string; dateEnd?: string }
 const memoryDone = new Map<string, DoneKind | DoneDetail>(); // 완료 표식 저장에 실패한 주문(이 탭에서만 숨김)
+const memorySummary = new Map<string, ConfirmedSummary>();  // r26: 저장 실패한 'confirmed' 표식의 표시 내용(이 탭만)
 const listeners = new Set<() => void>();
 /**
  * r19: 이 탭에서 capture 요청이 진행 중인 주문 — 모듈 수준(패널 닫기·재마운트에도 유지). 버튼·장바구니의 '같은 주문 확인'
@@ -103,7 +104,7 @@ export function endCapture(orderID: string): void { if (capturesInFlight.delete(
 export const isCaptureInFlight = (orderID: string): boolean => capturesInFlight.has(orderID);
 
 /** 테스트 전용 — 모듈 메모리(저장 실패 주문·완료·진행 중 capture) 초기화. */
-export function resetPaymentRecoveryMemory(): void { memoryOrders.clear(); memoryDone.clear(); capturesInFlight.clear(); }
+export function resetPaymentRecoveryMemory(): void { memoryOrders.clear(); memoryDone.clear(); memorySummary.clear(); capturesInFlight.clear(); }
 
 /** r19: 같은 주문의 두 기록 중 남길 쪽 — 더 강한 상태(CAPTURED > 그 밖) 우선, 같으면 updatedAt 최신(같으면 b). 강등 금지. */
 const statusRank = (p: PaymentRecovery) => (p.paymentStatus === 'CAPTURED' ? 1 : 0);
@@ -139,7 +140,7 @@ export function isRecoveryDone(orderID: string): boolean {
  */
 export function confirmedDone(orderID: string): ConfirmedSummary | null {
   const raw = getRaw(doneRecoveryKey(orderID));
-  if (raw === null) return memoryDone.get(orderID) === 'confirmed' ? {} : null;
+  if (raw === null) return memoryDone.get(orderID) === 'confirmed' ? { ...memorySummary.get(orderID) } : null;
   const m = /^confirmed:\d+(?::([\s\S]*))?$/.exec(raw);
   if (!m) return null;
   let v: Record<string, unknown> = {};
@@ -212,17 +213,25 @@ export function saveRecoveryOrder(value: Omit<PaymentRecovery, 'updatedAt' | 'cr
 /** 서버가 입증한 종료 — 완료 표식 먼저, 그 다음 주문 키 삭제. 표식 저장 실패면 원본 보존(이 탭에서만 숨김). @returns 표식 저장 여부 */
 export function finishRecoveryOrder(orderID: string, kind: DoneKind = 'final', detail: DoneDetail | null = null, summary: ConfirmedSummary | null = null): boolean {
   // r20: 이미 확정('final') 표식이면 미결제('void')로 내리지 않는다. r25: 그 표식(세부 종류 포함)을 그대로 둔다.
+  //   r26: 그 표식이 메모리에만 있으면(확정 저장이 실패했던 주문) 메모리의 종류·요약으로 다시 쓴다 — 절대 'void:' 가 아니다.
   const keepFinal = kind === 'void' && isRecoveryDone(orderID) && !isVoidDone(orderID);
-  const effective: DoneKind | DoneDetail = kind === 'final' && detail ? detail : kind;
-  const now = Date.now();
   const existing = keepFinal ? getRaw(doneRecoveryKey(orderID)) : null;
+  const remembered = keepFinal ? memoryDone.get(orderID) : undefined;
+  const effective: DoneKind | DoneDetail = keepFinal
+    ? (remembered && remembered !== 'void' ? remembered : 'final')
+    : (kind === 'final' && detail ? detail : kind);
+  const shown = keepFinal ? memorySummary.get(orderID) || null : summary;
+  const now = Date.now();
   const value = existing !== null ? existing
     : effective === 'void' ? `void:${now}`
-      : effective === 'confirmed' ? `confirmed:${now}${summary ? `:${JSON.stringify(summary)}` : ''}`
+      : effective === 'confirmed' ? `confirmed:${now}${shown ? `:${JSON.stringify(shown)}` : ''}`
         : effective === 'refunded' ? `refunded:${now}` : String(now);
   let marked = false;
   try { localStorage.setItem(doneRecoveryKey(orderID), value); marked = true; } catch { /* 원본 보존 */ }
-  if (!marked && !keepFinal) memoryDone.set(orderID, effective);
+  if (!marked) {
+    memoryDone.set(orderID, effective);
+    if (effective === 'confirmed' && shown) memorySummary.set(orderID, shown);
+  }
   memoryOrders.delete(orderID);
   if (marked) { try { localStorage.removeItem(orderRecoveryKey(orderID)); } catch { /* 완료 표식이 우선한다 */ } }
   notifyRecoveryChange();

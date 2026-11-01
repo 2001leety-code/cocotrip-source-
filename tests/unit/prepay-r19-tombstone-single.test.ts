@@ -140,9 +140,8 @@ describe('A1/A3 — absent record on a same-order check: PayPal read, then tombs
 
   it.each([
     ['network failure', { method: 'GET' as const, throwName: 'TypeError' }],
-    // r25-3: 404 RESOURCE_NOT_FOUND with no record is now nonpayment (409 order_voided, as on main — prepay-r25-coupon.test.ts);
-    //   any other 404 stays UNKNOWN.
-    ['HTTP 404 (not RESOURCE_NOT_FOUND)', { method: 'GET' as const, reply: { status: 404, body: { name: 'NOT_AUTHORIZED' } } }],
+    // r26: r25's "404 RESOURCE_NOT_FOUND = nonpayment" was reverted — every lookup failure, 404 included, is UNKNOWN again.
+    ['HTTP 404', { method: 'GET' as const, reply: { status: 404, body: { name: 'RESOURCE_NOT_FOUND' } } }],
     ['unknown status', { method: 'GET' as const, reply: { status: 200, body: { id: ORDER, status: 'SOMETHING_NEW' } } }],
   ])('absent + lookup %s → 202 UNKNOWN, no tombstone, never "pay again"', async (_k, step) => {
     provider.push(step);

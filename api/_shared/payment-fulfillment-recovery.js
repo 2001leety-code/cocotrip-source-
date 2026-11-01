@@ -398,9 +398,6 @@ export async function resolveAbsentAttempt({ db, orderID, flow, environment, pro
   if (!proven) return { status: 409, body: { ...notCapturedResponse({ orderID, flow, reason: 'no_attempt_record' }), evidence: 'no_attempt_record' } };
   let lookup;
   try { lookup = await lookupOrder(); } catch (error) { lookup = { state: 'unknown', reason: `lookup-${(error && error.code) || 'failed'}` }; }
-  // r25: no record AND PayPal 404 RESOURCE_NOT_FOUND = nonpayment (main answers 409 here) — the same still-absent re-check
-  //   transaction and tombstone below; otherwise the check answered 202 forever and the pointer never cleared.
-  if (lookup && lookup.notFound) lookup = { state: 'not_captured', reason: 'order-NOT_FOUND' };
   const ref = db.collection(USED_ORDERS_COLLECTION).doc(orderID);
   if (lookup.state === 'captured') {
     // r20: another tab's capture may have created (and even finalized) the record during the read — answer from that
@@ -480,12 +477,9 @@ export async function fetchPaypalOrder({ baseUrl, accessToken, orderID, timeoutM
     const text = await response.text();
     let body = null;
     try { body = JSON.parse(text); } catch { return { state: 'unknown', reason: `lookup-unparsable-${response.status}` }; }
-    // r25: notFound = PayPal says this order does not exist (404 RESOURCE_NOT_FOUND). Still 'unknown' here — only
-    //   resolveAbsentAttempt (no attempt record) treats it as nonpayment; an order WITH a record keeps main's behaviour.
-    if (!response.ok) {
-      const notFound = response.status === 404 && !!body && body.name === 'RESOURCE_NOT_FOUND';
-      return { state: 'unknown', reason: `lookup-http-${response.status}`, ...(notFound ? { notFound: true } : {}) };
-    }
+    // r26: every lookup failure, 404 included, stays 'unknown' (r25's "404 = nonpayment" reverted — a valid order can answer
+    //   404 under an environment/account mismatch, and a tombstone is written before the environment check).
+    if (!response.ok) return { state: 'unknown', reason: `lookup-http-${response.status}` };
     return classifyOrderLookup(body, orderID);
   } catch (error) {
     return { state: 'unknown', reason: `lookup-${error.name === 'TimeoutError' ? 'timeout' : 'network'}` };
