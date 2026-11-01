@@ -521,13 +521,16 @@ function matchesLanguage(json, rows, lang) {
  * whitespace + a small symmetric set of punctuation (including '&') so
  * "AND&CAFE", "AND CAFE" and "ANDCAFE" all normalize identically. Applied to
  * BOTH sides of every comparison, so it never favors one spelling.
+ * 2026-11-02: typographic apostrophes/quotes (’ ‘ ‛ ` ´ “ ”) are stripped like their ASCII forms — NFKC does not fold them,
+ *   so the index name "Adm’s Mandi" (U+2019) never matched a model's "Adm's Mandi" (Claude, prod). Punctuation only:
+ *   still exact identity matching, and the ambiguity check below still rejects a spelling shared by two places.
  */
 function normalizeName(name) {
   return String(name || '')
     .normalize('NFKC')
     .toLowerCase()
     .replace(/[&＆]/g, '')
-    .replace(/[\s'".,·、，_-]/g, '')
+    .replace(/[\s'".,·、，_‘’‛`´“”-]/g, '')
     .trim();
 }
 

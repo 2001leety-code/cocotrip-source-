@@ -8,8 +8,10 @@
  */
 import { isRowCityConsistent } from './food-row-provenance.js';
 
+// 2026-11-02: 굽은 아포스트로피·따옴표(’ ‘ ‛ ` ´ / “ ”)는 ASCII 로 맞춘다 — 인덱스 "Adm’s Mandi"(U+2019)와 모델의 "Adm's Mandi"
+//   (Claude 운영 실측)가 같은 이름이다. 문장부호 표기만 맞춘다(정확 일치·유일성 검사 그대로, 부분/유사 매칭 없음).
 function normalizedName(value) {
-  return typeof value === 'string' ? value.trim().toLowerCase() : '';
+  return typeof value === 'string' ? value.trim().toLowerCase().replace(/[‘’‛`´]/g, "'").replace(/[“”]/g, '"') : '';
 }
 
 export function findSelectedFoodRow(stop, foodIndex, {
@@ -37,10 +39,12 @@ export function findSelectedFoodRow(stop, foodIndex, {
     return [canonical, row.nameEn, head].map(normalizedName).filter(Boolean);
   };
   // 2026-10-24 (O6-r5): 목록 줄 "• 해포 (Haepo) …" 의 "<이름> (<nameEn>)" 통째 복사도 DB 쪽 별칭으로 인정.
+  //   2026-11-02: 이름과 nameEn 이 같은 행도 목록에는 "• Adm’s Mandi (Adm’s Mandi)" 로 찍힌다(_food_helper 목록 형식) — 그 통째 복사도
+  //   같은 행의 별칭(Claude 운영 실측 "Adm's Mandi (Adm's Mandi)"). 같은 행의 이름 두 번이라 다른 식당과 섞이지 않는다.
   const nameAliases = (row) => {
     const base = baseAliases(row);
     const en = normalizedName(row.nameEn);
-    return en ? [...base, ...base.filter((name) => name !== en).map((name) => `${name} (${en})`)] : base;
+    return en ? [...base, ...base.map((name) => `${name} (${en})`)] : base;
   };
   const matching = (targets, aliasesOf) => foodIndex.filter((row) => {
     if (!row || typeof row !== 'object') return false;
