@@ -11,6 +11,7 @@ import { normalizeRegionKey, regionCityKey, departureCityKey } from "../response
 import { throttledTelegramAlert } from "../../_shared/telegram-throttle.js";
 // Phase 3 (2026-05-27): zone_courses Firestore transit_matrix cache — ODsay 호출 절감.
 import { lookupTransitCache, getTransitCacheStats } from "../transitCache.js";
+import { isSameLodgingMarker, isLodgingBookendPair } from "../mergedLodging.js"; // PR2 r11: 같은 숙소 판정 공용 모듈
 // PR-C (2026-06-01, FEATURE_CHARTER_HERO_PRICE OFF default): 공항픽업 가격 SSOT.
 // 차터 도착 HERO 가격 표시용 — airport_transfer_prices[zoneKey].priceKRW (읽기 전용).
 import { loadPricingSpec } from "../../_shared/pricing.js";
@@ -762,45 +763,9 @@ const stayOf = (p) => {
 export const isSightseeingStop = (p) => !NOT_SIGHTSEEING.has(stopCat(p));
 /** Day1 바닥이 걸리는 stop — 첫 관광·식당(이동·숙소·공항 표식이 아니라). PR2 r3. */
 export const isDay1FloorStop = (p) => isSightseeingStop(p) || stopCat(p) === 'food';
-/**
- * 같은 숙소의 연속 표식(숙소 → 숙소)인가 — PR2 r4: **두 좌표가 모두 유효할 때만** 50m 안이면 같은 숙소. 이름은 보지 않는다
- *   (이름이 같아도 좌표가 다르면 다른 지점, 좌표 누락은 판정 불가 → 합치지 않음 — 예전엔 Number(null)=0 이라 지오코딩 실패한 두 호텔이 같다고 나왔다).
- *   같은 숙소 구간은 이동·버퍼를 빼고 앞 숙소에 붙인다(손님은 이미 숙소). 그 밖엔 그대로 계산·자정 검사.
- */
-const coordOf = (p) => {
-    const ok = (v) => v !== null && v !== undefined && v !== '' && Number.isFinite(Number(v));
-    return ok(p?.lat) && ok(p?.lng) ? { lat: Number(p.lat), lng: Number(p.lng) } : null;
-};
-export function isSameLodgingMarker(a, b) {
-    if (stopCat(a) !== 'lodging' || stopCat(b) !== 'lodging') return false;
-    const ca = coordOf(a), cb = coordOf(b);
-    if (!ca || !cb) return false;
-    return _haversineKmPure(ca.lat, ca.lng, cb.lat, cb.lng) <= 0.05;
-}
-/**
- * PR2 r5→r6: 좌표로 판정할 수 없는 같은 예약 숙소의 북엔드. 체류(0·누락)·좌표 누락은 동일성 근거가 아니다(r6 — 다른 호텔도 합쳐졌다).
- *   명시 근거가 있을 때만: 그날이 **숙소뿐**(비숙소 stop 0 = 생성/휴식일 북엔드 구조)이고 마지막 두 숙소의 **정규화 이름이 같을 때**.
- *   활동이 있는 날의 마지막 두 숙소는 합치지 않는다(실제 호텔 변경 가능 → 자정 검사). 두 좌표가 모두 유효하면 이 규칙은 쓰지 않는다
- *   (50m 규칙만 — 좌표가 있을 때 이름이 좌표를 덮지 않는다). 도시 이동일은 호출자가 끈다.
- */
-const normKey = (v) => String(v || '').trim().toLowerCase().replace(/\s+/g, ' ');
-const lodgingNameKey = (p) => normKey(p?.name || p?.display_name);
-/*
- * r7: 주소가 동일성의 우선 근거 — 두 주소가 다 있으면 정규화 일치 필수(같은 이름·다른 주소 = 다른 숙소, 즉시 불합치).
- *   한쪽만 있으면 그 주소가 요청의 예약 숙소 주소(bookedAddress = RouteAgent data.hotel_address — 예약 호텔 또는 권역 anchor 주소)와
- *   일치해야 한다(상대는 이름 일치). 둘 다 없으면 이름 일치만(권역 placeholder 북엔드).
- */
-export function isLodgingBookendPair(places, i, bookedAddress = '') {
-    const a = places[i - 1], b = places[i];
-    if (i <= 0 || i !== places.length - 1 || stopCat(a) !== 'lodging' || stopCat(b) !== 'lodging') return false;
-    if (coordOf(a) && coordOf(b)) return false;
-    if (!places.every((p) => stopCat(p) === 'lodging')) return false; // 활동이 있는 날 = 합치지 않음
-    if (!lodgingNameKey(a) || lodgingNameKey(a) !== lodgingNameKey(b)) return false;
-    const aa = normKey(a?.address), ab = normKey(b?.address);
-    if (aa && ab) return aa === ab;
-    if (aa || ab) return !!normKey(bookedAddress) && (aa || ab) === normKey(bookedAddress);
-    return true;
-}
+// PR2 r11: 같은 숙소 판정(50m 좌표 규칙 + 좌표 없는 북엔드 규칙)은 mergedLodging.js 한 곳 — recalc-transit·qualityMetrics 와 공유.
+//   같은 숙소 구간은 이동·버퍼를 빼고 앞 숙소에 붙인다(손님은 이미 숙소). 그 밖엔 그대로 계산·자정 검사.
+export { isSameLodgingMarker, isLodgingBookendPair };
 
 /**
  * 2026-10-26 (첫날 도착 PR2) A단계 — 시작 시각(절대 분, 1440 이상도 그대로; %24·되돌림 없음). 순수.

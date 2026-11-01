@@ -1561,7 +1561,7 @@ export async function persistPlan(adminDb, {
       area,
       foodIndex || [],
       // 2026-10-24 재방문 정책: 점수의 중복 판정도 종단 게이트와 같은 적격 집합(사용자 제외 목록 포함, 없으면 []).
-      { lang: language || 'ko', avoidStopNames: Array.isArray(plannerIntent?.revision?.avoidStopNames) ? plannerIntent.revision.avoidStopNames : [] },
+      { lang: language || 'ko', avoidStopNames: Array.isArray(plannerIntent?.revision?.avoidStopNames) ? plannerIntent.revision.avoidStopNames : [], hotelAddress: hotel_address || '' },
     );
     console.log(
       `[planner] qualityScore: ${qualityScore.score}/100 ` +

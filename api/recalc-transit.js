@@ -101,13 +101,17 @@ export default async function handler(req, res) {
 
     const day = JSON.parse(JSON.stringify(days[dayIndex])); // deep clone
     const stops = day.stops || [];
+    // PR2 r11: 같은 숙소 재확인의 예약 숙소 주소(RouteAgent 와 같은 규칙 — 모르면 '' = 한쪽 주소 쌍은 합치지 않는 보수 쪽).
+    const bookedAddress = (plan.input && plan.input.hotel_address) || '';
 
     // Find stale indices
     const staleIndices = [];
     for (let i = 0; i < stops.length; i++) {
-      if (stops[i].transit_from_prev && stops[i].transit_from_prev._stale) {
+      // PR2 r11: 이동이 null 인 stop(병합 숙소 등)도 편집으로 인접 관계가 바뀌면 편집기가 stop 단위 _stale_transit 를 단다.
+      if ((stops[i].transit_from_prev && stops[i].transit_from_prev._stale) || stops[i]._stale_transit === true) {
         staleIndices.push(i);
       }
+      delete stops[i]._stale_transit;
     }
 
     if (staleIndices.length === 0) {
@@ -153,7 +157,7 @@ export default async function handler(req, res) {
 
     for (const idx of staleIndices) {
       // PR2 r10: 같은 숙소로 합친 표식은 이동이 없다 — 재조회하지 않는다(편집으로 앞 stop 이 바뀌면 isMergedLodgingStop 이 거짓 = 일반 재조회).
-      if (isMergedLodgingStop(stops, idx)) {
+      if (isMergedLodgingStop(stops, idx, bookedAddress)) {
         stops[idx].transit_from_prev = null;
         continue;
       }
@@ -250,7 +254,7 @@ export default async function handler(req, res) {
       let currentMin = parseTime(stops[stitchFrom - 1].start_time);
       for (let i = stitchFrom; i < stops.length; i++) {
         // PR2 r10: 같은 숙소 병합 = 이동·버퍼 0, 앞 숙소 시각 + 체류(명시 0 유지)·자정 넘김 금지 — RouteAgent.stitchStartMins 와 같은 규칙.
-        if (isMergedLodgingStop(stops, i)) {
+        if (isMergedLodgingStop(stops, i, bookedAddress)) {
           const raw = stops[i - 1].stay_min;
           const stay = raw !== null && raw !== undefined && raw !== '' && Number.isFinite(Number(raw)) ? Math.max(0, Math.floor(Number(raw))) : 60;
           currentMin = Math.max(currentMin, Math.min(currentMin + stay, 24 * 60 - 1));
