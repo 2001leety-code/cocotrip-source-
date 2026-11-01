@@ -91,6 +91,99 @@ describe('3 — full planner food-row identity (food-name-match): same fixes, st
   });
 });
 
+// 4 — r2: 시험 주소 실측(서울·할랄·3일, claude-haiku-5-5) 1차 시도 = "Model authored a dietary/certification/safety claim".
+//   두 번째 시도는 첫 시도와 같은 프롬프트였다 → 실패 사유별 고정 교정 한 줄을 user 메시지 끝에 붙인다(검증 기준 그대로, 첫 시도 불변).
+describe('4 — retry tells the model why attempt 1 was rejected (fixed line, no echo, first prompt unchanged)', () => {
+  const body = { regions: ['Seoul'], durationDays: 3, pax: 2, reservation_status: 'nothing', language: 'en', dietaryRestrictions: ['Halal'] };
+  const userText = (call: number) => generateContentMock.mock.calls[call][0].contents[0].parts[0].text as string;
+  const ok = () => json({ ...MODEL, day1MarkdownTable: table('Adm’s Mandi') });
+
+  it('dietary claim → attempt 2 = attempt 1 prompt + the dietary correction → 200 (claim check unchanged)', async () => {
+    generateContentMock.mockResolvedValueOnce(json({ ...MODEL, day1MarkdownTable: table('Adm’s Mandi').replace('relaxed lunch near the station exit', 'certified halal kitchen') }));
+    generateContentMock.mockResolvedValueOnce(ok());
+    const res = await postJson(body);
+    expect(res.statusCode, res.body).toBe(200);
+    expect(generateContentMock).toHaveBeenCalledTimes(2);
+    const extra = userText(1).slice(userText(0).length);
+    expect(userText(1).startsWith(userText(0))).toBe(true);
+    expect(extra).toMatch(/^\n\nYour previous answer was rejected: it contained dietary\/certification\/safety wording/);
+    expect(extra).toContain('CERTIFIED/FRIENDLY');
+    expect(extra).not.toContain('certified halal kitchen'); // model text never echoed
+  });
+  it('the same claim on both attempts is still rejected → 502 (no loosening)', async () => {
+    generateContentMock.mockResolvedValue(json({ ...MODEL, day1MarkdownTable: table('Adm’s Mandi').replace('relaxed lunch near the station exit', 'Muslim friendly spot') }));
+    const res = await postJson(body);
+    expect(res.statusCode).toBe(502);
+    expect(JSON.parse(res.body).code).toBe('GEMINI_ERROR');
+  });
+  // Astra P2: the table-error reason always says "no Start-point token in Spot" — a table error must get the table/JSON line, not the name line.
+  const TABLE_LINE = /the JSON fields or the table format were wrong/;
+  it.each([
+    ['wrong header', (t: string) => t.replace('| Time | Spot | Transit | Insider Tip |', '| Hour | Place | Transit | Tip |')],
+    ['empty cell', (t: string) => t.replace('interesting exhibit', ' ')],
+    ['two rows', (t: string) => t.split('\n').slice(0, 4).join('\n')],
+    ['Start point in the Spot column', (t: string) => t.replace('National Folk Museum', 'Start point')],
+  ])('table error (%s) → table/JSON correction, not the name correction → 200', async (_label, mutate) => {
+    generateContentMock.mockResolvedValueOnce(json({ ...MODEL, day1MarkdownTable: mutate(table('Adm’s Mandi')) }));
+    generateContentMock.mockResolvedValueOnce(ok());
+    const res = await postJson(body);
+    expect(res.statusCode, res.body).toBe(200);
+    const extra = userText(1).slice(userText(0).length);
+    expect(extra).toMatch(TABLE_LINE);
+    expect(extra).not.toMatch(/Spot name did not match/);
+  });
+  it('reason → line (direct): a real Start-point Spot reason gets the name line; the table reason gets the table line', async () => {
+    const { retryCorrectionFor } = await import('../../api/ai-planner-quick.js');
+    expect(retryCorrectionFor(new Error('"Start point" is a Start-point token, not a valid Spot'))).toMatch(/Spot name did not match/);
+    expect(retryCorrectionFor(new Error('Day 1 table missing or malformed for "en" (need the exact 4-cell en header in order, valid times, non-empty cells, exactly 3 Spot rows, no Start-point token in Spot)'))).toMatch(TABLE_LINE);
+    expect(retryCorrectionFor(Object.assign(new Error('GEMINI_TIMEOUT'), { isTimeout: true }))).toBe('');
+  });
+  it('unknown Spot name → name correction, without the model\'s name → 200', async () => {
+    generateContentMock.mockResolvedValueOnce(json({ ...MODEL, day1MarkdownTable: table('Adm’s Mandi (Itaewon Branch Zzz)') }));
+    generateContentMock.mockResolvedValueOnce(ok());
+    const res = await postJson(body);
+    expect(res.statusCode, res.body).toBe(200);
+    const extra = userText(1).slice(userText(0).length);
+    expect(extra).toMatch(/a Spot name did not match the candidate lists/);
+    expect(extra).toContain('do not add parentheses');
+    expect(extra).not.toContain('Zzz');
+  });
+  it('cut-off JSON → JSON-only correction', async () => {
+    generateContentMock.mockResolvedValueOnce({ response: { text: () => '{"themes": ["A"], "marketingNarrative": "unterminated', usageMetadata: undefined } });
+    generateContentMock.mockResolvedValueOnce(ok());
+    const res = await postJson(body);
+    expect(res.statusCode, res.body).toBe(200);
+    expect(userText(1).slice(userText(0).length)).toBe('\n\nYour previous answer was rejected: it was not one complete JSON object. Return exactly one JSON object and nothing else.');
+  });
+  it('timeout or a transport error → attempt 2 prompt is byte-identical to attempt 1 (no correction)', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+    try {
+      generateContentMock.mockImplementationOnce((_r: any, opts: any) => new Promise((_, rej) => opts.signal.addEventListener('abort', () => rej(new Error('aborted')))));
+      generateContentMock.mockResolvedValueOnce(ok());
+      const p = postJson(body);
+      await vi.advanceTimersByTimeAsync(31000);
+      expect((await p).statusCode).toBe(200);
+      expect(userText(1)).toBe(userText(0));
+    } finally { vi.useRealTimers(); }
+    generateContentMock.mockReset();
+    generateContentMock.mockRejectedValueOnce(new Error('503 Service Unavailable'));
+    generateContentMock.mockResolvedValueOnce(ok());
+    expect((await postJson(body)).statusCode).toBe(200);
+    expect(userText(1)).toBe(userText(0));
+  });
+  it('first attempt prompt (Gemini default path) is the same with or without a later retry', async () => {
+    generateContentMock.mockResolvedValueOnce(ok());
+    expect((await postJson(body)).statusCode).toBe(200);
+    const single = generateContentMock.mock.calls[0][0];
+    generateContentMock.mockReset();
+    generateContentMock.mockResolvedValueOnce(json({ ...MODEL, day1MarkdownTable: table('Nowhere Diner') }));
+    generateContentMock.mockResolvedValueOnce(ok());
+    expect((await postJson(body)).statusCode).toBe(200);
+    expect(generateContentMock.mock.calls[0][0]).toEqual(single); // contents + systemInstruction + generationConfig
+    expect(single.contents[0].parts[0].text).not.toContain('Your previous answer was rejected');
+  });
+});
+
 describe('2 — quick exact-candidate matching: typographic apostrophe (prod: "Adm\'s Mandi (Adm\'s Mandi)")', () => {
   const body = { regions: ['Seoul'], durationDays: 3, pax: 2, reservation_status: 'nothing', language: 'en', dietaryRestrictions: ['Halal'] };
   it.each([
