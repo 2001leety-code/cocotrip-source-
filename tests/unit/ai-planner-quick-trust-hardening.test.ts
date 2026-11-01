@@ -228,6 +228,40 @@ describe('ai-planner-quick — endpoint hardening: origin allowlist (#9)', () =>
     expect(res.headers['Access-Control-Allow-Origin']).toBeUndefined();
   });
 
+  // 2026-11-01: 운영자 시험용 Preview 고정 별칭 — 정확한 주소만, 운영 배포(VERCEL_ENV=production)에서는 거절.
+  //   Vercel Preview 는 NODE_ENV=production 이라 VERCEL_ENV=preview 로 판정한다.
+  const ALIAS = 'https://cocotrip-preview-2026.vercel.app';
+  const post = async (origin: string) => {
+    checkIpRateLimitMock.mockResolvedValueOnce({ ok: false, status: 429, retryAfterSec: 60, error: 'x' });
+    const handler = (await import('../../api/ai-planner-quick.js')).default;
+    const res = makeRes();
+    await handler({ method: 'POST', headers: { host: 'unit.test', origin, 'content-type': 'application/json' }, body: {} } as any, res);
+    return res;
+  };
+  it('Preview alias on a Vercel preview deployment (VERCEL_ENV=preview, NODE_ENV=production) → allowed', async () => {
+    process.env.VERCEL_ENV = 'preview'; process.env.NODE_ENV = 'production';
+    const res = await post(ALIAS);
+    expect(res.statusCode).toBe(429); // processed (not 403 ORIGIN_NOT_ALLOWED)
+    expect(res.headers['Access-Control-Allow-Origin']).toBe(ALIAS);
+  });
+  it('Preview alias on local/dev (no VERCEL_ENV) → allowed', async () => {
+    const res = await post(ALIAS);
+    expect(res.headers['Access-Control-Allow-Origin']).toBe(ALIAS);
+  });
+  it('Preview alias on production (VERCEL_ENV=production) → 403, production allowlist unchanged', async () => {
+    process.env.VERCEL_ENV = 'production'; process.env.NODE_ENV = 'production';
+    const res = await post(ALIAS);
+    expect(res.statusCode).toBe(403);
+    expect(res.headers['Access-Control-Allow-Origin']).toBeUndefined();
+    expect((await post('https://cocotripkr.com')).headers['Access-Control-Allow-Origin']).toBe('https://cocotripkr.com');
+  });
+  it.each(['https://evil-cocotrip-preview-2026.vercel.app', 'https://cocotrip-preview-2026.vercel.app.evil.com', 'http://cocotrip-preview-2026.vercel.app', 'https://other-preview.vercel.app'])('look-alike %s on preview → rejected (exact match only, no *.vercel.app)', async (origin) => {
+    process.env.VERCEL_ENV = 'preview'; process.env.NODE_ENV = 'production';
+    const res = await post(origin);
+    expect(res.statusCode).toBe(403);
+    expect(res.headers['Access-Control-Allow-Origin']).toBeUndefined();
+  });
+
   it('a request with no Origin header (server-to-server) is not blocked and gets no ACAO header', async () => {
     checkIpRateLimitMock.mockResolvedValueOnce({ ok: false, status: 429, retryAfterSec: 60, error: 'x' });
     const handler = (await import('../../api/ai-planner-quick.js')).default;
