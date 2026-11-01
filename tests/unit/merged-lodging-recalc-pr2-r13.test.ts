@@ -121,11 +121,62 @@ describe('r13-2 — hotel markers that become neighbours through an edit are mer
     const before: any[] = [hotel('20:00', { ...noCoord, transit_from_prev: null }), act('Museum', '20:30', 0.01), hotel('22:00', { ...noCoord, transit_from_prev: { est_min: 20 } })];
     const stops = before.slice();
     deleteAt(stops, 1);
-    const city = await recalc(stops.map((s) => ({ ...s, transit_from_prev: s.transit_from_prev ? { ...s.transit_from_prev } : null })), { intercity_transit: { mode: 'ktx' } });
+    // r14: 도시 이동일 = 다도시 플랜(regions ≥ 2) + intercity_transit.mode — 생성(RouteAgent isMultiCity)과 같은 판정
+    const city = await recalc(stops.map((s) => ({ ...s, transit_from_prev: s.transit_from_prev ? { ...s.transit_from_prev } : null })), { intercity_transit: { mode: 'ktx' } }, { regions: ['seoul', 'busan'] });
     expect(SAME_LODGING_FIELD in city.stops[1]).toBe(false);
     fx.updates.length = 0;
     const plain = await recalc(stops);
     expect(plain.stops[1][SAME_LODGING_FIELD]).toBe(true);
     expect(plain.stops[1].transit_from_prev).toBeNull();
+  });
+});
+
+describe('r14 — city-change day = generation rule; edited stops lose the old public-transit detail', () => {
+  const noCoord = { lat: null, lng: null, address: '서울 중구 명동길 1' };
+  const oldDetail = { transitOptions: { publicTransit: { summary: 'Subway 18 min', fare: 1400 } } };
+  const bookendDay = () => [
+    hotel('09:00', { ...noCoord, transit_from_prev: null }),
+    act('Museum', '09:25', 0.01),
+    hotel('10:50', { ...noCoord, transit_from_prev: { method: 'subway', est_min: 18 }, travelFromPrev: oldDetail }),
+  ];
+  it('C2: single-city plan (regions [seoul]) with a stray intercity_transit.mode → still merged: Hotel 09:00 | Hotel* 09:00, no travel', async () => {
+    const stops = bookendDay();
+    deleteAt(stops, 1);
+    const { stops: out } = await recalc(stops, { intercity_transit: { mode: 'ktx' } }, { regions: ['seoul'] });
+    expect(times(out)).toEqual(['09:00', '09:00']);
+    expect(out[1][SAME_LODGING_FIELD]).toBe(true);
+    expect(out[1].transit_from_prev).toBeNull();
+    expect(out[1].travelFromPrev).toBeNull();
+  });
+  it('control: multi-city plan (regions [seoul, busan]) on its city-change day → not merged (normal leg)', async () => {
+    const stops = bookendDay();
+    deleteAt(stops, 1);
+    const { stops: out } = await recalc(stops, { intercity_transit: { mode: 'ktx' } }, { regions: ['seoul', 'busan'] });
+    expect(SAME_LODGING_FIELD in out[1]).toBe(false);
+    expect(out[1].start_time).not.toBe('09:00');
+  });
+  it('E1: the merged hotel and a re-queried stop no longer carry the deleted stop\'s subway detail', async () => {
+    const stops: any[] = [
+      hotel('09:00', { transit_from_prev: null }),
+      act('Museum', '09:25', 0.01, { travelFromPrev: oldDetail }),
+      hotel('10:50', { stay_min: 120, transit_from_prev: { method: 'subway', est_min: 18 }, travelFromPrev: oldDetail }),
+      act('Market', '13:15', 0.02, { travelFromPrev: oldDetail }),
+      act('Park', '14:40', 0.03, { travelFromPrev: oldDetail }),
+    ];
+    deleteAt(stops, 1); // [Hotel, Hotel(rest), Market, Park] — stale = Hotel(rest)(병합) + Market(재조회)
+    const { stops: out } = await recalc(stops);
+    expect(out[1][SAME_LODGING_FIELD]).toBe(true);
+    expect(out[1].travelFromPrev).toBeNull();
+    expect(out[2].name).toBe('Market');
+    expect(out[2].transit_from_prev).toBeTruthy();
+    expect(out[2].travelFromPrev).toBeNull();
+    expect(out[3].travelFromPrev).toEqual(oldDetail); // 편집과 무관한 구간은 그대로
+  });
+  it('a stale stop that cannot be re-queried (no coordinates) also drops the old detail', async () => {
+    const stops: any[] = [act('A', '09:00', 0), act('B', '10:30', 0.01), { category: 'culture', name: 'C', start_time: '12:00', stay_min: 60, lat: null, lng: null, transit_from_prev: { method: 'subway', est_min: 18 }, travelFromPrev: oldDetail }];
+    deleteAt(stops, 1);
+    const { stops: out } = await recalc(stops);
+    expect(out[1].name).toBe('C');
+    expect(out[1].travelFromPrev).toBeNull();
   });
 });
