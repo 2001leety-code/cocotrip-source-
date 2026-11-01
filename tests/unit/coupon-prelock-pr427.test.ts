@@ -29,7 +29,8 @@ const src = readFileSync(
 );
 // 2026-10-10 recovery rewrite: handler branches the capture result by reconciled.state — slice each branch.
 const notCapturedIdx = src.indexOf("reconciled.state === 'not_captured'");
-const unknownIdx = src.indexOf("reconciled.state !== 'captured'", notCapturedIdx);
+// r23: anchored on the UNKNOWN log line — the first `reconciled.state !== 'captured'` is now the noPost-unproven delete branch.
+const unknownIdx = src.indexOf("console.error('[capturePaypalOrder] capture result UNKNOWN", notCapturedIdx);
 const notCapturedBranch = src.slice(notCapturedIdx, unknownIdx);
 const unknownBranch = src.slice(unknownIdx, src.indexOf('pendingCapture: false', unknownIdx));
 

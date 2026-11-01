@@ -180,7 +180,8 @@ describe('PR #425 CY1 — capturePaypalOrder lock is transactional + releasable'
 
   it('handler discards the attempt only on not_captured; the UNKNOWN branch keeps it and answers 202', () => {
     const notCaptured = capture.indexOf("reconciled.state === 'not_captured'");
-    const unknown = capture.indexOf("reconciled.state !== 'captured'");
+    // r23: anchored on the UNKNOWN log line — the first `reconciled.state !== 'captured'` is now the noPost-unproven delete branch.
+    const unknown = capture.indexOf("console.error('[capturePaypalOrder] capture result UNKNOWN");
     expect(notCaptured).toBeGreaterThan(-1);
     expect(unknown).toBeGreaterThan(notCaptured);
     expect(capture.slice(notCaptured, unknown)).toMatch(/voidOrUnknown\(reconciled\.reason, couponLockRef\)/); // r19/r20: tombstone (+coupon) via discardAttempt, failure = UNKNOWN

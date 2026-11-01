@@ -97,15 +97,16 @@ describe('S1 — intentProven is written with the input; a same-order check neve
     expect(db.rows.get(LOCK)).toMatchObject({ status: 'void_not_captured', reason: 'no_attempt_record' });
     expect(JSON.stringify(db.rows.get(LOCK))).not.toMatch(/planted|attacker/);
   });
-  it('a record written before r22 (no intentProven field) counts as unproven', async () => {
-    const legacy = noneLock(); delete (legacy as Record<string, unknown>).intentProven;
+  // r23 (ROLL): the opposite of r22 — a record written before r22 (no intentProven field, e.g. by main during the rollout) is
+  //   replayed exactly like main does (main: GET + POST → 200 booking). Only an explicit false is unproven.
+  it('a record written before r22 (no intentProven field) is replayed like main: GET + POST → 200 booking', async () => {
+    const legacy = noneLock({ intent: { version: 1, body: { ...body, memo: 'owner-before-rollout' }, uid: null } }); delete (legacy as Record<string, unknown>).intentProven;
     db.rows.set(LOCK, legacy);
-    provider.push({ method: 'GET', reply: { status: 200, body: { id: ORDER, status: 'COMPLETED' } } });
+    provider.push({ method: 'GET', reply: { status: 200, body: { id: ORDER, status: 'APPROVED' } } }, { method: 'POST', reply: { status: 201, body: completedOrder(ORDER, '100.00') } });
     const out = await call({ orderID: ORDER, reconcile: true });
-    expect(out.status).toBe(202);
-    expect(out.body).toMatchObject({ paymentStatus: 'CAPTURED' }); // PayPal says paid, record gone → "do not pay again" + alert, never a replay
-    expect(posts()).toBe(0);
-    expect(db.rows.has(`bookings/${ORDER}`)).toBe(false);
+    expect(out.status).toBe(200);
+    expect(posts()).toBe(1);
+    expect(db.rows.get(`bookings/${ORDER}`)).toMatchObject({ memo: 'owner-before-rollout' });
   });
   it('the delete failing → 202 UNKNOWN (record kept, no POST)', async () => {
     db.rows.set(LOCK, noneLock({ intentProven: false }));

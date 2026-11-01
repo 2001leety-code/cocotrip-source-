@@ -220,6 +220,9 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
   //   r16: 주문별 저장 — 이 화면이 맡는 주문 = 플래너면 플래너 주문, 그 밖은 지금 상품과 같은(또는 상품 미상) 단건 주문.
   // r19: captureBusy = 이 화면 주문의 capture 가 이 탭에서 진행 중(모듈 집합 — 언마운트·재마운트에도 유지) → '같은 주문 확인' 비활성.
   const { recovery, pendingRef: recoveryRef, remember, clearRecovery, forgetRecovery, refresh: refreshRecovery, captureBusy } = usePaymentRecovery({ flow: 'single', planner: keepRecoveryUntilFulfilled, productType });
+  // r23: 이 화면이 아직 마운트돼 있는가 — 이 탭이 시작한 capture 의 확정이 화면이 닫힌 뒤 도착하면 CAPTURED 포인터를 남긴다(아래).
+  const mountedRef = useRef(true);
+  useEffect(() => { mountedRef.current = true; return () => { mountedRef.current = false; }; }, []);
   const [reconciling, setReconciling] = useState(false);
   // r19: 결제 결과 문구는 그 주문에 묶는다 — 다른 주문의 복구 패널엔 안 보이고, 최종이 아닌 문구는 그 주문이 CAPTURED·완료가 되면 지운다.
   //   message 가 지금 error 와 같을 때만 유효(다른 경로가 error 를 바꾸면 태그는 자동 무효).
@@ -311,6 +314,13 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
         if (deliveredRef.current.has(orderID)) return;
         deliveredRef.current.add(orderID);
         try { await onPaymentSuccess(orderID); } finally { deliveredRef.current.delete(orderID); }
+        return;
+      }
+      // r23: 이 탭이 시작한 capture(또는 그 증거 조회)의 확정이 도착했는데 시작한 화면이 이미 닫혔으면 — 완료 처리 대신 CAPTURED 포인터를
+      //   남긴다(main 과 같은 결과): 다시 연 화면에 기존 '결제 접수·다시 결제하지 마세요' 패널 → Check → 서버 final → 확정 화면.
+      if ((fresh || own) && !mountedRef.current) {
+        const created = createdProductOf(orderID);
+        remember({ orderID, flow: 'single', paymentStatus: 'CAPTURED', review: false, productType: created ? created : productTypeRef.current });
         return;
       }
       clearRecovery(orderID);

@@ -244,10 +244,8 @@ describe('capture state machine after a pre-capture refusal (adversarial seq + A
   it('r4-7 (adversarial N4/N5): a recovering record still in captureState "none" never POSTed → refusal clears it (no GET, no POST), NOT_CAPTURED — not a forever 202', async () => {
     dbHolder.db = memDb({
       [`paypal_order_snapshots/${ORDER}`]: snapshot(),
-      // r22: intentProven:true — this case is about a PROVEN customer's POST-less record (an unproven input is never replayed
-      //   by a same-order check; that path is covered in prepay-r22-server.test.ts).
       [`used_paypal_orders/${ORDER}`]: { status: 'pending', flow: 'single', environment: 'sandbox', requestKey: `${ORDER}-cap`, intent: { version: 1, body: { product: 'ai-planner-full' } },
-        intentProven: true, captureState: 'none', claimToken: 'dead-worker', claimUntil: 0, stages: {}, createdAtMs: Date.now() - 300_000 },
+        captureState: 'none', claimToken: 'dead-worker', claimUntil: 0, stages: {}, createdAtMs: Date.now() - 300_000 },
     });
     foodHolder.rows = [];
     const calls = paypal({ gets: ['APPROVED'] });

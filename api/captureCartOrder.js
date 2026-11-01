@@ -183,7 +183,8 @@ export default async function handler(req, res) {
     //   POST 전 기록을 지우고 absent 경로(PayPal GET → 묘비/결제됨/UNKNOWN)로 끝낸다. 삭제 실패 = UNKNOWN.
     const noPostYet = !!attempt.recovering && (attempt.lock || {}).captureState === 'none';
     const beforePost = noPostYet && !reconcileOnly;
-    if (noPostYet && reconcileOnly && attempt.lock.intentProven !== true) {
+    //   r23: only an EXPLICIT false is unproven (pre-r22 records without the field replay like main). Cart inputs carry no coupon.
+    if (noPostYet && reconcileOnly && attempt.lock.intentProven === false) {
       try { await discardAttempt(attempt, 'unproven-intent', { voidOrder: false }); } catch (delErr) {
         console.warn('[captureCartOrder] unproven input not deleted — answering UNKNOWN:', orderID, delErr.message);
         return unknownResponse();
@@ -236,6 +237,17 @@ export default async function handler(req, res) {
       }
       res.writeHead(409, JSON_CORS);
       return res.end(JSON.stringify(notCapturedResponse({ orderID, flow: 'cart', reason: reconciled.reason })));
+    }
+    if (reconciled.state !== 'captured' && reconciled.noPost && !sameOrderProven && (attempt.lock || {}).captureState === 'none') {
+      // r23: nothing was sent to PayPal ('posted' write failed) — an unproven request's record is deleted, not kept as 'unknown'.
+      //   Only a record that never POSTed ('none' at claim); an older 'posted'/'unknown' record may have a POST in flight.
+      try {
+        await discardAttempt(attempt, 'post-not-sent', { voidOrder: false });
+        res.writeHead(503, JSON_CORS);
+        return res.end(JSON.stringify(_err('Could not complete the payment right now — please retry', 'CAPTURE_UNAVAILABLE')));
+      } catch (delErr) {
+        console.warn('[captureCartOrder] unproven POST-less record not deleted — answering UNKNOWN:', orderID, delErr.message);
+      }
     }
     if (reconciled.state !== 'captured') {
       console.error('[captureCartOrder] capture result UNKNOWN — lock retained:', orderID, reconciled.reason);

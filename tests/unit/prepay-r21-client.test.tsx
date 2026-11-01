@@ -203,16 +203,37 @@ describe('B-I6 — the "not paid" text follows its own orderID (I1a–I1e)', () 
 });
 
 describe('after leaving the screen (restore screens removed — main-equivalent policy)', () => {
-  it('single: unmount → capture 500 → evidence final → the order is done; a remounted screen offers Book now (a new purchase, as on main)', async () => {
+  // r23: a final that lands after the screen closed leaves a CAPTURED pointer — the remount shows "payment received" and
+  //   Check → final → the confirmation (as on main). Was: done + Book now (a paid order offered as a new purchase).
+  it('single (L2): unmount → capture 500 → evidence final → remount: CAPTURED panel → Check → confirmation', async () => {
     await singleCaptureThenUnmount('ORD-E');
     await answer(0, 500, GENERIC);
     await waitFor(() => expect(q.length).toBeGreaterThanOrEqual(2));
     await answer(1, 200, FINAL('ORD-E'));
     render(charter()); await settle();
-    expect(PR.isRecoveryDone('ORD-E')).toBe(true);
-    expect(singlePanel()).toBeNull();
-    expect(btn('Book now')).toBeDefined();
+    expect(PR.isRecoveryDone('ORD-E')).toBe(false);
+    expect(singlePanel()).toBe('ORD-E');
+    expect(has('Payment received; your booking is being recorded')).toBe(true);
+    expect(btn('Book now')).toBeUndefined();
     expect(has(PAY_AGAIN)).toBe(false);
+    fireEvent.click(screen.getByText('Check this order')); await settle();
+    await answer(q.length - 1, 200, FINAL('ORD-E'));
+    expect(has('Booking Confirmed!')).toBe(true);
+    expect(PR.isRecoveryDone('ORD-E')).toBe(true);
+  });
+  it('single (mounted path unchanged): capture 500 → evidence final while mounted → "Booking Confirmed!" directly, pointer cleared', async () => {
+    mocks.createIds.push('ORD-M');
+    render(charter());
+    fireEvent.click(await screen.findByText('Book now'));
+    await waitFor(() => expect(buttons.length).toBeGreaterThan(0));
+    act(() => { void buttons[buttons.length - 1].onApprove({ orderID: 'ORD-M' }); });
+    await waitFor(() => expect(q.length).toBeGreaterThanOrEqual(1));
+    await answer(0, 500, GENERIC);
+    await waitFor(() => expect(q.length).toBeGreaterThanOrEqual(2));
+    await answer(1, 200, FINAL('ORD-M'));
+    expect(has('Booking Confirmed!')).toBe(true);
+    expect(PR.isRecoveryDone('ORD-M')).toBe(true);
+    expect(singlePanel()).toBeNull();
   });
   it('single: remounted while the capture is still in flight → the same-order panel with the check disabled (r19 kept)', async () => {
     await singleCaptureThenUnmount('ORD-E');

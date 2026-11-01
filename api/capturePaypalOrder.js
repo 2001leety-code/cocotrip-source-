@@ -470,8 +470,13 @@ export default async function handler(req, res) {
     //   Only a POST-less record (captureState 'none', no capture/booking evidence) is involved: it is deleted (claim-checked) and
     //   the check ends on the normal absent path (PayPal GET → tombstone / paid / UNKNOWN) — no endless "check" loop.
     //   A failed delete = UNKNOWN. posted/unknown records are never deleted (they never reach this branch).
-    if (beforePost && _reconcileOnly && attempt.lock.intentProven !== true) {
-      try { await discardAttempt(attempt, 'unproven-intent', { voidOrder: false }); } catch (delErr) {
+    //   r23: only an EXPLICIT false is unproven — a record written before r22 (no field) is replayed exactly like main does.
+    //   The coupon this record's input reserved is released in the same transaction (only while still held by this orderID).
+    if (beforePost && _reconcileOnly && attempt.lock.intentProven === false) {
+      const savedCoupon = attempt.lock.intent && attempt.lock.intent.coupon;
+      const savedCouponRef = savedCoupon && /^[A-Za-z0-9_-]{1,128}$/.test(String(savedCoupon.couponDocId)) && /^[A-Za-z0-9_-]{1,128}$/.test(String(savedCoupon.couponUserId))
+        ? dbForLock.collection('users').doc(savedCoupon.couponUserId).collection('coupons').doc(savedCoupon.couponDocId) : null;
+      try { await discardAttempt(attempt, 'unproven-intent', { voidOrder: false, releaseCoupon: savedCouponRef }); } catch (delErr) {
         console.warn('[capturePaypalOrder] unproven input not deleted — answering UNKNOWN:', orderID, delErr.message);
         return unknownResponse();
       }
@@ -638,6 +643,20 @@ export default async function handler(req, res) {
       console.warn('[capturePaypalOrder] capture not completed:', orderID, reconciled.reason);
       res.writeHead(409, JSON_CORS);
       return res.end(JSON.stringify(notCapturedResponse({ orderID, flow: 'single', reason: reconciled.reason })));
+    }
+    if (reconciled.state !== 'captured' && reconciled.noPost && !_sameOrderProven && (attempt.lock || {}).captureState === 'none') {
+      // r23: noPost = the 'posted' write right before the POST failed — nothing was sent to PayPal. An UNPROVEN request's
+      //   record is deleted (+ its coupon released) instead of being kept as 'unknown' (which a later owner check would
+      //   replay with the stranger's input). Proven requests keep the existing UNKNOWN path. A failed delete = UNKNOWN below.
+      //   Only a record that never POSTed ('none' at claim — the claim guard in discardAttempt keeps that true): an older
+      //   'posted'/'unknown' record may have a POST in flight.
+      try {
+        await discardAttempt(attempt, 'post-not-sent', { voidOrder: false, releaseCoupon: couponLockRef });
+        res.writeHead(503, JSON_CORS);
+        return res.end(JSON.stringify(_err('Could not complete the payment right now — please retry', 'CAPTURE_UNAVAILABLE')));
+      } catch (delErr) {
+        console.warn('[capturePaypalOrder] unproven POST-less record not deleted — answering UNKNOWN:', orderID, delErr.message);
+      }
     }
     if (reconciled.state !== 'captured') {
       console.error('[capturePaypalOrder] capture result UNKNOWN — reservations retained:', orderID, reconciled.reason);
