@@ -14,6 +14,13 @@ import { geminiSchemaToJsonSchema, countOptionalProperties } from './schema.js';
 //   (Gemini 가 responseSchema 없는 역할에서 쓰는 방식 — 하류 repairAndParseJSON + 검증기가 처리).
 export const CLAUDE_STRUCTURED_OPTIONAL_LIMIT = 24;
 
+// 2026-11-02 운영 실측(1일차 무료 미리보기, role quick, claude-haiku-5-5): 호출부의 Gemini maxOutputTokens(2000)는 thinkingBudget 0
+//   전제의 "보이는 JSON 분량"인데, Claude 는 적응형 사고·더 긴 서술이 같은 max_tokens 를 쓴다 → out=2000 에서 JSON 이 잘려
+//   (Unterminated string) 두 번 다 실패. JSON 응답(responseMimeType json·responseSchema)만 이만큼 여유를 더한다 — max_tokens 는
+//   상한일 뿐이라 비용은 실제 출력만큼이다. 자유 텍스트(채팅 350 등 짧게 끊는 용도)는 그대로.
+export const CLAUDE_JSON_OUTPUT_HEADROOM = 4096;
+const JSON_ONLY_INSTRUCTION = 'Return exactly one JSON object and nothing else (no markdown fences, no commentary).';
+
 const STOP_MAP = { end_turn: 'STOP', stop_sequence: 'STOP', max_tokens: 'MAX_TOKENS', refusal: 'SAFETY' };
 
 function partsText(content) {
@@ -38,7 +45,9 @@ export function buildClaudeRequest({ modelId, role, config = {}, request, maxTok
   }));
 
   const cap = Number(maxTokensCap) > 0 ? Number(maxTokensCap) : 32000;
-  const wanted = Number(gen.maxOutputTokens) > 0 ? Number(gen.maxOutputTokens) : 4096;
+  const jsonMode = !!gen.responseSchema || String(gen.responseMimeType || '').toLowerCase() === 'application/json';
+  const requested = Number(gen.maxOutputTokens) > 0 ? Number(gen.maxOutputTokens) : 4096;
+  const wanted = jsonMode ? requested + CLAUDE_JSON_OUTPUT_HEADROOM : requested;
 
   const out = {
     model: modelId,
@@ -47,12 +56,15 @@ export function buildClaudeRequest({ modelId, role, config = {}, request, maxTok
     output_config: { effort: plannerRoles.includes(role) ? 'medium' : 'low' },
   };
   if (systemText) out.system = systemText;
+  // 2026-11-02: responseMimeType json 만 있고 스키마가 없는 역할(quick 등)도 JSON 하나만 받게 지시한다 — Gemini 는 MIME 으로 강제되지만
+  //   Claude 는 구조화 출력 없이는 설명·코드펜스를 붙일 수 있다(하류 추출이 있어도 잘림·설명 혼입 위험).
+  if (jsonMode && !gen.responseSchema) out.system = `${systemText ? `${systemText}\n\n` : ''}${JSON_ONLY_INSTRUCTION}`;
   if (gen.responseSchema) {
     const schema = geminiSchemaToJsonSchema(gen.responseSchema);
     if (countOptionalProperties(schema) <= CLAUDE_STRUCTURED_OPTIONAL_LIMIT) {
       out.output_config.format = { type: 'json_schema', schema };
     } else {
-      out.system = `${systemText ? `${systemText}\n\n` : ''}Return exactly one JSON object and nothing else (no markdown fences, no commentary). `
+      out.system = `${systemText ? `${systemText}\n\n` : ''}${JSON_ONLY_INSTRUCTION} `
         + `It must conform to this JSON Schema:\n${JSON.stringify(schema)}`;
     }
   }
