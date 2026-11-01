@@ -100,7 +100,7 @@ describe('getExactCityTrustedDietaryCandidates — AND not OR', () => {
     // Halal Only House (derived, no explicit certified status) -> FRIENDLY, never CERTIFIED
     const friendlyBlockMatch = contextString.match(/Halal Only House[\s\S]*?(?=\n\n {2}•|---$)/);
     expect(friendlyBlockMatch).toBeTruthy();
-    expect(friendlyBlockMatch![0]).toMatch(/FRIENDLY \(not certified\)/);
+    expect(friendlyBlockMatch![0]).toMatch(/\[HALAL — FRIENDLY\]/); // r3b: 모델용 목록은 등급 태그만(뜻은 머리글)
     expect(friendlyBlockMatch![0]).not.toMatch(/CERTIFIED\]/);
   });
 
