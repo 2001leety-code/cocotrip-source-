@@ -717,14 +717,21 @@ export default async function handler(req, res) {
             // r20: "alert sent" is recorded apart from "conflict recorded" (voidConflict.alertedAtMs): a redelivery after a
             //   failed review write (already=true) still alerts once. A failed send = retryable (PayPal redelivers).
             if (!conflict.alerted) {
+              // r21: notify() 는 실패를 던지지 않고 {ok:false, delivery} 를 돌려준다 — 'sent' 일 때만 발송 기록(booking-processor 와 같은 판정).
+              //   rejected·skipped·unknown = 기록 없이 재시도 응답(unknown 은 중복 알림 감수 — 위험한 쪽은 유실).
+              let sent;
               try {
-                await notify('admin',
+                sent = await notify('admin',
                   '🚨 <b>PayPal Webhook — 미결제로 닫은 주문에 결제 완료</b>\n\n' +
                   `PayPal Order: <code>${paypalOrderId}</code>\nPayPal TX: <code>${paypalTxId}</code>\n금액: $${amountUSD} ${currency}\n` +
                   '→ payment_reviews 격리됨. 예약 미확정 · 자동 환불 없음 — 수동 확정/환불 판단.'
                 );
               } catch (e) {
-                return respondRetryable(res, 'void_conflict_alert_failed', e.message);
+                sent = { ok: false, delivery: 'unknown', error: e.message };
+              }
+              const delivery = (sent && sent.delivery) || (sent && sent.ok ? 'sent' : 'unknown');
+              if (delivery !== 'sent') {
+                return respondRetryable(res, `void_conflict_alert_${delivery}`, (sent && sent.error) || delivery);
               }
               await markVoidConflictAlerted({ db: adminDb, orderID: paypalOrderId })
                 .catch((e) => console.warn('[paypal-webhook] void-conflict alert mark failed (a redelivery may alert again):', e.message));

@@ -426,7 +426,8 @@ describe('manual-payment-request (QR / paypal.me) — same pre-payment check bef
   });
   it('frontend: QR button hidden after a prepay refusal, QR panel builds no paypal.me URL until checkOnly passes', () => {
     const btn = read('src/components/PayPalBookingButton.tsx');
-    expect(btn).toContain('{!qrBlocked && <button');
+    // r21: the remounted screen's stored planner refusal also hides it (restoredQrBlocked)
+    expect(btn).toContain('{!qrBlocked && !restoredQrBlocked && <button');
     // r4: QR 을 이미 보여 준 흐름이면 숨기지 않는다(신고 경로 유지) — 그 외에는 숨김.
     expect(btn).toContain('if (prepayMsg) { if (qrSession) setError(rc.warn); else { setError(prepayMsg); setQrBlocked(true); } return; }');
     expect(btn).toContain('plannerInput={plannerInput}');
@@ -684,7 +685,8 @@ describe('r3 C/G — QR keeps the report path once shown; planner pointer lives 
     expect(rec).toContain('`cocotrip:payment-recovery:${flow}${scope ? `:${scope}` : \'\'}`');
     const btn = read('src/components/PayPalBookingButton.tsx');
     // r16: 범위 키 대신 주문별 키 + 화면 선택(matchesScreen) — 플래너 화면은 planner:true 로 플래너 주문만 맡는다.
-    expect(btn).toContain("usePaymentRecovery({ flow: 'single', planner: keepRecoveryUntilFulfilled, productType })");
+    // r21: + resultKey (product identity / date) for inherited results only — order selection unchanged
+    expect(btn).toContain("usePaymentRecovery({ flow: 'single', planner: keepRecoveryUntilFulfilled, productType, resultKey })");
     expect(rec).toContain('export const orderRecoveryKey = (orderID: string) => `${PREFIX}order:${orderID}`;');
     expect(rec).toContain('if (screen.planner) return isPlannerProduct(p.productType);');
   });

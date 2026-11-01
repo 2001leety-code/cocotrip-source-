@@ -372,7 +372,11 @@ export async function resolveAbsentAttempt({ db, orderID, flow, environment, pro
   if (lookup.state === 'captured') {
     // r20: another tab's capture may have created (and even finalized) the record during the read — answer from that
     //   record, no "record lost" alert. Only a record still absent is the critical case.
-    const now = await ref.get();
+    let now;
+    try { now = await ref.get(); } catch {
+      // r21: the re-read failed — never a 500 with the Firestore text: payment received (do not pay again) + a conservative alert.
+      return { status: 202, body: pendingPaymentResponse({ orderID, flow, paymentStatus: 'CAPTURED' }), alert: 'reread-failed' };
+    }
     const lock = now.exists ? now.data() || {} : null;
     if (lock && lock.finalized === true && lock.finalResponse && lock.finalResponse.body) {
       return { status: lock.finalResponse.status || 200, body: { ...lock.finalResponse.body, replayed: true } };

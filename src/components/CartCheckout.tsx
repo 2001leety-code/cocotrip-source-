@@ -106,10 +106,29 @@ export function CartCheckout({ onClose, onBack }: { onClose: () => void; onBack?
   }
   const panelError = recovery && error && !(tagged && (tagged.orderID !== recovery.orderID || tagged.final)) ? error : null;
   // r20: 다시 마운트된 이 화면이 이어받은 결과(이 화면 상태가 idle 일 때) — 닫을 때까지 성공·검토·미결제 화면.
-  const restored = status === 'idle' && captureResult ? captureResult : null;
+  //   r21 (B-I2·B-I3): 다른 미해결 장바구니 주문이 선택돼 있으면 보이지 않는다(같은 주문의 검토 포인터는 예외).
+  const restored = status === 'idle' && captureResult && (!recovery || recovery.orderID === captureResult.orderID) ? captureResult : null;
   const viewStatus: Status = restored ? (restored.outcome.kind === 'final' ? 'success' : restored.outcome.kind === 'review' ? 'review' : 'error') : status;
   const viewError = restored && restored.outcome.kind === 'not_captured' ? rc.notCaptured : error;
   const closeResult = () => { if (captureResult) dismissCaptureResult(captureResult.orderID); onClose(); };
+  // r21 (B-I2): 다른 미해결 주문을 고르거나 이 화면이 자기 결과·새 결제(성공·검토·주문 생성·결제 중)로 넘어가면 옛 보관 결과는 폐기.
+  useEffect(() => {
+    if (!captureResult) return;
+    if ((recovery && recovery.orderID !== captureResult.orderID) || status === 'success' || status === 'review' || status === 'creating' || status === 'ready' || status === 'processing') {
+      dismissCaptureResult(captureResult.orderID);
+    }
+  }, [captureResult, recovery, status]);
+  // r21 (B-I1): 최종 적용 결과의 공통 보관 지점 — 이 화면이 그 사이 언마운트됐을 때만(마운트돼 있으면 이 화면 상태가 보여 준다).
+  function keepResult(orderId: string, outcome: CaptureOutcome) {
+    if (!mountedRef.current) recordCaptureResult({ orderID: orderId, flow: 'cart', outcome });
+  }
+  // r21 (10): 결제창이 열린('ready') 동안 장바구니 목록이 바뀌면(다른 탭) 열린 주문을 버리고 검수 화면으로 — 결제 금액·항목이
+  //   보이는 목록과 어긋난 PayPal 버튼을 남기지 않는다. 새 주문을 만들면 새 목록으로 다시 계산된다.
+  const itemsKey = items.map((it) => it.id).join(',');
+  const [orderItemsKey, setOrderItemsKey] = useState<string | null>(null);
+  if (status === 'ready' && orderItemsKey !== null && orderItemsKey !== itemsKey) {
+    setStatus('idle'); setOrderID(null); setTotal(null); setOrderItemsKey(null);
+  }
   // r19 (B13): 빈 장바구니로 들어온 확인 화면에서 확인할 주문이 사라지면(다른 탭이 끝냄) 빈 장바구니 안내로 — 이 탭의 결과 화면
   //   (성공·검토·이 탭의 최종 미결제·환불)은 닫을 때까지 유지.
   //   r20: idle 뿐 아니라 최종이 아닌(태그 없음·일반 오류) error 에서도 — 일반 오류 뒤 다른 탭이 끝내도 빈 검수 화면에 남지 않게.
@@ -128,9 +147,9 @@ export function CartCheckout({ onClose, onBack }: { onClose: () => void; onBack?
     if (outcome.kind === 'final') {
       // 표시 전용 — 서버 확정 응답(captureCartOrder data.payerEmail)의 결제자 이메일.
       setPayerEmail(typeof outcome.data.payerEmail === 'string' && outcome.data.payerEmail ? outcome.data.payerEmail : null);
-      clearRecovery(orderId); setStatus('success'); await clear(); return;
+      clearRecovery(orderId); keepResult(orderId, outcome); setStatus('success'); await clear(); return;
     }
-    if (outcome.kind === 'review') { keep({ paymentStatus: outcome.captured ? 'CAPTURED' : 'NOT_CAPTURED', review: true }); setStatus('review'); await clear(); return; }
+    if (outcome.kind === 'review') { keep({ paymentStatus: outcome.captured ? 'CAPTURED' : 'NOT_CAPTURED', review: true }); keepResult(orderId, outcome); setStatus('review'); await clear(); return; }
     if (outcome.kind === 'pending') { keep({ paymentStatus: outcome.status, review: false }); setStatus('idle'); return; }
     if (outcome.kind === 'auth_required') {
       // 403 precedes the provider call (no charge). A fresh order never locks the flow (2026-10-10 R2).
@@ -139,7 +158,7 @@ export function CartCheckout({ onClose, onBack }: { onClose: () => void; onBack?
     }
     // r19: 미결제 응답은 최종(서버 묘비 — 구 서버 no_attempt_record 는 분류 단계에서 UNKNOWN) → 완료 처리 + 4개 언어 안내.
     //   r20: 'void' 완료 표식 — 서버가 나중에 CAPTURED·검토(webhook 충돌)를 보이면 그 증거가 이긴다.
-    if (outcome.kind === 'not_captured') { clearRecovery(orderId, 'void'); orderError(rc.notCaptured, orderId, true); setStatus('error'); return; }
+    if (outcome.kind === 'not_captured') { clearRecovery(orderId, 'void'); keepResult(orderId, outcome); orderError(rc.notCaptured, orderId, true); setStatus('error'); return; }
     // Server-proven full refund: terminal, not a booking — the cart is kept, no success state.
     if (outcome.kind === 'refunded') { clearRecovery(orderId); orderError(outcome.message, orderId, true); setStatus('error'); return; }
     // Generic error: keep the pointer unless the server gives durable evidence of no capture.
@@ -178,6 +197,7 @@ export function CartCheckout({ onClose, onBack }: { onClose: () => void; onBack?
       } else if (json.ok && json.data && json.data.orderID) {
         rendered.current = false; // r20: 새 주문마다 PayPal 버튼을 다시 그린다(묘비로 끝난 앞 주문 뒤 재결제 버튼이 비던 문제)
         setOrderID(json.data.orderID);
+        setOrderItemsKey(itemsKey);
         setTotal({ usd: json.data.usdAmount, krw: json.data.totalKRW });
         setStatus('ready');
         loadSdk();
@@ -253,9 +273,7 @@ export function CartCheckout({ onClose, onBack }: { onClose: () => void; onBack?
           // 🔴 review / recovery-pending are neither success nor failure (double-charge guard); only a durable
           //   finalized answer for this orderID clears the pointer and the cart. Exceptions stay pending.
           const outcome = classifyCaptureResponse(await res.json(), data.orderID);
-          await applyOutcome(outcome, data.orderID, true);
-          // r20: 이 화면이 그 사이 언마운트됐으면(패널 닫기) 결과를 남긴다 — 다시 연 화면이 확정·검토·미결제 화면을 띄운다.
-          if (!mountedRef.current) recordCaptureResult({ orderID: data.orderID, flow: 'cart', outcome });
+          await applyOutcome(outcome, data.orderID, true); // r21: 결과 보관은 applyOutcome 의 최종 분기(keepResult)
         } catch {
           remember({ orderID: data.orderID, flow: 'cart', paymentStatus: 'CAPTURE_UNKNOWN', review: false });
           setStatus('idle');

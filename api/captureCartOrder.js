@@ -134,7 +134,7 @@ export default async function handler(req, res) {
       if (out.alert) {
         await throttledTelegramAlert({
           key: `cart-absent-captured-${orderID}`, channel: 'admin', severity: 'critical',
-          message: [`🚨 <b>CART — 시도 기록 없이 PayPal 결제 완료</b>`, `<b>OrderID:</b> <code>${orderID}</code>`, '→ 기록 유실·옛 주문. 묘비 안 씀, 손님에겐 "결제 접수 — 다시 결제 금지". PayPal 에서 확인 후 수동 처리.'].join('\n'),
+          message: [`🚨 <b>CART — 시도 기록 없이 PayPal 결제 완료</b>`, `<b>OrderID:</b> <code>${orderID}</code>`, `<b>사유:</b> ${out.alert}`, '→ 기록 유실·옛 주문(또는 기록 재확인 실패 — reread-failed). 묘비 안 씀, 손님에겐 "결제 접수 — 다시 결제 금지". PayPal·시도 기록 확인 후 수동 처리.'].join('\n'),
           context: { orderID, reason: out.alert },
         }).catch(() => {});
       }
@@ -169,12 +169,23 @@ export default async function handler(req, res) {
     }
     const attempt = acquired.attempt;
     const stages = (attempt.lock && attempt.lock.stages) || {};
-    const savedEmail = attempt.recovering ? ((attempt.lock.intent.body && attempt.lock.intent.body.userEmail) || '') : userEmail;
+    // r21: POST 전 기록(captureState 'none')을 이어받은 전체 capture 요청 = 새 시도 — 저장된 입력 대신 이 요청의 입력(단건과 같은 규칙).
+    const beforePost = !!attempt.recovering && (attempt.lock || {}).captureState === 'none' && !reconcileOnly;
+    if (beforePost) {
+      try { await updateAttempt(attempt, { intent, userEmail }); } catch (intentErr) {
+        console.warn('[captureCartOrder] intent replace before POST failed — answering UNKNOWN:', orderID, intentErr.message);
+        res.writeHead(202, JSON_CORS);
+        return res.end(JSON.stringify(pendingPaymentResponse({ orderID, flow: 'cart', paymentStatus: 'CAPTURE_UNKNOWN' })));
+      }
+    }
+    const savedEmail = attempt.recovering && !beforePost ? ((attempt.lock.intent.body && attempt.lock.intent.body.userEmail) || '') : userEmail;
     let accessToken; let PAYPAL_BASE_URL;
     try {
       ({ accessToken, baseUrl: PAYPAL_BASE_URL } = await getPaypalAccessToken(isSandbox));
     } catch (tokenErr) {
-      await releaseAttemptClaim(attempt); // no POST happened: the record stays for the same-order retry
+      // no POST happened — r21: proven = release the claim (same-order retry); unproven = delete (no stranger's record left)
+      if (sameOrderProven) await releaseAttemptClaim(attempt);
+      else await discardAttempt(attempt, 'transient', { voidOrder: false }).catch(() => releaseAttemptClaim(attempt));
       throw tokenErr;
     }
 

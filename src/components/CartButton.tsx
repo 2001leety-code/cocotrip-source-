@@ -176,7 +176,7 @@ function CartPanelInner() {
               <Suspense fallback={<div className="flex items-center justify-center py-20"><div className="w-6 h-6 border-2 border-[#7C5CFC] border-t-transparent animate-spin rounded-full" /></div>}>
                 <CartCheckout
                   onClose={() => { setShowCheckout(false); setIsOpen(false); }}
-                  onBack={() => setShowCheckout(false)}
+                  onBack={() => { setShowCheckout(false); dismissCaptureResults('cart'); }} // r21: '← Edit cart' = 결과 닫기
                 />
               </Suspense>
             ) : items.length === 0 ? (

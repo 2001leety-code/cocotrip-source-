@@ -182,3 +182,104 @@ describe('r20-6 — a captured lookup re-reads the record before alerting', () =
     expect(effects.alert).toHaveBeenCalledWith(expect.objectContaining({ key: `single-absent-captured-${ORDER}`, severity: 'critical' }));
   });
 });
+
+// ── r21 ─────────────────────────────────────────────────────────────────────────────────────────────────
+const bookingRow = () => db.rows.get(`bookings/${ORDER}`) as Record<string, unknown> | undefined;
+const posts = () => provider.calls.filter((c) => c.method === 'POST').length;
+
+describe('r21-2 — taking over a record that never POSTed (captureState none) is a NEW attempt', () => {
+  it('coupon-transient → 503; meanwhile another order takes the coupon → the retry is COUPON_ALREADY_USED (final), no POST, no booking', async () => {
+    effects.discountV2 = true;
+    db.rows.set(COUPON, { isUsed: false });
+    db.failNext(COUPON);
+    expect((await call(couponBody, asBuyer)).status).toBe(503);
+    db.rows.set(COUPON, { isUsed: true, usedOrderID: 'ORDER-Y' });
+    const retry = await call(couponBody, asBuyer);
+    expect(retry.status).toBe(409);
+    expect(retry.body).toMatchObject({ code: 'COUPON_ALREADY_USED' });
+    expect(posts()).toBe(0);
+    expect(bookingRow()).toBeUndefined();
+    expect(db.rows.get(COUPON)).toMatchObject({ usedOrderID: 'ORDER-Y' });
+  });
+  it('coupon-transient → 503 → the automatic same-order check hits the coupon error again → 503 again (never "continue without coupon"), no POST', async () => {
+    effects.discountV2 = true;
+    db.rows.set(COUPON, { isUsed: false });
+    db.failNext(COUPON);
+    expect((await call(couponBody, asBuyer)).status).toBe(503);
+    db.failNext(COUPON);
+    const check = await call({ orderID: ORDER, reconcile: true }, asBuyer);
+    expect(check.status).toBe(503);
+    expect(check.body).toMatchObject({ code: 'COUPON_CHECK_UNAVAILABLE' });
+    expect(posts()).toBe(0);
+    expect(effects.notifyOperator).not.toHaveBeenCalledWith('coupon-race', expect.stringContaining('복구 중'));
+    expect(db.rows.get(COUPON)).toMatchObject({ isUsed: false });
+  });
+  it('the retry of a POST-less record uses THIS request\'s intent (memo / email), not the saved one', async () => {
+    effects.prepayOn = true;
+    effects.coverage.mockImplementationOnce(() => { throw new Error('index down'); });
+    expect((await call({ ...body, memo: 'FIRST' })).status).toBe(503);
+    expect(db.rows.get(LOCK)).toMatchObject({ captureState: 'none', intent: { body: { memo: 'FIRST' } } });
+    provider.push({ method: 'GET', reply: { status: 200, body: { id: ORDER, status: 'APPROVED' } } }, { method: 'POST', reply: { status: 201, body: completedOrder(ORDER, '100.00') } });
+    const retry = await call({ ...body, memo: 'SECOND', userEmail: 'second@example.invalid' });
+    expect(retry.status).toBe(200);
+    expect(bookingRow()).toMatchObject({ memo: 'SECOND', userEmail: 'second@example.invalid' });
+  });
+  it('a record that already POSTed keeps the saved intent (replay contract unchanged)', async () => {
+    db.rows.set(LOCK, { status: 'pending', flow: 'single', environment: 'live', requestKey: `${ORDER}-cap`, intent: { version: 1, body: { ...body, memo: 'SAVED', product: 'airport_seoul_central' }, uid: null }, captureState: 'posted', claimToken: 'old', claimUntil: 0, stages: {} });
+    provider.push({ method: 'GET', reply: { status: 200, body: completedOrder(ORDER, '100.00') } });
+    const out = await call({ ...body, memo: 'TAMPERED' });
+    expect(out.status).toBe(200);
+    expect(bookingRow()).toMatchObject({ memo: 'SAVED' });
+  });
+});
+
+describe('r21-3 — an unproven request\'s temporary failure deletes its record', () => {
+  it('planted-intent: a stranger (no cookie) hits a coupon infrastructure error → 503 and the record is deleted; the owner then pays with HIS data', async () => {
+    effects.discountV2 = true;
+    db.rows.set('users/attacker/coupons/X', { isUsed: false });
+    db.failNext('users/attacker/coupons/X');
+    const stranger = await call({ ...body, memo: 'planted', userEmail: 'attacker@evil.invalid', couponDocId: 'X', couponUserId: 'attacker' }, { authorization: 'Bearer attacker' });
+    expect(stranger.status).toBe(503);
+    expect(db.rows.has(LOCK)).toBe(false);
+    provider.push({ method: 'POST', reply: { status: 201, body: completedOrder(ORDER, '100.00') } });
+    const owner = await call({ ...body, memo: 'mine' });
+    expect(owner.status).toBe(200);
+    expect(bookingRow()).toMatchObject({ memo: 'mine', userEmail: 'buyer@example.invalid' });
+    expect(JSON.stringify(bookingRow())).not.toMatch(/attacker|planted/);
+  });
+  it('unproven-503: a cookie-less guest whose planner check was unavailable can retry the same order (no DUPLICATE_ORDER trap)', async () => {
+    effects.prepayOn = true;
+    effects.coverage.mockImplementationOnce(() => { throw new Error('index down'); });
+    const first = await call(body, {});
+    expect(first.status).toBe(503);
+    expect(db.rows.has(LOCK)).toBe(false);
+    provider.push({ method: 'POST', reply: { status: 201, body: completedOrder(ORDER, '100.00') } });
+    const retry = await call(body, {});
+    expect(retry.status).toBe(200);
+    expect(retry.body).toMatchObject({ ok: true, finalized: true });
+  });
+  it('a proven request\'s temporary failure keeps the record (claim released) — unchanged', async () => {
+    effects.prepayOn = true;
+    effects.coverage.mockImplementationOnce(() => { throw new Error('index down'); });
+    await call(body);
+    expect(db.rows.get(LOCK)).toMatchObject({ captureState: 'none', claimUntil: 0 });
+  });
+});
+
+describe('r21-4 — the re-read after a captured lookup can fail', () => {
+  it('reread-fail: 202 CAPTURED ("do not pay again") + a conservative alert, never a 500 with Firestore text', async () => {
+    let armed = false;
+    const realCollection = db.db.collection.bind(db.db);
+    db.db.collection = ((name: string) => {
+      const col = realCollection(name);
+      if (name !== 'used_paypal_orders') return col;
+      return { doc: (id: string) => { const d = col.doc(id); return { ...d, get: async () => { if (armed) throw new Error('14 UNAVAILABLE: injected lock read failure'); return d.get(); } }; } };
+    }) as typeof db.db.collection;
+    vi.stubGlobal('fetch', vi.fn(async () => { armed = true; return { ok: true, status: 200, text: async () => JSON.stringify({ id: ORDER, status: 'COMPLETED' }) }; }));
+    const out = await call({ orderID: ORDER, reconcile: true });
+    expect(out.status).toBe(202);
+    expect(out.body).toMatchObject({ code: 'PAYMENT_RECOVERY_PENDING', paymentStatus: 'CAPTURED' });
+    expect(JSON.stringify(out.body)).not.toMatch(/UNAVAILABLE|injected/);
+    expect(effects.alert).toHaveBeenCalledWith(expect.objectContaining({ key: `single-absent-captured-${ORDER}`, context: expect.objectContaining({ reason: 'reread-failed' }) }));
+  });
+});

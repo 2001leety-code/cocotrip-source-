@@ -135,6 +135,39 @@ describe('r19 cart — tombstone contract', () => {
     expect(owner.body).toMatchObject({ ok: true, finalized: true });
   });
 
+  // r21-4: the re-read after a captured lookup fails → 202 CAPTURED + conservative alert, never a 500 with Firestore text.
+  it('r21: reread-fail on a captured lookup → 202 CAPTURED + alert (reason reread-failed)', async () => {
+    let armed = false;
+    const realCollection = db.db.collection.bind(db.db);
+    db.db.collection = ((name: string) => {
+      const col = realCollection(name);
+      if (name !== 'used_paypal_orders') return col;
+      return { doc: (id: string) => { const d = col.doc(id); return { ...d, get: async () => { if (armed) throw new Error('14 UNAVAILABLE: injected'); return d.get(); } }; } };
+    }) as typeof db.db.collection;
+    vi.stubGlobal('fetch', vi.fn(async () => { armed = true; return { ok: true, status: 200, text: async () => JSON.stringify({ id: ORDER, status: 'COMPLETED' }) }; }));
+    const out = await call({ orderID: ORDER, reconcile: true });
+    expect(out.status).toBe(202);
+    expect(out.body).toMatchObject({ code: 'PAYMENT_RECOVERY_PENDING', paymentStatus: 'CAPTURED' });
+    expect(JSON.stringify(out.body)).not.toMatch(/UNAVAILABLE/);
+    expect(effects.alert).toHaveBeenCalledWith(expect.objectContaining({ key: `cart-absent-captured-${ORDER}`, context: expect.objectContaining({ reason: 'reread-failed' }) }));
+  });
+  // r21-2/3 (cart): OAuth failure = transient. Proven → claim released, the retry (new attempt before any POST) uses ITS input;
+  //   unproven → the record is deleted (nothing of a stranger left).
+  it('r21: proven OAuth failure keeps a POST-less record; the retry is a new attempt with this request\'s email', async () => {
+    effects.token.mockRejectedValueOnce(new Error('oauth down'));
+    await call({ orderID: ORDER, userEmail: 'first@example.invalid' });
+    expect(db.rows.get(LOCK)).toMatchObject({ captureState: 'none', claimUntil: 0, intent: { body: { userEmail: 'first@example.invalid' } } });
+    provider.push({ method: 'GET', reply: { status: 200, body: { id: ORDER, status: 'APPROVED' } } }, { method: 'POST', reply: { status: 201, body: { id: ORDER, status: 'COMPLETED', payer: { email_address: 'payer@example.invalid', name: { given_name: 'P', surname: 'Q' } }, purchase_units: [{ payments: { captures: [{ id: 'CAP-1', status: 'COMPLETED', amount: { value: '100.00', currency_code: 'USD' } }] } }] } } });
+    const retry = await call({ orderID: ORDER, userEmail: 'second@example.invalid' });
+    expect(retry.status).toBe(200);
+    expect(db.rows.get(`carts/${ORDER}`)).toMatchObject({ userEmail: 'second@example.invalid' });
+  });
+  it('r21: unproven OAuth failure deletes the record', async () => {
+    effects.token.mockRejectedValueOnce(new Error('oauth down'));
+    await call({ orderID: ORDER, userEmail: 'stranger@evil.invalid' }, {});
+    expect(db.rows.has(LOCK)).toBe(false);
+  });
+
   it('a posted attempt with lookup CREATED stays UNKNOWN (no tombstone, no POST)', async () => {
     db.rows.set(LOCK, { ...inFlightLock(), claimUntil: 0 });
     provider.push({ method: 'GET', reply: { status: 200, body: { id: ORDER, status: 'CREATED' } } });

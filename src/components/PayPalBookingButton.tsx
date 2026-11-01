@@ -15,7 +15,7 @@ import { tourSlotBody, SLOT_REJECT_LABELS } from '@/lib/tourSlotBooking';
 import { fillPrice } from '@/lib/aiPlannerPrice';
 import { charterCheckoutExpectedUsd, charterUsdFromKrw } from '@/lib/charterUsd';
 import { GuestSignupNudge } from '@/components/GuestSignupNudge';
-import { usePaymentRecovery, reconcilePayment, classifyCaptureResponse, recoveryCopy, recoveryHeadline, isPlannerProduct, isSameProduct, placeForeignPending, settleForeignFinal, isForeignOrder, isCurrentPointer, beginCapture, endCapture, isCaptureInFlight, isRecoveryDone, recordCaptureResult, dismissCaptureResult, type PaymentRecovery, type CaptureOutcome } from '@/lib/paymentRecovery';
+import { usePaymentRecovery, reconcilePayment, classifyCaptureResponse, recoveryCopy, recoveryHeadline, isPlannerProduct, isSameProduct, placeForeignPending, settleForeignFinal, isForeignOrder, isCurrentPointer, beginCapture, endCapture, isCaptureInFlight, isRecoveryDone, recordCaptureResult, dismissCaptureResult, resultKeyOf, type PaymentRecovery, type CaptureOutcome, type CaptureNotice } from '@/lib/paymentRecovery';
 import type { Language } from '@/i18n';
 
 // SDK 차단·로드 실패 시 fallback — paypal.me QR (외부 redirect, paypalobjects.com 무관).
@@ -217,9 +217,13 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
   //   r16: 주문별 저장 — 이 화면이 맡는 주문 = 플래너면 플래너 주문, 그 밖은 지금 상품과 같은(또는 상품 미상) 단건 주문.
   // r19: captureBusy = 이 화면 주문의 capture 가 이 탭에서 진행 중(모듈 집합 — 언마운트·재마운트에도 유지) → '같은 주문 확인' 비활성.
   // r20: captureResult = 이 화면 주문의 capture 가 이 탭에서 끝났는데 시작한 화면이 그 사이 언마운트됨 → 이 화면이 결과를 띄운다(닫을 때까지).
-  const { recovery, pendingRef: recoveryRef, remember, clearRecovery, forgetRecovery, refresh: refreshRecovery, captureBusy, captureResult } = usePaymentRecovery({ flow: 'single', planner: keepRecoveryUntilFulfilled, productType });
+  //   r21: resultKey = 이 화면의 상품 식별값·날짜 — 이어받은 결과는 같은 상품·투어·구간·날짜 화면에만(같은 productType 의 다른 투어 금지).
+  const resultKey = resultKeyOf(productType, tourId, originKey, destKey, dateStart);
+  const { recovery, pendingRef: recoveryRef, remember, clearRecovery, forgetRecovery, refresh: refreshRecovery, captureBusy, captureResult } = usePaymentRecovery({ flow: 'single', planner: keepRecoveryUntilFulfilled, productType, resultKey });
   const mountedRef = useRef(true);
   useEffect(() => { mountedRef.current = true; return () => { mountedRef.current = false; }; }, []);
+  const resultKeyRef = useRef(resultKey);
+  useEffect(() => { resultKeyRef.current = resultKey; }, [resultKey]);
   const [reconciling, setReconciling] = useState(false);
   // r19: 결제 결과 문구는 그 주문에 묶는다 — 다른 주문의 복구 패널엔 안 보이고, 최종이 아닌 문구는 그 주문이 CAPTURED·완료가 되면 지운다.
   //   message 가 지금 error 와 같을 때만 유효(다른 경로가 error 를 바꾸면 태그는 자동 무효).
@@ -255,6 +259,14 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
   }
   // r7: own = 이 화면이 방금 만든(fresh) 주문의 증거 조회 결과 — 포인터가 다른 탭에서 교체됐어도 증거의 orderID 가 그 주문이면
   //   적용한다(성공·NOT_CAPTURED 처리). 교체된 포인터는 건드리지 않는다(clearRecovery 의 orderID 가드 · 아래 mayWrite).
+  // r21 (B-I1): 최종으로 적용된 결과(final·review·not_captured)는 이 공통 지점에서 — 새 capture·일반 오류 뒤 자동 증거·수동 확인
+  //   어느 경로든 — 이 화면이 그 사이 언마운트됐으면 모듈에 남긴다(다시 마운트된 화면이 띄운다). 첫 분류(일반 오류)는 남기지 않는다.
+  function keepResult(orderID: string, outcome: CaptureOutcome, checked: PaymentRecovery | null, notice?: CaptureNotice) {
+    if (mountedRef.current) return;
+    const created = createdProductOf(orderID);
+    const product = created ? created : (checked && checked.productType ? checked.productType : productTypeRef.current);
+    recordCaptureResult({ orderID, flow: 'single', productType: product, key: resultKeyRef.current, outcome, ...(notice ? { notice } : {}) });
+  }
   async function applyCaptureOutcome(outcome: CaptureOutcome, orderID: string, fresh: boolean, checked: PaymentRecovery | null = null, own = false) {
     // r17-8: 늦은 결과를 버릴 때는 재조회 — 놓친 변경(이벤트 누락·bfcache)으로 끝난 주문 패널이 고착되지 않게.
     if (!fresh && !own && (checked?.orderID !== orderID || !isCurrentCheck(checked))) { refreshRecovery(); return; }
@@ -308,12 +320,14 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
         return;
       }
       clearRecovery(orderID);
+      keepResult(orderID, outcome, checked);
       setSuccessData({ orderID, payerName: result.payerName || '', payerEmail: result.payerEmail || '', amount: result.amount || '' });
       setShowSuccess(true); setShowPaypal(false); setRateInfo(null);
       return;
     }
     if (outcome.kind === 'review') {
       keepWaiting(orderID, fresh, { paymentStatus: outcome.captured ? 'CAPTURED' : 'NOT_CAPTURED', review: true }, checked);
+      keepResult(orderID, outcome, checked);
       setPaymentReview({ orderID, captureID: outcome.captureID, paymentCaptured: outcome.captured });
       setShowPaypal(false); setLoading(false); setRateInfo(null);
       return;
@@ -335,6 +349,8 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
       //   r19: 서버 영어 원문·내부 사유 코드 대신 4개 언어 rc.notCaptured.
       if (qrSession) orderError(rc.warn, orderID, true);
       else { orderError(prepayMsg || rc.notCaptured, orderID, true); setQrBlocked(!!prepayMsg); }
+      // r21 (B-I4): 문구 맥락을 함께 남긴다 — 다시 마운트된 화면이 같은 규칙(QR 흐름 = 재결제 금지, 사전 거부 = 사유 + QR 대체 숨김).
+      keepResult(orderID, outcome, checked, { kind: qrSession ? 'warn' : prepayMsg ? 'prepay' : 'plain', ...(outcome.preCaptureCode ? { preCaptureCode: outcome.preCaptureCode } : {}) });
       setShowPaypal(false); buttonsRendered.current = false; return;
     }
     // Server-proven full refund: terminal, not a booking — no success, no conversion; payment controls return.
@@ -688,9 +704,7 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
           //   conversions for an unconfirmed booking, failure would invite a second payment (double charge).
           //   Only a durable finalized answer for THIS orderID is success; fetch/JSON exceptions stay pending.
           const outcome = classifyCaptureResponse(json, data.orderID);
-          await applyOutcomeRef.current(outcome, data.orderID, true);
-          // r20: 이 화면이 그 사이 언마운트됐으면 결과를 남긴다 — 다시 마운트된 화면이 확정·검토·미결제 화면을 띄운다.
-          if (!mountedRef.current) recordCaptureResult({ orderID: data.orderID, flow: 'single', productType, outcome });
+          await applyOutcomeRef.current(outcome, data.orderID, true); // r21: 결과 보관은 applyCaptureOutcome 의 최종 분기(keepResult)
         } catch (captureErr) {
           console.error('[PayPal onApprove] result unknown (pointer kept):', captureErr);
           rememberRef.current({ orderID: data.orderID, flow: 'single', paymentStatus: 'CAPTURE_UNKNOWN', review: false, productType });
@@ -896,15 +910,28 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
 
   // r20: 이 화면이 이어받은 결과(capture 를 시작한 화면이 언마운트된 뒤 도착) — 닫을 때까지 같은 확정·검토 화면, 미결제는 안내 문구.
   //   onPaymentSuccess 상품(플래너)은 발급까지 CAPTURED 포인터가 맡으므로 확정 결과로 성공 화면을 띄우지 않는다.
-  const restored = captureResult && !showSuccess && !paymentReview ? captureResult : null;
+  //   r21 (B-I2·B-I3): 다른 미해결 주문이 선택돼 있으면 보이지 않는다(같은 주문의 검토 포인터는 예외).
+  const restored = captureResult && !showSuccess && !paymentReview && (!recovery || recovery.orderID === captureResult.orderID) ? captureResult : null;
   const viewReview = paymentReview || (restored && restored.outcome.kind === 'review'
     ? { orderID: restored.orderID, captureID: restored.outcome.captureID, paymentCaptured: restored.outcome.captured } : null);
   const restoredData = restored && restored.outcome.kind === 'final' && !onPaymentSuccess ? (restored.outcome.data as { payerName?: string; payerEmail?: string; amount?: string }) : null;
   const viewSuccess: SuccessData | null = showSuccess && successData ? successData
     : (restored && restoredData ? { orderID: restored.orderID, payerName: restoredData.payerName || '', payerEmail: restoredData.payerEmail || '', amount: restoredData.amount || '' } : null);
-  const restoredNotice = restored && restored.outcome.kind === 'not_captured' && !error ? rc.notCaptured : null;
+  //   r21 (B-I4): 기록된 문구 맥락 — QR 흐름 = 재결제 금지(rc.warn), 플래너 사전 거부 = 그 사유 + QR 대체 숨김, 그 밖 = rc.notCaptured.
+  const restoredNoticeOf = restored && restored.outcome.kind === 'not_captured' && !error ? (restored.notice || { kind: 'plain' as const }) : null;
+  const restoredNotice = !restoredNoticeOf ? null
+    : restoredNoticeOf.kind === 'warn' ? rc.warn
+    : restoredNoticeOf.kind === 'prepay' ? (plannerPrepayMessage(p, restoredNoticeOf.preCaptureCode, rc.notCaptured) || rc.notCaptured)
+    : rc.notCaptured;
+  const restoredQrBlocked = !!restoredNoticeOf && restoredNoticeOf.kind === 'prepay';
   const shownError = error || restoredNotice;
-  const dismissRestored = () => { if (restored) dismissCaptureResult(restored.orderID); };
+  //   r21 (B-I2): 결과 화면을 닫으면 그 결과는 사라진다 — 보이는 결과가 이어받은 것이든 이 화면 것이든 보관 결과를 지운다.
+  const dismissRestored = () => { if (captureResult) dismissCaptureResult(captureResult.orderID); };
+  //   r21 (B-I2): 이 화면이 다른 미해결 주문을 고르거나 자기 결과 화면(확정·검토)을 보이면 옛 보관 결과는 폐기(닫은 뒤 되살아나지 않게).
+  useEffect(() => {
+    if (!captureResult) return;
+    if ((recovery && recovery.orderID !== captureResult.orderID) || showSuccess || paymentReview) dismissCaptureResult(captureResult.orderID);
+  }, [captureResult, recovery, showSuccess, paymentReview]);
 
   // ── 예약 확인 모달 (Premium Overlay) ──────────────────────────────
   // 🔴 결제 접수 · 예약 확인 중 (PAYMENT_REVIEW) — 성공 화면보다 먼저 분기.
@@ -1391,7 +1418,7 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
               {p.paypalRetry}
             </button>
           </div>
-          {!qrBlocked && <button
+          {!qrBlocked && !restoredQrBlocked && <button
             type="button"
             onClick={() => { dismissRestored(); setError(null); setUseFallback(true); }}
             className="w-full text-xs text-white/85 border border-white/25 hover:border-white/40 hover:bg-white/[0.04] px-3 py-2 rounded-lg transition-colors"

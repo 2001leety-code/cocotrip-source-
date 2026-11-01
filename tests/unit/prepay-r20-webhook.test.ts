@@ -9,7 +9,7 @@ import { createFakeFirestore, FieldValue as FakeFieldValue } from '../helpers/fa
 import { memoryDb } from './helpers/payment-recovery-fixture';
 import { quarantineVoidedCapture } from '../../api/_shared/payment-fulfillment-recovery.js';
 
-const notifySpy = vi.fn(async () => ({ ok: true }));
+const notifySpy = vi.fn(async () => ({ ok: true, delivery: 'sent' })); // notify.js 의 실제 반환 계약
 let db: any;
 let failReviewWrites = 0;
 vi.mock('../../api/_shared/paypal.js', async (importOriginal) => ({
@@ -84,12 +84,23 @@ describe('r20-4 — the void-conflict alert survives a failed review write', () 
     await fire('txn-r20-2');
     expect(notifySpy).toHaveBeenCalledTimes(1);
   });
-  it('a failed alert send is retryable (503) and the redelivery alerts', async () => {
-    notifySpy.mockRejectedValueOnce(new Error('telegram down'));
-    expect((await fire('txn-r20-3')).statusCode).toBe(503);
-    expect((await fire('txn-r20-3')).statusCode).toBe(200);
+  // r21: notify() never throws — it RETURNS {ok:false, delivery}. Only delivery 'sent' records alertedAtMs; rejected / skipped /
+  //   unknown answer retryable (503) without recording, so the redelivery alerts again (unknown may duplicate — loss is worse).
+  it.each(['rejected', 'skipped', 'unknown'] as const)('notify returns delivery "%s" → 503, alertedAtMs NOT recorded; the redelivery (sent) alerts and records', async (delivery) => {
+    notifySpy.mockResolvedValueOnce({ ok: false, delivery, error: 'telegram 429' } as never);
+    expect((await fire('txn-r21-1')).statusCode).toBe(503);
+    expect(db.__get(`used_paypal_orders/${ORDER}`).voidConflict.alertedAtMs).toBeUndefined();
+    notifySpy.mockResolvedValueOnce({ ok: true, delivery: 'sent' } as never);
+    expect((await fire('txn-r21-1')).statusCode).toBe(200);
     expect(notifySpy).toHaveBeenCalledTimes(2);
     expect(typeof db.__get(`used_paypal_orders/${ORDER}`).voidConflict.alertedAtMs).toBe('number');
+    expect((await fire('txn-r21-2')).statusCode).toBe(200);
+    expect(notifySpy).toHaveBeenCalledTimes(2);
+  });
+  it('a throwing notify (defensive) is treated like delivery unknown → 503, not recorded', async () => {
+    notifySpy.mockRejectedValueOnce(new Error('telegram down'));
+    expect((await fire('txn-r21-3')).statusCode).toBe(503);
+    expect(db.__get(`used_paypal_orders/${ORDER}`).voidConflict.alertedAtMs).toBeUndefined();
   });
 });
 

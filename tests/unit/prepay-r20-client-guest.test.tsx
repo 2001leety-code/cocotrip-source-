@@ -141,3 +141,42 @@ describe('r20-7 — a new order after order_voided gets fresh PayPal buttons', (
     expect(document.querySelector('#cart-paypal-btn')!.className).not.toMatch(/hidden/);
   });
 });
+
+// r21-10: the guest cart changes in another tab while a PayPal order is open ('ready') → the open order is dropped (review screen again).
+const otherTabCart = async (value: string | null) => {
+  await act(async () => {
+    const old = localStorage.getItem(CART_LS_KEY);
+    if (value === null) localStorage.removeItem(CART_LS_KEY); else localStorage.setItem(CART_LS_KEY, value);
+    window.dispatchEvent(new StorageEvent('storage', { key: CART_LS_KEY, oldValue: old, newValue: value }));
+  });
+  await settle();
+};
+describe('r21-10 — cart changed in another tab while the PayPal order is open', () => {
+  it('T1: order for [A] ready → another tab adds B → the [A] order is dropped (PayPal area hidden, Confirm & pay again for A+B)', async () => {
+    localStorage.setItem(CART_LS_KEY, JSON.stringify([ITEM]));
+    render(<CartPanel />);
+    await openCart();
+    fireEvent.click(screen.getByText('Proceed to checkout'));
+    fireEvent.click(await screen.findByText('Confirm & pay'));
+    await waitFor(() => expect(buttons.length).toBe(1));
+    expect(document.querySelector('#cart-paypal-btn')!.className).not.toMatch(/hidden/);
+    await otherTabCart(JSON.stringify([{ ...ITEM, id: 'item-2', displayName: 'Night tour' }, ITEM]));
+    expect(document.querySelector('#cart-paypal-btn')!.className).toMatch(/hidden/);
+    expect(has('Night tour')).toBe(true);
+    expect(btn('Confirm & pay')).toBeDefined();
+    fireEvent.click(screen.getByText('Confirm & pay')); await settle();
+    expect(created).toBe(2);
+  });
+  it('T2: order ready → another tab paid and emptied the guest cart → no live PayPal button, empty-cart notice', async () => {
+    localStorage.setItem(CART_LS_KEY, JSON.stringify([ITEM]));
+    render(<CartPanel />);
+    await openCart();
+    fireEvent.click(screen.getByText('Proceed to checkout'));
+    fireEvent.click(await screen.findByText('Confirm & pay'));
+    await waitFor(() => expect(buttons.length).toBe(1));
+    await otherTabCart(null);
+    const host = document.getElementById('cart-paypal-btn');
+    expect(!host || host.className.includes('hidden')).toBe(true);
+    expect(has('Your cart is empty')).toBe(true);
+  });
+});

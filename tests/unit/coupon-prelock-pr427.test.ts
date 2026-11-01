@@ -138,7 +138,8 @@ describe('PR #427 CY4 — coupon-fail releases the order lock so the user can re
     const couponCatchIdx = src.indexOf('catch (couponErr)');
     const section = src.slice(couponCatchIdx, couponCatchIdx + 2500);
     expect(section).toMatch(/res\.writeHead\(\s*409/);
-    expect(section).toMatch(/!COUPON_REJECTIONS\.includes\(code\)[\s\S]*releaseAttemptClaim\(attempt\)[\s\S]*res\.writeHead\(503/);
+    // r21: releaseTransient = claim release with proof, record delete without proof
+    expect(section).toMatch(/!COUPON_REJECTIONS\.includes\(code\)[\s\S]*releaseTransient\(\)[\s\S]*res\.writeHead\(503/);
   });
 });
 

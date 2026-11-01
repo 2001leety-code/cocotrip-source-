@@ -376,7 +376,7 @@ export default async function handler(req, res) {
       if (out.alert) {
         await throttledTelegramAlert({
           key: `single-absent-captured-${orderID}`, channel: 'admin', severity: 'critical',
-          message: [`🚨 <b>단건 — 시도 기록 없이 PayPal 결제 완료</b>`, `<b>OrderID:</b> <code>${orderID}</code>`, '→ 기록 유실·옛 주문. 묘비 안 씀, 손님에겐 "결제 접수 — 다시 결제 금지". PayPal 에서 확인 후 수동 예약/환불 판단.'].join('\n'),
+          message: [`🚨 <b>단건 — 시도 기록 없이 PayPal 결제 완료</b>`, `<b>OrderID:</b> <code>${orderID}</code>`, `<b>사유:</b> ${out.alert}`, '→ 기록 유실·옛 주문(또는 기록 재확인 실패 — reread-failed). 묘비 안 씀, 손님에겐 "결제 접수 — 다시 결제 금지". PayPal·시도 기록 확인 후 수동 예약/환불 판단.'].join('\n'),
           context: { orderID, reason: out.alert },
         }).catch(() => {});
       }
@@ -424,11 +424,20 @@ export default async function handler(req, res) {
     }
     const attempt = acquired.attempt;
     const stages = (attempt.lock && attempt.lock.stages) || {};
+    // r21: 아직 PayPal 에 capture POST 를 보낸 적 없는 기록(captureState 'none')을 이어받은 요청 = 새 시도 — 쿠폰 거절은 종결,
+    //   (전체 capture 요청이면) intent 는 지금 요청 것. "복구 중엔 쿠폰 실패여도 계속"은 posted/unknown(돈이 잡혔을 수 있음)에만.
+    const beforePost = !!attempt.recovering && (attempt.lock || {}).captureState === 'none';
+    // r21: 일시 오류(OAuth·사전 확인·쿠폰 인프라) — 증명 있는 요청은 claim 만 해제(같은 주문 재시도), 증명 없는 요청은 기록 삭제
+    //   (orderID 만 아는 사람의 입력이 남아 주인 결제에 재사용되지 않고, 쿠키 없는 손님도 같은 주문을 다시 시도할 수 있다).
+    const releaseTransient = async () => {
+      if (_sameOrderProven) { await releaseAttemptClaim(attempt); return; }
+      try { await discardAttempt(attempt, 'transient', { voidOrder: false }); } catch { await releaseAttemptClaim(attempt); }
+    };
     let accessToken; let PAYPAL_BASE_URL;
     try {
       ({ accessToken, baseUrl: PAYPAL_BASE_URL } = await getPaypalAccessToken(_isSandboxCapture));
     } catch (tokenErr) {
-      await releaseAttemptClaim(attempt); // no POST happened: the record stays 'none' for the same-order retry
+      await releaseTransient(); // no POST happened
       throw tokenErr;
     }
     // r19: proven nonpayment => tombstone. A failed void (claim lost / money evidence) is never answered NOT_CAPTURED.
@@ -482,7 +491,7 @@ export default async function handler(req, res) {
         if (preCaptureBlock.unavailable) {
           // r20: a temporary check failure is not proof of nonpayment — like an OAuth failure, only the claim is released
           //   (record stays as before any POST; the same order can be retried). Never a tombstone.
-          await releaseAttemptClaim(attempt);
+          await releaseTransient(); // r21: 무증명이면 기록 삭제
           console.warn('[capturePaypalOrder] AI planner pre-capture check unavailable — claim released, no capture:', orderID);
           res.writeHead(503, JSON_CORS);
           return res.end(JSON.stringify(_err(preCaptureBlock.message, preCaptureBlock.code)));
@@ -499,7 +508,16 @@ export default async function handler(req, res) {
         }));
       }
     }
-    if (attempt.recovering) {
+    if (beforePost && !_reconcileOnly) {
+      // r21: POST 전 기록을 이어받은 전체 capture 요청(증명 있는 요청만 기존 기록을 이어받는다) — 저장된 intent 대신 이 요청의 intent.
+      //   같은 주문 확인(reconcile, 예약 입력 없음)은 저장된 intent 를 그대로 쓴다(아래).
+      try {
+        await updateAttempt(attempt, { intent, userEmail, product: product || 'unknown' });
+      } catch (intentErr) {
+        console.warn('[capturePaypalOrder] intent replace before POST failed — answering UNKNOWN:', orderID, intentErr.message);
+        return unknownResponse();
+      }
+    } else if (attempt.recovering) {
       // Replay uses ONLY the saved intent — capture-time body and identity never replace it.
       const saved = attempt.lock.intent;
       ({ product, tourDate, tourTime, pickupLocation, dropoffLocation, paxCount, vehicleType, customerPhone,
@@ -540,13 +558,15 @@ export default async function handler(req, res) {
       } catch (couponErr) {
         const code = couponErr.message || 'UNKNOWN';
         console.warn('[capturePaypalOrder] coupon pre-lock failed:', code, '| orderID:', orderID);
-        if (attempt.recovering) {
-          // Money may already be captured — never abandon the order over a coupon; operator decides.
+        if (attempt.recovering && !beforePost) {
+          // Money may already be captured (posted/unknown) — never abandon the order over a coupon; operator decides.
+          //   r21: a record that never POSTed is a new attempt — its coupon errors follow the fresh rules below.
           console.error('[capturePaypalOrder] coupon pre-lock failed during recovery — continuing without coupon:', orderID);
           notifyOperator('coupon-race', `<code>${orderID}</code>\n복구 중 쿠폰 선점 실패: ${code} — 예약은 계속 진행, 쿠폰 수동 확인`).catch(() => {});
         } else if (!COUPON_REJECTIONS.includes(code)) {
-          // r20: Firestore/네트워크 등 일시 오류 = 미결제 증거 아님 — claim 만 풀고(같은 주문 재시도 가능) 묘비 없음. 원문은 응답에 넣지 않는다.
-          await releaseAttemptClaim(attempt);
+          // r20: Firestore/네트워크 등 일시 오류 = 미결제 증거 아님 — 묘비 없음, 원문은 응답에 넣지 않는다.
+          //   r21: 증명 있으면 claim 해제(같은 주문 재시도), 없으면 기록 삭제(releaseTransient).
+          await releaseTransient();
           res.writeHead(503, JSON_CORS);
           return res.end(JSON.stringify(_err('Could not reserve the coupon right now — please retry', 'COUPON_CHECK_UNAVAILABLE')));
         } else {
