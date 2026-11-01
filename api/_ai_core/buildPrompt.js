@@ -350,7 +350,8 @@ Gemini 가 \`departure_guide.airport: 'ICN T1'\` (T1 추가 hallucinate) + \`arr
 - **🔴 MIN STOPS PER DAY — ABSOLUTE MUST (2026-05-12 강화, 위반 시 사용자 신고)**:
   - **EACH day MUST have AT LEAST 4 stops** (lodging 출발 + 관광/식사 2+ + lodging 복귀 포함)
     AND **AT MOST 8 stops**.
-  - 예외: **2일 이상 일정의** 마지막 날이 출국 11:00 전이면 체크아웃(lodging) + 공항(airport) 2 stops 가 정답(1일 일정은 해당 없음 — 최소 4 stops·점심/저녁 규칙 그대로).
+  - 예외: **2일 이상 일정의** 마지막 날이 출국 11:00 전이면 체크아웃(lodging) + 공항(airport) 2 stops 가 정답(1일 일정은 이 예외 대신 아래 meal_windows 규칙).
+  - 1일 일정: userInput.meal_windows(서버 계산 — 직접 계산 금지)의 null 아닌 끼니만 필수, 그 끼니 start_time ∈ [from, to], 최소 stops = 2 + 필수 끼니 수.
   - 예외: userInput.arrival_rest_day = true 인 Day 1 은 숙소만(1~2 stops) 허용 — 아래 "N일 plan" 분량 규칙도 그 Day 1 에는 적용 안 함.
   - 사용자 신고: Day 5 가 1 stop (점심만) 으로 끝나는 buggy plan 발생. 절대 금지.
   - **분량 균형**: 5일 trip 이면 Day 1~4 에 stops 몰아넣고 Day 5 비우지 말 것.
@@ -603,6 +604,7 @@ If "special_request" is present in the user message, treat it as HIGHEST PRIORIT
 - Full day = middle days. 필수: lunch/snack (11-16:59) ≥1 + dinner (17-21:59) ≥1. Breakfast (06-10:59) bonus.
 - Backend B-MEAL-LUNCH/DINNER validator: 누락 시 즉시 reject + retry.
 - Arrival day: follow userInput.arrival_rest_day (precomputed — do NOT compute it yourself). true → Day 1 = lodging only, one dinner after arrival_ready_time is optional; false → ≥1 meal. Departure day (P137): <11:00 → no restaurant breakfast (no breakfast stop; the backend appends the guest notice automatically — do NOT write it); 11-16:59 → breakfast OR lunch/snack; ≥17:00 → both.
+- 1-day trip: follow userInput.meal_windows (precomputed — do NOT compute): each non-null meal is required with start_time in [from, to]; null = not required; no breakfast duty.
 - 출국 11:00 전에는 식당 조식을 넣지 않는다. 안내 문장은 백엔드가 자동으로 붙이므로 직접 쓰지 않는다. 지어내기 금지.
 - GOOD (departure 20:00): breakfast 08:00 + lunch 12:30. BAD (departure day): 출국 11:00 이후인데 0 food stops → reject.
 - 3-5 signature menu items with KRW prices. reservation_required + phone for popular spots.
@@ -820,6 +822,7 @@ If meal_budget is "Premium":
 출력 전 각 day 확인:
 - **full day (middle)**: lunch slot (11:00-14:59) OR snack (15:00-16:59) ≥1 + dinner slot (17:00-21:59) ≥1 — **MINIMUM 2 food stops per full day** 필수.
 - **Day 1 (도착일)**: arrival_time 기준 breakfast / lunch / snack / dinner 중 시간 가능한 식사 최소 1식 (예: arrival 14:00 → snack + dinner) — 단 userInput.arrival_rest_day = true 면 Day 1 = 숙소만, arrival_ready_time 이후 저녁 1곳은 선택(휴식일은 직접 계산하지 말 것).
+- **1일 일정**: userInput.meal_windows 를 따른다(직접 계산 금지) — null 아닌 끼니만 필수, start_time ∈ [from, to], null = 불필요, 조식 의무 없음.
 - **출국일 (P137)**: departure_time <11:00 → no restaurant breakfast (no breakfast stop; the backend appends the guest notice automatically — do NOT write it); 11-16:59 → breakfast OR lunch/snack; ≥17:00 → both.
 
 **BAD 예시 (즉시 retry 트리거 — P179 측정 발견 2026-05-24)**:

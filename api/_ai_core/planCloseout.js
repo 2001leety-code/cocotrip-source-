@@ -97,7 +97,7 @@ export async function runHandlerFailureCleanup({
   //   저장 성공(planPersisted) 후엔 정당 소비라 롤백 X. worker 인계 뒤에도 X — 플랜이 계속 만들어진다.
   //   fire-and-forget(응답 후) — 롤백 실패해도 사용자 응답엔 영향 없음.
   if (consumedCouponInfo && !planPersisted && !issuance.handedToWorker) {
-    restoreAiPlanCoupon(adminDb, consumedCouponInfo.uid, consumedCouponInfo.code)
+    restoreAiPlanCoupon(adminDb, consumedCouponInfo.uid, consumedCouponInfo.code, consumedCouponInfo.consumptionId) // PR2 r4: 같은 소비만
       .catch((e) => console.warn('[ai-planner-full] coupon rollback failed:', e.message));
   }
   // streaming 문서 즉시 마감 — 결과는 로그만(실패해도 sweep 이 30분 뒤 정리).

@@ -10,7 +10,7 @@
  */
 import { sanitizeStopName } from './sanitizeName.js';
 // 도착일 "활동 가능 시각" — blockMode·buildPrompt·RouteAgent 와 같은 계산을 쓴다(단일 원천).
-import { arrivalReadyMinutes, arrivalRestDayInfo } from './constants.js';
+import { arrivalReadyMinutes, arrivalRestDayInfo, singleDayMealWindows } from './constants.js';
 import { throttledTelegramAlert } from '../_shared/telegram-throttle.js';
 import { dietaryEvidenceFor } from '../_shared/dietary-trust.js';
 import { findSelectedFoodRow } from '../_shared/food-name-match.js';
@@ -352,6 +352,51 @@ export function arrivalRestDayCityKey({ arrivalCity, regions, area } = {}) {
   return key(arrivalCity) || key((Array.isArray(regions) && regions[0]) || area);
 }
 
+/**
+ * 2026-10-26 (첫날 도착 PR1): 요청 입력(camel·snake) → 1일 여행 끼니 창(constants.singleDayMealWindows). 다일 여행 = null.
+ *   도시 키 = arrivalRestDayCityKey(휴식일·준비 시각과 같은 키). constants 가 이 파일을 import 하면 순환이라 래퍼는 여기.
+ *   ⚠️ validatePatternStructure 는 이 함수를 부르지 않는다 — 호출부가 계산해 넘긴 request.meal_windows 만 쓴다.
+ */
+export function mealWindowsFromRequest(src = {}) {
+  const s = src && typeof src === 'object' ? src : {};
+  const pick = (camel, snake) => (s[camel] !== undefined && s[camel] !== null && s[camel] !== '' ? s[camel] : s[snake]);
+  return singleDayMealWindows({
+    durationDays: pick('durationDays', 'duration_days'),
+    arrivalTime: pick('arrivalTime', 'arrival_time'),
+    arrivalAirport: pick('arrivalAirport', 'arrival_airport'),
+    departureTime: pick('departureTime', 'departure_time'),
+    departureAirport: pick('departureAirport', 'departure_airport'),
+    tourStartTime: pick('tourStartTime', 'tour_start_time'),
+    tourEndTime: pick('tourEndTime', 'tour_end_time'),
+    cityKey: arrivalRestDayCityKey({ arrivalCity: pick('arrivalCity', 'arrival_city'), regions: s.regions, area: s.area }),
+  });
+}
+
+/**
+ * 파이프라인 ctx → 끼니 창. sync 경로는 handlerCore 가 계산한 ctx.mealWindows(null 포함) 그대로, worker 경로는
+ *   ctx.body + shaped 공항·도시·일수로 같은 순수 함수를 다시 돌린다(결과 동일).
+ */
+export function mealWindowsFromCtx(ctx = {}) {
+  if (ctx.mealWindows !== undefined) return ctx.mealWindows;
+  const b = ctx.body || {};
+  const first = (...vals) => vals.find((v) => v !== undefined && v !== null && v !== '');
+  // shaped(ctx) 값이 원 body 보다 먼저 — mealWindowsFromRequest 는 camel 키를 먼저 고르므로 camel 키로 넘긴다
+  //   (snake 로만 덮으면 body 의 camel departureAirport 등이 shaped 값을 이겨 sync 창과 달라진다, PR1 r2).
+  return mealWindowsFromRequest({
+    ...b,
+    durationDays: first(ctx.durationDays, b.durationDays, b.duration_days),
+    arrivalAirport: first(ctx.arrival_airport, b.arrival_airport, b.arrivalAirport),
+    departureAirport: first(ctx.departure_airport, b.departure_airport, b.departureAirport),
+    arrivalTime: first(ctx.arrivalTime, b.arrivalTime, b.arrival_time),
+    departureTime: first(ctx.departureTime, b.departureTime, b.departure_time),
+    tourStartTime: first(ctx.tourStartTime, b.tourStartTime, b.tour_start_time),
+    tourEndTime: first(ctx.tourEndTime, b.tourEndTime, b.tour_end_time),
+    regions: Array.isArray(ctx.regions) ? ctx.regions : b.regions,
+    area: first(ctx.area, b.area),
+    arrivalCity: first(ctx.arrivalCity, b.arrival_city, b.arrivalCity),
+  });
+}
+
 // 잘 알려진 글로벌 호텔 체인 — 이름만으로는 city 모르지만 well-known 5성급 위치.
 // 다도시 plan 에서 Gemini 가 "Lotte L7 Gangnam" / "JW Marriott Dongdaemun" 처럼
 // city 토큰 없는 이름만 반환 시 B-13 false positive 방지. lodging name 에
@@ -388,6 +433,8 @@ export function checkRequiredMeals(itinerary, request = {}) {
     arrival_city: request.arrival_city || request.arrivalCity,
     // 호출부가 요청 입력으로 계산한 휴식일 여부(boolean 일 때만) — 플래그 우선 경로(모델이 쓴 Day1 city 무관).
     ...(typeof request.arrival_rest_day === 'boolean' ? { arrival_rest_day: request.arrival_rest_day } : {}),
+    // 2026-10-26 (첫날 도착 PR1): 1일 여행 끼니 창(객체일 때만) — 빠뜨리면 최종 게이트에서 1일 기준이 사라진다.
+    ...(request.meal_windows && typeof request.meal_windows === 'object' ? { meal_windows: request.meal_windows } : {}),
   };
   return validatePatternStructure(itinerary, req).filter((e) => /\(B-MEAL/.test(String(e)));
 }
@@ -424,6 +471,9 @@ export function validatePatternStructure(itinerary, request = {}) {
   // 1일 여행은 휴식일 없음(도착=출국일) — B-12 minStops·B-MEAL 도착일 면제가 단일일에 걸리지 않게 여기 한 곳에서.
   const restInfo = days.length > 1 ? restInfoRaw : { ...restInfoRaw, rest: false, reason: null };
   const isStructuralStop = (s) => ['lodging', 'airport', 'travel'].includes(s?.category);
+  // 2026-10-26 (첫날 도착 PR1): 1일 여행 끼니 창 — 호출부가 요청 입력으로 계산해 넘긴 값만 쓴다(원시 시각으로 여기서
+  //   계산하지 않는다). null 인 끼니 = 이 일정에서 불가능 → 필수 아님. 없으면(옛 호출부) 기존 기준(점심·저녁 필수, 최소 4).
+  const mealWindows = days.length === 1 && request.meal_windows && typeof request.meal_windows === 'object' ? request.meal_windows : null;
 
   // B-DC (2026-05-13 PR #407): itinerary.days.length === request.durationDays.
   // 사용자 PDF 보고 (Guest-5--2026-05-14): wizard 5일 plan 인데 PDF Day 4 까지만 노출.
@@ -488,7 +538,9 @@ export function validatePatternStructure(itinerary, request = {}) {
     // 2026-06-22 (Sentry JAVASCRIPT-REACT-3, 103건): 출국일은 체크아웃(lodging)+공항(travel)
     //   2 stop 이 정상인데 4 강제 → 재시도해도 위반 → 500. 도착/출국일 최소 2 로 완화.
     // 2026-10-26: 도착 휴식일 Day1 은 숙소 하나만도 정상(UI 휴식일 카드는 Day1 1 stop 일 때 뜬다).
-    const minStops = (isFirstDay && restInfo.rest) ? 1 : (isFirstDay || isLastDay) ? 2 : 4;
+    // 2026-10-26 (첫날 도착 PR1): 1일 여행 + 끼니 창 = 숙소 bookend 2 + 필수 끼니 수(기존 4 이하 — 기준을 풀기만 한다).
+    const minStops = (isFirstDay && restInfo.rest) ? 1 : (isFirstDay || isLastDay) ? 2
+      : mealWindows ? 2 + (mealWindows.lunch ? 1 : 0) + (mealWindows.dinner ? 1 : 0) : 4;
     if (stops.length < minStops) {
       errors.push(`Day ${dayNum}: stops.length=${stops.length} < ${minStops} minimum (B-12)`);
     }
@@ -670,7 +722,8 @@ export function validatePatternStructure(itinerary, request = {}) {
     //   - 저녁 slot: start_time hour ∈ [17, 22) — 17:00~21:59
     //   - first/last day (도착/출국일): 아침 OR 점심/snack OR 저녁 중 최소 1개
     //   - full day (중간 day): 점심/snack + 저녁 둘 다 필수 (아침은 bonus, 강제 X)
-    //   - 단일일 plan (days.length === 1): full day 와 동일 처리
+    //   - 단일일 plan (days.length === 1): full day 와 동일 처리 — 단 request.meal_windows(1일 끼니 창)가 있으면
+    //     null 아닌 끼니만 필수(2026-10-26 첫날 도착 PR1, 아래 else 분기)
     //
     // HARD validation — caller 가 1회 retry. 회귀 슈트 B-MEAL 와 동일 기준.
     //
@@ -793,9 +846,18 @@ export function validatePatternStructure(itinerary, request = {}) {
           }
         }
       } else {
-        // full day (또는 단일일) — 점심/snack + 저녁 둘 다 필수
-        if (afternoonMealCount === 0) errors.push(`Day ${dayNum}: 오후식사(11-16시, 점심 또는 snack) food stop 누락 (B-MEAL-LUNCH)`);
-        if (dinnerCount === 0) errors.push(`Day ${dayNum}: 저녁(17-21시) food stop 누락 (B-MEAL-DINNER)`);
+        // full day (또는 단일일) — 점심/snack + 저녁 둘 다 필수.
+        // 2026-10-26 (첫날 도착 PR1): 단일일 + 끼니 창이면 null 아닌 끼니만 필수(세는 방식은 시간대 그대로 — 시작 범위 강제는 PR2).
+        //   접미사 (B-MEAL-LUNCH)/(B-MEAL-DINNER) 유지(게이트가 /\(B-MEAL/ 로 거른다).
+        const needLunch = mealWindows ? !!mealWindows.lunch : true;
+        const needDinner = mealWindows ? !!mealWindows.dinner : true;
+        const range = (w) => (w && w.from && w.to ? `, ${w.from}-${w.to} 시작` : '');
+        if (needLunch) {
+          if (afternoonMealCount === 0) errors.push(`Day ${dayNum}: 오후식사(11-16시, 점심 또는 snack${mealWindows ? range(mealWindows.lunch) : ''}) food stop 누락 (B-MEAL-LUNCH)`);
+        }
+        if (needDinner) {
+          if (dinnerCount === 0) errors.push(`Day ${dayNum}: 저녁(17-21시${mealWindows ? range(mealWindows.dinner) : ''}) food stop 누락 (B-MEAL-DINNER)`);
+        }
       }
     }
   }

@@ -28,6 +28,7 @@ import { formatTransitSummary } from './_odsay_helper.js';
 import { searchTransit } from './_transit_provider.js';
 // NCP Maps 키 해석 + geocode 호출 SSOT — 키 목록 복제 금지 (mood-route.js:45~ 주석).
 import { geocode, resolveNcpKeys } from './_shared/mood-route.js';
+import { isMergedLodgingStop, isSameLodgingMarker, isLodgingBookendPair, effectiveBookedAddress, stayMinOf, SAME_LODGING_FIELD } from './_ai_core/mergedLodging.js'; // PR2 r10/r12/r13: 같은 숙소 병합 표식(이동 0)·체류 규칙
 
 export const maxDuration = 60;
 export const config = { runtime: 'nodejs' };
@@ -100,13 +101,17 @@ export default async function handler(req, res) {
 
     const day = JSON.parse(JSON.stringify(days[dayIndex])); // deep clone
     const stops = day.stops || [];
+    // PR2 r11/r12: 같은 숙소 재확인의 예약 숙소 주소 = 생성 때와 같은 함수(손님 호텔 주소, 없으면 저장된 권역 주소).
+    const bookedAddress = effectiveBookedAddress(plan.input);
 
     // Find stale indices
     const staleIndices = [];
     for (let i = 0; i < stops.length; i++) {
-      if (stops[i].transit_from_prev && stops[i].transit_from_prev._stale) {
+      // PR2 r11: 이동이 null 인 stop(병합 숙소 등)도 편집으로 인접 관계가 바뀌면 편집기가 stop 단위 _stale_transit 를 단다.
+      if ((stops[i].transit_from_prev && stops[i].transit_from_prev._stale) || stops[i]._stale_transit === true) {
         staleIndices.push(i);
       }
+      delete stops[i]._stale_transit;
     }
 
     if (staleIndices.length === 0) {
@@ -146,11 +151,32 @@ export default async function handler(req, res) {
       }
     }
 
+    // PR2 r13: 편집으로 새로 이웃한 같은 숙소(표식 없음)도 생성과 같은 규칙이면 병합 표식을 단다 — 편집된 구간(stale)에서만.
+    //   규칙 = RouteAgent.stitchStartMins: 50m 좌표 규칙, 또는 도시 이동일이 아닌 날의 좌표 없는 북엔드(mergeBookend: !isCityChangeDay).
+    //   r14: 도시 이동일 = 생성과 같은 판정(RouteAgent: isMultiCity(regions ≥ 2) && intercity_transit.mode) — 단일 도시 플랜의 mode 만으로는 아님.
+    //   regions = 저장 입력(planPersister 가 요청과 같은 규칙으로 저장), 없으면 itinerary.regions(RouteAgent 와 같은 대체 순서).
+    const inputRegions = plan.input && Array.isArray(plan.input.regions) ? plan.input.regions : null;
+    const savedRegions = inputRegions || (plan.itinerary && Array.isArray(plan.itinerary.regions) ? plan.itinerary.regions : []);
+    const cityChangeDay = savedRegions.length >= 2 && !!(day.intercity_transit && day.intercity_transit.mode);
+    for (const idx of staleIndices) {
+      if (idx > 0 && (isSameLodgingMarker(stops[idx - 1], stops[idx]) || (!cityChangeDay && isLodgingBookendPair(stops, idx, bookedAddress)))) {
+        stops[idx][SAME_LODGING_FIELD] = true;
+      }
+    }
+
     // 4. Recalculate transit for each stale segment
     let recalculated = 0;
     const BUFFER_MIN = 5;
 
     for (const idx of staleIndices) {
+      // PR2 r14: 편집된 구간의 옛 대중교통 상세(travelFromPrev — 지운·옮긴 앞 장소 기준 노선·요금)는 틀린 안내다. 재계산은 상세를
+      //   만들지 않으므로 병합·재조회·좌표 없어 재조회 못 한 stop 모두 지운다(생성 병합·첫 stop 과 같은 null).
+      stops[idx].travelFromPrev = null;
+      // PR2 r10: 같은 숙소로 합친 표식은 이동이 없다 — 재조회하지 않는다(편집으로 앞 stop 이 바뀌면 isMergedLodgingStop 이 거짓 = 일반 재조회).
+      if (isMergedLodgingStop(stops, idx, bookedAddress)) {
+        stops[idx].transit_from_prev = null;
+        continue;
+      }
       if (idx === 0) {
         // First stop has no prev -- just clear stale
         if (stops[0].transit_from_prev) {
@@ -243,7 +269,13 @@ export default async function handler(req, res) {
     if (stops[stitchFrom - 1] && stops[stitchFrom - 1].start_time) {
       let currentMin = parseTime(stops[stitchFrom - 1].start_time);
       for (let i = stitchFrom; i < stops.length; i++) {
-        const prevStay = stops[i - 1].stay_min || 60;
+        // PR2 r10: 같은 숙소 병합 = 이동·버퍼 0, 앞 숙소 시각 + 체류(명시 0 유지)·자정 넘김 금지 — RouteAgent.stitchStartMins 와 같은 규칙.
+        if (isMergedLodgingStop(stops, i, bookedAddress)) {
+          currentMin = Math.max(currentMin, Math.min(currentMin + stayMinOf(stops[i - 1]), 24 * 60 - 1));
+          stops[i].start_time = formatTime(currentMin);
+          continue;
+        }
+        const prevStay = stayMinOf(stops[i - 1]); // r13: 명시 0 은 0(생성 규칙과 같음) — 예전 `|| 60` 은 편집 한 번에 +60분
         const transitMin = (stops[i].transit_from_prev && stops[i].transit_from_prev.est_min) || 25;
         currentMin += prevStay + transitMin + BUFFER_MIN;
         stops[i].start_time = formatTime(currentMin);

@@ -33,8 +33,8 @@ import { loadFoodIndex } from './geminiPipeline.js';
 import { enrichItineraryWithRoute } from './routeEnrichment.js';
 import { calcPrice } from './vehicleAndPrice.js';
 import { throttledTelegramAlert } from '../_shared/telegram-throttle.js';
-import { applyBlockModeDietaryWarnings, normalizeRegionKey, arrivalRestDayCityKey, departureCityKey } from './responseValidator.js';
-import { applyDepartureDayFlightCap } from './blockMode.js';
+import { applyBlockModeDietaryWarnings, normalizeRegionKey, arrivalRestDayCityKey, departureCityKey, mealWindowsFromCtx } from './responseValidator.js';
+import { applyDepartureDayFlightCap, settleUnroutedRescuedMeals } from './blockMode.js';
 import { assertFinalItineraryValid, assertNoDuplicateStops, tripTimesFrom } from './finalItineraryGate.js';
 import { resolveTourEndTime, arrivalRestDayInfo } from './constants.js';
 
@@ -277,6 +277,9 @@ export async function runRouteEnrichment(itinerary, ctx) {
   } finally {
     clearTimeout(timeoutId);
   }
+  // PR2 r3-8/r4: RouteAgent 일반 실패·타임아웃이면 병합이 건너뛰어져 blockMode 구제 표식이 남는다 — 표식을 지우고(저장 안 함)
+  //   잠정 배치(창 끝)와 겹치는 앞 관광을 뺀다(못 빼면 그 식당을 뺀다). 성공 경로는 병합이 표식을 지워 여기선 no-op.
+  settleUnroutedRescuedMeals(itinerary);
 
   // arrival_guide / departure_guide의 route_to_hotel에 zone fallback이 적용됐음을
   // 표시 — UI가 "Lotte Hotel 기준" 대신 "홍대 지역 기준"으로 라벨링할 수 있게.
@@ -411,6 +414,7 @@ export async function applyRecommendedRestaurants(itinerary, ctx) {
     area: ctx.area || ctx.body?.area,
     regions: ctx.regions,
     tourEndTime: ctx.tourEndTime || resolveTourEndTime(ctx.body || {}),
+    meal_windows: mealWindowsFromCtx(ctx), // 2026-10-26 (첫날 도착 PR1): 1일 끼니 창(다일 = null → 전달 안 됨)
     arrival_rest_day: arrivalRestDayFromCtx(ctx), // 2026-10-26: 게이트 휴식일 판정 = 요청 입력 기준 플래그
   });
   // 동선 5km 이내 + plan 미포함 식당 중 rating × log(reviews) 상위 10개씩.

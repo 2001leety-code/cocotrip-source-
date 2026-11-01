@@ -591,6 +591,8 @@
       "MISSING_FORM": "表单数据已丢失，请重新填写规划表。",
       "NO_PLAN_URL": "行程已创建但无法打开，请查看您的邮箱。",
       "UNKNOWN_ERROR": "发生未知错误，请重试或通过WhatsApp联系我们。",
+      "ROUTE_DAY_INFEASIBLE": "按这些时间，行程中有一天无法在午夜前结束。请修改到达时间或行程天数后重新生成。如已付款，请勿重复付款，并通过WhatsApp联系我们。",
+      "DIETARY_MEAL_COVERAGE_FAILED": "行程中有一天无法安排必需的用餐。请修改到达时间或行程天数后重新生成。如已付款，请勿重复付款，并通过WhatsApp联系我们。",
       "PAYMENT_UNDER_REVIEW": "已收到您的付款，正在核实。确认后将通过邮件与您联系 — 请勿重复付款。",
       "PAYMENT_VERIFY_FAILED": "无法通过 PayPal 确认您的付款。请稍后重试 — 如已扣款请勿重复付款。",
       "PAYMENT_VERIFY_UNAVAILABLE": "目前无法确认您的付款，请稍后重试。",

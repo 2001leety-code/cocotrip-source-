@@ -62,7 +62,7 @@ export function IntroSlide({ plan, planId, isTranslating, translationError, isOw
     ? [whatsAppLabel.slice(0, whatsAppSplitAt), whatsAppLabel.slice(whatsAppSplitAt)]
     : null;
 
-  // 2026-10-26: 2일+ 여행 식사 stop 0 — 접히지 않는 안내(자동 보정 패널과 별개). 원인은 확인될 때만 붙인다.
+  // 2026-10-26: 식사 stop 0 (2일+ 와 1일 — 1일은 원인 없이) — 접히지 않는 안내(자동 보정 패널과 별개). 원인은 확인될 때만 붙인다.
   const noMeal = noMealStopsInfo(it as never, input as never);
   const nm = ((pd as unknown as { noMealNotice?: Record<string, string> }).noMealNotice) || {};
   const noMealReasons = [

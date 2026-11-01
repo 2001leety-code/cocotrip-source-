@@ -19,6 +19,8 @@ type DayLike = { stops?: StopLike[] | null };
  *   결과 화면 소개 슬라이드의 접히지 않는 안내(자동 보정 패널과 별개). 저장 데이터가 아니라 화면에서 판정(옛 플랜에도 동작).
  *   원인은 확인될 때만: input.arrival_rest_day === true → 늦은 도착, 저장된 출국 시각 엄격 HH:MM < 11:00 → 이른 출국.
  *   확인 안 되면 원인 없이 "식사 장소 없음" 만.
+ * 2026-10-26 (첫날 도착 PR1 r2): 1일 여행도 — 두 끼 창이 처음부터 모두 없어(늦은 준비·이른 출국) 식사 0곳이 허용된 경우.
+ *   1일은 원인 문구를 붙이지 않는다(저장 데이터로 원인을 확인하지 않는다 — 단정 금지).
  */
 export function noMealStopsInfo(
   itinerary: { days?: DayLike[] | null } | null | undefined,
@@ -26,8 +28,9 @@ export function noMealStopsInfo(
 ): { show: boolean; lateArrival: boolean; earlyDeparture: boolean } {
   const days = Array.isArray(itinerary?.days) ? itinerary.days : [];
   const none = { show: false, lateArrival: false, earlyDeparture: false };
-  if (days.length < 2) return none;
+  if (days.length < 1) return none;
   if (days.some((d) => (Array.isArray(d?.stops) ? d.stops : []).some((s) => s?.category === 'food'))) return none;
+  if (days.length === 1) return { show: true, lateArrival: false, earlyDeparture: false };
   const depMin = strictHHMMToMin(input?.departure_time || input?.departureTime);
   const lateArrival = input?.arrival_rest_day === true;
   const earlyDeparture = depMin !== null && depMin < EARLY_DEPARTURE_NO_BREAKFAST_MIN;

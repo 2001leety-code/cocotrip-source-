@@ -44,7 +44,7 @@ const PLAN_ID = 'plan-1';
 const PLAN_PATH = `plans/${PLAN_ID}`;
 const ORDER_PATH = 'plan_issued_orders/ORDER-1';
 const CLAIM = { orderId: 'ORDER-1', attemptId: 'att-1', planId: PLAN_ID };
-const COUPON = { uid: 'u1', code: 'FREE-AI' };
+const COUPON = { uid: 'u1', code: 'FREE-AI', consumptionId: 'cons-1' }; // PR2 r4: 소비 ID 동반
 const STREAMING_DOC = { planId: PLAN_ID, status: 'streaming', _streaming_in_progress: true, _streaming_started_at: 1, uid: 'u1' };
 const ISSUING_DOC = { status: PLAN_ISSUANCE_STATUS.ISSUING, attemptId: 'att-1', planId: PLAN_ID };
 
@@ -114,7 +114,7 @@ describe('runHandlerFailureCleanup — 게이트 실패 시 마감', () => {
       details: error.message,
       stackHead: (error.stack || '').slice(0, 500),
     });
-    expect(h.restore).toHaveBeenCalledWith(db, 'u1', 'FREE-AI');
+    expect(h.restore).toHaveBeenCalledWith(db, 'u1', 'FREE-AI', 'cons-1');
     expect(db.__get(PLAN_PATH)).toMatchObject({
       status: 'error',
       _streaming_in_progress: false,

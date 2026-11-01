@@ -30,10 +30,12 @@ interface ErrorStateProps {
   onLanguageChange: (lang: Language) => void;
   /** getPlanDetailUI(t) 결과. 키 없으면 인라인 폴백. */
   ui: Record<string, string>;
+  /** 실패 사유 코드(plan._streaming_error_code) — 있으면 사유별 안내를 앞에 붙인다. */
+  reasonCode?: string | null;
 }
 
-export function ErrorState({ language, t, onLanguageChange, ui }: ErrorStateProps) {
-  const copy = resolveErrorStateCopy(language, ui);
+export function ErrorState({ language, t, onLanguageChange, ui, reasonCode = null }: ErrorStateProps) {
+  const copy = resolveErrorStateCopy(language, ui, reasonCode);
   return (
     <div className="ec-root plan-result-night min-h-screen" data-testid="plan-error-state">
       <Header language={language} t={t} onLanguageChange={onLanguageChange} />

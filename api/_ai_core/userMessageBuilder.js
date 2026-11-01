@@ -35,7 +35,7 @@ import { getHotelContextForPrompt } from '../_hotel_helper.js';       // P241
 // 도착일 "투어 시작 가능" 시각 — block_mode 와 **같은 계산**을 쓴다(constants 단일 원천).
 import { arrivalReadyHHMM, arrivalRestDayInfo } from './constants.js';
 // 도시 키(한글 '부산' → 'busan', arrival_city → regions[0] → area). responseValidator 는 constants·헬퍼만 import 하므로 순환 없음.
-import { arrivalRestDayCityKey } from './responseValidator.js';
+import { arrivalRestDayCityKey, mealWindowsFromRequest } from './responseValidator.js';
 
 // P241: Kbeauty/DMZ/Haenyeo/Jjimjilbang/HangangBike
 const P241_ACTIVITY_STYLES = new Set(['Kbeauty', 'Dmz', 'Haenyeo', 'Jjimjilbang', 'HangangBike']);
@@ -68,6 +68,8 @@ export function buildUserMessage({
   runningContext = '',   // P237: Running/HangangRun 코스 16개 검증 DB
   // 2026-10-26: handlerCore 가 한 번 계산한 도착 휴식일 여부(boolean) — 있으면 그대로 싣고, 없을 때(옛 호출부)만 여기서 계산.
   arrivalRestDay = null,
+  // 2026-10-26 (첫날 도착 PR1): handlerCore 가 계산한 1일 끼니 창(null = 다일). 미전달(undefined)만 여기서 계산.
+  mealWindows = undefined,
 }) {
   const {
     guestName, pax, startDate, durationDays, styles, area, regions, duration,
@@ -173,6 +175,9 @@ export function buildUserMessage({
       cityKey: arrivalRestDayCityKey({ arrivalCity, regions, area }),
       tourEndTime,
     }).rest && Number(durationDays) > 1), // 1일 여행은 휴식일 없음 — handlerCore 플래그와 같은 조건
+    // 2026-10-26 (첫날 도착 PR1): 1일 여행 끼니 창(서버 계산 — 모델이 시각 계산을 하지 않게). 다일 = null → 키 생략.
+    //   handlerCore 가 넘긴 값 우선, 옛 호출부(scripts 등)는 같은 순수 함수로 대체 계산.
+    meal_windows: (mealWindows !== undefined ? mealWindows : mealWindowsFromRequest(shaped)) || undefined,
     // P239 (2026-05-27): tour_start_time — 운영자 architectural fix.
     // arrival_time 무관하게 Day1 stops 시작 시각 고정 (default '09:00').
     // 새벽 도착 시 호텔만 transit + tour_start_time 부터 stops 작성.

@@ -6,6 +6,7 @@
 import { FieldValue } from 'firebase-admin/firestore';
 import { randomUUID } from 'crypto';
 import { computeQualityScore, detectDepartureFlightOverrun } from './qualityMetrics.js';
+import { effectiveBookedAddress } from './mergedLodging.js'; // PR2 r12: 품질 집계 예약 숙소 주소(생성·재계산과 같은 함수)
 import { SCHEDULE_BUFFER_MIN, arrivalRestDayInfo, resolveTourEndTime } from './constants.js';
 import { throttledTelegramAlert } from '../_shared/telegram-throttle.js';
 import { detectPaymentSource, isAdminBypassOrderId, isOperatorTestEmail } from '../_shared/admin-bypass-detector.js';
@@ -1561,7 +1562,7 @@ export async function persistPlan(adminDb, {
       area,
       foodIndex || [],
       // 2026-10-24 재방문 정책: 점수의 중복 판정도 종단 게이트와 같은 적격 집합(사용자 제외 목록 포함, 없으면 []).
-      { lang: language || 'ko', avoidStopNames: Array.isArray(plannerIntent?.revision?.avoidStopNames) ? plannerIntent.revision.avoidStopNames : [] },
+      { lang: language || 'ko', avoidStopNames: Array.isArray(plannerIntent?.revision?.avoidStopNames) ? plannerIntent.revision.avoidStopNames : [], hotelAddress: effectiveBookedAddress({ hotel_address, recommended_zone_address: body?.recommended_zone_address }) },
     );
     console.log(
       `[planner] qualityScore: ${qualityScore.score}/100 ` +
@@ -1631,7 +1632,8 @@ export async function persistPlan(adminDb, {
       paypalOrderId: body.paypalOrderId || null,
       // 2026-05-10 (P1): 도착/출발 시각 — PlanDetailPage 시각 분기 + revision prefill.
       arrival_time: body.arrivalTime || body.arrival_time || null,
-      departure_time: body.departureTime || null,
+      // 2026-10-26 (PR1 r2): 생성 판정(requestShaper)과 같은 camel 우선 + snake — 빠지면 수정 검증이 1일 끼니 창을 다르게 잡는다.
+      departure_time: body.departureTime || body.departure_time || null,
       // P245 (2026-05-27): tour_start_time persist — P239 architectural fix 가 prod 에서
       // 효과 미완료였던 근본 원인 = 본 필드 미저장 + block_mode 가 arrival+9h 룰 그대로 사용.
       // PDF/UI/admin debug 분기 + 회귀 검증 (R-P245 lint regex) 용도.

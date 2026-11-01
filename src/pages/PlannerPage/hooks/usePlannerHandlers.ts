@@ -106,6 +106,9 @@ export type PlannerErrorCode =
   | 'INVALID_RESPONSE'
   | 'MISSING_FORM'
   | 'NO_PLAN_URL'
+  // 2026-10-26 (첫날 도착 PR2 r2): 경로 배치 자정 실패·필수 끼니 실패(종단 게이트) — 손님 언어 안내.
+  | 'ROUTE_DAY_INFEASIBLE'
+  | 'DIETARY_MEAL_COVERAGE_FAILED'
   | 'UNKNOWN_ERROR';
 
 interface ErrorPayload {

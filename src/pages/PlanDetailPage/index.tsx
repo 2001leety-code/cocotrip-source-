@@ -438,6 +438,7 @@ export default function PlanDetailPage() {
         t={t}
         onLanguageChange={changeLanguage}
         ui={getPlanDetailUI(t)}
+        reasonCode={typeof (plan as { _streaming_error_code?: unknown })._streaming_error_code === 'string' ? (plan as { _streaming_error_code: string })._streaming_error_code : null}
       />
     );
   }
