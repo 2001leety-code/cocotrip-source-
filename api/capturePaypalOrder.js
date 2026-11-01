@@ -652,8 +652,8 @@ export default async function handler(req, res) {
       //   'posted'/'unknown' record may have a POST in flight.
       try {
         await discardAttempt(attempt, 'post-not-sent', { voidOrder: false, releaseCoupon: couponLockRef });
-        res.writeHead(503, JSON_CORS);
-        return res.end(JSON.stringify(_err('Could not complete the payment right now — please retry', 'CAPTURE_UNAVAILABLE')));
+        // r24: main 과 같은 202 CAPTURE_UNKNOWN 모양 — 화면엔 기존 '확인 중' 패널만(빨간 503 문구 없음). 기록 삭제·쿠폰 해제는 위 그대로.
+        return unknownResponse();
       } catch (delErr) {
         console.warn('[capturePaypalOrder] unproven POST-less record not deleted — answering UNKNOWN:', orderID, delErr.message);
       }

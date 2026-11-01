@@ -203,23 +203,18 @@ describe('B-I6 — the "not paid" text follows its own orderID (I1a–I1e)', () 
 });
 
 describe('after leaving the screen (restore screens removed — main-equivalent policy)', () => {
-  // r23: a final that lands after the screen closed leaves a CAPTURED pointer — the remount shows "payment received" and
-  //   Check → final → the confirmation (as on main). Was: done + Book now (a paid order offered as a new purchase).
-  it('single (L2): unmount → capture 500 → evidence final → remount: CAPTURED panel → Check → confirmation', async () => {
+  // r24 (L2): back to r22 — r23's kept CAPTURED pointer was reverted (cookie-less guest: Check 403 → the next purchase of
+  //   this product blocked for good). The order is done; a remounted screen offers Book now (a new purchase, as on main).
+  it('single (L2): unmount → capture 500 → evidence final → the order is done; a remounted screen offers Book now (a new purchase, as on main)', async () => {
     await singleCaptureThenUnmount('ORD-E');
     await answer(0, 500, GENERIC);
     await waitFor(() => expect(q.length).toBeGreaterThanOrEqual(2));
     await answer(1, 200, FINAL('ORD-E'));
     render(charter()); await settle();
-    expect(PR.isRecoveryDone('ORD-E')).toBe(false);
-    expect(singlePanel()).toBe('ORD-E');
-    expect(has('Payment received; your booking is being recorded')).toBe(true);
-    expect(btn('Book now')).toBeUndefined();
-    expect(has(PAY_AGAIN)).toBe(false);
-    fireEvent.click(screen.getByText('Check this order')); await settle();
-    await answer(q.length - 1, 200, FINAL('ORD-E'));
-    expect(has('Booking Confirmed!')).toBe(true);
     expect(PR.isRecoveryDone('ORD-E')).toBe(true);
+    expect(singlePanel()).toBeNull();
+    expect(btn('Book now')).toBeDefined();
+    expect(has(PAY_AGAIN)).toBe(false);
   });
   it('single (mounted path unchanged): capture 500 → evidence final while mounted → "Booking Confirmed!" directly, pointer cleared', async () => {
     mocks.createIds.push('ORD-M');
@@ -268,13 +263,16 @@ describe('r22-3 — the confirmation shows the date of the order, not a date cha
     expect(has('2099-12-05')).toBe(true);
     expect(has('2099-12-20')).toBe(false);
   });
-  it('an order this screen did not create (restored pointer) keeps the current screen date (unchanged behaviour)', async () => {
+  // r24: was "keeps the current screen date" — that date may not be the order's (refresh restore; also on main: L16·D4·U22),
+  //   so the date row is omitted when this screen did not create the order.
+  it('an order this screen did not create (restored pointer) shows no date row — never the current screen date', async () => {
     PR.saveRecoveryOrder({ orderID: 'ORD-R', flow: 'single', paymentStatus: 'CAPTURE_UNKNOWN', review: false, productType: 'charter_dmz' });
     render(charter('charter_dmz', '2099-12-07')); await settle();
     fireEvent.click(screen.getByText('Check this order')); await settle();
     await answer(0, 200, FINAL('ORD-R'));
     expect(has('Booking Confirmed!')).toBe(true);
-    expect(has('2099-12-07')).toBe(true);
+    expect(has('2099-12-07')).toBe(false);
+    expect(has('$100.00 USD')).toBe(true); // the rest of the confirmation is unchanged
   });
 });
 

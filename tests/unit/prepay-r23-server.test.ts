@@ -2,7 +2,8 @@
  * 2026-11-01 B6-1 r23 — capturePaypalOrder 핸들러 수준(완전 오프라인).
  *   1) ROLL: r22 이전 기록(intentProven 칸 없음)은 main 처럼 재생 — 쿠폰 포함(쿠폰은 정상 사용 처리).
  *   2) S1(명시적 intentProven:false) 삭제 때 그 기록 입력이 선점한 쿠폰도 같은 트랜잭션에서 해제 — 다른 주문이 쥔 쿠폰은 안 풂.
- *   3) noPost('posted' 저장 실패 = PayPal 에 POST 0회) + 무증명 = 기록 삭제(+쿠폰 해제) 503 · 증명 있으면 기존 202 UNKNOWN ·
+ *   3) noPost('posted' 저장 실패 = PayPal 에 POST 0회) + 무증명 = 기록 삭제(+쿠폰 해제), 응답은 r24 부터 main 과 같은 202
+ *      CAPTURE_UNKNOWN 모양(r23 은 503) · 증명 있으면 기존 202 UNKNOWN(기록 유지) ·
  *      이미 posted 였던 기록은 삭제하지 않음(앞선 POST 가 날아갔을 수 있다).
  *   main 비교: main 은 1) 과 같이 재생, 2) 는 S1 이 없어 외부인 입력으로 재생(쿠폰은 사용 처리), 3) 은 'unknown' 으로 남아 소유자
  *   확인 때 외부인 입력이 재생된다(r22 가 약속한 정리 범위).
@@ -121,11 +122,13 @@ describe('r23-1/2 — S1 and the coupon its input reserved', () => {
 });
 
 describe('r23-3 — the "posted" write before the POST fails (noPost)', () => {
-  it('unproven: zero PayPal calls, 503, record deleted → the owner\'s later check replays none of the stranger\'s input', async () => {
+  // r24: the answer is main's 202 CAPTURE_UNKNOWN shape (r23 answered 503 CAPTURE_UNAVAILABLE, shown in red next to the panel).
+  it('unproven: zero PayPal calls, 202 CAPTURE_UNKNOWN shape, record deleted → the owner\'s later check replays none of the stranger\'s input', async () => {
     failPostedWrite();
     const out = await call({ ...body, userEmail: 'attacker@evil.invalid', memo: 'planted' }, {});
-    expect(out.status).toBe(503);
-    expect(out.body).toMatchObject({ code: 'CAPTURE_UNAVAILABLE' });
+    expect(out.status).toBe(202);
+    expect(out.body).toMatchObject({ code: 'PAYMENT_RECOVERY_PENDING', paymentStatus: 'CAPTURE_UNKNOWN' });
+    expect(JSON.stringify(out.body)).not.toMatch(/CAPTURE_UNAVAILABLE|please retry/);
     expect(provider.calls).toHaveLength(0);
     expect(db.rows.has(LOCK)).toBe(false);
     // main: the record stays 'unknown' and this check replays the planted input (GET APPROVED → POST → booking 'planted').
@@ -148,7 +151,7 @@ describe('r23-3 — the "posted" write before the POST fails (noPost)', () => {
     });
     const out = await call({ ...body, couponDocId: 'C9', couponUserId: 'attacker' }, { authorization: 'Bearer attacker' });
     expect(atFailure).toMatchObject({ isUsed: true, usedOrderID: ORDER, pendingCapture: true }); // really pre-locked first
-    expect(out.status).toBe(503);
+    expect(out.status).toBe(202); // r24: main's CAPTURE_UNKNOWN shape (was 503)
     expect(db.rows.has(LOCK)).toBe(false);
     expect(db.rows.get('users/attacker/coupons/C9')).toMatchObject({ isUsed: false });
     expect(posts()).toBe(0);

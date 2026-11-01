@@ -220,9 +220,6 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
   //   r16: 주문별 저장 — 이 화면이 맡는 주문 = 플래너면 플래너 주문, 그 밖은 지금 상품과 같은(또는 상품 미상) 단건 주문.
   // r19: captureBusy = 이 화면 주문의 capture 가 이 탭에서 진행 중(모듈 집합 — 언마운트·재마운트에도 유지) → '같은 주문 확인' 비활성.
   const { recovery, pendingRef: recoveryRef, remember, clearRecovery, forgetRecovery, refresh: refreshRecovery, captureBusy } = usePaymentRecovery({ flow: 'single', planner: keepRecoveryUntilFulfilled, productType });
-  // r23: 이 화면이 아직 마운트돼 있는가 — 이 탭이 시작한 capture 의 확정이 화면이 닫힌 뒤 도착하면 CAPTURED 포인터를 남긴다(아래).
-  const mountedRef = useRef(true);
-  useEffect(() => { mountedRef.current = true; return () => { mountedRef.current = false; }; }, []);
   const [reconciling, setReconciling] = useState(false);
   // r19: 결제 결과 문구는 그 주문에 묶는다 — 다른 주문의 복구 패널엔 안 보이고, 최종이 아닌 문구는 그 주문이 CAPTURED·완료가 되면 지운다.
   //   message 가 지금 error 와 같을 때만 유효(다른 경로가 error 를 바꾸면 태그는 자동 무효).
@@ -316,13 +313,8 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
         try { await onPaymentSuccess(orderID); } finally { deliveredRef.current.delete(orderID); }
         return;
       }
-      // r23: 이 탭이 시작한 capture(또는 그 증거 조회)의 확정이 도착했는데 시작한 화면이 이미 닫혔으면 — 완료 처리 대신 CAPTURED 포인터를
-      //   남긴다(main 과 같은 결과): 다시 연 화면에 기존 '결제 접수·다시 결제하지 마세요' 패널 → Check → 서버 final → 확정 화면.
-      if ((fresh || own) && !mountedRef.current) {
-        const created = createdProductOf(orderID);
-        remember({ orderID, flow: 'single', paymentStatus: 'CAPTURED', review: false, productType: created ? created : productTypeRef.current });
-        return;
-      }
+      // r24: 확정 = 마운트 여부와 상관없이 완료 처리(r22 동작). r23 의 '닫힌 화면 → CAPTURED 포인터 유지'는 되돌림 — 쿠키 없는
+      //   게스트는 Check 가 403 이라 같은 상품 다음 구매가 영구히 막히고, 다른 날짜로 다시 열면 틀린 날짜로 확정이 표시됐다.
       clearRecovery(orderID);
       // r22: 확정 화면 날짜 = 주문 당시 날짜(결제 대기 중 화면 날짜를 바꿨어도). 이 화면이 만든 주문이 아니면 지금 화면 날짜(기존).
       const createdDates = createdDatesOf(orderID);
@@ -994,17 +986,14 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
                   <span className="text-white/80 text-xs">{successData.payerEmail}</span>
                 </div>
               )}
-              {/* r22: 주문 당시 날짜(결제 대기 중 화면 날짜를 바꿔도 결제한 날짜). 이 화면이 만든 주문이 아니면 지금 화면 날짜. */}
-              {(successData.dateStart || dateStart) && (() => {
-                const shownStart = successData.dateStart || dateStart;
-                const shownEnd = successData.dateStart ? successData.dateEnd : dateEnd;
-                return (
-                  <div className="flex justify-between items-center text-sm">
-                    <span className="text-white/55">{cl.date}</span>
-                    <span className="text-white/80">{shownStart}{shownEnd && shownEnd !== shownStart ? ` ~ ${shownEnd}` : ''}</span>
-                  </div>
-                );
-              })()}
+              {/* r22: 주문 당시 날짜(결제 대기 중 화면 날짜를 바꿔도 결제한 날짜).
+                  r24: 이 화면이 만든 주문이 아니면(새로고침 복원 등) 날짜 줄 생략 — 지금 화면 날짜는 그 주문 날짜가 아닐 수 있다. */}
+              {successData.dateStart && (
+                <div className="flex justify-between items-center text-sm">
+                  <span className="text-white/55">{cl.date}</span>
+                  <span className="text-white/80">{successData.dateStart}{successData.dateEnd && successData.dateEnd !== successData.dateStart ? ` ~ ${successData.dateEnd}` : ''}</span>
+                </div>
+              )}
               <div className="flex justify-between items-center text-sm border-t border-white/[0.06] pt-3">
                 <span className="text-white/55">{cl.amount}</span>
                 <span className="text-xl font-bold text-emerald-400">${successData.amount} USD</span>

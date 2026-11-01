@@ -1,6 +1,7 @@
 /**
  * 2026-11-01 B6-1 r23 — captureCartOrder: 'posted' 저장 실패(noPost = PayPal 에 POST 0회).
- *   무증명 요청 = 기록 삭제 503(소유자 확인 때 외부인 입력 재생 없음) · 증명 있는 요청 = 기존 202 UNKNOWN.
+ *   무증명 요청 = 기록 삭제(소유자 확인 때 외부인 입력 재생 없음), 응답은 r24 부터 main 과 같은 202 CAPTURE_UNKNOWN 모양(r23 은 503)
+ *   · 증명 있는 요청 = 기존 202 UNKNOWN(기록 유지).
  *   main 비교: main 은 무증명이어도 'unknown' 으로 남겨, 나중 확인이 그 입력으로 capture·예약했다.
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -55,10 +56,12 @@ beforeEach(() => {
 });
 
 describe('r23-3 cart — the "posted" write before the POST fails', () => {
-  it('unproven: zero PayPal calls, 503 CAPTURE_UNAVAILABLE, record deleted (no stranger input left)', async () => {
+  // r24: main's 202 CAPTURE_UNKNOWN shape (r23 answered 503 CAPTURE_UNAVAILABLE).
+  it('unproven: zero PayPal calls, 202 CAPTURE_UNKNOWN shape, record deleted (no stranger input left)', async () => {
     const out = await call({ orderID: ORDER, userEmail: 'attacker@evil.invalid' }, {});
-    expect(out.status).toBe(503);
-    expect(out.body).toMatchObject({ code: 'CAPTURE_UNAVAILABLE' });
+    expect(out.status).toBe(202);
+    expect(out.body).toMatchObject({ code: 'PAYMENT_RECOVERY_PENDING', paymentStatus: 'CAPTURE_UNKNOWN', flow: 'cart' });
+    expect(JSON.stringify(out.body)).not.toMatch(/CAPTURE_UNAVAILABLE|please retry/);
     expect(provider.calls).toHaveLength(0);
     expect(db.rows.has(LOCK)).toBe(false);
   });

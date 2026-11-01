@@ -184,9 +184,9 @@ describe('r20-11 — empty-cart lock after a generic error', () => {
 
 // r22: the restore screens were removed — a remount after the order finished elsewhere offers Book now (a new purchase, as on main).
 describe('r22 — a remounted single button after the capture finished with nothing mounted', () => {
-  // r23: the final arriving with nothing mounted now leaves a CAPTURED pointer — the remounted screen shows "payment received",
-  //   and Check → final → the confirmation (main keeps its pointer the same way). Was: done + Book now.
-  it('E5a variant: capture in flight → unmount → final arrives with nothing mounted → remount: CAPTURED panel → Check → confirmation', async () => {
+  // r24 (L6b): back to r22 — r23's kept CAPTURED pointer was reverted (cookie-less guest: Check 403 → next purchase blocked;
+  //   another date on reopen → the old order confirmed with the new date). The order is done; remount = Book now.
+  it('E5a variant: capture in flight → unmount → final arrives with nothing mounted → remount: order done, no stale panel, Book now', async () => {
     const buttons: Array<{ onApprove: (d: { orderID: string }) => Promise<void> }> = [];
     (window as unknown as { paypal: unknown }).paypal = { Buttons: (cfg: { onApprove: (d: { orderID: string }) => Promise<void> }) => { buttons.push(cfg); return { render: () => {}, isEligible: () => true }; }, FUNDING: {} };
     const view = render(charter());
@@ -197,14 +197,9 @@ describe('r22 — a remounted single button after the capture finished with noth
     view.unmount();
     await answer(0, 200, { ok: true, finalized: true, data: { orderID: 'ORD-NEW', amount: '100.00', currency: 'USD' } });
     render(charter()); await settle();
-    expect(PR.isRecoveryDone('ORD-NEW')).toBe(false);
-    expect(singleRecoveryOrder()).toBe('ORD-NEW');
-    expect(has('Payment received; your booking is being recorded')).toBe(true);
-    expect(btn('Book now')).toBeUndefined();
-    expect(has(PAY_AGAIN)).toBe(false);
-    fireEvent.click(screen.getByText('Check this order')); await settle();
-    await answer(q.length - 1, 200, { ok: true, finalized: true, data: { orderID: 'ORD-NEW', amount: '100.00', currency: 'USD' } });
-    expect(has('Booking Confirmed!')).toBe(true);
     expect(PR.isRecoveryDone('ORD-NEW')).toBe(true);
+    expect(singleRecoveryOrder()).toBeNull();
+    expect(btn('Book now')).toBeDefined();
+    expect(has(PAY_AGAIN)).toBe(false);
   });
 });

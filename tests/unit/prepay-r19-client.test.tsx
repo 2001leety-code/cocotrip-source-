@@ -293,7 +293,7 @@ describe('E4 / E5 — a capture in flight in THIS tab survives close / remount (
     expect(has('Your cart is empty')).toBe(true);
     expect(btn('Confirm & pay')).toBeUndefined();
   });
-  it('E5a: charter capture in flight → unmount → remount → check disabled; the capture final → CAPTURED panel → Check → confirmation', async () => {
+  it('E5a: charter capture in flight → unmount → remount → check disabled; the capture final finishes the order', async () => {
     const view = render(charter());
     fireEvent.click(await screen.findByText('Book now'));
     await waitFor(() => expect(buttons.length).toBeGreaterThan(0));
@@ -306,17 +306,13 @@ describe('E4 / E5 — a capture in flight in THIS tab survives close / remount (
     expect(btn('Check this order')!.disabled).toBe(true);
     await answer(0, 200, FINAL('ORD-F'));
     expect(PR.isCaptureInFlight('ORD-F')).toBe(false);
-    // r23: the screen that started the capture is gone, so the final leaves a CAPTURED pointer (not done) — the remounted
-    //   screen shows "payment received" (no Book now / pay again), and Check → final → the confirmation (as on main).
-    expect(PR.isRecoveryDone('ORD-F')).toBe(false);
-    expect(singleRecoveryOrder()).toBe('ORD-F');
-    expect(has('Payment received; your booking is being recorded')).toBe(true);
-    expect(btn('Book now')).toBeUndefined();
-    expect(has(PAY_AGAIN)).toBe(false);
-    fireEvent.click(screen.getByText('Check this order')); await settle();
-    await answer(q.length - 1, 200, FINAL('ORD-F'));
-    expect(has('Booking Confirmed!')).toBe(true);
+    // r24: back to r22 — the final finishes the order whether or not the starting screen is mounted; the remounted screen
+    //   offers Book now (a new purchase; main/Astra-accepted policy), no "pay again" text. r23's kept CAPTURED pointer was
+    //   reverted: a cookie-less guest's Check is 403 → the next purchase of that product was blocked for good.
     expect(PR.isRecoveryDone('ORD-F')).toBe(true);
+    expect(singleRecoveryOrder()).toBeNull();
+    expect(btn('Book now')).toBeDefined();
+    expect(has(PAY_AGAIN)).toBe(false);
   });
 });
 

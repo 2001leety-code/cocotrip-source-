@@ -243,8 +243,9 @@ export default async function handler(req, res) {
       //   Only a record that never POSTed ('none' at claim); an older 'posted'/'unknown' record may have a POST in flight.
       try {
         await discardAttempt(attempt, 'post-not-sent', { voidOrder: false });
-        res.writeHead(503, JSON_CORS);
-        return res.end(JSON.stringify(_err('Could not complete the payment right now — please retry', 'CAPTURE_UNAVAILABLE')));
+        // r24: main 과 같은 202 CAPTURE_UNKNOWN 모양(화면엔 기존 '확인 중' 패널만). 기록 삭제는 위 그대로.
+        res.writeHead(202, JSON_CORS);
+        return res.end(JSON.stringify(pendingPaymentResponse({ orderID, flow: 'cart', paymentStatus: 'CAPTURE_UNKNOWN' })));
       } catch (delErr) {
         console.warn('[captureCartOrder] unproven POST-less record not deleted — answering UNKNOWN:', orderID, delErr.message);
       }
