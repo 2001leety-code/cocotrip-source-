@@ -306,12 +306,13 @@ describe('E4 / E5 — a capture in flight in THIS tab survives close / remount (
     expect(btn('Check this order')!.disabled).toBe(true);
     await answer(0, 200, FINAL('ORD-F'));
     expect(PR.isCaptureInFlight('ORD-F')).toBe(false);
-    // r24: back to r22 — the final finishes the order whether or not the starting screen is mounted; the remounted screen
-    //   offers Book now (a new purchase; main/Astra-accepted policy), no "pay again" text. r23's kept CAPTURED pointer was
-    //   reverted: a cookie-less guest's Check is 403 → the next purchase of that product was blocked for good.
+    // r24: the final finishes the order whether or not the starting screen is mounted (no kept pointer — r23 reverted).
+    // r25: this remounted screen was SHOWING that order's panel, so it switches to the confirmation in place (was: Book now —
+    //   a silent second purchase was possible). main: panel → Check → confirmation.
     expect(PR.isRecoveryDone('ORD-F')).toBe(true);
     expect(singleRecoveryOrder()).toBeNull();
-    expect(btn('Book now')).toBeDefined();
+    expect(has('Booking Confirmed!')).toBe(true);
+    expect(btn('Book now')).toBeUndefined();
     expect(has(PAY_AGAIN)).toBe(false);
   });
 });

@@ -15,7 +15,7 @@ import { tourSlotBody, SLOT_REJECT_LABELS } from '@/lib/tourSlotBooking';
 import { fillPrice } from '@/lib/aiPlannerPrice';
 import { charterCheckoutExpectedUsd, charterUsdFromKrw } from '@/lib/charterUsd';
 import { GuestSignupNudge } from '@/components/GuestSignupNudge';
-import { usePaymentRecovery, reconcilePayment, classifyCaptureResponse, recoveryCopy, recoveryHeadline, isPlannerProduct, isSameProduct, placeForeignPending, settleForeignFinal, isForeignOrder, isCurrentPointer, beginCapture, endCapture, isCaptureInFlight, isRecoveryDone, hasPaymentEvidence, type PaymentRecovery, type CaptureOutcome } from '@/lib/paymentRecovery';
+import { usePaymentRecovery, reconcilePayment, classifyCaptureResponse, recoveryCopy, recoveryHeadline, isPlannerProduct, isSameProduct, placeForeignPending, settleForeignFinal, isForeignOrder, isCurrentPointer, beginCapture, endCapture, isCaptureInFlight, isRecoveryDone, hasPaymentEvidence, confirmedDone, type PaymentRecovery, type CaptureOutcome } from '@/lib/paymentRecovery';
 import type { Language } from '@/i18n';
 
 // SDK 차단·로드 실패 시 fallback — paypal.me QR (외부 redirect, paypalobjects.com 무관).
@@ -154,8 +154,9 @@ interface SuccessData {
   orderID: string;
   payerName: string;
   payerEmail: string;
+  /** r25: 모르면 '' (다른 화면·탭의 확정 표식에 금액이 없을 때) — 금액 줄 생략. */
   amount: string;
-  /** r22: 주문 당시 날짜 — 없으면 지금 화면 날짜(이 화면이 만든 주문이 아닐 때, 기존 동작). */
+  /** r22·r24: 주문 당시 날짜 — 그 주문을 만든 화면이 알 때만. 없으면 확정 화면에 날짜 줄 없음(지금 화면 날짜로 대체하지 않는다). */
   dateStart?: string;
   dateEnd?: string;
 }
@@ -221,6 +222,20 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
   // r19: captureBusy = 이 화면 주문의 capture 가 이 탭에서 진행 중(모듈 집합 — 언마운트·재마운트에도 유지) → '같은 주문 확인' 비활성.
   const { recovery, pendingRef: recoveryRef, remember, clearRecovery, forgetRecovery, refresh: refreshRecovery, captureBusy } = usePaymentRecovery({ flow: 'single', planner: keepRecoveryUntilFulfilled, productType });
   const [reconciling, setReconciling] = useState(false);
+  // r25: 패널을 보이던 이 화면의 주문이 다른 곳(닫힌 화면·다른 탭)에서 예약 확정('confirmed' 완료 표식)되면 — 그 자리에서 확정 화면
+  //   (화면 로컬 전환, 포인터 저장 없음). 환불('refunded')·세부 없는 옛 final·'void' 는 해당 없음(지금처럼 Book now·미결제 안내).
+  //   확정 시점에 마운트된 화면이 없거나 새로고침 뒤면 패널이 없으므로 해당 없음 — Book now(main 과 같음, r24).
+  //   금액·날짜 = 확정한 화면이 표식에 남긴 것만(날짜는 그 주문을 만든 화면이 안 생성 당시 날짜 — 없으면 줄 생략, 지금 화면 날짜 금지).
+  const shownOrderRef = useRef<string | null>(recovery ? recovery.orderID : null);
+  useEffect(() => {
+    const shown = shownOrderRef.current;
+    shownOrderRef.current = recovery ? recovery.orderID : null;
+    if (!shown || shown === shownOrderRef.current || showSuccess || onPaymentSuccess) return;
+    const done = isRecoveryDone(shown) ? confirmedDone(shown) : null;
+    if (!done) return;
+    setSuccessData({ orderID: shown, payerName: '', payerEmail: '', amount: done.amount || '', ...(done.dateStart ? { dateStart: done.dateStart, dateEnd: done.dateEnd || '' } : {}) });
+    setShowSuccess(true); setShowPaypal(false); setRateInfo(null);
+  }, [recovery]); // eslint-disable-line react-hooks/exhaustive-deps -- 선택 주문이 바뀔 때만 판정(그 밖 값은 이 렌더 값)
   // r19: 결제 결과 문구는 그 주문에 묶는다 — 다른 주문의 복구 패널엔 안 보이고, 최종이 아닌 문구는 그 주문이 CAPTURED·완료가 되면 지운다.
   //   message 가 지금 error 와 같을 때만 유효(다른 경로가 error 를 바꾸면 태그는 자동 무효).
   //   r22: notPaid = 이 문구가 "결제 안 됨(다시 결제 가능)" 안내인가 — B-I6 의 결제 증거 규칙은 이 문구에만(환불 안내는 'final' 표식과 함께 남는다).
@@ -294,7 +309,7 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
           //   이 화면에서만 놓고 중립 안내(서버 기록이 진실 — 맞는 화면·문의로 이어진다).
           forgetRecovery(orderID);
         } else {
-          clearRecovery(orderID);
+          clearRecovery(orderID, 'final', 'confirmed', { amount: result.amount || '' }); // r25: 예약 확정 표식(그 상품 화면의 열린 패널 전환 근거)
         }
         setOtherOrderNotice({ orderID, pending: false });
         setShowPaypal(false); setRateInfo(null);
@@ -304,7 +319,7 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
         // 2026-10-26 B6-1 r2: 결제 뒤 이행(플랜 발급)이 따로 있는 상품은 이행될 때까지 포인터를 CAPTURED 로 유지 —
         //   생성이 실패하거나 새로고침돼도 새 결제 대신 같은 주문 확인이 보인다. 지우는 쪽 = 호출자(발급 성공 시).
         if (keepRecoveryUntilFulfilled) { if (mayWrite) remember({ orderID, flow: 'single', paymentStatus: 'CAPTURED', review: false, productType }); }
-        else clearRecovery(orderID);
+        else clearRecovery(orderID, 'final', 'confirmed', { amount: result.amount || '' }); // r25: 예약 확정 표식
         setShowPaypal(false);
         // r9: 진행 중(in-flight) 1회 — 자동 증거 조회와 수동 확인이 동시에 final 이어도 성공 콜백(플랜 발급 등)이 겹치지 않게.
         //   끝나면 해제한다: 발급 실패 뒤 '같은 주문 확인' → final 의 정당한 재전달(재시도 경로)은 다시 부른다.
@@ -315,10 +330,13 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
       }
       // r24: 확정 = 마운트 여부와 상관없이 완료 처리(r22 동작). r23 의 '닫힌 화면 → CAPTURED 포인터 유지'는 되돌림 — 쿠키 없는
       //   게스트는 Check 가 403 이라 같은 상품 다음 구매가 영구히 막히고, 다른 날짜로 다시 열면 틀린 날짜로 확정이 표시됐다.
-      clearRecovery(orderID);
-      // r22: 확정 화면 날짜 = 주문 당시 날짜(결제 대기 중 화면 날짜를 바꿨어도). 이 화면이 만든 주문이 아니면 지금 화면 날짜(기존).
+      // r22: 확정 화면 날짜 = 주문 당시 날짜(결제 대기 중 화면 날짜를 바꿨어도). r24: 이 화면이 만든 주문이 아니면 날짜 없음(줄 생략).
       const createdDates = createdDatesOf(orderID);
-      setSuccessData({ orderID, payerName: result.payerName || '', payerEmail: result.payerEmail || '', amount: result.amount || '', ...(createdDates ? createdDates : {}) });
+      const confirmed: SuccessData = { orderID, payerName: result.payerName || '', payerEmail: result.payerEmail || '', amount: result.amount || '', ...(createdDates ? createdDates : {}) };
+      // r25: 'confirmed' 완료 표식 + 표시 내용(금액·주문 당시 날짜 — 이름·이메일은 저장하지 않음). 이 화면이 이미 닫혔거나 다른 탭이어도,
+      //   그 주문 패널을 보이던 화면이 위 효과에서 확정 화면을 띄운다.
+      clearRecovery(orderID, 'final', 'confirmed', { amount: confirmed.amount, ...(createdDates ? createdDates : {}) });
+      setSuccessData(confirmed);
       setShowSuccess(true); setShowPaypal(false); setRateInfo(null);
       return;
     }
@@ -348,7 +366,7 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
       setShowPaypal(false); buttonsRendered.current = false; return;
     }
     // Server-proven full refund: terminal, not a booking — no success, no conversion; payment controls return.
-    if (outcome.kind === 'refunded') { clearRecovery(orderID); orderError(outcome.message, orderID, true); setShowPaypal(false); setRateInfo(null); buttonsRendered.current = false; return; }
+    if (outcome.kind === 'refunded') { clearRecovery(orderID, 'final', 'refunded'); orderError(outcome.message, orderID, true); setShowPaypal(false); setRateInfo(null); buttonsRendered.current = false; return; }
     // Generic failure: an error code alone never proves the provider was not called. Keep the pointer; on a
     // fresh request ask the server once for durable evidence (an absent attempt record => NOT_CAPTURED).
     void posthogTrack('payment_failed', { planType: productType, reason: 'capture_rejected' });
@@ -994,10 +1012,13 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
                   <span className="text-white/80">{successData.dateStart}{successData.dateEnd && successData.dateEnd !== successData.dateStart ? ` ~ ${successData.dateEnd}` : ''}</span>
                 </div>
               )}
-              <div className="flex justify-between items-center text-sm border-t border-white/[0.06] pt-3">
-                <span className="text-white/55">{cl.amount}</span>
-                <span className="text-xl font-bold text-emerald-400">${successData.amount} USD</span>
-              </div>
+              {/* r25: 금액을 모르면(다른 화면·탭의 확정 표식에 없을 때) 줄 생략 — 지금 화면 가격으로 대체하지 않는다. */}
+              {successData.amount && (
+                <div className="flex justify-between items-center text-sm border-t border-white/[0.06] pt-3">
+                  <span className="text-white/55">{cl.amount}</span>
+                  <span className="text-xl font-bold text-emerald-400">${successData.amount} USD</span>
+                </div>
+              )}
             </div>
           </div>
 

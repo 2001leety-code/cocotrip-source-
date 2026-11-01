@@ -276,3 +276,148 @@ describe('r22-3 — the confirmation shows the date of the order, not a date cha
   });
 });
 
+// r25 (L2·L6b·U9·U10·U22 + other tab): a screen showing the "do not pay again" panel switches to the confirmation in place when
+//   its order gets a 'confirmed' done marker — written by the closed screen of this tab OR by another tab. No pointer is kept
+//   (r23 U7/U2 regressions stay closed). main: panel → Check → confirmation. Was (r24): the panel silently became Book now.
+const creates = () => mocks.authFetch.mock.calls.filter((c) => c[0] === '/api/createPaypalOrder').length;
+describe('r25 — the reopened panel turns into the confirmation when its order is confirmed', () => {
+  it('L6b: unmount → reopen (panel) → final → "Booking Confirmed!" in place, no Book now, no second order, no pointer', async () => {
+    await singleCaptureThenUnmount('ORD-P');
+    render(charter()); await settle();
+    expect(singlePanel()).toBe('ORD-P');
+    await answer(0, 200, FINAL('ORD-P'));
+    expect(has('Booking Confirmed!')).toBe(true);
+    expect(has('$100.00 USD')).toBe(true);
+    expect(btn('Book now')).toBeUndefined();
+    expect(creates()).toBe(1);
+    expect(PR.isRecoveryDone('ORD-P')).toBe(true);
+    expect(PR.readRecoveryOrder('ORD-P')).toBeNull();
+  });
+  it('L2: unmount → reopen (panel) → capture 500 → evidence final → "Booking Confirmed!" in place', async () => {
+    await singleCaptureThenUnmount('ORD-P');
+    render(charter()); await settle();
+    await answer(0, 500, GENERIC);
+    await waitFor(() => expect(q.length).toBeGreaterThanOrEqual(2));
+    expect(singlePanel()).toBe('ORD-P');
+    await answer(1, 200, FINAL('ORD-P'));
+    expect(has('Booking Confirmed!')).toBe(true);
+    expect(btn('Book now')).toBeUndefined();
+    expect(creates()).toBe(1);
+  });
+  it('U22: order created for 12-05, reopened with 12-20 → the confirmation shows 12-05 (the order\'s own date), never 12-20', async () => {
+    await singleCaptureThenUnmount('ORD-P', 'charter_dmz', '2099-12-05');
+    render(charter('charter_dmz', '2099-12-20')); await settle();
+    await answer(0, 200, FINAL('ORD-P'));
+    expect(has('Booking Confirmed!')).toBe(true);
+    expect(has('2099-12-05')).toBe(true);
+    expect(has('2099-12-20')).toBe(false);
+  });
+  it('Done on the in-place confirmation → Book now (a later purchase is not blocked)', async () => {
+    await singleCaptureThenUnmount('ORD-P');
+    render(charter()); await settle();
+    await answer(0, 200, FINAL('ORD-P'));
+    fireEvent.click(screen.getByText('Done')); await settle();
+    expect(btn('Book now')).toBeDefined();
+    expect(has(PAY_AGAIN)).toBe(false);
+  });
+  it('the order ends unpaid (void) → no confirmation; the existing not-paid path (Book now)', async () => {
+    await singleCaptureThenUnmount('ORD-P');
+    render(charter()); await settle();
+    await answer(0, 409, VOIDED('ORD-P'));
+    expect(has('Booking Confirmed!')).toBe(false);
+    expect(singlePanel()).toBeNull();
+    expect(btn('Book now')).toBeDefined();
+  });
+  const openPanel = async (id: string) => {
+    PR.saveRecoveryOrder({ orderID: id, flow: 'single', paymentStatus: 'CAPTURE_UNKNOWN', review: false, productType: 'charter_dmz' });
+    render(charter('charter_dmz', '2099-12-20')); await settle();
+    expect(singlePanel()).toBe(id);
+  };
+  it('another tab confirms (confirmed marker with amount) → this tab\'s open panel shows the confirmation, no second order', async () => {
+    await openPanel('ORD-X');
+    await otherTab([[PR.doneRecoveryKey('ORD-X'), `confirmed:${Date.now()}:${JSON.stringify({ amount: '100.00' })}`], [PR.orderRecoveryKey('ORD-X'), null]]);
+    expect(has('Booking Confirmed!')).toBe(true);
+    expect(has('$100.00 USD')).toBe(true);
+    expect(has('2099-12-20')).toBe(false); // never this screen's date
+    expect(btn('Book now')).toBeUndefined();
+    expect(creates()).toBe(0);
+  });
+  it('another tab confirms with the order\'s own creation date → that date (not this screen\'s)', async () => {
+    await openPanel('ORD-X');
+    await otherTab([[PR.doneRecoveryKey('ORD-X'), `confirmed:${Date.now()}:${JSON.stringify({ amount: '100.00', dateStart: '2099-12-05', dateEnd: '' })}`], [PR.orderRecoveryKey('ORD-X'), null]]);
+    expect(has('2099-12-05')).toBe(true);
+    expect(has('2099-12-20')).toBe(false);
+  });
+  it('a confirmed marker without display data → confirmation without amount/date rows (no "$ USD")', async () => {
+    await openPanel('ORD-X');
+    await otherTab([[PR.doneRecoveryKey('ORD-X'), `confirmed:${Date.now()}`], [PR.orderRecoveryKey('ORD-X'), null]]);
+    expect(has('Booking Confirmed!')).toBe(true);
+    expect(has(/\$\s*USD/)).toBe(false);
+  });
+  it('another tab refunds (refunded marker) → no confirmation here; Book now as before', async () => {
+    await openPanel('ORD-X');
+    await otherTab([[PR.doneRecoveryKey('ORD-X'), `refunded:${Date.now()}`], [PR.orderRecoveryKey('ORD-X'), null]]);
+    expect(has('Booking Confirmed!')).toBe(false);
+    expect(btn('Book now')).toBeDefined();
+  });
+  it('an OLD final marker (time only — written before r25) → no confirmation here (compatible: unchanged)', async () => {
+    await openPanel('ORD-X');
+    await otherTabFinishes('ORD-X');
+    expect(has('Booking Confirmed!')).toBe(false);
+    expect(btn('Book now')).toBeDefined();
+  });
+  it('after a reload (confirmed marker, no pointer) → Book now (no panel to switch — same as r24)', async () => {
+    localStorage.setItem(PR.doneRecoveryKey('ORD-X'), `confirmed:${Date.now()}:${JSON.stringify({ amount: '100.00' })}`);
+    render(charter()); await settle();
+    expect(has('Booking Confirmed!')).toBe(false);
+    expect(btn('Book now')).toBeDefined();
+  });
+  it('L1/U7: no screen mounted when the order is confirmed → a later reopen offers Book now (r24 kept, no 403 lock)', async () => {
+    await singleCaptureThenUnmount('ORD-P');
+    await answer(0, 200, FINAL('ORD-P'));
+    render(charter()); await settle();
+    expect(has('Booking Confirmed!')).toBe(false);
+    expect(btn('Book now')).toBeDefined();
+    expect(singlePanel()).toBeNull();
+  });
+});
+
+// r25: the done marker format — final gains a detail ('confirmed' / 'refunded'); old markers keep reading exactly as before.
+describe('r25 — done marker format and old-marker compatibility', () => {
+  const set = (id: string, v: string) => localStorage.setItem(PR.doneRecoveryKey(id), v);
+  it('old final (time only) and void markers read as before: done, evidence only for final, never "confirmed"', () => {
+    set('O-F', '1730000000000'); set('O-V', 'void:1730000000000');
+    expect(PR.isRecoveryDone('O-F')).toBe(true);
+    expect(PR.hasPaymentEvidence('O-F')).toBe(true);
+    expect(PR.confirmedDone('O-F')).toBeNull();
+    expect(PR.isRecoveryDone('O-V')).toBe(true);
+    expect(PR.hasPaymentEvidence('O-V')).toBe(false);
+    expect(PR.confirmedDone('O-V')).toBeNull();
+  });
+  it('confirmed / refunded markers are final (payment evidence; never void); only confirmed yields a summary', () => {
+    set('N-C', `confirmed:1730000000000:${JSON.stringify({ amount: '100.00', dateStart: '2099-12-05' })}`); set('N-R', 'refunded:1730000000000');
+    expect(PR.hasPaymentEvidence('N-C')).toBe(true);
+    expect(PR.confirmedDone('N-C')).toEqual({ amount: '100.00', dateStart: '2099-12-05', dateEnd: undefined });
+    expect(PR.hasPaymentEvidence('N-R')).toBe(true);
+    expect(PR.confirmedDone('N-R')).toBeNull();
+    // a void pointer never revives a final order (r20 rule unchanged for the new kinds)
+    expect(PR.saveRecoveryOrder({ orderID: 'N-R', flow: 'single', paymentStatus: 'CAPTURED', review: false, productType: 'charter_dmz' })).toBeNull();
+  });
+  it('a broken / foreign summary is ignored safely (confirmed without display data)', () => {
+    set('B-1', 'confirmed:1730000000000:{not json'); set('B-2', `confirmed:1730000000000:${JSON.stringify({ amount: 5, dateStart: 'x'.repeat(99) })}`);
+    expect(PR.confirmedDone('B-1')).toEqual({ amount: undefined, dateStart: undefined, dateEnd: undefined });
+    expect(PR.confirmedDone('B-2')).toEqual({ amount: undefined, dateStart: undefined, dateEnd: undefined });
+    set('B-3', 'confirmedXYZ'); expect(PR.confirmedDone('B-3')).toBeNull();
+  });
+  it('finishRecoveryOrder writes the detail; a later void never downgrades nor strips it', () => {
+    PR.finishRecoveryOrder('W-1', 'final', 'confirmed', { amount: '100.00' });
+    expect(localStorage.getItem(PR.doneRecoveryKey('W-1'))).toMatch(/^confirmed:\d+:\{"amount":"100\.00"\}$/);
+    PR.finishRecoveryOrder('W-1', 'void');
+    expect(PR.confirmedDone('W-1')).toEqual({ amount: '100.00', dateStart: undefined, dateEnd: undefined });
+    PR.finishRecoveryOrder('W-2', 'final', 'refunded');
+    expect(localStorage.getItem(PR.doneRecoveryKey('W-2'))).toMatch(/^refunded:\d+$/);
+    PR.finishRecoveryOrder('W-3');
+    expect(localStorage.getItem(PR.doneRecoveryKey('W-3'))).toMatch(/^\d+$/); // default = the old format
+  });
+});
+

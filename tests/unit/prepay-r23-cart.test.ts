@@ -65,6 +65,13 @@ describe('r23-3 cart — the "posted" write before the POST fails', () => {
     expect(provider.calls).toHaveLength(0);
     expect(db.rows.has(LOCK)).toBe(false);
   });
+  it('r25-3: no record + PayPal 404 RESOURCE_NOT_FOUND → 409 order_voided + tombstone (was 202 forever; main 409)', async () => {
+    provider.push({ method: 'GET', reply: { status: 404, body: { name: 'RESOURCE_NOT_FOUND' } } });
+    const out = await call({ orderID: ORDER, reconcile: true });
+    expect(out.status).toBe(409);
+    expect(out.body).toMatchObject({ evidence: 'order_voided', flow: 'cart' });
+    expect(db.rows.get(LOCK)).toMatchObject({ status: 'void_not_captured' });
+  });
   it('proven (cookie): unchanged — 202 UNKNOWN, record kept as unknown', async () => {
     const out = await call({ orderID: ORDER, userEmail: 'buyer@example.invalid' });
     expect(out.status).toBe(202);

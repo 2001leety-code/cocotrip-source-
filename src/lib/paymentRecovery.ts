@@ -79,7 +79,14 @@ const memoryOrders = new Map<string, PaymentRecovery>(); // 저장 실패한 이
  *   CAPTURED·검토를 보이면(webhook 충돌) 그 증거가 이긴다(saveRecoveryOrder). 저장값: final = 시각(옛 형식 그대로), void = 'void:'+시각.
  */
 export type DoneKind = 'final' | 'void';
-const memoryDone = new Map<string, DoneKind>();            // 완료 표식 저장에 실패한 주문(이 탭에서만 숨김)
+/**
+ * r25: final 의 세부 종류 — 'confirmed' = 예약 확정(+ 확정 화면용 금액·주문 당시 날짜, 이름·이메일 없음), 'refunded' = 환불.
+ *   저장값: 'confirmed:'+시각(+ ':'+JSON 표시 내용) · 'refunded:'+시각. 옛 final(시각만)·void 형식은 그대로 읽는다(세부 없음 = 확정 아님).
+ *   'void:' 로 시작하지 않으므로 구버전 코드도 이 표식을 final 로 읽는다.
+ */
+export type DoneDetail = 'confirmed' | 'refunded';
+export interface ConfirmedSummary { amount?: string; dateStart?: string; dateEnd?: string }
+const memoryDone = new Map<string, DoneKind | DoneDetail>(); // 완료 표식 저장에 실패한 주문(이 탭에서만 숨김)
 const listeners = new Set<() => void>();
 /**
  * r19: 이 탭에서 capture 요청이 진행 중인 주문 — 모듈 수준(패널 닫기·재마운트에도 유지). 버튼·장바구니의 '같은 주문 확인'
@@ -125,6 +132,20 @@ const isVoidDone = (orderID: string): boolean => {
 };
 export function isRecoveryDone(orderID: string): boolean {
   return memoryDone.has(orderID) || getRaw(doneRecoveryKey(orderID)) !== null;
+}
+/**
+ * r25: 이 주문의 완료 표식이 예약 확정('confirmed')이면 그 표시 내용(없거나 깨졌으면 {}), 아니면 null —
+ *   환불·옛 final(세부 없음)·void·미완료는 모두 null(확정 화면을 띄우는 근거가 아니다).
+ */
+export function confirmedDone(orderID: string): ConfirmedSummary | null {
+  const raw = getRaw(doneRecoveryKey(orderID));
+  if (raw === null) return memoryDone.get(orderID) === 'confirmed' ? {} : null;
+  const m = /^confirmed:\d+(?::([\s\S]*))?$/.exec(raw);
+  if (!m) return null;
+  let v: Record<string, unknown> = {};
+  try { const parsed: unknown = m[1] ? JSON.parse(m[1]) : {}; if (parsed && typeof parsed === 'object') v = parsed as Record<string, unknown>; } catch { /* 표시 내용 없이 확정 */ }
+  const text = (x: unknown) => (typeof x === 'string' && x.length <= 40 ? x : undefined);
+  return { amount: text(v.amount), dateStart: text(v.dateStart), dateEnd: text(v.dateEnd) };
 }
 /**
  * r22 (B-I6): 이 주문이 서버의 결제 증거로 보이는가 — CAPTURED·검토 포인터, 또는 'final' 완료 표식(확정·환불).
@@ -189,13 +210,19 @@ export function saveRecoveryOrder(value: Omit<PaymentRecovery, 'updatedAt' | 'cr
 }
 
 /** 서버가 입증한 종료 — 완료 표식 먼저, 그 다음 주문 키 삭제. 표식 저장 실패면 원본 보존(이 탭에서만 숨김). @returns 표식 저장 여부 */
-export function finishRecoveryOrder(orderID: string, kind: DoneKind = 'final'): boolean {
-  // r20: 이미 확정('final') 표식이면 미결제('void')로 내리지 않는다.
-  const effective: DoneKind = kind === 'void' && isRecoveryDone(orderID) && !isVoidDone(orderID) ? 'final' : kind;
-  const value = effective === 'void' ? `void:${Date.now()}` : String(Date.now());
+export function finishRecoveryOrder(orderID: string, kind: DoneKind = 'final', detail: DoneDetail | null = null, summary: ConfirmedSummary | null = null): boolean {
+  // r20: 이미 확정('final') 표식이면 미결제('void')로 내리지 않는다. r25: 그 표식(세부 종류 포함)을 그대로 둔다.
+  const keepFinal = kind === 'void' && isRecoveryDone(orderID) && !isVoidDone(orderID);
+  const effective: DoneKind | DoneDetail = kind === 'final' && detail ? detail : kind;
+  const now = Date.now();
+  const existing = keepFinal ? getRaw(doneRecoveryKey(orderID)) : null;
+  const value = existing !== null ? existing
+    : effective === 'void' ? `void:${now}`
+      : effective === 'confirmed' ? `confirmed:${now}${summary ? `:${JSON.stringify(summary)}` : ''}`
+        : effective === 'refunded' ? `refunded:${now}` : String(now);
   let marked = false;
   try { localStorage.setItem(doneRecoveryKey(orderID), value); marked = true; } catch { /* 원본 보존 */ }
-  if (!marked) memoryDone.set(orderID, effective);
+  if (!marked && !keepFinal) memoryDone.set(orderID, effective);
   memoryOrders.delete(orderID);
   if (marked) { try { localStorage.removeItem(orderRecoveryKey(orderID)); } catch { /* 완료 표식이 우선한다 */ } }
   notifyRecoveryChange();
@@ -280,7 +307,7 @@ export function placeForeignPending(value: Omit<PaymentRecovery, 'updatedAt' | '
  */
 export function settleForeignFinal(p: PaymentRecovery): void {
   if (isPlannerProduct(p.productType)) saveRecoveryOrder({ orderID: p.orderID, flow: p.flow, productType: p.productType, paymentStatus: 'CAPTURED', review: false });
-  else finishRecoveryOrder(p.orderID);
+  else finishRecoveryOrder(p.orderID, 'final', 'confirmed'); // r25: 확정 세부 종류(금액 모름 — 확정 화면엔 금액 줄 없음)
 }
 
 /**
@@ -397,14 +424,15 @@ export function usePaymentRecovery(screen: RecoveryScreen) {
     return !!saved && saved.persisted !== false;
   }, [refresh]);
   /**
-   * 서버가 입증한 종료(확정·환불·최종 미결제 order_voided) — 완료 표식. r19: 미시도 전용 임시 해제(provisional)는 없앴다.
+   * 서버가 입증한 종료(확정·환불·최종 미결제 order_voided) — 완료 표식. 미시도 주문도 서버의 최종 답(묘비 order_voided)으로만 끝난다.
    *   r20 kind: 'void' = 미결제 종료(서버가 나중에 CAPTURED·검토를 보이면 그 증거가 이긴다), 'final' = 확정·환불.
+   *   r25 detail(final 만): 'confirmed' = 예약 확정(+ summary 표시 내용), 'refunded' = 환불 — 다른 화면·탭의 열린 패널 전환 근거.
    */
-  const clearRecovery = useCallback((orderID: string, kind: DoneKind = 'final') => {
+  const clearRecovery = useCallback((orderID: string, kind: DoneKind = 'final', detail: DoneDetail | null = null, summary: ConfirmedSummary | null = null) => {
     const current = pendingRef.current;
     if (current && current.orderID !== orderID) return;
     if (pinnedRef.current === orderID) pinnedRef.current = null;
-    finishRecoveryOrder(orderID, kind);
+    finishRecoveryOrder(orderID, kind, detail, summary);
     refresh();
   }, [refresh]);
   const forgetRecovery = useCallback((orderID: string) => {

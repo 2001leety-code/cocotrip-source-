@@ -332,11 +332,24 @@ export async function updateAttempt(attempt, patch) {
  * set(merge) would merge its sub-fields and keep the previous writer's phone/time/memo). Other fields (stages …) untouched.
  */
 export async function replaceAttemptIntent(attempt, { intent, userEmail, product, intentProven }) {
+  const COUPON_ID = /^[A-Za-z0-9_-]{1,128}$/;
   await attempt.db.runTransaction(async (tx) => {
     const snap = await tx.get(attempt.ref);
     const lock = snap.exists ? snap.data() || {} : null;
     if (!lock || lock.claimToken !== attempt.claimToken || lock.captureState !== 'none') throw codedError('Payment claim changed', 'CLAIM_LOST');
+    // r25: the previous input's coupon (single flow only — cart inputs carry none) is released in this same transaction when
+    //   the new input does not keep it and it is still reserved by THIS order — otherwise a success would spend both, a refusal
+    //   would leave the old one locked. Same coupon = untouched (its re-lock is idempotent); malformed ids = no release.
+    const prev = lock.intent && lock.intent.coupon;
+    const next = intent && intent.coupon;
+    const kept = !!next && !!prev && next.couponDocId === prev.couponDocId && next.couponUserId === prev.couponUserId;
+    const prevRef = prev && !kept && COUPON_ID.test(String(prev.couponDocId)) && COUPON_ID.test(String(prev.couponUserId))
+      ? attempt.db.collection('users').doc(prev.couponUserId).collection('coupons').doc(prev.couponDocId) : null;
+    const prevSnap = prevRef ? await tx.get(prevRef) : null;
     tx.update(attempt.ref, omitUndefined({ intent, userEmail, product, intentProven: intentProven === true }));
+    if (prevSnap && prevSnap.exists && (prevSnap.data() || {}).usedOrderID === attempt.ref.id) {
+      tx.update(prevRef, { isUsed: false, usedAt: null, usedOrderID: null, pendingCapture: false });
+    }
   });
 }
 
@@ -385,6 +398,9 @@ export async function resolveAbsentAttempt({ db, orderID, flow, environment, pro
   if (!proven) return { status: 409, body: { ...notCapturedResponse({ orderID, flow, reason: 'no_attempt_record' }), evidence: 'no_attempt_record' } };
   let lookup;
   try { lookup = await lookupOrder(); } catch (error) { lookup = { state: 'unknown', reason: `lookup-${(error && error.code) || 'failed'}` }; }
+  // r25: no record AND PayPal 404 RESOURCE_NOT_FOUND = nonpayment (main answers 409 here) — the same still-absent re-check
+  //   transaction and tombstone below; otherwise the check answered 202 forever and the pointer never cleared.
+  if (lookup && lookup.notFound) lookup = { state: 'not_captured', reason: 'order-NOT_FOUND' };
   const ref = db.collection(USED_ORDERS_COLLECTION).doc(orderID);
   if (lookup.state === 'captured') {
     // r20: another tab's capture may have created (and even finalized) the record during the read — answer from that
@@ -464,7 +480,12 @@ export async function fetchPaypalOrder({ baseUrl, accessToken, orderID, timeoutM
     const text = await response.text();
     let body = null;
     try { body = JSON.parse(text); } catch { return { state: 'unknown', reason: `lookup-unparsable-${response.status}` }; }
-    if (!response.ok) return { state: 'unknown', reason: `lookup-http-${response.status}` };
+    // r25: notFound = PayPal says this order does not exist (404 RESOURCE_NOT_FOUND). Still 'unknown' here — only
+    //   resolveAbsentAttempt (no attempt record) treats it as nonpayment; an order WITH a record keeps main's behaviour.
+    if (!response.ok) {
+      const notFound = response.status === 404 && !!body && body.name === 'RESOURCE_NOT_FOUND';
+      return { state: 'unknown', reason: `lookup-http-${response.status}`, ...(notFound ? { notFound: true } : {}) };
+    }
     return classifyOrderLookup(body, orderID);
   } catch (error) {
     return { state: 'unknown', reason: `lookup-${error.name === 'TimeoutError' ? 'timeout' : 'network'}` };

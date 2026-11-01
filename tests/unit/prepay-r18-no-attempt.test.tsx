@@ -69,7 +69,7 @@ describe('r18-1 — a legacy-key order never gets a done marker from no_attempt_
     expect(readRecoveryOrder('ORD-L')).not.toBeNull(); // 옛 키에서 다시 복사
     expect(shownOrder()).toBe('ORD-L');
   });
-  // r19: dropRecoveryOrder 삭제 — 옛 키 주문은 서버의 최종 order_voided 로만 끝난다(완료 표식, 옛 키는 그대로 두고 숨김).
+  // 옛 키 주문은 서버의 최종 order_voided 로만 끝난다(완료 표식, 옛 키는 그대로 두고 숨김).
   it('legacy cart order + order_voided → done marker, hidden (legacy key untouched)', () => {
     localStorage.setItem(recoveryKey('cart'), JSON.stringify({ orderID: 'CART-L', flow: 'cart', paymentStatus: 'CAPTURE_UNKNOWN', review: false, updatedAt: 1 }));
     expect(readRecoveryOrder('CART-L')).not.toBeNull();

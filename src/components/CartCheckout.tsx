@@ -122,7 +122,7 @@ export function CartCheckout({ onClose, onBack }: { onClose: () => void; onBack?
     if (outcome.kind === 'final') {
       // 표시 전용 — 서버 확정 응답(captureCartOrder data.payerEmail)의 결제자 이메일.
       setPayerEmail(typeof outcome.data.payerEmail === 'string' && outcome.data.payerEmail ? outcome.data.payerEmail : null);
-      clearRecovery(orderId); setStatus('success'); await clear(); return;
+      clearRecovery(orderId, 'final', 'confirmed'); setStatus('success'); await clear(); return; // r25: 확정 세부 종류(표식 의미 일관)
     }
     if (outcome.kind === 'review') { keep({ paymentStatus: outcome.captured ? 'CAPTURED' : 'NOT_CAPTURED', review: true }); setStatus('review'); await clear(); return; }
     if (outcome.kind === 'pending') { keep({ paymentStatus: outcome.status, review: false }); setStatus('idle'); return; }
@@ -135,7 +135,7 @@ export function CartCheckout({ onClose, onBack }: { onClose: () => void; onBack?
     //   r20: 'void' 완료 표식 — 서버가 나중에 CAPTURED·검토(webhook 충돌)를 보이면 그 증거가 이긴다.
     if (outcome.kind === 'not_captured') { clearRecovery(orderId, 'void'); orderError(rc.notCaptured, orderId, true, true); setStatus('error'); return; }
     // Server-proven full refund: terminal, not a booking — the cart is kept, no success state.
-    if (outcome.kind === 'refunded') { clearRecovery(orderId); orderError(outcome.message, orderId, true); setStatus('error'); return; }
+    if (outcome.kind === 'refunded') { clearRecovery(orderId, 'final', 'refunded'); orderError(outcome.message, orderId, true); setStatus('error'); return; }
     // Generic error: keep the pointer unless the server gives durable evidence of no capture.
     orderError(outcome.message, orderId, false); setStatus('error');
     if (fresh) {

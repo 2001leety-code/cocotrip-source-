@@ -121,7 +121,7 @@ describe('r17-6 — a capture in flight is never turned into "you can pay again"
     act(() => { approving = buttons[buttons.length - 1].onApprove({ orderID: 'ORD-F' }); });
     return () => approving;
   }
-  // r19: 미시도 전용 임시 해제(dropRecoveryOrder)는 없어졌다 — 구 서버 no_attempt_record 는 UNKNOWN(주문 유지), 새 서버는 묘비로 최종 답.
+  // 미시도 주문 = 구 서버 no_attempt_record 는 UNKNOWN(주문 유지), 새 서버는 묘비로 최종 답(별도 임시 해제 없음).
   it('F1 charter: during capture the check button is disabled; the order stays saved; the late PENDING keeps the panel (no Book now)', async () => {
     let answer!: (v: unknown) => void;
     const done = await approveInFlight(booking('charter_dmz'), new Promise((r) => { answer = r; }));
