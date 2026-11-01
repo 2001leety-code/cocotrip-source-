@@ -182,8 +182,9 @@ describe('r20-11 — empty-cart lock after a generic error', () => {
   });
 });
 
-describe('r20-9 — a remounted single button shows the result it inherited', () => {
-  it('E5a variant: capture in flight → unmount → final arrives with nothing mounted → remount shows "Booking Confirmed!" until Done', async () => {
+// r22: the restore screens were removed — a remount after the order finished elsewhere offers Book now (a new purchase, as on main).
+describe('r22 — a remounted single button after the capture finished with nothing mounted', () => {
+  it('E5a variant: capture in flight → unmount → final arrives with nothing mounted → remount: order done, no stale panel, Book now', async () => {
     const buttons: Array<{ onApprove: (d: { orderID: string }) => Promise<void> }> = [];
     (window as unknown as { paypal: unknown }).paypal = { Buttons: (cfg: { onApprove: (d: { orderID: string }) => Promise<void> }) => { buttons.push(cfg); return { render: () => {}, isEligible: () => true }; }, FUNDING: {} };
     const view = render(charter());
@@ -194,12 +195,8 @@ describe('r20-9 — a remounted single button shows the result it inherited', ()
     view.unmount();
     await answer(0, 200, { ok: true, finalized: true, data: { orderID: 'ORD-NEW', amount: '100.00', currency: 'USD' } });
     render(charter()); await settle();
-    expect(has('Booking Confirmed!')).toBe(true);
-    expect(btn('Book now')).toBeUndefined();
-    await act(async () => { fireEvent.click(screen.getByText('Done')); }); await settle();
-    expect(has('Booking Confirmed!')).toBe(false);
-    cleanup();
-    render(charter()); await settle();
-    expect(has('Booking Confirmed!')).toBe(false);
+    expect(PR.isRecoveryDone('ORD-NEW')).toBe(true);
+    expect(singleRecoveryOrder()).toBeNull();
+    expect(btn('Book now')).toBeDefined();
   });
 });

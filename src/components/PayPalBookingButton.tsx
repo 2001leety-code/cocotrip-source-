@@ -15,7 +15,7 @@ import { tourSlotBody, SLOT_REJECT_LABELS } from '@/lib/tourSlotBooking';
 import { fillPrice } from '@/lib/aiPlannerPrice';
 import { charterCheckoutExpectedUsd, charterUsdFromKrw } from '@/lib/charterUsd';
 import { GuestSignupNudge } from '@/components/GuestSignupNudge';
-import { usePaymentRecovery, reconcilePayment, classifyCaptureResponse, recoveryCopy, recoveryHeadline, isPlannerProduct, isSameProduct, placeForeignPending, settleForeignFinal, isForeignOrder, isCurrentPointer, beginCapture, endCapture, isCaptureInFlight, isRecoveryDone, recordCaptureResult, dismissCaptureResult, resultKeyOf, type PaymentRecovery, type CaptureOutcome, type CaptureNotice } from '@/lib/paymentRecovery';
+import { usePaymentRecovery, reconcilePayment, classifyCaptureResponse, recoveryCopy, recoveryHeadline, isPlannerProduct, isSameProduct, placeForeignPending, settleForeignFinal, isForeignOrder, isCurrentPointer, beginCapture, endCapture, isCaptureInFlight, isRecoveryDone, hasPaymentEvidence, type PaymentRecovery, type CaptureOutcome } from '@/lib/paymentRecovery';
 import type { Language } from '@/i18n';
 
 // SDK 차단·로드 실패 시 fallback — paypal.me QR (외부 redirect, paypalobjects.com 무관).
@@ -155,6 +155,9 @@ interface SuccessData {
   payerName: string;
   payerEmail: string;
   amount: string;
+  /** r22: 주문 당시 날짜 — 없으면 지금 화면 날짜(이 화면이 만든 주문이 아닐 때, 기존 동작). */
+  dateStart?: string;
+  dateEnd?: string;
 }
 
 declare global {
@@ -216,24 +219,20 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
   // 결제 뒤 이행(플랜 발급)까지 포인터를 유지하는 상품(AI 플래너)은 전용 범위 — 다른 상품 결제 버튼을 막지 않는다(r3).
   //   r16: 주문별 저장 — 이 화면이 맡는 주문 = 플래너면 플래너 주문, 그 밖은 지금 상품과 같은(또는 상품 미상) 단건 주문.
   // r19: captureBusy = 이 화면 주문의 capture 가 이 탭에서 진행 중(모듈 집합 — 언마운트·재마운트에도 유지) → '같은 주문 확인' 비활성.
-  // r20: captureResult = 이 화면 주문의 capture 가 이 탭에서 끝났는데 시작한 화면이 그 사이 언마운트됨 → 이 화면이 결과를 띄운다(닫을 때까지).
-  //   r21: resultKey = 이 화면의 상품 식별값·날짜 — 이어받은 결과는 같은 상품·투어·구간·날짜 화면에만(같은 productType 의 다른 투어 금지).
-  const resultKey = resultKeyOf(productType, tourId, originKey, destKey, dateStart);
-  const { recovery, pendingRef: recoveryRef, remember, clearRecovery, forgetRecovery, refresh: refreshRecovery, captureBusy, captureResult } = usePaymentRecovery({ flow: 'single', planner: keepRecoveryUntilFulfilled, productType, resultKey });
-  const mountedRef = useRef(true);
-  useEffect(() => { mountedRef.current = true; return () => { mountedRef.current = false; }; }, []);
-  const resultKeyRef = useRef(resultKey);
-  useEffect(() => { resultKeyRef.current = resultKey; }, [resultKey]);
+  const { recovery, pendingRef: recoveryRef, remember, clearRecovery, forgetRecovery, refresh: refreshRecovery, captureBusy } = usePaymentRecovery({ flow: 'single', planner: keepRecoveryUntilFulfilled, productType });
   const [reconciling, setReconciling] = useState(false);
   // r19: 결제 결과 문구는 그 주문에 묶는다 — 다른 주문의 복구 패널엔 안 보이고, 최종이 아닌 문구는 그 주문이 CAPTURED·완료가 되면 지운다.
   //   message 가 지금 error 와 같을 때만 유효(다른 경로가 error 를 바꾸면 태그는 자동 무효).
-  const [errorOrder, setErrorOrder] = useState<{ orderID: string; final: boolean; message: string } | null>(null);
-  function orderError(message: string, orderID: string, final: boolean) { setError(message); setErrorOrder({ orderID, final, message }); }
+  //   r22: notPaid = 이 문구가 "결제 안 됨(다시 결제 가능)" 안내인가 — B-I6 의 결제 증거 규칙은 이 문구에만(환불 안내는 'final' 표식과 함께 남는다).
+  const [errorOrder, setErrorOrder] = useState<{ orderID: string; final: boolean; notPaid: boolean; message: string } | null>(null);
+  function orderError(message: string, orderID: string, final: boolean, notPaid = false) { setError(message); setErrorOrder({ orderID, final, notPaid, message }); }
   const tagged = errorOrder && errorOrder.message === error ? errorOrder : null;
   // 렌더 중 조정(조건이 곧 거짓이 된다): 최종이 아닌 그 주문 문구는 그 주문이 CAPTURED 로 보이거나 완료되면 지운다.
   //   r20: 화면이 다른 주문을 고르면 최종 문구도 지운다 — A 의 "결제 안 됨" 이 B 가 끝난 뒤 기본 화면에 처음 나타나지 않게(그 주문을 방금 확인한 화면에서만).
-  if (tagged && ((recovery && recovery.orderID !== tagged.orderID)
-    || (!tagged.final && ((recovery && recovery.orderID === tagged.orderID && recovery.paymentStatus === 'CAPTURED') || isRecoveryDone(tagged.orderID))))) {
+  //   r22 (B-I6): 문구의 orderID 로 판단 — 그 주문이 CAPTURED·검토 포인터 또는 'final' 완료 표식(확정·환불)으로 보이면 최종 문구도
+  //   즉시 지운다('void' 표식은 근거 아님: 정상 미결제 안내는 남는다). 다른 주문이 선택돼도 지운다.
+  if (tagged && ((recovery && recovery.orderID !== tagged.orderID) || (tagged.notPaid && hasPaymentEvidence(tagged.orderID))
+    || (!tagged.final && isRecoveryDone(tagged.orderID)))) {
     setError(null); setErrorOrder(null);
   }
   const rc = recoveryCopy(lang);
@@ -243,12 +242,15 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
     return isCurrentPointer(checked, recoveryRef.current);
   }
   // r8: 이 화면이 만든 주문의 생성 당시 상품 — 결제 대기 중 상품을 바꿔도(편도 → 왕복) 그 주문의 결과를 바뀐 상품의 성공으로 쓰지 않는다.
-  const createdOrderRef = useRef<{ orderID: string; productType: string } | null>(null);
+  //   r22: + 주문 당시 날짜(확정 화면 표시용).
+  const createdOrderRef = useRef<{ orderID: string; productType: string; dateStart?: string; dateEnd?: string } | null>(null);
   const deliveredRef = useRef<Set<string>>(new Set()); // r9: onPaymentSuccess 진행 중인 주문(겹침 방지 — 끝나면 해제)
   // r9: 최신 화면 상품 — 조회 응답이 await 뒤 도착해도 지금 화면 상품과 대조한다(시작 당시 클로저 값 금지).
   const productTypeRef = useRef(productType);
   useEffect(() => { productTypeRef.current = productType; }, [productType]);
   const createdProductOf = (orderID: string) => (createdOrderRef.current && createdOrderRef.current.orderID === orderID ? createdOrderRef.current.productType : undefined);
+  const createdDatesOf = (orderID: string) => (createdOrderRef.current && createdOrderRef.current.orderID === orderID
+    ? { dateStart: createdOrderRef.current.dateStart || '', dateEnd: createdOrderRef.current.dateEnd || '' } : null);
   function keepWaiting(orderID: string, fresh: boolean, state: { paymentStatus: 'CAPTURED' | 'CAPTURE_UNKNOWN' | 'NOT_CAPTURED'; review: boolean; authRequired?: boolean }, checked: PaymentRecovery | null) {
     if (!fresh) {
       if (checked && isCurrentCheck(checked)) remember({ orderID: checked.orderID, flow: checked.flow, productType: checked.productType, ...state });
@@ -259,14 +261,6 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
   }
   // r7: own = 이 화면이 방금 만든(fresh) 주문의 증거 조회 결과 — 포인터가 다른 탭에서 교체됐어도 증거의 orderID 가 그 주문이면
   //   적용한다(성공·NOT_CAPTURED 처리). 교체된 포인터는 건드리지 않는다(clearRecovery 의 orderID 가드 · 아래 mayWrite).
-  // r21 (B-I1): 최종으로 적용된 결과(final·review·not_captured)는 이 공통 지점에서 — 새 capture·일반 오류 뒤 자동 증거·수동 확인
-  //   어느 경로든 — 이 화면이 그 사이 언마운트됐으면 모듈에 남긴다(다시 마운트된 화면이 띄운다). 첫 분류(일반 오류)는 남기지 않는다.
-  function keepResult(orderID: string, outcome: CaptureOutcome, checked: PaymentRecovery | null, notice?: CaptureNotice) {
-    if (mountedRef.current) return;
-    const created = createdProductOf(orderID);
-    const product = created ? created : (checked && checked.productType ? checked.productType : productTypeRef.current);
-    recordCaptureResult({ orderID, flow: 'single', productType: product, key: resultKeyRef.current, outcome, ...(notice ? { notice } : {}) });
-  }
   async function applyCaptureOutcome(outcome: CaptureOutcome, orderID: string, fresh: boolean, checked: PaymentRecovery | null = null, own = false) {
     // r17-8: 늦은 결과를 버릴 때는 재조회 — 놓친 변경(이벤트 누락·bfcache)으로 끝난 주문 패널이 고착되지 않게.
     if (!fresh && !own && (checked?.orderID !== orderID || !isCurrentCheck(checked))) { refreshRecovery(); return; }
@@ -320,14 +314,14 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
         return;
       }
       clearRecovery(orderID);
-      keepResult(orderID, outcome, checked);
-      setSuccessData({ orderID, payerName: result.payerName || '', payerEmail: result.payerEmail || '', amount: result.amount || '' });
+      // r22: 확정 화면 날짜 = 주문 당시 날짜(결제 대기 중 화면 날짜를 바꿨어도). 이 화면이 만든 주문이 아니면 지금 화면 날짜(기존).
+      const createdDates = createdDatesOf(orderID);
+      setSuccessData({ orderID, payerName: result.payerName || '', payerEmail: result.payerEmail || '', amount: result.amount || '', ...(createdDates ? createdDates : {}) });
       setShowSuccess(true); setShowPaypal(false); setRateInfo(null);
       return;
     }
     if (outcome.kind === 'review') {
       keepWaiting(orderID, fresh, { paymentStatus: outcome.captured ? 'CAPTURED' : 'NOT_CAPTURED', review: true }, checked);
-      keepResult(orderID, outcome, checked);
       setPaymentReview({ orderID, captureID: outcome.captureID, paymentCaptured: outcome.captured });
       setShowPaypal(false); setLoading(false); setRateInfo(null);
       return;
@@ -347,10 +341,8 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
       // r4/r5: QR 을 한 번 보여 준 흐름이면 별도 SDK 주문의 어떤 '미결제' 응답(사전 거부·order-VOIDED …)도
       //   "다시 결제할 수 있어요/결제 안 됨" 으로 안내하지 않는다 — 손님이 QR 로 송금했을 수 있다. 다시 결제 금지 + QR 신고 경로 유지.
       //   r19: 서버 영어 원문·내부 사유 코드 대신 4개 언어 rc.notCaptured.
-      if (qrSession) orderError(rc.warn, orderID, true);
-      else { orderError(prepayMsg || rc.notCaptured, orderID, true); setQrBlocked(!!prepayMsg); }
-      // r21 (B-I4): 문구 맥락을 함께 남긴다 — 다시 마운트된 화면이 같은 규칙(QR 흐름 = 재결제 금지, 사전 거부 = 사유 + QR 대체 숨김).
-      keepResult(orderID, outcome, checked, { kind: qrSession ? 'warn' : prepayMsg ? 'prepay' : 'plain', ...(outcome.preCaptureCode ? { preCaptureCode: outcome.preCaptureCode } : {}) });
+      if (qrSession) orderError(rc.warn, orderID, true, true);
+      else { orderError(prepayMsg || rc.notCaptured, orderID, true, true); setQrBlocked(!!prepayMsg); }
       setShowPaypal(false); buttonsRendered.current = false; return;
     }
     // Server-proven full refund: terminal, not a booking — no success, no conversion; payment controls return.
@@ -704,7 +696,7 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
           //   conversions for an unconfirmed booking, failure would invite a second payment (double charge).
           //   Only a durable finalized answer for THIS orderID is success; fetch/JSON exceptions stay pending.
           const outcome = classifyCaptureResponse(json, data.orderID);
-          await applyOutcomeRef.current(outcome, data.orderID, true); // r21: 결과 보관은 applyCaptureOutcome 의 최종 분기(keepResult)
+          await applyOutcomeRef.current(outcome, data.orderID, true);
         } catch (captureErr) {
           console.error('[PayPal onApprove] result unknown (pointer kept):', captureErr);
           rememberRef.current({ orderID: data.orderID, flow: 'single', paymentStatus: 'CAPTURE_UNKNOWN', review: false, productType });
@@ -764,7 +756,6 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
     //   "동의 안 했는데 PayPal 창이 뜬" 상태 자체가 생기지 않는다.
     if (disabled || orderRequestInFlight.current || recovery) return;
     orderRequestInFlight.current = true;
-    dismissRestored(); // r20: 새 결제를 시작하면 이어받은 결과 안내는 끝
     setError(null);
     setLoading(true);
     buttonsRendered.current = false;
@@ -882,7 +873,7 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
         return;
       }
       if (!res.ok || !json.ok) throw new Error(json.error ?? d?.error ?? 'Order creation failed');
-      if (d && typeof d.orderID === 'string') createdOrderRef.current = { orderID: d.orderID, productType }; // r8: 생성 당시 상품 스냅샷
+      if (d && typeof d.orderID === 'string') createdOrderRef.current = { orderID: d.orderID, productType, dateStart, dateEnd }; // r8: 생성 당시 상품 스냅샷 (r22: + 날짜)
       setRateInfo(d);
       setPaypalReady(true);
       // GA4 begin_checkout: 주문 생성 성공 → 결제창 진입 시점. "결제진입→구매" 전환율 측정(GA_ID 미설정 시 no-op).
@@ -908,35 +899,11 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
         ? `$${expectedUSDForCheckout.toLocaleString('en-US')} USD`
         : `$${checkoutAmountUSD.toLocaleString('en-US')} USD`);
 
-  // r20: 이 화면이 이어받은 결과(capture 를 시작한 화면이 언마운트된 뒤 도착) — 닫을 때까지 같은 확정·검토 화면, 미결제는 안내 문구.
-  //   onPaymentSuccess 상품(플래너)은 발급까지 CAPTURED 포인터가 맡으므로 확정 결과로 성공 화면을 띄우지 않는다.
-  //   r21 (B-I2·B-I3): 다른 미해결 주문이 선택돼 있으면 보이지 않는다(같은 주문의 검토 포인터는 예외).
-  const restored = captureResult && !showSuccess && !paymentReview && (!recovery || recovery.orderID === captureResult.orderID) ? captureResult : null;
-  const viewReview = paymentReview || (restored && restored.outcome.kind === 'review'
-    ? { orderID: restored.orderID, captureID: restored.outcome.captureID, paymentCaptured: restored.outcome.captured } : null);
-  const restoredData = restored && restored.outcome.kind === 'final' && !onPaymentSuccess ? (restored.outcome.data as { payerName?: string; payerEmail?: string; amount?: string }) : null;
-  const viewSuccess: SuccessData | null = showSuccess && successData ? successData
-    : (restored && restoredData ? { orderID: restored.orderID, payerName: restoredData.payerName || '', payerEmail: restoredData.payerEmail || '', amount: restoredData.amount || '' } : null);
-  //   r21 (B-I4): 기록된 문구 맥락 — QR 흐름 = 재결제 금지(rc.warn), 플래너 사전 거부 = 그 사유 + QR 대체 숨김, 그 밖 = rc.notCaptured.
-  const restoredNoticeOf = restored && restored.outcome.kind === 'not_captured' && !error ? (restored.notice || { kind: 'plain' as const }) : null;
-  const restoredNotice = !restoredNoticeOf ? null
-    : restoredNoticeOf.kind === 'warn' ? rc.warn
-    : restoredNoticeOf.kind === 'prepay' ? (plannerPrepayMessage(p, restoredNoticeOf.preCaptureCode, rc.notCaptured) || rc.notCaptured)
-    : rc.notCaptured;
-  const restoredQrBlocked = !!restoredNoticeOf && restoredNoticeOf.kind === 'prepay';
-  const shownError = error || restoredNotice;
-  //   r21 (B-I2): 결과 화면을 닫으면 그 결과는 사라진다 — 보이는 결과가 이어받은 것이든 이 화면 것이든 보관 결과를 지운다.
-  const dismissRestored = () => { if (captureResult) dismissCaptureResult(captureResult.orderID); };
-  //   r21 (B-I2): 이 화면이 다른 미해결 주문을 고르거나 자기 결과 화면(확정·검토)을 보이면 옛 보관 결과는 폐기(닫은 뒤 되살아나지 않게).
-  useEffect(() => {
-    if (!captureResult) return;
-    if ((recovery && recovery.orderID !== captureResult.orderID) || showSuccess || paymentReview) dismissCaptureResult(captureResult.orderID);
-  }, [captureResult, recovery, showSuccess, paymentReview]);
 
   // ── 예약 확인 모달 (Premium Overlay) ──────────────────────────────
   // 🔴 결제 접수 · 예약 확인 중 (PAYMENT_REVIEW) — 성공 화면보다 먼저 분기.
   //   "확정"이라 말하지 않고, 재결제하지 말라고 명시한다(이중청구 방지). 운영자가 수동 확인 후 연락.
-  if (viewReview) {
+  if (paymentReview) {
     const REVIEW_LABELS: Record<string, Record<string, string>> = {
       ko: { title: '결제가 접수되었습니다', subtitle: '예약을 확인하는 중입니다. 확인 후 이메일로 연락드립니다.', titleNc: '결제를 완료하지 못했습니다', subtitleNc: '담당자가 확인 중입니다. 직접 결제를 다시 시도하지 마시고 문의해 주세요.', warn: '⚠️ 다시 결제하지 마세요 — 중복 청구될 수 있습니다.', orderNo: '주문 번호', close: '확인', contact: '문의하기' },
       en: { title: 'Payment received', subtitle: 'Your booking is pending verification. We will contact you by email once confirmed.', titleNc: 'We could not complete your payment', subtitleNc: 'Our team is checking it. Please contact us instead of trying to pay again.', warn: '⚠️ Please do not pay again — it may result in a duplicate charge.', orderNo: 'Order No.', close: 'Done', contact: 'Contact Us' },
@@ -944,7 +911,7 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
       zh: { title: '已收到您的付款', subtitle: '正在确认您的预订，确认后将通过邮件与您联系。', titleNc: '未能完成付款', subtitleNc: '我们正在核查。请勿重复付款，请直接联系我们。', warn: '⚠️ 请勿重复付款 — 可能导致重复扣款。', orderNo: '订单号', close: '确认', contact: '联系我们' },
     };
     const rl = REVIEW_LABELS[lang] ?? REVIEW_LABELS.en;
-    const captured = viewReview.paymentCaptured;
+    const captured = paymentReview.paymentCaptured;
     return (
       <div className="cocotrip-mobile-modal-backdrop fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.85)', backdropFilter: 'blur(8px)' }}>
         <div className="w-full max-w-md bg-gradient-to-b from-[#0f1628] to-[#0a0f1a] rounded-3xl border border-amber-400/30 overflow-hidden customer-paypal-review-panel">
@@ -959,12 +926,12 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
             <p className="text-sm text-amber-300 bg-amber-500/10 border border-amber-400/30 rounded-xl px-4 py-3">{rl.warn}</p>
             <div className="flex justify-between text-sm text-white/70">
               <span>{rl.orderNo}</span>
-              <span className="font-mono text-white/90">{viewReview.orderID}</span>
+              <span className="font-mono text-white/90">{paymentReview.orderID}</span>
             </div>
             {/* 닫아도 결제 폼으로 돌아가지 않는다(rateInfo=null) — 이 주문은 lock 이 걸려 재시도 시 409.
                 재결제 유도 = 이중청구 위험. 사용자가 할 일은 문의뿐. */}
             <button
-              onClick={() => { dismissRestored(); setPaymentReview(null); setShowPaypal(false); setError(null); }}
+              onClick={() => { setPaymentReview(null); setShowPaypal(false); setError(null); }}
               className="w-full min-h-[44px] rounded-xl text-sm font-semibold bg-[#7C5CFC] text-white"
             >{rl.close}</button>
             <a
@@ -977,7 +944,7 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
     );
   }
 
-  if (viewSuccess) {
+  if (showSuccess && successData) {
     const CONFIRM_LABELS: Record<string, Record<string, string>> = {
       ko: { title: '예약이 확정되었습니다!', subtitle: '예약 확인 이메일이 발송됩니다.', orderNo: '주문 번호', payer: '예약자', amount: '결제 금액', date: '이용 날짜', next: '다음 단계', step1: '확인 이메일을 확인하세요', step2: '카카오톡/WhatsApp으로 기사 정보를 보내드립니다', step3: '이용 당일 기사가 픽업 장소에서 대기합니다', cancelPolicy: '투어 24시간 전까지 무료 취소 (100% 환불)', close: '확인', contact: '문의하기', viewBooking: '예약 내역 보기' },
       en: { title: 'Booking Confirmed!', subtitle: 'A confirmation email will be sent shortly.', orderNo: 'Order No.', payer: 'Booked by', amount: 'Amount Paid', date: 'Service Date', next: 'Next Steps', step1: 'Check your confirmation email', step2: 'Driver details will be sent via WhatsApp/LINE', step3: 'Your driver will be waiting at the pickup location', cancelPolicy: 'Free cancellation up to 24 hours before your tour (100% refund)', close: 'Done', contact: 'Contact Us', viewBooking: 'View Booking' },
@@ -1003,29 +970,34 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
             <div className="bg-white/[0.04] border border-white/[0.08] rounded-2xl p-4 space-y-3">
               <div className="flex justify-between items-center text-sm">
                 <span className="text-white/55">{cl.orderNo}</span>
-                <span className="font-mono text-white/80 text-xs bg-white/5 px-2 py-1 rounded-lg">{viewSuccess.orderID}</span>
+                <span className="font-mono text-white/80 text-xs bg-white/5 px-2 py-1 rounded-lg">{successData.orderID}</span>
               </div>
-              {viewSuccess.payerName && (
+              {successData.payerName && (
                 <div className="flex justify-between items-center text-sm">
                   <span className="text-white/55">{cl.payer}</span>
-                  <span className="text-white/80">{viewSuccess.payerName}</span>
+                  <span className="text-white/80">{successData.payerName}</span>
                 </div>
               )}
-              {viewSuccess.payerEmail && (
+              {successData.payerEmail && (
                 <div className="flex justify-between items-center text-sm">
                   <span className="text-white/55">Email</span>
-                  <span className="text-white/80 text-xs">{viewSuccess.payerEmail}</span>
+                  <span className="text-white/80 text-xs">{successData.payerEmail}</span>
                 </div>
               )}
-              {dateStart && (
-                <div className="flex justify-between items-center text-sm">
-                  <span className="text-white/55">{cl.date}</span>
-                  <span className="text-white/80">{dateStart}{dateEnd && dateEnd !== dateStart ? ` ~ ${dateEnd}` : ''}</span>
-                </div>
-              )}
+              {/* r22: 주문 당시 날짜(결제 대기 중 화면 날짜를 바꿔도 결제한 날짜). 이 화면이 만든 주문이 아니면 지금 화면 날짜. */}
+              {(successData.dateStart || dateStart) && (() => {
+                const shownStart = successData.dateStart || dateStart;
+                const shownEnd = successData.dateStart ? successData.dateEnd : dateEnd;
+                return (
+                  <div className="flex justify-between items-center text-sm">
+                    <span className="text-white/55">{cl.date}</span>
+                    <span className="text-white/80">{shownStart}{shownEnd && shownEnd !== shownStart ? ` ~ ${shownEnd}` : ''}</span>
+                  </div>
+                );
+              })()}
               <div className="flex justify-between items-center text-sm border-t border-white/[0.06] pt-3">
                 <span className="text-white/55">{cl.amount}</span>
-                <span className="text-xl font-bold text-emerald-400">${viewSuccess.amount} USD</span>
+                <span className="text-xl font-bold text-emerald-400">${successData.amount} USD</span>
               </div>
             </div>
           </div>
@@ -1057,7 +1029,7 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
             <div className="px-6 pb-4">
               <GuestSignupNudge
                 language={lang as Language}
-                email={viewSuccess.payerEmail || userEmail || null}
+                email={successData.payerEmail || userEmail || null}
                 onGoogleLogin={handleGuestSignup}
                 authLoading={signupLoading}
                 authError={signupError}
@@ -1081,7 +1053,7 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
                 {cl.contact}
               </a>
               <button
-                onClick={() => { dismissRestored(); setShowSuccess(false); setSuccessData(null); setRateInfo(null); }}
+                onClick={() => { setShowSuccess(false); setSuccessData(null); setRateInfo(null); }}
                 className="flex-1 py-3 rounded-full border border-white/10 text-white/70 font-bold text-sm transition-all hover:border-white/25">
                 {cl.close}
               </button>
@@ -1399,14 +1371,13 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
            실제로 script element 강제 재로드. 이전 동작은 같은 timeout 무한 재발.
            5/7 추가: SDK 차단 케이스 (한국 ISP의 paypalobjects.com 일부 차단) 대비
            "QR 로 결제" fallback 버튼 — paypal.me 외부 redirect 흐름. */}
-      {shownError && (
+      {error && (
         <div className="rounded-xl bg-red-500/10 border border-red-500/30 px-4 py-3 space-y-2 customer-paypal-error">
           <div className="flex items-center justify-between gap-3">
-            <p className="text-sm text-red-300">{shownError}</p>
+            <p className="text-sm text-red-300">{error}</p>
             <button
               type="button"
               onClick={() => {
-                dismissRestored();
                 setError(null);
                 setQrBlocked(false);
                 setShowPaypal(false);
@@ -1418,9 +1389,9 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
               {p.paypalRetry}
             </button>
           </div>
-          {!qrBlocked && !restoredQrBlocked && <button
+          {!qrBlocked && <button
             type="button"
-            onClick={() => { dismissRestored(); setError(null); setUseFallback(true); }}
+            onClick={() => { setError(null); setUseFallback(true); }}
             className="w-full text-xs text-white/85 border border-white/25 hover:border-white/40 hover:bg-white/[0.04] px-3 py-2 rounded-lg transition-colors"
           >
             {lang === 'ko' ? 'QR 로 결제 (PayPal 본 사이트 직접)'

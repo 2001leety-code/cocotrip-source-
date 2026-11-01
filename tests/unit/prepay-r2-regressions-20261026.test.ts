@@ -244,8 +244,10 @@ describe('capture state machine after a pre-capture refusal (adversarial seq + A
   it('r4-7 (adversarial N4/N5): a recovering record still in captureState "none" never POSTed → refusal clears it (no GET, no POST), NOT_CAPTURED — not a forever 202', async () => {
     dbHolder.db = memDb({
       [`paypal_order_snapshots/${ORDER}`]: snapshot(),
+      // r22: intentProven:true — this case is about a PROVEN customer's POST-less record (an unproven input is never replayed
+      //   by a same-order check; that path is covered in prepay-r22-server.test.ts).
       [`used_paypal_orders/${ORDER}`]: { status: 'pending', flow: 'single', environment: 'sandbox', requestKey: `${ORDER}-cap`, intent: { version: 1, body: { product: 'ai-planner-full' } },
-        captureState: 'none', claimToken: 'dead-worker', claimUntil: 0, stages: {}, createdAtMs: Date.now() - 300_000 },
+        intentProven: true, captureState: 'none', claimToken: 'dead-worker', claimUntil: 0, stages: {}, createdAtMs: Date.now() - 300_000 },
     });
     foodHolder.rows = [];
     const calls = paypal({ gets: ['APPROVED'] });
@@ -426,8 +428,7 @@ describe('manual-payment-request (QR / paypal.me) — same pre-payment check bef
   });
   it('frontend: QR button hidden after a prepay refusal, QR panel builds no paypal.me URL until checkOnly passes', () => {
     const btn = read('src/components/PayPalBookingButton.tsx');
-    // r21: the remounted screen's stored planner refusal also hides it (restoredQrBlocked)
-    expect(btn).toContain('{!qrBlocked && !restoredQrBlocked && <button');
+    expect(btn).toContain('{!qrBlocked && <button'); // r22: the r21 restored-result variant was removed with the restore screens
     // r4: QR 을 이미 보여 준 흐름이면 숨기지 않는다(신고 경로 유지) — 그 외에는 숨김.
     expect(btn).toContain('if (prepayMsg) { if (qrSession) setError(rc.warn); else { setError(prepayMsg); setQrBlocked(true); } return; }');
     expect(btn).toContain('plannerInput={plannerInput}');
@@ -685,8 +686,8 @@ describe('r3 C/G — QR keeps the report path once shown; planner pointer lives 
     expect(rec).toContain('`cocotrip:payment-recovery:${flow}${scope ? `:${scope}` : \'\'}`');
     const btn = read('src/components/PayPalBookingButton.tsx');
     // r16: 범위 키 대신 주문별 키 + 화면 선택(matchesScreen) — 플래너 화면은 planner:true 로 플래너 주문만 맡는다.
-    // r21: + resultKey (product identity / date) for inherited results only — order selection unchanged
-    expect(btn).toContain("usePaymentRecovery({ flow: 'single', planner: keepRecoveryUntilFulfilled, productType, resultKey })");
+    // r22: resultKey removed with the restore screens
+    expect(btn).toContain("usePaymentRecovery({ flow: 'single', planner: keepRecoveryUntilFulfilled, productType })");
     expect(rec).toContain('export const orderRecoveryKey = (orderID: string) => `${PREFIX}order:${orderID}`;');
     expect(rec).toContain('if (screen.planner) return isPlannerProduct(p.productType);');
   });

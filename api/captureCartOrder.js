@@ -30,7 +30,7 @@ import {
   isSameOrderProven, isLegacyOpenSnapshot, verifyBearerUid, validateIntent, acquirePaymentAttempt, reconcileCapture, summarizeVerifiedCapture,
   persistBookingsAtomically, shouldDispatchRetry, releaseHeldIntents, makeRetryPersister, recordProcessorResult, updateAttempt,
   releaseAttemptClaim, discardAttempt, finalizeAttempt, pendingPaymentResponse, notCapturedResponse, withBackoff,
-  resolveAbsentAttempt, orderVoidedResponse, fetchPaypalOrder,
+  resolveAbsentAttempt, orderVoidedResponse, fetchPaypalOrder, replaceAttemptIntent,
 } from './_shared/payment-fulfillment-recovery.js';
 
 export const maxDuration = 60;
@@ -54,6 +54,8 @@ export default async function handler(req, res) {
     return res.end(JSON.stringify(_err('Cart checkout not enabled', 'CART_DISABLED')));
   }
 
+  // r22: claimed attempt not yet handed to the capture POST — an unexpected exception deletes an UNPROVEN request's record.
+  const preCapture = { attempt: null, proven: false };
   try {
     let body = req.body;
     if (typeof body === 'string') { try { body = JSON.parse(body); } catch { body = {}; } }
@@ -116,14 +118,15 @@ export default async function handler(req, res) {
     }
     const acquired = await acquirePaymentAttempt({
       db, orderID, flow: 'cart', environment: isSandbox ? 'sandbox' : 'live', requestKey: `${orderID}-cart-cap`, intent, userEmail, product: 'cart',
-      createIfMissing: !reconcileOnly, allowRecovery: sameOrderProven,
+      createIfMissing: !reconcileOnly, allowRecovery: sameOrderProven, intentProven: sameOrderProven, // r22 S1
     });
     if (acquired.kind === 'voided') {
       res.writeHead(409, JSON_CORS);
       return res.end(JSON.stringify(orderVoidedResponse({ orderID, flow: 'cart' })));
     }
-    if (acquired.kind === 'absent') {
-      // r19: read PayPal, then void in a transaction only if the record is still absent (resolveAbsentAttempt).
+    // r19: read PayPal, then void in a transaction only if the record is still absent (resolveAbsentAttempt).
+    //   r22: also the end of a same-order check that refused to replay an unproven input.
+    const answerAbsent = async () => {
       const out = await resolveAbsentAttempt({
         db, orderID, flow: 'cart', environment: isSandbox ? 'sandbox' : 'live', proven: sameOrderProven,
         lookupOrder: async () => {
@@ -140,7 +143,8 @@ export default async function handler(req, res) {
       }
       res.writeHead(out.status, JSON_CORS);
       return res.end(JSON.stringify(out.body));
-    }
+    };
+    if (acquired.kind === 'absent') return answerAbsent();
     if (acquired.kind === 'unauthorized') {
       console.warn('[captureCartOrder] recovery refused without same-order proof:', orderID);
       res.writeHead(409, JSON_CORS);
@@ -168,14 +172,29 @@ export default async function handler(req, res) {
       return res.end(JSON.stringify(_err('Order belongs to a different PayPal environment', 'ORDER_ENVIRONMENT_MISMATCH')));
     }
     const attempt = acquired.attempt;
+    preCapture.attempt = attempt; preCapture.proven = sameOrderProven;
     const stages = (attempt.lock && attempt.lock.stages) || {};
+    const unknownResponse = () => {
+      res.writeHead(202, JSON_CORS);
+      return res.end(JSON.stringify(pendingPaymentResponse({ orderID, flow: 'cart', paymentStatus: 'CAPTURE_UNKNOWN' })));
+    };
     // r21: POST 전 기록(captureState 'none')을 이어받은 전체 capture 요청 = 새 시도 — 저장된 입력 대신 이 요청의 입력(단건과 같은 규칙).
-    const beforePost = !!attempt.recovering && (attempt.lock || {}).captureState === 'none' && !reconcileOnly;
+    //   r22 S2: `intent` 필드 통째 교체 + intentProven. S1: 같은 주문 확인은 증명 없이 쓰인 입력을 재생하지 않는다 —
+    //   POST 전 기록을 지우고 absent 경로(PayPal GET → 묘비/결제됨/UNKNOWN)로 끝낸다. 삭제 실패 = UNKNOWN.
+    const noPostYet = !!attempt.recovering && (attempt.lock || {}).captureState === 'none';
+    const beforePost = noPostYet && !reconcileOnly;
+    if (noPostYet && reconcileOnly && attempt.lock.intentProven !== true) {
+      try { await discardAttempt(attempt, 'unproven-intent', { voidOrder: false }); } catch (delErr) {
+        console.warn('[captureCartOrder] unproven input not deleted — answering UNKNOWN:', orderID, delErr.message);
+        return unknownResponse();
+      }
+      preCapture.attempt = null;
+      return answerAbsent();
+    }
     if (beforePost) {
-      try { await updateAttempt(attempt, { intent, userEmail }); } catch (intentErr) {
+      try { await replaceAttemptIntent(attempt, { intent, userEmail, intentProven: true }); } catch (intentErr) {
         console.warn('[captureCartOrder] intent replace before POST failed — answering UNKNOWN:', orderID, intentErr.message);
-        res.writeHead(202, JSON_CORS);
-        return res.end(JSON.stringify(pendingPaymentResponse({ orderID, flow: 'cart', paymentStatus: 'CAPTURE_UNKNOWN' })));
+        return unknownResponse();
       }
     }
     const savedEmail = attempt.recovering && !beforePost ? ((attempt.lock.intent.body && attempt.lock.intent.body.userEmail) || '') : userEmail;
@@ -205,6 +224,7 @@ export default async function handler(req, res) {
       try { body = JSON.parse(text); } catch (e) { parseError = e.message; }
       return { status: captureRes.status, body, parseError };
     };
+    preCapture.attempt = null; // from here a capture POST may be sent
     const reconciled = await reconcileCapture({ attempt, orderID, baseUrl: PAYPAL_BASE_URL, accessToken, postCapture });
     if (reconciled.state === 'not_captured') {
       // r19: tombstone (claim-checked). A failed void is never answered NOT_CAPTURED — UNKNOWN keeps the lock.
@@ -480,7 +500,12 @@ export default async function handler(req, res) {
     res.end(JSON.stringify(successBody));
   } catch (err) {
     console.error('[captureCartOrder] Error:', err);
+    if (preCapture.attempt && !preCapture.proven) {
+      await discardAttempt(preCapture.attempt, 'unproven-exception', { voidOrder: false })
+        .catch((e) => console.warn('[captureCartOrder] unproven attempt cleanup failed:', e.message));
+    }
+    // r22 S3: fixed text — the original message stays in the log only.
     res.writeHead(500, JSON_CORS);
-    res.end(JSON.stringify(_err(err.message, 'INTERNAL_ERROR')));
+    res.end(JSON.stringify(_err('Payment could not be processed right now — please try again or contact us.', 'INTERNAL_ERROR')));
   }
 }

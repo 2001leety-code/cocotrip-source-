@@ -70,7 +70,9 @@ async function approveInCart() {
 }
 
 describe('r20-9 guest cart — a capture that finishes after the panel was closed', () => {
-  it('G1: in flight → X → reopen → Proceed → final → "Booking confirmed!", no Confirm & pay, cart emptied, no second order', async () => {
+  // r22: the restore screens were removed. What closes r19 G1/G2 now is the guest cart re-read (r20 useCart sync): the paid items
+  //   disappear from every mounted / remounted screen, so no Confirm & pay is ever offered for them.
+  it('G1: in flight → X → reopen → Proceed → final → the paid items are gone (empty cart), no Confirm & pay, no second order', async () => {
     localStorage.setItem(CART_LS_KEY, JSON.stringify([ITEM]));
     render(<CartPanel />);
     await openCart();
@@ -80,16 +82,13 @@ describe('r20-9 guest cart — a capture that finishes after the panel was close
     fireEvent.click(screen.getByText('Proceed to checkout')); await settle();
     expect(btn('Check this order')!.disabled).toBe(true);
     await answer(0, 200, FINAL('CART-F'));
-    expect(has('Booking confirmed!')).toBe(true);
     expect(btn('Confirm & pay')).toBeUndefined();
     expect(localStorage.getItem(CART_LS_KEY)).toBeNull();
-    await act(async () => { fireEvent.click(screen.getByText('Done')); }); await settle();
-    await openCart();
     expect(has('Your cart is empty')).toBe(true);
     expect(created).toBe(1);
   });
 
-  it('G1b: in flight → X (panel stays closed) → final arrives → opening the cart shows the confirmation (until closed)', async () => {
+  it('G1b: in flight → X (panel stays closed) → final arrives → opening the cart shows the empty cart (no Confirm & pay)', async () => {
     localStorage.setItem(CART_LS_KEY, JSON.stringify([ITEM]));
     render(<CartPanel />);
     await openCart();
@@ -98,11 +97,21 @@ describe('r20-9 guest cart — a capture that finishes after the panel was close
     await closeX();
     await answer(0, 200, FINAL('CART-F'));
     await openCart();
-    expect(has('Booking confirmed!')).toBe(true);
-    expect(btn('Confirm & pay')).toBeUndefined();
-    await closeX(); await openCart();
-    expect(has('Booking confirmed!')).toBe(false);
     expect(has('Your cart is empty')).toBe(true);
+    expect(btn('Confirm & pay')).toBeUndefined();
+  });
+
+  it('refresh after the final: a fresh mount reads the emptied guest cart (no Confirm & pay)', async () => {
+    localStorage.setItem(CART_LS_KEY, JSON.stringify([ITEM]));
+    render(<CartPanel />);
+    await openCart();
+    fireEvent.click(screen.getByText('Proceed to checkout'));
+    await approveInCart();
+    await answer(0, 200, FINAL('CART-F'));
+    cleanup();
+    render(<CartPanel />); await openCart();
+    expect(has('Your cart is empty')).toBe(true);
+    expect(btn('Proceed to checkout')).toBeUndefined();
   });
 
   it('G2: another tab finishes the shown order and empties the guest cart (storage events) → empty-cart notice, no Confirm & pay', async () => {
@@ -142,41 +151,5 @@ describe('r20-7 — a new order after order_voided gets fresh PayPal buttons', (
   });
 });
 
-// r21-10: the guest cart changes in another tab while a PayPal order is open ('ready') → the open order is dropped (review screen again).
-const otherTabCart = async (value: string | null) => {
-  await act(async () => {
-    const old = localStorage.getItem(CART_LS_KEY);
-    if (value === null) localStorage.removeItem(CART_LS_KEY); else localStorage.setItem(CART_LS_KEY, value);
-    window.dispatchEvent(new StorageEvent('storage', { key: CART_LS_KEY, oldValue: old, newValue: value }));
-  });
-  await settle();
-};
-describe('r21-10 — cart changed in another tab while the PayPal order is open', () => {
-  it('T1: order for [A] ready → another tab adds B → the [A] order is dropped (PayPal area hidden, Confirm & pay again for A+B)', async () => {
-    localStorage.setItem(CART_LS_KEY, JSON.stringify([ITEM]));
-    render(<CartPanel />);
-    await openCart();
-    fireEvent.click(screen.getByText('Proceed to checkout'));
-    fireEvent.click(await screen.findByText('Confirm & pay'));
-    await waitFor(() => expect(buttons.length).toBe(1));
-    expect(document.querySelector('#cart-paypal-btn')!.className).not.toMatch(/hidden/);
-    await otherTabCart(JSON.stringify([{ ...ITEM, id: 'item-2', displayName: 'Night tour' }, ITEM]));
-    expect(document.querySelector('#cart-paypal-btn')!.className).toMatch(/hidden/);
-    expect(has('Night tour')).toBe(true);
-    expect(btn('Confirm & pay')).toBeDefined();
-    fireEvent.click(screen.getByText('Confirm & pay')); await settle();
-    expect(created).toBe(2);
-  });
-  it('T2: order ready → another tab paid and emptied the guest cart → no live PayPal button, empty-cart notice', async () => {
-    localStorage.setItem(CART_LS_KEY, JSON.stringify([ITEM]));
-    render(<CartPanel />);
-    await openCart();
-    fireEvent.click(screen.getByText('Proceed to checkout'));
-    fireEvent.click(await screen.findByText('Confirm & pay'));
-    await waitFor(() => expect(buttons.length).toBe(1));
-    await otherTabCart(null);
-    const host = document.getElementById('cart-paypal-btn');
-    expect(!host || host.className.includes('hidden')).toBe(true);
-    expect(has('Your cart is empty')).toBe(true);
-  });
-});
+// r22: r21's "drop the open PayPal order when the cart changes in another tab" (T1·T2) was reverted to main behaviour —
+//   overlapping cart orders need a server-side line claim (follow-up), see the r22 report.

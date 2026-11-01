@@ -289,8 +289,8 @@ describe('E4 / E5 — a capture in flight in THIS tab survives close / remount (
     await answer(0, 200, FINAL('CART-F'));
     expect(PR.isRecoveryDone('CART-F')).toBe(true);
     expect(PR.isCaptureInFlight('CART-F')).toBe(false);
-    // r20: the reopened checkout (not the one that started the capture) shows the confirmation until closed
-    expect(has('Booking confirmed!')).toBe(true);
+    // r22: restore screens removed — the reopened checkout shows the emptied cart (the paid items are gone; no Confirm & pay)
+    expect(has('Your cart is empty')).toBe(true);
     expect(btn('Confirm & pay')).toBeUndefined();
   });
   it('E5a: charter capture in flight → unmount → remount → check disabled; the capture final finishes the order', async () => {
@@ -307,11 +307,9 @@ describe('E4 / E5 — a capture in flight in THIS tab survives close / remount (
     await answer(0, 200, FINAL('ORD-F'));
     expect(PR.isRecoveryDone('ORD-F')).toBe(true);
     expect(PR.isCaptureInFlight('ORD-F')).toBe(false);
-    // r20: the remounted button shows the confirmation (not Book now) until it is closed
-    expect(has('Booking Confirmed!')).toBe(true);
-    expect(btn('Book now')).toBeUndefined();
-    await act(async () => { fireEvent.click(screen.getByText('Done')); }); await settle();
-    expect(has('Booking Confirmed!')).toBe(false);
+    // r22: restore screens removed — the remounted screen offers Book now again (a new purchase; same as main, accepted policy)
+    expect(singleRecoveryOrder()).toBeNull();
+    expect(btn('Book now')).toBeDefined();
   });
 });
 

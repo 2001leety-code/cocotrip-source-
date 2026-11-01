@@ -95,38 +95,8 @@ export function beginCapture(orderID: string): boolean {
 export function endCapture(orderID: string): void { if (capturesInFlight.delete(orderID)) notifyRecoveryChange(); }
 export const isCaptureInFlight = (orderID: string): boolean => capturesInFlight.has(orderID);
 
-/**
- * r20: 이 탭에서 끝난 capture 의 결과 — capture 를 시작한 화면이 그 사이 언마운트됐을 때만 남는다(주문별). 다시 마운트된
- *   CartCheckout·PayPalBookingButton 이 이것으로 성공·검토·미결제 화면을 띄우고, 닫을 때 dismissCaptureResult.
- */
-/**
- * r21 key: 그 결과를 만든 화면의 상품 식별값(상품 종류·tourId·출발/도착·날짜 — 화면이 가진 값)을 이은 문자열. 지금 화면과 같을 때만 보인다
- *   (같은 productType 의 다른 투어·날짜 화면에 옛 확정이 뜨지 않게). notice: 미결제 결과의 문구 맥락(QR 흐름 = 재결제 금지,
- *   플래너 사전 거부 = 사유 + QR 대체 숨김) — 마운트된 화면과 같은 규칙으로 다시 고른다.
- */
-export type CaptureNotice = { kind: 'plain' | 'warn' | 'prepay'; preCaptureCode?: string };
-/** 화면의 상품 식별값을 결과 key 로 — 없는 값은 빈칸. */
-export const resultKeyOf = (...parts: Array<string | undefined | null>): string => parts.map((part) => part || '').join('|');
-export type CaptureResult = { orderID: string; flow: PaymentFlow; productType?: string; key?: string; notice?: CaptureNotice; outcome: CaptureOutcome };
-const captureResults = new Map<string, CaptureResult>();
-export function recordCaptureResult(result: CaptureResult): void {
-  const kind = result.outcome.kind;
-  if (kind !== 'final' && kind !== 'review' && kind !== 'not_captured') return;
-  captureResults.set(result.orderID, result);
-  notifyRecoveryChange();
-}
-export function dismissCaptureResult(orderID: string): void { if (captureResults.delete(orderID)) notifyRecoveryChange(); }
-/** 이 flow 의 끝난 결과를 모두 닫는다(장바구니 패널 닫기). */
-export function dismissCaptureResults(flow: PaymentFlow): void {
-  let changed = false;
-  for (const [id, r] of captureResults) if (r.flow === flow) { captureResults.delete(id); changed = true; }
-  if (changed) notifyRecoveryChange();
-}
-const captureResultFor = (screen: RecoveryScreen): CaptureResult | null =>
-  [...captureResults.values()].find((r) => matchesScreen(r, screen) && (r.key || '') === (screen.resultKey || '')) || null;
-
-/** 테스트 전용 — 모듈 메모리(저장 실패 주문·완료·진행 중 capture·끝난 결과) 초기화. */
-export function resetPaymentRecoveryMemory(): void { memoryOrders.clear(); memoryDone.clear(); capturesInFlight.clear(); captureResults.clear(); }
+/** 테스트 전용 — 모듈 메모리(저장 실패 주문·완료·진행 중 capture) 초기화. */
+export function resetPaymentRecoveryMemory(): void { memoryOrders.clear(); memoryDone.clear(); capturesInFlight.clear(); }
 
 /** r19: 같은 주문의 두 기록 중 남길 쪽 — 더 강한 상태(CAPTURED > 그 밖) 우선, 같으면 updatedAt 최신(같으면 b). 강등 금지. */
 const statusRank = (p: PaymentRecovery) => (p.paymentStatus === 'CAPTURED' ? 1 : 0);
@@ -155,6 +125,15 @@ const isVoidDone = (orderID: string): boolean => {
 };
 export function isRecoveryDone(orderID: string): boolean {
   return memoryDone.has(orderID) || getRaw(doneRecoveryKey(orderID)) !== null;
+}
+/**
+ * r22 (B-I6): 이 주문이 서버의 결제 증거로 보이는가 — CAPTURED·검토 포인터, 또는 'final' 완료 표식(확정·환불).
+ *   'void'(미결제 종료) 표식은 증거가 아니다. 그 주문의 "결제 안 됨" 문구를 지우는 근거.
+ */
+export function hasPaymentEvidence(orderID: string): boolean {
+  if (isRecoveryDone(orderID)) return !isVoidDone(orderID);
+  const p = readRecoveryOrder(orderID);
+  return !!p && (p.paymentStatus === 'CAPTURED' || p.review);
 }
 
 /** 미해결 주문 전부(완료 제외) — createdAt → orderID 순. 같은 주문의 옛 키·주문 키·이 탭 메모리는 strongerRecord 로 병합(r19 — 강등 금지). */
@@ -278,7 +257,7 @@ export async function reconcilePayment(flow: PaymentFlow, orderID: string): Prom
  * r16: 화면이 맡는 주문 — 플래너 = 플래너 상품 단건, 일반 단건 = 현재 상품과 같은(또는 상품 미상) 단건, 장바구니 = cart.
  *   그 밖(다른 상품·다른 flow)은 외부 주문 = 중립 안내. PayPalBookingButton·CartCheckout 이 같은 함수를 쓴다.
  */
-export type RecoveryScreen = { flow: PaymentFlow; planner?: boolean; productType?: string; resultKey?: string };
+export type RecoveryScreen = { flow: PaymentFlow; planner?: boolean; productType?: string };
 export function matchesScreen(p: Pick<PaymentRecovery, 'flow' | 'productType'>, screen: RecoveryScreen): boolean {
   if (screen.flow === 'cart') return p.flow === 'cart';
   if (p.flow !== 'single') return false;
@@ -373,7 +352,7 @@ export function selectRecovery(all: PaymentRecovery[], screen: RecoveryScreen, p
   return all.find((o) => !hidden.has(o.orderID) && matchesScreen(o, screen)) || null;
 }
 export function usePaymentRecovery(screen: RecoveryScreen) {
-  const { flow, planner, productType, resultKey } = screen;
+  const { flow, planner, productType } = screen;
   const [initial] = useState<PaymentRecovery | null>(() => selectRecovery(listRecoveryOrders(), { flow, planner, productType }, null, new Set()));
   const pinnedRef = useRef<string | null>(initial ? initial.orderID : null);
   const hiddenRef = useRef<Set<string>>(new Set());
@@ -387,26 +366,22 @@ export function usePaymentRecovery(screen: RecoveryScreen) {
   // r19: 이 화면 주문의 capture 가 이 탭에서 진행 중인가(모듈 집합 — 재마운트에도 유지). '같은 주문 확인' disabled 에 쓴다.
   const [captureBusy, setCaptureBusy] = useState(() => !!initial && isCaptureInFlight(initial.orderID));
   const busyRef = useRef(captureBusy);
-  // r20: 이 화면이 맡는 주문의 끝난 capture 결과(capture 를 시작한 화면이 언마운트된 뒤 도착한 것) — 닫을 때까지 결과 화면.
-  //   r21: resultKey(상품 식별값·날짜)까지 같아야 이 화면의 결과.
-  const [captureResult, setCaptureResult] = useState<CaptureResult | null>(() => captureResultFor({ flow, planner, productType, resultKey }));
-  const resultRef = useRef(captureResult);
   const refresh = useCallback(() => {
     const next = pick();
     const busy = !!next && isCaptureInFlight(next.orderID);
     if (busy !== busyRef.current) { busyRef.current = busy; setCaptureBusy(busy); }
-    const result = captureResultFor({ flow, planner, productType, resultKey });
-    if (result !== resultRef.current) { resultRef.current = result; setCaptureResult(result); }
     if (sameRecovery(pendingRef.current, next)) return;
     pendingRef.current = next;
     setRecovery(next);
-  }, [pick, flow, planner, productType, resultKey]);
+  }, [pick]);
   // r17: 화면 조건(flow·플래너·상품)이 바뀌면 즉시 재선택(구독 교체만 하면 상품 전환 뒤 그 상품 주문 대신 Book now 가 남았다).
   //   고정된(확인 중) 주문은 그대로 유지된다(selectRecovery).
   //   r17-8: bfcache 복원(pageshow persisted)도 재조회 — 첫 렌더와 구독 사이·숨은 동안 놓친 변경으로 끝난 주문 패널이 고착되지 않게.
+  //   r22 (B-I6): 변경 알림마다 다시 렌더 — 선택 주문이 그대로여도(다른 탭의 'final' 완료 표식 등) 화면이 그 주문 문구를 다시 판정한다.
+  const [, setChangeTick] = useState(0);
   useEffect(() => {
     refresh();
-    const unsubscribe = subscribeRecovery(refresh);
+    const unsubscribe = subscribeRecovery(() => { refresh(); setChangeTick((n) => n + 1); });
     const onShow = (e: PageTransitionEvent) => { if (e.persisted) refresh(); };
     window.addEventListener('pageshow', onShow);
     return () => { unsubscribe(); window.removeEventListener('pageshow', onShow); };
@@ -438,7 +413,7 @@ export function usePaymentRecovery(screen: RecoveryScreen) {
     if (pinnedRef.current === orderID) pinnedRef.current = null;
     refresh();
   }, [refresh]);
-  return { recovery, pendingRef, remember, clearRecovery, forgetRecovery, refresh, captureBusy, captureResult };
+  return { recovery, pendingRef, remember, clearRecovery, forgetRecovery, refresh, captureBusy };
 }
 
 export const PAYMENT_RECOVERY_COPY = {

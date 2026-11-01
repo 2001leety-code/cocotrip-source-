@@ -25,7 +25,7 @@ import {
   makeRetryPersister, recordProcessorResult, updateAttempt,
   releaseAttemptClaim, discardAttempt, finalizeAttempt, pendingPaymentResponse, notCapturedResponse, withBackoff,
   buildFullRefundProof, readFullRefundProof, fullRefundProofMatchesCapture, fetchPaypalOrder,
-  resolveAbsentAttempt, orderVoidedResponse,
+  resolveAbsentAttempt, orderVoidedResponse, replaceAttemptIntent,
 } from './_shared/payment-fulfillment-recovery.js';
 import { checkPrepayCoverage, loadPrepayFoodIndex, isPrepayCheckedProduct, startDateTooSoon, PREPAY_INPUT_VERSION } from './_shared/prepay-coverage.js';
 
@@ -95,6 +95,9 @@ export default async function handler(req, res) {
   if (req.method === 'OPTIONS') { res.writeHead(200, CORS); return res.end(); }
   if (req.method !== 'POST') { res.writeHead(405, JSON_CORS); return res.end(JSON.stringify(_err('Method not allowed', 'METHOD_NOT_ALLOWED'))); }
 
+  // r22: the attempt this request claimed and has not yet handed to the capture POST (+ the coupon it pre-locked). An unexpected
+  //   exception in that window deletes an UNPROVEN request's record (and releases its coupon) — no stranger's input is left.
+  const preCapture = { attempt: null, coupon: null, proven: false };
   try {
     let body = req.body;
     if (typeof body === 'string') { try { body = JSON.parse(body); } catch { body = {}; } }
@@ -226,6 +229,12 @@ export default async function handler(req, res) {
     // 쿠폰을 함께 소비하는 우회가 가능했다 (특히 createPaypalOrder 를 우회하는
     // PayPal Smart Buttons client-side order 흐름에서). createPaypalOrder 와
     // 동일 helper 호출로 양 endpoint 정책 통일.
+    // r22: coupon id format checked BEFORE any attempt record exists — an id like 'x/y' makes the Firestore SDK throw while
+    //   building the coupon path (after the record was created). Coupon ids are Firestore auto ids / slugs.
+    if (couponDocId != null && couponDocId !== '' && !/^[A-Za-z0-9_-]{1,128}$/.test(String(couponDocId))) {
+      res.writeHead(400, JSON_CORS);
+      return res.end(JSON.stringify(_err('Coupon is invalid', 'COUPON_INVALID')));
+    }
     const aiPlannerGate = checkAiPlannerCouponPolicy({ product, promoCode, couponDocId });
     if (!aiPlannerGate.ok) {
       console.warn('[capturePaypalOrder] AI Planner coupon rejected at capture:', { orderID, ...aiPlannerGate.debug });
@@ -358,14 +367,16 @@ export default async function handler(req, res) {
     const acquired = await acquirePaymentAttempt({
       db: dbForLock, orderID, flow: 'single', environment: _environment, requestKey: `${orderID}-cap`,
       intent, userEmail, product: product || 'unknown', createIfMissing: !_reconcileOnly, allowRecovery: _sameOrderProven,
+      intentProven: _sameOrderProven, // r22 S1: who wrote this input
     });
     if (acquired.kind === 'voided') {
       // r19 tombstone: proven nonpayment, permanently closed — same answer for a new capture and a check, zero provider calls.
       res.writeHead(409, JSON_CORS);
       return res.end(JSON.stringify(orderVoidedResponse({ orderID, flow: 'single' })));
     }
-    if (acquired.kind === 'absent') {
-      // r19: "no record right now" is not proof — read PayPal, then void in a transaction only if still absent.
+    // r19: "no record right now" is not proof — read PayPal, then void in a transaction only if still absent.
+    //   r22: also the end of a same-order check that refused to replay an unproven input (record deleted first, below).
+    const answerAbsent = async () => {
       const out = await resolveAbsentAttempt({
         db: dbForLock, orderID, flow: 'single', environment: _environment, proven: _sameOrderProven,
         lookupOrder: async () => {
@@ -382,7 +393,8 @@ export default async function handler(req, res) {
       }
       res.writeHead(out.status, JSON_CORS);
       return res.end(JSON.stringify(out.body));
-    }
+    };
+    if (acquired.kind === 'absent') return answerAbsent();
     if (acquired.kind === 'unauthorized') {
       // Existing attempt but no proof of same-order ownership: generic answer, no private data, no writes.
       console.warn('[capturePaypalOrder] recovery refused without same-order proof:', orderID);
@@ -423,6 +435,7 @@ export default async function handler(req, res) {
       return res.end(JSON.stringify(_err('Order belongs to a different PayPal environment', 'ORDER_ENVIRONMENT_MISMATCH')));
     }
     const attempt = acquired.attempt;
+    preCapture.attempt = attempt; preCapture.proven = _sameOrderProven;
     const stages = (attempt.lock && attempt.lock.stages) || {};
     // r21: 아직 PayPal 에 capture POST 를 보낸 적 없는 기록(captureState 'none')을 이어받은 요청 = 새 시도 — 쿠폰 거절은 종결,
     //   (전체 capture 요청이면) intent 는 지금 요청 것. "복구 중엔 쿠폰 실패여도 계속"은 posted/unknown(돈이 잡혔을 수 있음)에만.
@@ -453,6 +466,18 @@ export default async function handler(req, res) {
       res.writeHead(202, JSON_CORS);
       return res.end(JSON.stringify(pendingPaymentResponse({ orderID, flow: 'single', paymentStatus: 'CAPTURE_UNKNOWN' })));
     };
+    // r22 S1: a same-order check (no input of its own) never replays an input that was written WITHOUT same-order proof.
+    //   Only a POST-less record (captureState 'none', no capture/booking evidence) is involved: it is deleted (claim-checked) and
+    //   the check ends on the normal absent path (PayPal GET → tombstone / paid / UNKNOWN) — no endless "check" loop.
+    //   A failed delete = UNKNOWN. posted/unknown records are never deleted (they never reach this branch).
+    if (beforePost && _reconcileOnly && attempt.lock.intentProven !== true) {
+      try { await discardAttempt(attempt, 'unproven-intent', { voidOrder: false }); } catch (delErr) {
+        console.warn('[capturePaypalOrder] unproven input not deleted — answering UNKNOWN:', orderID, delErr.message);
+        return unknownResponse();
+      }
+      preCapture.attempt = null;
+      return answerAbsent();
+    }
 
     // 🔴 2026-10-26 B6-1: AI 플래너(풀) — **새 capture POST 직전** 저장 입력으로 식이 커버리지 재검사(주문 후 자료가
     //   바뀌었을 수 있다). postCapture 안에서 던지면 '결제 결과 불명'이 되므로 그 앞의 명시적 사전 거부 분기다.
@@ -511,8 +536,9 @@ export default async function handler(req, res) {
     if (beforePost && !_reconcileOnly) {
       // r21: POST 전 기록을 이어받은 전체 capture 요청(증명 있는 요청만 기존 기록을 이어받는다) — 저장된 intent 대신 이 요청의 intent.
       //   같은 주문 확인(reconcile, 예약 입력 없음)은 저장된 intent 를 그대로 쓴다(아래).
+      //   r22 S2: the `intent` field is replaced WHOLE (no sub-field of the previous input survives), intentProven = true.
       try {
-        await updateAttempt(attempt, { intent, userEmail, product: product || 'unknown' });
+        await replaceAttemptIntent(attempt, { intent, userEmail, product: product || 'unknown', intentProven: true });
       } catch (intentErr) {
         console.warn('[capturePaypalOrder] intent replace before POST failed — answering UNKNOWN:', orderID, intentErr.message);
         return unknownResponse();
@@ -555,6 +581,7 @@ export default async function handler(req, res) {
           });
         });
         console.log('[capturePaypalOrder] coupon pre-locked:', couponDocId);
+        preCapture.coupon = couponLockRef;
       } catch (couponErr) {
         const code = couponErr.message || 'UNKNOWN';
         console.warn('[capturePaypalOrder] coupon pre-lock failed:', code, '| orderID:', orderID);
@@ -601,6 +628,7 @@ export default async function handler(req, res) {
       try { body = JSON.parse(text); } catch (e) { parseError = e.message; }
       return { status: captureRes.status, body, parseError };
     };
+    preCapture.attempt = null; // from here a capture POST may be sent — never delete the record on an exception
     const reconciled = await reconcileCapture({ attempt, orderID, baseUrl: PAYPAL_BASE_URL, accessToken, postCapture, forbidPost: forbidCapturePost, lookup: preCaptureLookup });
     if (reconciled.state === 'not_captured') {
       // PR #427 (CY4): capture never happened — r20: the order is voided (or, without proof, its attempt deleted) AND the
@@ -1249,7 +1277,13 @@ export default async function handler(req, res) {
     res.end(JSON.stringify(successBody));
   } catch (err) {
     console.error('[capturePaypalOrder] Error:', err);
+    // r22: an unproven request's POST-less record (and its pre-locked coupon) never survives an unexpected exception.
+    if (preCapture.attempt && !preCapture.proven) {
+      await discardAttempt(preCapture.attempt, 'unproven-exception', { voidOrder: false, releaseCoupon: preCapture.coupon })
+        .catch((e) => console.warn('[capturePaypalOrder] unproven attempt cleanup failed:', e.message));
+    }
+    // r22 S3: fixed text — the original (Firestore / SDK / OAuth) message stays in the log only.
     res.writeHead(500, JSON_CORS);
-    res.end(JSON.stringify(_err(err.message, 'INTERNAL_ERROR')));
+    res.end(JSON.stringify(_err('Payment could not be processed right now — please try again or contact us.', 'INTERNAL_ERROR')));
   }
 }

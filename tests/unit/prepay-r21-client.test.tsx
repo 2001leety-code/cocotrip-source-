@@ -1,15 +1,11 @@
 // @vitest-environment jsdom
 /**
- * 2026-11-01 B6-1 r21 — 결과 보관 불변식(B-I1~B-I5)과 적대적 r20 재현. 실제 React(CartPanel/CartCheckout/PayPalBookingButton) +
- *   실제 paymentRecovery, authFetch·PayPal SDK 모의(로그인 장바구니 = 공유 목록 모의). 실 PayPal·네트워크 0.
- *
- * B-I1 기록: 최종 적용 결과(final·review·not_captured)는 경로(새 capture·일반 오류 뒤 자동 증거·수동 확인)와 무관하게 공통 적용
- *      지점에서, 그 결과를 적용한 화면이 언마운트돼 있으면 모듈에 남는다. 첫 분류(일반 오류)는 남지 않는다.
- * B-I2 소멸: 보관 결과는 결과 화면을 닫을 때·화면이 다른 미해결 주문을 고를 때·화면이 자기 결과/새 결제로 넘어갈 때·
- *      장바구니 패널 닫기·Edit cart 에서 사라지고, 사라진 결과는 다시 나타나지 않는다.
- * B-I3 범위: 보관 결과는 flow·상품 종류·상품 식별값(투어·구간·날짜)이 같은 화면에서만, 다른 미해결 주문이 선택돼 있지 않을 때만 보인다.
- * B-I4 문구: 보관 미결제 결과는 기록 때의 맥락(QR 흐름 = 재결제 금지, 플래너 사전 거부 = 사유 + QR 대체 숨김)을 그대로 보인다.
- * B-I5 재결제 금지: 확정·검토 결과가 보이는 동안 그 화면에 'Book now'·'Confirm & pay' 가 없다.
+ * 2026-11-01 B6-1 r22 (단순화) — r20·r21 의 결과 복원 화면(보관 결과 B-I1~I5)은 삭제됐다. 이 파일은 남은 계약을 고정한다
+ *   (실제 React + 실제 paymentRecovery, authFetch·PayPal SDK 모의, 로그인 장바구니 = 공유 목록 모의, 실 PayPal·네트워크 0):
+ * B-I6 미결제 문구 수명: "결제 안 됨" 문구는 그 orderID 가 CAPTURED·검토 포인터 또는 'final' 완료 표식으로 보이면 즉시 지워지고
+ *      ('void' 표식은 지우는 근거가 아니다), 다른 주문이 선택돼도 지워진다(단건·장바구니 화면 자체 문구 모두).
+ * 확정 화면 날짜 = 주문 당시 날짜(결제 대기 중 화면 날짜를 바꿔도).
+ * 화면을 떠났다 돌아오면 단건은 Book now(새 구매 — main 과 같음), 결제 진행 중이면 '같은 주문 확인' 비활성(r19 유지).
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
@@ -57,7 +53,6 @@ type BC = { onApprove: (data: { orderID: string }) => Promise<void> };
 const buttons: BC[] = [];
 const reply = (status: number, body: unknown) => ({ ok: status < 300, status, json: async () => body });
 const FINAL = (id: string) => ({ ok: true, finalized: true, data: { orderID: id, amount: '100.00', currency: 'USD' } });
-const REVIEW = (id: string) => ({ ok: true, bookingStatus: 'PAYMENT_REVIEW', paymentCaptured: true, captureID: 'CAP-1', data: { orderID: id } });
 const VOIDED = (id: string, flow = 'single', extra: Record<string, unknown> = {}) => ({ ok: false, code: 'PAYMENT_NOT_CAPTURED', orderID: id, flow, paymentStatus: 'NOT_CAPTURED', finalized: false, retryable: false, evidence: 'order_voided', error: 'Payment was not completed. You can start a new payment.', ...extra });
 const GENERIC = { ok: false, code: 'INTERNAL_ERROR', error: 'Internal error' };
 type Call = { url: string; resolve: (v: unknown) => void };
@@ -87,7 +82,6 @@ const otherTabFinishes = (id: string) => otherTab([[PR.doneRecoveryKey(id), Stri
 const otherTabPending = (id: string, flow: 'single' | 'cart' = 'single', productType = 'charter_dmz') =>
   otherTab([[PR.orderRecoveryKey(id), JSON.stringify({ orderID: id, flow, paymentStatus: 'CAPTURE_UNKNOWN', review: false, ...(flow === 'single' ? { productType } : {}), updatedAt: Date.now(), createdAt: Date.now(), v: 2 })]]);
 const charter = (productType = 'charter_dmz', dateStart = DATE) => <PayPalBookingButton productType={productType} passengers={2} priceKRW={135000} lang="en" dateStart={dateStart} p={P_PROPS} />;
-const planner = () => <PayPalBookingButton productType="ai-planner-full" passengers={1} priceKRW={14000} lang="en" dateStart={DATE} keepRecoveryUntilFulfilled onPaymentSuccess={vi.fn(async () => {})} p={P_PROPS} />;
 
 async function singleCaptureThenUnmount(orderID: string, productType = 'charter_dmz', dateStart = DATE) {
   mocks.createIds.push(orderID);
@@ -127,207 +121,139 @@ beforeEach(() => {
 });
 afterEach(() => { cleanup(); vi.restoreAllMocks(); try { localStorage.clear(); } catch { /* */ } });
 
-describe('B-I2 repros — a stored "not paid" result never outlives another order\'s confirmation (N1)', () => {
-  it('N1a: A voided while unmounted → remount (notice) → another tab adds B → check B → final → Done → no "pay again", no stale notice', async () => {
-    await singleCaptureThenUnmount('ORD-A');
-    await answer(0, 409, VOIDED('ORD-A'));
-    render(charter()); await settle();
+/** 이 화면(마운트 유지)에서 결제 → 409 order_voided → "결제 안 됨" 문구. */
+async function singleMountedVoided(orderID: string) {
+  mocks.createIds.push(orderID);
+  render(charter());
+  fireEvent.click(await screen.findByText('Book now'));
+  await waitFor(() => expect(buttons.length).toBeGreaterThan(0));
+  act(() => { void buttons[buttons.length - 1].onApprove({ orderID }); });
+  await waitFor(() => expect(q.length).toBeGreaterThanOrEqual(1));
+  await answer(q.length - 1, 409, VOIDED(orderID));
+  expect(has(PR.PAYMENT_RECOVERY_COPY.en.notCaptured)).toBe(true);
+}
+const otherTabCaptured = (id: string, flow: 'single' | 'cart' = 'single') => otherTab([
+  [PR.doneRecoveryKey(id), null],
+  [PR.orderRecoveryKey(id), JSON.stringify({ orderID: id, flow, paymentStatus: 'CAPTURED', review: false, ...(flow === 'single' ? { productType: 'charter_dmz' } : {}), updatedAt: Date.now(), createdAt: Date.now(), v: 2 })],
+]);
+
+describe('B-I6 — the "not paid" text follows its own orderID (I1a–I1e)', () => {
+  it('a plain void stays: nothing else happens → the notice stays (void is not payment evidence)', async () => {
+    await singleMountedVoided('ORD-A');
+    await settle();
     expect(has(PR.PAYMENT_RECOVERY_COPY.en.notCaptured)).toBe(true);
-    await otherTabPending('ORD-B');
-    expect(singlePanel()).toBe('ORD-B');
-    fireEvent.click(screen.getByText('Check this order')); await settle();
-    await answer(q.length - 1, 200, FINAL('ORD-B'));
-    expect(has('Booking Confirmed!')).toBe(true);
-    fireEvent.click(screen.getByText('Done')); await settle();
+    expect(PR.hasPaymentEvidence('ORD-A')).toBe(false);
+  });
+  it('I1b: voided while mounted → another tab stores A CAPTURED → notice gone at once ("Payment received" panel) → A finishes → still no "pay again"', async () => {
+    await singleMountedVoided('ORD-A');
+    await otherTabCaptured('ORD-A');
+    expect(has(PAY_AGAIN)).toBe(false);
+    expect(has('Payment received; your booking is being recorded')).toBe(true);
+    await otherTabFinishes('ORD-A');
     expect(has(PAY_AGAIN)).toBe(false);
   });
-  it('N1b: A voided (stored) → the server later shows A CAPTURED (webhook conflict) → panel "Payment received" → final → Done → no "not completed"', async () => {
-    await singleCaptureThenUnmount('ORD-A');
-    await answer(0, 409, VOIDED('ORD-A'));
-    render(charter()); await settle();
+  it('I1c: voided → another screen of this tab stores A CAPTURED → check → final → Done → no "pay again" for the order just confirmed', async () => {
+    await singleMountedVoided('ORD-A');
     await act(async () => { PR.placeForeignPending({ orderID: 'ORD-A', flow: 'single', paymentStatus: 'CAPTURED', review: false, productType: 'charter_dmz' }); });
     await settle();
-    expect(has('Payment received; your booking is being recorded')).toBe(true);
+    expect(has(PAY_AGAIN)).toBe(false);
     fireEvent.click(screen.getByText('Check this order')); await settle();
     await answer(q.length - 1, 200, FINAL('ORD-A'));
     expect(has('Booking Confirmed!')).toBe(true);
     fireEvent.click(screen.getByText('Done')); await settle();
     expect(has(PAY_AGAIN)).toBe(false);
   });
-  it('N1c: A voided (stored) → B pending → B finished in another tab → no "pay again"', async () => {
-    await singleCaptureThenUnmount('ORD-A');
-    await answer(0, 409, VOIDED('ORD-A'));
-    render(charter()); await settle();
+  it('a review pointer for the same order clears the notice', async () => {
+    await singleMountedVoided('ORD-A');
+    await act(async () => { PR.placeForeignPending({ orderID: 'ORD-A', flow: 'single', paymentStatus: 'NOT_CAPTURED', review: true, productType: 'charter_dmz' }); });
+    await settle();
+    expect(has(PAY_AGAIN)).toBe(false);
+  });
+  it('a "final" done marker (confirmed / refunded) for that order clears the notice; a "void" one does not', async () => {
+    await singleMountedVoided('ORD-A');
+    await otherTab([[PR.doneRecoveryKey('ORD-A'), `void:${Date.now()}`]]);
+    expect(has(PAY_AGAIN)).toBe(true);
+    await otherTab([[PR.doneRecoveryKey('ORD-A'), String(Date.now())]]);
+    expect(has(PAY_AGAIN)).toBe(false);
+  });
+  it('another order selected clears the notice; that order finishing never brings it back', async () => {
+    await singleMountedVoided('ORD-A');
     await otherTabPending('ORD-B');
+    expect(singlePanel()).toBe('ORD-B');
+    expect(has(PAY_AGAIN)).toBe(false);
     await otherTabFinishes('ORD-B');
     expect(has(PAY_AGAIN)).toBe(false);
   });
-  it('N1d: stored review A → Done → panel (review pointer) → check → final → Done → review screen not shown again', async () => {
-    await singleCaptureThenUnmount('ORD-A');
-    await answer(0, 200, REVIEW('ORD-A'));
-    render(charter()); await settle();
-    expect(has('Payment received')).toBe(true);
-    fireEvent.click(screen.getByText('Done')); await settle();
-    fireEvent.click(screen.getByText('Check this order')); await settle();
-    await answer(q.length - 1, 200, FINAL('ORD-A'));
-    expect(has('Booking Confirmed!')).toBe(true);
-    fireEvent.click(screen.getByText('Done')); await settle();
-    expect(has('Payment received')).toBe(false);
+  it('I1d cart: voided while mounted → another tab stores CART-A CAPTURED → notice gone → it finishes and the shared cart empties → no "pay again"', async () => {
+    mocks.items = [ITEM]; mocks.createIds.push('CART-A');
+    render(<CartPanel />); await openCart();
+    fireEvent.click(screen.getByText('Proceed to checkout'));
+    fireEvent.click(await screen.findByText('Confirm & pay'));
+    await waitFor(() => expect(buttons.length).toBeGreaterThan(0));
+    act(() => { void buttons[buttons.length - 1].onApprove({ orderID: 'CART-A' }); });
+    await waitFor(() => expect(q.length).toBeGreaterThanOrEqual(1));
+    await answer(0, 409, VOIDED('CART-A', 'cart'));
+    expect(has(PR.PAYMENT_RECOVERY_COPY.en.notCaptured)).toBe(true);
+    await otherTabCaptured('CART-A', 'cart');
+    expect(has(PAY_AGAIN)).toBe(false);
+    await otherTabFinishes('CART-A');
+    await act(async () => { mocks.items = []; for (const f of [...mocks.listeners]) f(); }); await settle();
+    expect(has(PAY_AGAIN)).toBe(false);
   });
 });
 
-describe('B-I1 repros — the FINAL applied result is kept, whatever the path (N2·N2b·N3)', () => {
-  it('N2 single: unmount → capture 500 → evidence final → remount → confirmation, no Book now', async () => {
+describe('after leaving the screen (restore screens removed — main-equivalent policy)', () => {
+  it('single: unmount → capture 500 → evidence final → the order is done; a remounted screen offers Book now (a new purchase, as on main)', async () => {
     await singleCaptureThenUnmount('ORD-E');
     await answer(0, 500, GENERIC);
     await waitFor(() => expect(q.length).toBeGreaterThanOrEqual(2));
     await answer(1, 200, FINAL('ORD-E'));
     render(charter()); await settle();
     expect(PR.isRecoveryDone('ORD-E')).toBe(true);
-    expect(has('Booking Confirmed!')).toBe(true);
-    expect(btn('Book now')).toBeUndefined();
+    expect(singlePanel()).toBeNull();
+    expect(btn('Book now')).toBeDefined();
+    expect(has(PAY_AGAIN)).toBe(false);
   });
-  it('N2b single: remount BEFORE the evidence → evidence final → the remounted screen shows the confirmation', async () => {
+  it('single: remounted while the capture is still in flight → the same-order panel with the check disabled (r19 kept)', async () => {
     await singleCaptureThenUnmount('ORD-E');
     render(charter()); await settle();
-    await answer(0, 500, GENERIC);
-    await waitFor(() => expect(q.length).toBeGreaterThanOrEqual(2));
-    await answer(1, 200, FINAL('ORD-E'));
-    expect(has('Booking Confirmed!')).toBe(true);
+    expect(singlePanel()).toBe('ORD-E');
+    expect(btn('Check this order')!.disabled).toBe(true);
     expect(btn('Book now')).toBeUndefined();
   });
-  it('N3 cart: X → capture 500 → evidence final → reopen → confirmation', async () => {
+  it('cart (logged-in): X → capture 500 → evidence final → reopen → the paid items are gone (no Confirm & pay)', async () => {
     await cartCaptureThenClose('CART-E');
     await answer(0, 500, GENERIC);
     await waitFor(() => expect(q.length).toBeGreaterThanOrEqual(2));
     await answer(1, 200, FINAL('CART-E'));
     await openCart();
     expect(PR.isRecoveryDone('CART-E')).toBe(true);
-    expect(has('Booking confirmed!')).toBe(true);
+    expect(has('Your cart is empty')).toBe(true);
+    expect(btn('Confirm & pay')).toBeUndefined();
   });
-  it('a manual "Check this order" whose screen unmounts before the answer keeps the result too', async () => {
-    PR.saveRecoveryOrder({ orderID: 'ORD-M', flow: 'single', paymentStatus: 'CAPTURE_UNKNOWN', review: false, productType: 'charter_dmz' });
-    const view = render(charter()); await settle();
+});
+
+describe('r22-3 — the confirmation shows the date of the order, not a date changed while paying', () => {
+  it('order created for 12-05 → the screen date is changed to 12-20 while waiting → final → "Booking Confirmed!" with 12-05', async () => {
+    mocks.createIds.push('ORD-D');
+    const view = render(charter('charter_dmz', '2099-12-05'));
+    fireEvent.click(await screen.findByText('Book now'));
+    await waitFor(() => expect(buttons.length).toBeGreaterThan(0));
+    act(() => { void buttons[buttons.length - 1].onApprove({ orderID: 'ORD-D' }); });
+    await waitFor(() => expect(q.length).toBeGreaterThanOrEqual(1));
+    await act(async () => { view.rerender(charter('charter_dmz', '2099-12-20')); });
+    await answer(0, 200, FINAL('ORD-D'));
+    expect(has('Booking Confirmed!')).toBe(true);
+    expect(has('2099-12-05')).toBe(true);
+    expect(has('2099-12-20')).toBe(false);
+  });
+  it('an order this screen did not create (restored pointer) keeps the current screen date (unchanged behaviour)', async () => {
+    PR.saveRecoveryOrder({ orderID: 'ORD-R', flow: 'single', paymentStatus: 'CAPTURE_UNKNOWN', review: false, productType: 'charter_dmz' });
+    render(charter('charter_dmz', '2099-12-07')); await settle();
     fireEvent.click(screen.getByText('Check this order')); await settle();
-    view.unmount();
-    await answer(0, 200, FINAL('ORD-M'));
-    render(charter()); await settle();
+    await answer(0, 200, FINAL('ORD-R'));
     expect(has('Booking Confirmed!')).toBe(true);
+    expect(has('2099-12-07')).toBe(true);
   });
 });
 
-describe('B-I3 / B-I4 / cart Edit cart (N4·N5·notice context)', () => {
-  it('N4: a confirmation for the 12-05 Danyang order never shows on the 12-20 screen of the same productType', async () => {
-    await singleCaptureThenUnmount('ORD-DY', 'charter_seoul_suburb', '2099-12-05');
-    await answer(0, 200, FINAL('ORD-DY'));
-    render(charter('charter_seoul_suburb', '2099-12-20')); await settle();
-    expect(has('Booking Confirmed!')).toBe(false);
-    cleanup();
-    render(charter('charter_seoul_suburb', '2099-12-05')); await settle();
-    expect(has('Booking Confirmed!')).toBe(true);
-    expect(has('ORD-DY')).toBe(true);
-  });
-  it('N5: stored cart "not paid" screen → ← Edit cart → back on the cart list (Proceed to checkout)', async () => {
-    await cartCaptureThenClose('CART-V');
-    await answer(0, 409, VOIDED('CART-V', 'cart'));
-    await openCart();
-    expect(has(PR.PAYMENT_RECOVERY_COPY.en.notCaptured)).toBe(true);
-    fireEvent.click(screen.getByText('← Edit cart')); await settle();
-    expect(btn('Proceed to checkout')).toBeDefined();
-  });
-  it('a stored planner pre-capture refusal shows its reason and hides the QR fallback (same rule as the mounted screen)', async () => {
-    await singleCaptureThenUnmount('ORD-P');
-    await answer(0, 422, VOIDED('ORD-P', 'single', { preCaptureCode: 'DIETARY_COVERAGE_UNAVAILABLE' }));
-    render(charter()); await settle();
-    expect(has('Some meals cannot be matched to your diet')).toBe(true);
-    expect(has(/Pay via QR/)).toBe(false);
-  });
-  it('a stored QR-flow "not paid" result says "do not pay again", never "you can pay again"', async () => {
-    PR.recordCaptureResult({ orderID: 'ORD-Q', flow: 'single', productType: 'charter_dmz', key: PR.resultKeyOf('charter_dmz', undefined, undefined, undefined, DATE), notice: { kind: 'warn' }, outcome: { kind: 'not_captured', message: 'x' } });
-    render(charter()); await settle();
-    expect(has(PR.PAYMENT_RECOVERY_COPY.en.warn)).toBe(true);
-    expect(has(PAY_AGAIN)).toBe(false);
-  });
-  it('a plain stored "not paid" result keeps the QR fallback and the 4-language text', async () => {
-    PR.recordCaptureResult({ orderID: 'ORD-N', flow: 'single', productType: 'charter_dmz', key: PR.resultKeyOf('charter_dmz', undefined, undefined, undefined, DATE), notice: { kind: 'plain' }, outcome: { kind: 'not_captured', message: 'x' } });
-    render(charter()); await settle();
-    expect(has(PR.PAYMENT_RECOVERY_COPY.en.notCaptured)).toBe(true);
-    expect(has(/Pay via QR/)).toBe(true);
-  });
-});
-
-// ── B invariant combination matrix ───────────────────────────────────────────────────────────────────────
-type Flow = 'single' | 'cart' | 'planner';
-type Kind = 'final' | 'review' | 'not_captured';
-const outcomeOf = (kind: Kind, id: string): PR.CaptureOutcome => (kind === 'final' ? { kind: 'final', data: { orderID: id, amount: '100.00' } }
-  : kind === 'review' ? { kind: 'review', captured: true, captureID: 'CAP-1' } : { kind: 'not_captured', message: 'x' });
-const productOf = (flow: Flow) => (flow === 'planner' ? 'ai-planner-full' : flow === 'single' ? 'charter_dmz' : undefined);
-function recordX(flow: Flow, kind: Kind, relation: 'same' | 'otherProduct') {
-  const key = flow === 'cart' ? undefined : PR.resultKeyOf(productOf(flow), undefined, undefined, undefined, relation === 'same' ? DATE : '2099-12-31');
-  PR.recordCaptureResult({ orderID: 'X-1', flow: flow === 'cart' ? 'cart' : 'single', ...(flow === 'cart' ? {} : { productType: flow === 'planner' ? 'ai_planner_full' : 'charter_dmz' }), ...(key ? { key } : {}), notice: { kind: 'plain' }, outcome: outcomeOf(kind, 'X-1') });
-}
-async function mountScreen(flow: Flow) {
-  if (flow === 'cart') { mocks.items = [ITEM]; render(<CartPanel />); await openCart(); return; }
-  render(flow === 'planner' ? planner() : charter()); await settle();
-}
-const visibleText = (flow: Flow, kind: Kind) => (kind === 'final' ? (flow === 'cart' ? 'Booking confirmed!' : 'Booking Confirmed!') : kind === 'review' ? 'Payment received' : PR.PAYMENT_RECOVERY_COPY.en.notCaptured);
-const shown = (flow: Flow, kind: Kind) => has(visibleText(flow, kind));
-async function closeResult(flow: Flow, kind: Kind) {
-  if (kind === 'not_captured') {
-    if (flow === 'cart') fireEvent.click(screen.getByText('← Edit cart'));
-    else fireEvent.click(screen.getByText('Retry'));
-  } else {
-    fireEvent.click(screen.getByText('Done'));
-  }
-  await settle();
-}
-async function selectOtherOrder(flow: Flow) {
-  await otherTabPending('Y-1', flow === 'cart' ? 'cart' : 'single', flow === 'planner' ? 'ai_planner_full' : 'charter_dmz');
-}
-const FLOWS: Flow[] = ['single', 'cart', 'planner'];
-const KINDS: Kind[] = ['final', 'review', 'not_captured'];
-const MOUNTS = ['remount', 'kept'] as const;
-const expectVisible = (flow: Flow, kind: Kind) => !(flow === 'planner' && kind === 'final'); // the planner's CAPTURED pointer owns issuance
-
-const visibleCases = FLOWS.flatMap((flow) => KINDS.filter((kind) => expectVisible(flow, kind)).flatMap((kind) => MOUNTS.flatMap((mount) => (['close', 'otherOrderSelected', 'otherTabDone'] as const).map((end) => [flow, kind, mount, end] as const))));
-describe('B invariant matrix — same order: visible, no pay button, and the end actions', () => {
-  it.each(visibleCases)('%s × %s × %s × %s', async (flow, kind, mount, end) => {
-    if (mount === 'remount') { recordX(flow, kind, 'same'); await mountScreen(flow); } else { await mountScreen(flow); await act(async () => { recordX(flow, kind, 'same'); }); await settle(); }
-    expect(shown(flow, kind)).toBe(true);
-    if (kind !== 'not_captured') { expect(btn('Book now')).toBeUndefined(); expect(btn('Confirm & pay')).toBeUndefined(); } // B-I5
-    if (end === 'close') {
-      await closeResult(flow, kind);
-      expect(shown(flow, kind)).toBe(false);
-      cleanup(); await mountScreen(flow);
-      expect(shown(flow, kind)).toBe(false);
-    } else if (end === 'otherOrderSelected') {
-      await selectOtherOrder(flow);
-      expect(shown(flow, kind)).toBe(false);
-      await otherTabFinishes('Y-1');
-      expect(shown(flow, kind)).toBe(false);
-    } else {
-      await otherTabFinishes('X-1');
-      expect(shown(flow, kind)).toBe(true);
-    }
-  });
-});
-
-const hiddenCases = FLOWS.flatMap((flow) => KINDS.flatMap((kind) => MOUNTS.flatMap((mount) => {
-  const rows: Array<readonly [Flow, Kind, 'remount' | 'kept', 'otherOrder' | 'otherProduct' | 'plannerFinal']> = [];
-  rows.push([flow, kind, mount, 'otherOrder'] as const);
-  if (flow !== 'cart') rows.push([flow, kind, mount, 'otherProduct'] as const);
-  if (!expectVisible(flow, kind)) rows.push([flow, kind, mount, 'plannerFinal'] as const);
-  return rows;
-})));
-describe('B invariant matrix — other order selected / same productType other product / planner final: never visible', () => {
-  it.each(hiddenCases)('%s × %s × %s × %s', async (flow, kind, mount, relation) => {
-    const doRecord = () => recordX(flow, kind, relation === 'otherProduct' ? 'otherProduct' : 'same');
-    if (relation === 'otherOrder') PR.saveRecoveryOrder({ orderID: 'Y-1', flow: flow === 'cart' ? 'cart' : 'single', paymentStatus: 'CAPTURE_UNKNOWN', review: false, ...(flow === 'cart' ? {} : { productType: flow === 'planner' ? 'ai_planner_full' : 'charter_dmz' }) });
-    if (mount === 'remount') { doRecord(); await mountScreen(flow); } else { await mountScreen(flow); await act(async () => { doRecord(); }); await settle(); }
-    expect(shown(flow, kind)).toBe(false);
-    if (relation === 'otherOrder') { // dismissed for good: finishing Y never revives X's result
-      await otherTabFinishes('Y-1');
-      expect(shown(flow, kind)).toBe(false);
-    }
-  });
-});

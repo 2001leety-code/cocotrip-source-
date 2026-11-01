@@ -168,6 +168,30 @@ describe('r19 cart — tombstone contract', () => {
     expect(db.rows.has(LOCK)).toBe(false);
   });
 
+  // r22 S1/S3 (cart): a same-order check never replays an input written without proof; tombstone failure = 202; fixed outer text.
+  it('r22: check on a POST-less unproven cart record → no POST, record deleted, absent path (GET APPROVED → order_voided)', async () => {
+    db.rows.set(LOCK, { ...inFlightLock('none'), claimUntil: 0, intentProven: false, intent: { version: 1, body: { userEmail: 'stranger@evil.invalid', lineCount: 1 }, uid: 'stranger' } });
+    provider.push({ method: 'GET', reply: { status: 200, body: { id: ORDER, status: 'APPROVED' } } });
+    const out = await call({ orderID: ORDER, reconcile: true });
+    expect(out.body).toMatchObject({ evidence: 'order_voided' });
+    expect(provider.calls.map((c) => c.method)).toEqual(['GET']);
+    expect(db.rows.has(`carts/${ORDER}`)).toBe(false);
+    expect(JSON.stringify(db.rows.get(LOCK))).not.toMatch(/stranger/);
+  });
+  it('r22: the void transaction failing on an absent check → 202 UNKNOWN', async () => {
+    provider.push({ method: 'GET', reply: { status: 200, body: { id: ORDER, status: 'APPROVED' } } });
+    db.failNextMatching((path, value) => path === LOCK && !!value && value.status === 'void_not_captured');
+    const out = await call({ orderID: ORDER, reconcile: true });
+    expect(out.status).toBe(202);
+    expect(out.body).toMatchObject({ paymentStatus: 'CAPTURE_UNKNOWN' });
+  });
+  it('r22: an unexpected exception answers a fixed text (the original only in the log)', async () => {
+    effects.token.mockRejectedValueOnce(new Error('oauth down: secret-internal'));
+    const out = await call({ orderID: ORDER });
+    expect(out.status).toBe(500);
+    expect(JSON.stringify(out.body)).not.toMatch(/secret-internal/);
+  });
+
   it('a posted attempt with lookup CREATED stays UNKNOWN (no tombstone, no POST)', async () => {
     db.rows.set(LOCK, { ...inFlightLock(), claimUntil: 0 });
     provider.push({ method: 'GET', reply: { status: 200, body: { id: ORDER, status: 'CREATED' } } });

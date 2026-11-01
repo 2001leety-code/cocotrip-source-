@@ -241,7 +241,11 @@ export function validateIntent(intent) {
  * is only "no attempt at this moment" — the caller decides with resolveAbsentAttempt (r19).
  * A void tombstone answers 'voided' before every other check (r19): the order can never be captured.
  */
-export async function acquirePaymentAttempt({ db, orderID, flow, environment, requestKey, intent, userEmail = '', product = '', nowMs = Date.now(), createIfMissing = true, allowRecovery = true }) {
+/*
+ * r22 intentProven: stored in the SAME write as the intent — did the request that wrote this input carry same-order proof?
+ *   (missing = false). A same-order check (no input of its own) never replays an unproven input (see capture handlers).
+ */
+export async function acquirePaymentAttempt({ db, orderID, flow, environment, requestKey, intent, userEmail = '', product = '', nowMs = Date.now(), createIfMissing = true, allowRecovery = true, intentProven = false }) {
   if (!db) throw new Error('Firestore unavailable');
   const ref = db.collection(USED_ORDERS_COLLECTION).doc(orderID);
   const claimToken = randomUUID();
@@ -256,7 +260,7 @@ export async function acquirePaymentAttempt({ db, orderID, flow, environment, re
     if (!lock) {
       const fresh = {
         status: 'pending', createdAt: new Date(nowMs).toISOString(), createdAtMs: nowMs, userEmail, product: product || 'unknown',
-        flow, environment, requestKey, intent, captureState: 'none', claimToken, claimUntil: nowMs + CLAIM_LEASE_MS, stages: {},
+        flow, environment, requestKey, intent, intentProven: intentProven === true, captureState: 'none', claimToken, claimUntil: nowMs + CLAIM_LEASE_MS, stages: {},
       };
       tx.set(ref, fresh);
       return { kind: 'claimed', attempt: { ref, db, claimToken, lock: fresh, recovering: false } };
@@ -268,7 +272,7 @@ export async function acquirePaymentAttempt({ db, orderID, flow, environment, re
       // Legacy lock (pre-recovery deploy): captured or fresh pending keeps the old duplicate answer.
       const stale = lock.status === 'pending' && lock.createdAtMs && (nowMs - Number(lock.createdAtMs)) > LEGACY_STALE_MS;
       if (lock.status === 'captured' || !stale) return { kind: 'duplicate', lock };
-      const adopted = { ...lock, flow, environment, requestKey, intent, captureState: 'posted', claimToken, claimUntil: nowMs + CLAIM_LEASE_MS, stages: lock.stages || {} };
+      const adopted = { ...lock, flow, environment, requestKey, intent, intentProven: intentProven === true, captureState: 'posted', claimToken, claimUntil: nowMs + CLAIM_LEASE_MS, stages: lock.stages || {} };
       tx.set(ref, adopted, { merge: true });
       return { kind: 'claimed', attempt: { ref, db, claimToken, lock: adopted, recovering: true } };
     }
@@ -320,6 +324,19 @@ export async function updateAttempt(attempt, patch) {
     const snap = await tx.get(attempt.ref);
     if (!snap.exists || (snap.data() || {}).claimToken !== attempt.claimToken) throw codedError('Payment claim changed', 'CLAIM_LOST');
     tx.set(attempt.ref, omitUndefined(patch), { merge: true });
+  });
+}
+
+/**
+ * r22 S2: a proven request taking over a POST-less record replaces the input WHOLE (tx.update replaces the `intent` field —
+ * set(merge) would merge its sub-fields and keep the previous writer's phone/time/memo). Other fields (stages …) untouched.
+ */
+export async function replaceAttemptIntent(attempt, { intent, userEmail, product, intentProven }) {
+  await attempt.db.runTransaction(async (tx) => {
+    const snap = await tx.get(attempt.ref);
+    const lock = snap.exists ? snap.data() || {} : null;
+    if (!lock || lock.claimToken !== attempt.claimToken || lock.captureState !== 'none') throw codedError('Payment claim changed', 'CLAIM_LOST');
+    tx.update(attempt.ref, omitUndefined({ intent, userEmail, product, intentProven: intentProven === true }));
   });
 }
 
@@ -385,12 +402,17 @@ export async function resolveAbsentAttempt({ db, orderID, flow, environment, pro
     return { status: 202, body: pendingPaymentResponse({ orderID, flow, paymentStatus: 'CAPTURED' }), alert: 'captured-without-attempt-record' };
   }
   if (lookup.state !== 'approved' && lookup.state !== 'not_captured') return unknown(lookup.reason || 'lookup-unknown');
-  const outcome = await db.runTransaction(async (tx) => {
-    const snap = await tx.get(ref);
-    if (snap.exists) return isVoidTombstone(snap.data() || {}) ? 'voided' : 'exists';
-    tx.set(ref, voidTombstone({ flow, environment, reason: 'no_attempt_record', nowMs }));
-    return 'voided';
-  });
+  let outcome;
+  try {
+    outcome = await db.runTransaction(async (tx) => {
+      const snap = await tx.get(ref);
+      if (snap.exists) return isVoidTombstone(snap.data() || {}) ? 'voided' : 'exists';
+      tx.set(ref, voidTombstone({ flow, environment, reason: 'no_attempt_record', nowMs }));
+      return 'voided';
+    });
+  } catch {
+    return unknown('void-write-failed'); // r22 S3: never a 500 with Firestore text; nothing written → the next check retries
+  }
   return outcome === 'voided' ? { status: 409, body: orderVoidedResponse({ orderID, flow }) } : unknown('attempt-appeared');
 }
 

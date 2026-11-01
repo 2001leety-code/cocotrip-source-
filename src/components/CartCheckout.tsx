@@ -19,7 +19,7 @@ import { authFetch } from '@/lib/authFetch';
 import { useGuestSignup } from '@/hooks/useGuestSignup';
 import { GuestSignupNudge } from '@/components/GuestSignupNudge';
 import type { Language } from '@/i18n';
-import { usePaymentRecovery, reconcilePayment, classifyCaptureResponse, recoveryCopy, recoveryHeadline, placeForeignPending, isForeignOrder, isCurrentPointer, beginCapture, endCapture, isCaptureInFlight, isRecoveryDone, recordCaptureResult, dismissCaptureResult, type CaptureOutcome, type PaymentRecovery } from '@/lib/paymentRecovery';
+import { usePaymentRecovery, reconcilePayment, classifyCaptureResponse, recoveryCopy, recoveryHeadline, placeForeignPending, isForeignOrder, isCurrentPointer, beginCapture, endCapture, isCaptureInFlight, isRecoveryDone, hasPaymentEvidence, type CaptureOutcome, type PaymentRecovery } from '@/lib/paymentRecovery';
 
 type PaypalButtonsApi = { Buttons: (cfg: Record<string, unknown>) => { render: (sel: string) => void } };
 function getPaypal(): PaypalButtonsApi | undefined {
@@ -88,54 +88,29 @@ export function CartCheckout({ onClose, onBack }: { onClose: () => void; onBack?
   // 🔴 2026-10-10 payment recovery (cart): pointer before capture, duplicate guard, same-order reconcile via
   //   /api/captureCartOrder {orderID}. The cart stays intact while pending; it is cleared only on durable success.
   // r19: captureBusy = 이 주문 capture 가 이 탭에서 진행 중(모듈 집합 — 패널을 닫았다 열어도 유지) → '같은 주문 확인' 비활성.
-  const { recovery, pendingRef, remember, clearRecovery, refresh: refreshRecovery, captureBusy, captureResult } = usePaymentRecovery({ flow: 'cart' });
+  const { recovery, pendingRef, remember, clearRecovery, refresh: refreshRecovery, captureBusy } = usePaymentRecovery({ flow: 'cart' });
   const [reconciling, setReconciling] = useState(false);
   const rc = recoveryCopy(language);
-  // r20: capture 를 시작한 화면이 그 사이 언마운트됐는가 — 그러면 결과를 모듈(recordCaptureResult)에 남겨 다시 마운트된 화면이 띄운다.
-  const mountedRef = useRef(true);
-  useEffect(() => { mountedRef.current = true; return () => { mountedRef.current = false; }; }, []);
   // r19: 결제 결과 문구는 그 주문에 묶는다(PayPalBookingButton 과 같은 규칙) — 다른 주문의 복구 패널엔 안 보이고,
   //   최종이 아닌 문구는 그 주문이 CAPTURED·완료가 되면 지운다. message 가 지금 error 와 같을 때만 유효.
   //   r20: 화면이 다른 주문을 고르면(최종 문구 포함) 지운다 — A 의 "결제 안 됨" 이 B 가 끝난 뒤 기본 화면에 처음 나타나지 않게.
-  const [errorOrder, setErrorOrder] = useState<{ orderID: string; final: boolean; message: string } | null>(null);
-  function orderError(message: string, orderID: string, final: boolean) { setError(message); setErrorOrder({ orderID, final, message }); }
+  //   r22 (B-I6): 문구의 orderID 가 CAPTURED·검토 포인터 또는 'final' 완료 표식으로 보이면 최종 문구도 즉시 지운다('void' 는 근거 아님).
+  //   notPaid = "결제 안 됨" 안내 — 결제 증거 규칙은 이 문구에만(환불 안내는 'final' 표식과 함께 남는다).
+  const [errorOrder, setErrorOrder] = useState<{ orderID: string; final: boolean; notPaid: boolean; message: string } | null>(null);
+  function orderError(message: string, orderID: string, final: boolean, notPaid = false) { setError(message); setErrorOrder({ orderID, final, notPaid, message }); }
   const tagged = errorOrder && errorOrder.message === error ? errorOrder : null;
-  if (tagged && ((recovery && recovery.orderID !== tagged.orderID)
-    || (!tagged.final && ((recovery && recovery.orderID === tagged.orderID && recovery.paymentStatus === 'CAPTURED') || isRecoveryDone(tagged.orderID))))) {
+  if (tagged && ((recovery && recovery.orderID !== tagged.orderID) || (tagged.notPaid && hasPaymentEvidence(tagged.orderID))
+    || (!tagged.final && isRecoveryDone(tagged.orderID)))) {
     setError(null); setErrorOrder(null);
   }
   const panelError = recovery && error && !(tagged && (tagged.orderID !== recovery.orderID || tagged.final)) ? error : null;
-  // r20: 다시 마운트된 이 화면이 이어받은 결과(이 화면 상태가 idle 일 때) — 닫을 때까지 성공·검토·미결제 화면.
-  //   r21 (B-I2·B-I3): 다른 미해결 장바구니 주문이 선택돼 있으면 보이지 않는다(같은 주문의 검토 포인터는 예외).
-  const restored = status === 'idle' && captureResult && (!recovery || recovery.orderID === captureResult.orderID) ? captureResult : null;
-  const viewStatus: Status = restored ? (restored.outcome.kind === 'final' ? 'success' : restored.outcome.kind === 'review' ? 'review' : 'error') : status;
-  const viewError = restored && restored.outcome.kind === 'not_captured' ? rc.notCaptured : error;
-  const closeResult = () => { if (captureResult) dismissCaptureResult(captureResult.orderID); onClose(); };
-  // r21 (B-I2): 다른 미해결 주문을 고르거나 이 화면이 자기 결과·새 결제(성공·검토·주문 생성·결제 중)로 넘어가면 옛 보관 결과는 폐기.
-  useEffect(() => {
-    if (!captureResult) return;
-    if ((recovery && recovery.orderID !== captureResult.orderID) || status === 'success' || status === 'review' || status === 'creating' || status === 'ready' || status === 'processing') {
-      dismissCaptureResult(captureResult.orderID);
-    }
-  }, [captureResult, recovery, status]);
-  // r21 (B-I1): 최종 적용 결과의 공통 보관 지점 — 이 화면이 그 사이 언마운트됐을 때만(마운트돼 있으면 이 화면 상태가 보여 준다).
-  function keepResult(orderId: string, outcome: CaptureOutcome) {
-    if (!mountedRef.current) recordCaptureResult({ orderID: orderId, flow: 'cart', outcome });
-  }
-  // r21 (10): 결제창이 열린('ready') 동안 장바구니 목록이 바뀌면(다른 탭) 열린 주문을 버리고 검수 화면으로 — 결제 금액·항목이
-  //   보이는 목록과 어긋난 PayPal 버튼을 남기지 않는다. 새 주문을 만들면 새 목록으로 다시 계산된다.
-  const itemsKey = items.map((it) => it.id).join(',');
-  const [orderItemsKey, setOrderItemsKey] = useState<string | null>(null);
-  if (status === 'ready' && orderItemsKey !== null && orderItemsKey !== itemsKey) {
-    setStatus('idle'); setOrderID(null); setTotal(null); setOrderItemsKey(null);
-  }
   // r19 (B13): 빈 장바구니로 들어온 확인 화면에서 확인할 주문이 사라지면(다른 탭이 끝냄) 빈 장바구니 안내로 — 이 탭의 결과 화면
   //   (성공·검토·이 탭의 최종 미결제·환불)은 닫을 때까지 유지.
   //   r20: idle 뿐 아니라 최종이 아닌(태그 없음·일반 오류) error 에서도 — 일반 오류 뒤 다른 탭이 끝내도 빈 검수 화면에 남지 않게.
   const nonFinalError = status === 'error' && !(tagged && tagged.final);
   useEffect(() => {
-    if (!recovery && !captureResult && items.length === 0 && (status === 'idle' || nonFinalError) && onBack) onBack();
-  }, [recovery, captureResult, items.length, status, nonFinalError, onBack]);
+    if (!recovery && items.length === 0 && (status === 'idle' || nonFinalError) && onBack) onBack();
+  }, [recovery, items.length, status, nonFinalError, onBack]);
   // 2026-10-24: 결제 성공 화면 게스트 → 회원 전환 넛지 (PayPalBookingButton 과 같은 훅). 결제 상태와 별개.
   const { signupLoading, signupError, handleGuestSignup } = useGuestSignup();
   const [payerEmail, setPayerEmail] = useState<string | null>(null);
@@ -147,9 +122,9 @@ export function CartCheckout({ onClose, onBack }: { onClose: () => void; onBack?
     if (outcome.kind === 'final') {
       // 표시 전용 — 서버 확정 응답(captureCartOrder data.payerEmail)의 결제자 이메일.
       setPayerEmail(typeof outcome.data.payerEmail === 'string' && outcome.data.payerEmail ? outcome.data.payerEmail : null);
-      clearRecovery(orderId); keepResult(orderId, outcome); setStatus('success'); await clear(); return;
+      clearRecovery(orderId); setStatus('success'); await clear(); return;
     }
-    if (outcome.kind === 'review') { keep({ paymentStatus: outcome.captured ? 'CAPTURED' : 'NOT_CAPTURED', review: true }); keepResult(orderId, outcome); setStatus('review'); await clear(); return; }
+    if (outcome.kind === 'review') { keep({ paymentStatus: outcome.captured ? 'CAPTURED' : 'NOT_CAPTURED', review: true }); setStatus('review'); await clear(); return; }
     if (outcome.kind === 'pending') { keep({ paymentStatus: outcome.status, review: false }); setStatus('idle'); return; }
     if (outcome.kind === 'auth_required') {
       // 403 precedes the provider call (no charge). A fresh order never locks the flow (2026-10-10 R2).
@@ -158,7 +133,7 @@ export function CartCheckout({ onClose, onBack }: { onClose: () => void; onBack?
     }
     // r19: 미결제 응답은 최종(서버 묘비 — 구 서버 no_attempt_record 는 분류 단계에서 UNKNOWN) → 완료 처리 + 4개 언어 안내.
     //   r20: 'void' 완료 표식 — 서버가 나중에 CAPTURED·검토(webhook 충돌)를 보이면 그 증거가 이긴다.
-    if (outcome.kind === 'not_captured') { clearRecovery(orderId, 'void'); keepResult(orderId, outcome); orderError(rc.notCaptured, orderId, true); setStatus('error'); return; }
+    if (outcome.kind === 'not_captured') { clearRecovery(orderId, 'void'); orderError(rc.notCaptured, orderId, true, true); setStatus('error'); return; }
     // Server-proven full refund: terminal, not a booking — the cart is kept, no success state.
     if (outcome.kind === 'refunded') { clearRecovery(orderId); orderError(outcome.message, orderId, true); setStatus('error'); return; }
     // Generic error: keep the pointer unless the server gives durable evidence of no capture.
@@ -180,7 +155,6 @@ export function CartCheckout({ onClose, onBack }: { onClose: () => void; onBack?
   async function createOrder() {
     if (orderRequestInFlight.current || recovery) return;
     orderRequestInFlight.current = true;
-    if (captureResult) dismissCaptureResult(captureResult.orderID); // r20: 새 주문을 시작하면 이어받은 결과 화면은 끝
     setStatus('creating'); setError(null);
     try {
       const res = await authFetch('/api/createCartOrder', {
@@ -197,7 +171,6 @@ export function CartCheckout({ onClose, onBack }: { onClose: () => void; onBack?
       } else if (json.ok && json.data && json.data.orderID) {
         rendered.current = false; // r20: 새 주문마다 PayPal 버튼을 다시 그린다(묘비로 끝난 앞 주문 뒤 재결제 버튼이 비던 문제)
         setOrderID(json.data.orderID);
-        setOrderItemsKey(itemsKey);
         setTotal({ usd: json.data.usdAmount, krw: json.data.totalKRW });
         setStatus('ready');
         loadSdk();
@@ -273,7 +246,7 @@ export function CartCheckout({ onClose, onBack }: { onClose: () => void; onBack?
           // 🔴 review / recovery-pending are neither success nor failure (double-charge guard); only a durable
           //   finalized answer for this orderID clears the pointer and the cart. Exceptions stay pending.
           const outcome = classifyCaptureResponse(await res.json(), data.orderID);
-          await applyOutcome(outcome, data.orderID, true); // r21: 결과 보관은 applyOutcome 의 최종 분기(keepResult)
+          await applyOutcome(outcome, data.orderID, true);
         } catch {
           remember({ orderID: data.orderID, flow: 'cart', paymentStatus: 'CAPTURE_UNKNOWN', review: false });
           setStatus('idle');
@@ -288,7 +261,7 @@ export function CartCheckout({ onClose, onBack }: { onClose: () => void; onBack?
   }, [orderID, paypalReady]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // 🔴 결제 접수 · 예약 확인 중 — "확정" 표현 금지 + 재결제 만류(이중청구 방지).
-  if (viewStatus === 'review') {
+  if (status === 'review') {
     return (
       <div className="cocotrip-mobile-cart-checkout p-6 text-center">
         <div className="text-4xl mb-3 customer-checkout-review-icon" aria-hidden="true">🕒</div>
@@ -299,7 +272,7 @@ export function CartCheckout({ onClose, onBack }: { onClose: () => void; onBack?
         <p className="text-amber-300 text-xs mb-5 bg-amber-500/10 border border-amber-400/30 rounded-xl px-3 py-2">
           {c.checkoutReviewWarn || 'Please do not pay again — it may result in a duplicate charge.'}
         </p>
-        <button onClick={closeResult} className="px-5 py-2.5 min-h-[44px] rounded-xl text-sm font-semibold bg-[#7C5CFC] text-white">
+        <button onClick={onClose} className="px-5 py-2.5 min-h-[44px] rounded-xl text-sm font-semibold bg-[#7C5CFC] text-white">
           {c.close || 'Done'}
         </button>
       </div>
@@ -307,7 +280,7 @@ export function CartCheckout({ onClose, onBack }: { onClose: () => void; onBack?
   }
 
   // 'review' already returned above, so only 'success' needs excluding here.
-  if (recovery && viewStatus !== 'success') {
+  if (recovery && status !== 'success') {
     return (
       <div className="cocotrip-mobile-cart-checkout p-6 text-center customer-checkout-recovery">
         <div className="text-4xl mb-3" aria-hidden="true">🕒</div>
@@ -324,7 +297,7 @@ export function CartCheckout({ onClose, onBack }: { onClose: () => void; onBack?
     );
   }
 
-  if (viewStatus === 'success') {
+  if (status === 'success') {
     return (
       <div className="cocotrip-mobile-cart-checkout p-6 text-center">
         <div className="text-4xl mb-3 customer-checkout-success-icon">✅</div>
@@ -342,7 +315,7 @@ export function CartCheckout({ onClose, onBack }: { onClose: () => void; onBack?
             />
           </div>
         )}
-        <button onClick={closeResult} className="px-5 py-2.5 rounded-xl text-sm font-semibold bg-[#7C5CFC] text-white">
+        <button onClick={onClose} className="px-5 py-2.5 rounded-xl text-sm font-semibold bg-[#7C5CFC] text-white">
           {c.close || 'Done'}
         </button>
       </div>
@@ -441,8 +414,8 @@ export function CartCheckout({ onClose, onBack }: { onClose: () => void; onBack?
           {c.processing || 'Confirming payment...'}
         </div>
       )}
-      {viewError && (
-        <p className="text-red-400/80 text-xs text-center mt-3">{viewError}</p>
+      {error && (
+        <p className="text-red-400/80 text-xs text-center mt-3">{error}</p>
       )}
     </div>
   );
