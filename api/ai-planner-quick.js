@@ -189,27 +189,45 @@ function buildPrompt(lang, intent, foodPrefs, cleanSpecialRequest, hasSafetyDiet
     zh: '\n请绝不要自行提及清真/纯素/素食/认证/保证/安全/穆斯林友好等饮食安全声明（不论是餐厅还是任何景点的贴士）— 服务器会另行添加已核实的说明。',
     en: '\nNever state ANY Halal/Vegan/Vegetarian/certified/guaranteed/safe/Muslim-friendly claim yourself, in ANY tip (restaurant or attraction) — the server appends the one verified evidence note separately.',
   }[lang] || '';
+  // 2026-11-02 (Claude quick r3b): what to write instead — diet guests' tips are replaced by the server anyway
+  //   (enforceDietaryRowTips), but the claim check still reads them, so a model that only hears "don't" kept explaining diets.
+  const dietTipGuide = {
+    ko: '\n"VERIFIED ... DIETARY-SAFE RESTAURANTS" 목록의 식당을 점심 또는 저녁 식사 장소로 최소 1곳 넣으세요(명소 칸에 목록 이름 그대로).\n팁 칸에는 그 장소 자체(볼거리·분위기·추천 시간대·동선)만 짧게 쓰세요 — 음식 재료·식이·인증·안전 이야기는 쓰지 마세요(식당 안내 문구는 서버가 넣습니다). 팁·서사·테마는 한국어로만 쓰고, 식당·장소 이름은 명소 칸에만 쓰세요(팁에 다른 문자로 된 이름을 넣지 마세요).',
+    ja: '\n「VERIFIED ... DIETARY-SAFE RESTAURANTS」リストの店を、昼食または夕食の場所として最低1か所入れてください（スポット欄にリストの名前のまま）。\nヒント欄にはその場所自体（見どころ・雰囲気・おすすめの時間帯・動線）だけを短く書いてください — 食材・食事制限・認証・安全の話は書かないでください（飲食店の案内文はサーバーが入れます）。ヒント・紹介文・テーマは日本語だけで書き、店名・スポット名はスポット欄だけに書いてください（ヒントに他の文字の名前を入れないこと）。',
+    zh: '\n请至少安排1家"VERIFIED ... DIETARY-SAFE RESTAURANTS"列表中的餐厅作为午餐或晚餐地点（在地点栏按列表名称书写）。\n贴士栏只简短写该地点本身（看点、氛围、推荐时段、动线）— 不要写食材、饮食限制、认证或安全相关内容（餐厅说明由服务器添加）。贴士、介绍和主题只用中文书写，餐厅和地点名称只写在地点栏（贴士里不要放其他文字的名称）。',
+    en: '\nInclude at least one restaurant from the "VERIFIED ... DIETARY-SAFE RESTAURANTS" list as the lunch or dinner stop (its name in the Spot column, exactly as listed).\nKeep each tip short and about the place itself (what to see, the atmosphere, the best time, how to move on) — never about ingredients, diets, certification or safety (the server adds the restaurant note). Write tips, the narrative and themes in English only, and put restaurant and place names only in the Spot column (no Korean or other non-English letters in any tip).',
+  }[lang] || '';
+  // 2026-11-02 (Claude quick r3): diet guests got "pass along the tier (CERTIFIED/FRIENDLY) exactly as given" right next to
+  //   dietaryClaimBan — Claude obeyed the first and wrote "(FRIENDLY, 비인증)"/"certified" into names and tips, which the
+  //   server rejects (DIETARY_CLAIM_RE). Diet guests now get "do not write the tier" instead; the server attaches the verified
+  //   note. Guests without a safety diet keep the old sentence byte-for-byte.
+  const tierRule = {
+    ko: hasSafetyDiet ? '. 등급(CERTIFIED/FRIENDLY)·인증 여부는 쓰지 마세요 — 서버가 확인된 근거 문구를 따로 붙입니다. 명소 칸의 식당 이름은 목록에 적힌 이름 그대로(괄호의 등급 표시 없이) 쓰세요.' : ' — 목록에 적힌 등급(CERTIFIED/FRIENDLY)을 그대로 전달하세요.',
+    ja: hasSafetyDiet ? '。等級（CERTIFIED/FRIENDLY）や認証の有無は書かないでください — サーバーが確認済みの根拠文を別途付けます。スポット欄の店名はリストに書かれた名前のまま（括弧の等級表示なし）で書いてください。' : ' — リストの等級（CERTIFIED/FRIENDLY）をそのまま伝えてください。',
+    zh: hasSafetyDiet ? '。不要写出等级（CERTIFIED/FRIENDLY）或认证情况 — 服务器会另行附上已核实的依据说明。地点栏的餐厅名称请严格按列表中的名称书写（不要加括号的等级标注）。' : ' — 如实转达列表中标注的等级（CERTIFIED/FRIENDLY）。',
+    en: hasSafetyDiet ? '. Never write the tier (CERTIFIED/FRIENDLY) or any certification status yourself — the server attaches the verified evidence note separately. In the Spot column, write each restaurant name exactly as it appears in the list (no tier label in parentheses); never copy a Korean name into a tip, theme or the narrative.' : ' — pass along the tier written there (CERTIFIED vs. FRIENDLY) exactly as given.',
+  }[lang] || '';
   const dietaryRule = {
     ko: foodPrefs ? `
 식사 추천 규칙 (반드시 지킬 것):
 TRAVELER DATA의 food_preferences 항목에 적힌 선호를 반영하세요.
 할랄/비건/채식 요청이 있으면, 아래에 주입된 "VERIFIED ... DIETARY-SAFE RESTAURANTS" 목록의 식당만 추천하세요.
-목록에 없는 식당을 지어내거나 인증 여부를 추측하지 마세요 — 목록에 적힌 등급(CERTIFIED/FRIENDLY)을 그대로 전달하세요.${hasSafetyDiet ? dietaryClaimBan + noMenuClaim : ''}` : '',
+목록에 없는 식당을 지어내거나 인증 여부를 추측하지 마세요${tierRule}${hasSafetyDiet ? dietaryClaimBan + noMenuClaim + dietTipGuide : ''}` : '',
     ja: foodPrefs ? `
 食事の推薦ルール（必ず守ること）:
 TRAVELER DATAのfood_preferences項目に記載された希望を反映してください。
 ハラール・ヴィーガン・ベジタリアンの希望がある場合、下に挿入された「VERIFIED ... DIETARY-SAFE RESTAURANTS」リストの店舗のみ推薦してください。
-リストにない店を作り出したり、認証の有無を推測したりしないでください — リストの等級（CERTIFIED/FRIENDLY）をそのまま伝えてください。${hasSafetyDiet ? dietaryClaimBan + noMenuClaim : ''}` : '',
+リストにない店を作り出したり、認証の有無を推測したりしないでください${tierRule}${hasSafetyDiet ? dietaryClaimBan + noMenuClaim + dietTipGuide : ''}` : '',
     zh: foodPrefs ? `
 餐饮推荐规则（必须遵守）:
 请参考TRAVELER DATA中food_preferences字段记录的偏好。
 如有清真/纯素/素食需求，只能从下方注入的"VERIFIED ... DIETARY-SAFE RESTAURANTS"列表中推荐餐厅。
-不要编造列表之外的餐厅，也不要猜测认证情况 — 如实转达列表中标注的等级（CERTIFIED/FRIENDLY）。${hasSafetyDiet ? dietaryClaimBan + noMenuClaim : ''}` : '',
+不要编造列表之外的餐厅，也不要猜测认证情况${tierRule}${hasSafetyDiet ? dietaryClaimBan + noMenuClaim + dietTipGuide : ''}` : '',
     en: foodPrefs ? `
 MEAL PLANNING RULES (follow exactly):
 Reflect the preferences in TRAVELER DATA's food_preferences field.
 If Halal/Vegan/Vegetarian was requested, ONLY recommend restaurants from the "VERIFIED ... DIETARY-SAFE RESTAURANTS" list injected below.
-Never invent a restaurant not on that list, and never guess at certification — pass along the tier written there (CERTIFIED vs. FRIENDLY) exactly as given.${hasSafetyDiet ? dietaryClaimBan + noMenuClaim : ''}` : '',
+Never invent a restaurant not on that list, and never guess at certification${tierRule}${hasSafetyDiet ? dietaryClaimBan + noMenuClaim + dietTipGuide : ''}` : '',
   }[lang] || '';
 
   if (lang === 'ko') {
@@ -783,9 +801,16 @@ function buildValidationContext({ canonicalCandidates, trustedFoodCandidates, ge
 const DIETARY_CLAIM_RE = /\bhalal\b|\bvegan\b|\bvegetarian\b|\bmuslim\b|\bpork\b|\bcertifi(?:ed|cation)\b|\bguarantee(?:d)?\b|\bsafe\b|100%\s*(halal|vegan|safe)?|no\s*cross[- ]?contamination|할랄|비건|채식|무슬림|돼지고기|인증|보장|안전|ハラール|ヴィーガン|ベジタリアン|ムスリム|豚肉|認証|保証|安全|清真|纯素|素食|穆斯林|猪肉|认证|保证/i;
 function validatesNoModelDietaryClaims(json, rows, hasSafetyDiet) {
   if (!hasSafetyDiet) return { ok: true };
-  const fields = [json.marketingNarrative || '', ...(json.themes || []), ...(rows || []).map((r) => r.tip || '')];
-  for (const f of fields) {
-    if (DIETARY_CLAIM_RE.test(f)) {
+  const fields = [
+    ['narrative', 0, json.marketingNarrative || ''],
+    ...(json.themes || []).map((t, i) => ['theme', i, t]),
+    ...(rows || []).map((r, i) => ['tip', i, r.tip || '']),
+  ];
+  for (const [field, idx, f] of fields) {
+    const m = DIETARY_CLAIM_RE.exec(f);
+    if (m) {
+      // 2026-11-02 (Claude quick r3b): one ops line per rejection — which fixed denylist word hit, never the model text or guest input.
+      console.warn(`[QUICK_CLAIM] field=${field} idx=${idx} token=${m[0].toLowerCase().slice(0, 20)}`);
       return { ok: false, reason: 'Model authored a dietary/certification/safety claim (narrative, theme, or a tip) — that claim is server-owned only' };
     }
   }
