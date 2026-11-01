@@ -116,6 +116,28 @@ describe('4 — retry tells the model why attempt 1 was rejected (fixed line, no
     expect(res.statusCode).toBe(502);
     expect(JSON.parse(res.body).code).toBe('GEMINI_ERROR');
   });
+  // Astra P2: the table-error reason always says "no Start-point token in Spot" — a table error must get the table/JSON line, not the name line.
+  const TABLE_LINE = /the JSON fields or the table format were wrong/;
+  it.each([
+    ['wrong header', (t: string) => t.replace('| Time | Spot | Transit | Insider Tip |', '| Hour | Place | Transit | Tip |')],
+    ['empty cell', (t: string) => t.replace('interesting exhibit', ' ')],
+    ['two rows', (t: string) => t.split('\n').slice(0, 4).join('\n')],
+    ['Start point in the Spot column', (t: string) => t.replace('National Folk Museum', 'Start point')],
+  ])('table error (%s) → table/JSON correction, not the name correction → 200', async (_label, mutate) => {
+    generateContentMock.mockResolvedValueOnce(json({ ...MODEL, day1MarkdownTable: mutate(table('Adm’s Mandi')) }));
+    generateContentMock.mockResolvedValueOnce(ok());
+    const res = await postJson(body);
+    expect(res.statusCode, res.body).toBe(200);
+    const extra = userText(1).slice(userText(0).length);
+    expect(extra).toMatch(TABLE_LINE);
+    expect(extra).not.toMatch(/Spot name did not match/);
+  });
+  it('reason → line (direct): a real Start-point Spot reason gets the name line; the table reason gets the table line', async () => {
+    const { retryCorrectionFor } = await import('../../api/ai-planner-quick.js');
+    expect(retryCorrectionFor(new Error('"Start point" is a Start-point token, not a valid Spot'))).toMatch(/Spot name did not match/);
+    expect(retryCorrectionFor(new Error('Day 1 table missing or malformed for "en" (need the exact 4-cell en header in order, valid times, non-empty cells, exactly 3 Spot rows, no Start-point token in Spot)'))).toMatch(TABLE_LINE);
+    expect(retryCorrectionFor(Object.assign(new Error('GEMINI_TIMEOUT'), { isTimeout: true }))).toBe('');
+  });
   it('unknown Spot name → name correction, without the model\'s name → 200', async () => {
     generateContentMock.mockResolvedValueOnce(json({ ...MODEL, day1MarkdownTable: table('Adm’s Mandi (Itaewon Branch Zzz)') }));
     generateContentMock.mockResolvedValueOnce(ok());

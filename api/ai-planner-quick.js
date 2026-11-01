@@ -799,14 +799,14 @@ function validatesNoModelDietaryClaims(json, rows, hasSafetyDiet) {
 //   The first attempt's prompt is unchanged (Gemini first-call behaviour identical).
 const RETRY_CORRECTIONS = [
   [/dietary\/certification\/safety claim/, 'Your previous answer was rejected: it contained dietary/certification/safety wording (e.g. halal, vegan, vegetarian, Muslim, pork, certified, guaranteed, safe). Remove every such word from marketingNarrative, themes and every tip, and do not repeat or explain the list\'s CERTIFIED/FRIENDLY tier — the server adds the verified note itself.'],
-  [/matches no supplied exact-city candidate|is ambiguous across|Start-point token|resolve to the same candidate/, 'Your previous answer was rejected: a Spot name did not match the candidate lists. Copy each Spot name exactly as written in one candidate entry, use three different places, and do not add parentheses, translations or extra words.'],
+  [/matches no supplied exact-city candidate|is ambiguous across|is a Start-point token|resolve to the same candidate/, 'Your previous answer was rejected: a Spot name did not match the candidate lists. Copy each Spot name exactly as written in one candidate entry, use three different places, and do not add parentheses, translations or extra words.'],
   [/trusted dietary-safe list|requested food preference/, 'Your previous answer was rejected: no stop was a restaurant from the supplied restaurant list. Include at least one restaurant from that list, named exactly as written there.'],
   [/requested (theme|food style) "/, 'Your previous answer was rejected: a selected interest had no matching stop. Include a stop from the candidate lists for every selected theme and food style.'],
   [/not in requested language/, 'Your previous answer was rejected: some text was not in the requested language. Write marketingNarrative, every theme and every tip in the requested language only, without adding names or words in another script.'],
   [/tour start|tour end|table times|Table times|Day 1 table|day1MarkdownTable|themes must be|Narrative missing|plain object/, 'Your previous answer was rejected: the JSON fields or the table format were wrong. Follow the JSON shape and the 4-column table format exactly, with exactly 3 rows, valid ascending HH:MM times inside the tour hours.'],
 ];
 const RETRY_PARSE_CORRECTION = 'Your previous answer was rejected: it was not one complete JSON object. Return exactly one JSON object and nothing else.';
-function retryCorrectionFor(err) {
+export function retryCorrectionFor(err) {
   if (!err || err.isTimeout) return '';
   if (err instanceof SyntaxError) return `\n\n${RETRY_PARSE_CORRECTION}`;
   const hit = RETRY_CORRECTIONS.find(([re]) => re.test(String(err.message || '')));
