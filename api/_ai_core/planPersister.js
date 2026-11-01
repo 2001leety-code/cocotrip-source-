@@ -6,6 +6,7 @@
 import { FieldValue } from 'firebase-admin/firestore';
 import { randomUUID } from 'crypto';
 import { computeQualityScore, detectDepartureFlightOverrun } from './qualityMetrics.js';
+import { effectiveBookedAddress } from './mergedLodging.js'; // PR2 r12: 품질 집계 예약 숙소 주소(생성·재계산과 같은 함수)
 import { SCHEDULE_BUFFER_MIN, arrivalRestDayInfo, resolveTourEndTime } from './constants.js';
 import { throttledTelegramAlert } from '../_shared/telegram-throttle.js';
 import { detectPaymentSource, isAdminBypassOrderId, isOperatorTestEmail } from '../_shared/admin-bypass-detector.js';
@@ -1561,7 +1562,7 @@ export async function persistPlan(adminDb, {
       area,
       foodIndex || [],
       // 2026-10-24 재방문 정책: 점수의 중복 판정도 종단 게이트와 같은 적격 집합(사용자 제외 목록 포함, 없으면 []).
-      { lang: language || 'ko', avoidStopNames: Array.isArray(plannerIntent?.revision?.avoidStopNames) ? plannerIntent.revision.avoidStopNames : [] },
+      { lang: language || 'ko', avoidStopNames: Array.isArray(plannerIntent?.revision?.avoidStopNames) ? plannerIntent.revision.avoidStopNames : [], hotelAddress: effectiveBookedAddress({ hotel_address, recommended_zone_address: body?.recommended_zone_address }) },
     );
     console.log(
       `[planner] qualityScore: ${qualityScore.score}/100 ` +

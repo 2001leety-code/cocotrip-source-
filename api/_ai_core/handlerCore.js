@@ -385,6 +385,7 @@ export default async function handler(req, res) {
             specialRequest, mobility, language, PLANNER_MODE, blockModeUsed, blocksUsed, abDecision,
             isAdminBypass: gate.isAdminBypass, identifierForBucketing, handlerStart, issuanceClaim: issuance.claim, avoidStopNames, plannerIntent,
             arrivalRestDay, // 2026-10-26: worker 가 재계산 없이 같은 휴식일 판정
+            consumedCoupon: consumedCouponInfo, // PR2 r5-4: 블록모드 worker 도 결정론 422 뒤 무료 쿠폰 복구(legacy 디스패치와 같은 값)
           }),
           sendEarlyResponse: ({ planId, planUrl, debug }) => sendStreamingEarlyResponse({ res, CORS, planId, planUrl, debug }),
           buildDebug: () => buildAdminDebug({ gate, plannerMode: PLANNER_MODE, abDecision, identifierForBucketing, blockModeUsed, blocksUsed, useStreaming, itinerary }),
@@ -397,7 +398,7 @@ export default async function handler(req, res) {
     if (blkInn) { streamingPlanId = blkInn.streamingPlanId; streamingPlanUrl = blkInn.streamingPlanUrl; skeletonCtx = blkInn.skeletonCtx || null; }
 
     // P220/P230/P231/P0: Inngest dispatch — streaming+ENV+토글 시 post-Gemini 를 별 invocation 으로(ENV/throw 시 inline fallback). block-mode 는 위에서 처리 완료 → skip, legacy streaming 만 진입. skeletonCtx 는 worker Step 0 full skeleton 저장용. issuanceClaim 전달 + dispatch 성공 시 소유권 이관(handler release 금지).
-    if (!blockModeUsed && await dispatchOrInlineForHandlerCore({ streamingResponseSent, itinerary, streamingPlanId, skeletonCtx, apiKey, body, routeHotelAddress, hotel_address, arrival_airport, departure_airport, pax, recommendedZone, recommendedZoneAddress, hotelByCity, area, dietPrefs: dietaryAll, regions, vehicle, durationDays, uid: planOwnerUid, verifiedHistoryUid, forceGuestToken, guestName, styles, duration, startDate, email, specialRequest, mobility, language, PLANNER_MODE, blockModeUsed, blocksUsed, abDecision, isAdminBypass: gate.isAdminBypass, identifierForBucketing, handlerStart, issuanceClaim: issuance.claim, avoidStopNames, plannerIntent, arrivalRestDay })) { issuance.handOff(); return; }
+    if (!blockModeUsed && await dispatchOrInlineForHandlerCore({ streamingResponseSent, itinerary, streamingPlanId, skeletonCtx, apiKey, body, routeHotelAddress, hotel_address, arrival_airport, departure_airport, pax, recommendedZone, recommendedZoneAddress, hotelByCity, area, dietPrefs: dietaryAll, regions, vehicle, durationDays, uid: planOwnerUid, verifiedHistoryUid, forceGuestToken, guestName, styles, duration, startDate, email, specialRequest, mobility, language, PLANNER_MODE, blockModeUsed, blocksUsed, abDecision, isAdminBypass: gate.isAdminBypass, identifierForBucketing, handlerStart, issuanceClaim: issuance.claim, avoidStopNames, plannerIntent, arrivalRestDay, consumedCoupon: consumedCouponInfo })) { issuance.handOff(); return; }
 
     console.log('[planner] Step 2: Running RouteAgent...');
 

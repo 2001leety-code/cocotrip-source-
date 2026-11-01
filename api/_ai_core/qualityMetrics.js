@@ -60,6 +60,7 @@
  */
 import { SCHEDULE_BUFFER_MIN, AIRPORT_ARRIVE_BEFORE_MIN } from './constants.js';
 import { judgeRepeats } from './revisitPolicy.js';
+import { isMergedLodgingStop } from './mergedLodging.js'; // PR2 r10
 
 // ── Configuration ──────────────────────────────────────────────────────────
 // Weights are applied to per-stop violation rates (or absolute counts for
@@ -411,7 +412,7 @@ export function detectDepartureFlightOverrun(itinerary, departureTime) {
   return out;
 }
 
-function countRouteFailures(itinerary) {
+function countRouteFailures(itinerary, bookedAddress = '') {
   let total = 0; let failures = 0;
   // arrival_guide.route_to_hotel expected when arrival_airport set
   if (itinerary?.arrival_guide) {
@@ -425,6 +426,8 @@ function countRouteFailures(itinerary) {
       // 좌표 없는 숙소(지역 placeholder)로는 경로를 낼 수 없다 — 분모에서도 뺀다.
       // 손님이 호텔을 특정해 좌표가 있으면 경로가 나와야 하므로 계속 센다.
       if (isLodging(t) && !hasCoords(t)) continue;
+      // PR2 r10: 같은 숙소로 합친 표식의 이동 null 은 정상(경로 실패 아님) — 분모·분자 모두 제외.
+      if (isMergedLodgingStop(stops, i, bookedAddress)) continue; // r11: RouteAgent 와 같은 규칙으로 재확인
       total++;
       const has = t.transit_from_prev || t.travelFromPrev;
       if (!has) failures++;
@@ -504,7 +507,7 @@ export function computeQualityScore(itinerary, dietary, _area, foodIndex, opts =
       : null, itinerary),
     tight_schedule:        sched.tight,
     loose_schedule:        sched.loose,
-    route_failure:         countRouteFailures(itinerary),
+    route_failure:         countRouteFailures(itinerary, opts.hotelAddress || ''),
     field_completeness:    countFieldIncomplete(stopsList),
     dietary_violation:     countDietaryViolations(stopsList, dietary),
   };

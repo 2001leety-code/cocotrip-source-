@@ -39,13 +39,34 @@ const INLINE_COPY: Record<'ko' | 'en' | 'ja' | 'zh', ErrorStateCopy> = {
   },
 };
 
-export function resolveErrorStateCopy(language: string, ui: Record<string, string>): ErrorStateCopy {
+// 2026-10-26 (첫날 도착 PR2 r2): 실패 사유별 안내(plan._streaming_error_code) — 일반 안내 앞에 붙인다(4개 언어 인라인, 같은 패턴).
+const REASON_COPY: Record<'ko' | 'en' | 'ja' | 'zh', Record<string, string>> = {
+  ko: {
+    ROUTE_DAY_INFEASIBLE: '이 시각으로는 여행 중 하루가 자정 전에 끝나지 않았어요. 도착 시각이나 일정 길이를 바꿔 다시 만들어 주세요.',
+    DIETARY_MEAL_COVERAGE_FAILED: '여행 중 하루에 꼭 필요한 식사를 넣지 못했어요. 도착 시각이나 일정 길이를 바꿔 다시 만들어 주세요.',
+  },
+  en: {
+    ROUTE_DAY_INFEASIBLE: "One day of this trip couldn't finish before midnight with these times. Please change the arrival time or the trip length and create the plan again.",
+    DIETARY_MEAL_COVERAGE_FAILED: "We couldn't fit a required meal into one of the days. Please change the arrival time or the trip length and create the plan again.",
+  },
+  ja: {
+    ROUTE_DAY_INFEASIBLE: 'この時刻では旅程のある日が深夜0時までに終わりませんでした。到着時刻か旅行日数を変更して、もう一度作成してください。',
+    DIETARY_MEAL_COVERAGE_FAILED: '旅程のある日に必要な食事を入れられませんでした。到着時刻か旅行日数を変更して、もう一度作成してください。',
+  },
+  zh: {
+    ROUTE_DAY_INFEASIBLE: '按这些时间，行程中有一天无法在午夜前结束。请修改到达时间或行程天数后重新生成。',
+    DIETARY_MEAL_COVERAGE_FAILED: '行程中有一天无法安排必需的用餐。请修改到达时间或行程天数后重新生成。',
+  },
+};
+
+export function resolveErrorStateCopy(language: string, ui: Record<string, string>, reasonCode?: string | null): ErrorStateCopy {
   const lng = (['ko', 'en', 'ja', 'zh'].includes(language) ? language : 'en') as 'ko' | 'en' | 'ja' | 'zh';
   const base = INLINE_COPY[lng];
+  const reason = reasonCode ? REASON_COPY[lng][reasonCode] : undefined;
   // ui dict 값이 비어 있으면(키 누락 / "") || 로 인라인 폴백.
   return {
     title: ui.planErrorTitle || base.title,
-    desc: ui.planErrorDesc || base.desc,
+    desc: reason ? `${reason} ${ui.planErrorDesc || base.desc}` : (ui.planErrorDesc || base.desc),
     retry: ui.planErrorRetry || base.retry,
     contact: ui.planErrorContact || base.contact,
   };

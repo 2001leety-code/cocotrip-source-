@@ -591,6 +591,8 @@
       "MISSING_FORM": "Form data was lost. Please fill in the planner form again.",
       "NO_PLAN_URL": "Plan was created but couldn't be opened. Please check your email.",
       "UNKNOWN_ERROR": "Something unexpected happened. Please try again or contact us on WhatsApp.",
+      "ROUTE_DAY_INFEASIBLE": "One day of this trip can't finish before midnight with these times. Please change the arrival time or the trip length and create the plan again. If you already paid, please do not pay again — contact us on WhatsApp.",
+      "DIETARY_MEAL_COVERAGE_FAILED": "We couldn't fit a required meal into one of the days of this trip. Please change the arrival time or the trip length and create the plan again. If you already paid, please do not pay again — contact us on WhatsApp.",
       "PAYMENT_UNDER_REVIEW": "Your payment was received and is being verified. We will contact you by email once confirmed — please do not pay again.",
       "PAYMENT_VERIFY_FAILED": "We couldn't verify your payment with PayPal. Please retry in a moment — do not pay again if you were already charged.",
       "PAYMENT_VERIFY_UNAVAILABLE": "We could not verify your payment right now. Please retry in a moment.",

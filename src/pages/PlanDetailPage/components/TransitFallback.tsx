@@ -10,6 +10,7 @@
 // 향후 phase 2: backend 에 Tmap API 통합으로 step-by-step 진짜 표시 (별도 PR).
 import { Footprints, MapPin, ExternalLink } from 'lucide-react';
 import { useLanguage } from '@/hooks/useLanguage';
+import { isSameSpot } from '@/lib/sameSpot';
 
 interface Props {
   prevLat?: number | null;
@@ -55,6 +56,8 @@ export function TransitFallback({
 
   const distKm = haversineKm(prevLat, prevLng, currLat, currLng);
   const distM = Math.round(distKm * 1000);
+  // PR2 r8/r9: 같은 지점(같은 숙소 표식을 서버가 합친 경우)엔 이동 안내가 없다 — PDF 와 같은 판정(isSameSpot).
+  if (isSameSpot(prevLat, prevLng, currLat, currLng)) return null;
 
   // 거리 < 2km → 도보/택시 권장. ~70m/분 보행 속도, 택시 기본료 ₩4,800 + 거리당 추가
   // 한국 표준 택시 (1.6km 까지 기본 ₩4,800, 132m 당 ₩100 추가).

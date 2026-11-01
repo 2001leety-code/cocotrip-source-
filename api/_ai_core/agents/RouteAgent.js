@@ -5,12 +5,13 @@ import { formatTransitSummary, getSubwayStationInfo, getSubwayTimetable } from "
 import { searchTransit } from "../../_transit_provider.js";
 // BUGHUNT-LOW (2026-06-14): AREX 직통 HERO 합성을 ODsay 일 때만 발동시키는 게이트용 (TMAP native 급행 보존).
 import { getTransitProvider } from "../../_transit_provider.js";
-import { AIRPORT_COORDS, AIRPORT_STATION_COORDS, AIRPORT_NAMES, CITY_CENTER_COORDS, lookupZoneCoord, SCHEDULE_BUFFER_MIN, arrivalReadyMinutes } from "../constants.js";
+import { AIRPORT_COORDS, AIRPORT_STATION_COORDS, AIRPORT_NAMES, CITY_CENTER_COORDS, lookupZoneCoord, SCHEDULE_BUFFER_MIN, DEFAULT_LEG_MIN, arrivalReadyMinutes, hhmmToMin, resolveTourStartTime, resolveTourEndTime, resolveArrivalTime, singleDayMealWindows } from "../constants.js";
 // P-launch (2026-05-31): 한글 regions('부산') → 영문 키('busan') 정규화 (멀티시티 departure city 해석용).
 import { normalizeRegionKey, regionCityKey, departureCityKey } from "../responseValidator.js";
 import { throttledTelegramAlert } from "../../_shared/telegram-throttle.js";
 // Phase 3 (2026-05-27): zone_courses Firestore transit_matrix cache — ODsay 호출 절감.
 import { lookupTransitCache, getTransitCacheStats } from "../transitCache.js";
+import { isSameLodgingMarker, isLodgingBookendPair, effectiveBookedAddress, stayMinOf } from "../mergedLodging.js"; // PR2 r11/r12: 같은 숙소 판정 공용 모듈
 // PR-C (2026-06-01, FEATURE_CHARTER_HERO_PRICE OFF default): 공항픽업 가격 SSOT.
 // 차터 도착 HERO 가격 표시용 — airport_transfer_prices[zoneKey].priceKRW (읽기 전용).
 import { loadPricingSpec } from "../../_shared/pricing.js";
@@ -738,6 +739,125 @@ export function applyMealFloor(currentMin, originMin) {
     return currentMin;
 }
 
+/** 구간 이동 분 — ODsay → 운전 → 좌표 추정 → 모델 추정 → 25 (Time Stitch 의 realTransitMin 식 그대로). */
+export function legTransitMin(transit, geminiOriginal) {
+    return (transit && (transit.publicTransit?.duration || transit.drivingMin || transit.durationMin))
+        || (geminiOriginal && geminiOriginal.est_min)
+        || DEFAULT_LEG_MIN;
+}
+
+const NOT_SIGHTSEEING = new Set(['lodging', 'airport', 'airport_transfer', 'travel', 'food']);
+const NOT_END_CHECKED = new Set(['lodging', 'airport', 'airport_transfer', 'travel']);
+const stopCat = (p) => String(p?.category || '').toLowerCase();
+/**
+ * 체류 분 — PR2 r3: 명시된 숫자는 그대로(0 = buildPrompt 의 숙소 출발 표식, 음수는 0), 누락·비숫자만 기본 60.
+ *   예전 `Number(stay_min) || 60` 은 0분 표식을 60분으로 바꿔 준비 (종료−85, 종료−60] 의 유일한 저녁을 밀어냈고,
+ *   음수는 시각을 거꾸로 돌렸다. end_time 백필(planPersister.computeEndTime)도 같은 숫자를 쓴다.
+ */
+const stayOf = stayMinOf; // PR2 r13: recalc-transit 과 같은 함수(mergedLodging.js)
+/** 관광 stop(숙소·공항·이동·식사가 아닌 것) — 배치 단계가 빼는 대상. */
+export const isSightseeingStop = (p) => !NOT_SIGHTSEEING.has(stopCat(p));
+/** Day1 바닥이 걸리는 stop — 첫 관광·식당(이동·숙소·공항 표식이 아니라). PR2 r3. */
+export const isDay1FloorStop = (p) => isSightseeingStop(p) || stopCat(p) === 'food';
+// PR2 r11: 같은 숙소 판정(50m 좌표 규칙 + 좌표 없는 북엔드 규칙)은 mergedLodging.js 한 곳 — recalc-transit·qualityMetrics 와 공유.
+//   같은 숙소 구간은 이동·버퍼를 빼고 앞 숙소에 붙인다(손님은 이미 숙소). 그 밖엔 그대로 계산·자정 검사.
+export { isSameLodgingMarker, isLodgingBookendPair };
+
+/**
+ * 2026-10-26 (첫날 도착 PR2) A단계 — 시작 시각(절대 분, 1440 이상도 그대로; %24·되돌림 없음). 순수.
+ *   firstMin: 0번 stop 시각. legMins[i-1]: i-1→i 구간. floorIdx/floorMin: Day1 첫 비숙소 stop 의 바닥(pref) —
+ *   r2: 0번이면 바닥(pref) 자체(모델 시각은 pref 에 이미 들어 있다 — 배치 루프가 pref 를 R 로 낮추면 그대로 앞당겨진다),
+ *   1번 이후면 max(바닥, 앞 숙소 시각 + 체류 + 이동 + 버퍼)(숙소 체류 유지 — 기존 동작). d1Meal: Day1 끼니 시작 창 {lunch,dinner}({from,to}|null, 분).
+ *   Day1 식사(원래 시각 ≥ 11:00, 또는 blockMode 가 붙인 역할 _blockMealRole): 역할 = 원래 시각 < 17:00 점심, 아니면 저녁.
+ *   lo = max(창 시작, 앞 종료 + 이동 + 버퍼),
+ *   hi = 창 끝 → start = max(lo, min(원래 시각 ?? lo, hi)). 창이 없거나 lo > hi = 배치 불가로 meals 에 표시.
+ *   그 밖의 식사는 applyMealFloor(원래 시각보다 앞당기지 않음).
+ *   r8: merged = 같은 숙소로 합친 stop 의 인덱스(이동·버퍼 0) — 이동 안내 작성 단계가 그 stop 엔 이동을 쓰지 않는다.
+ * @returns {{starts: number[], meals: Array<{i: number, infeasible: boolean, noWindow: boolean}>, merged: number[]}}
+ */
+export function stitchStartMins(places, { firstMin, legMins = [], buffer = SCHEDULE_BUFFER_MIN, floorIdx = -1, floorMin = null, mealOrigins = [], d1Meal = null, mergeBookend = false, bookedAddress = '' } = {}) {
+    const starts = [];
+    const meals = [];
+    const merged = [];
+    const hasFloor = Number.isFinite(floorMin);
+    const rolesTaken = new Set(); // r3: Day1 역할별 첫 식당만 '필수 끼니'(창 배치), 같은 역할 둘째(카페·디저트)는 관광처럼 뺄 수 있는 후보
+    for (let i = 0; i < places.length; i++) {
+        let base;
+        if (i === 0) base = hasFloor && floorIdx === 0 ? floorMin : firstMin;
+        else if (isSameLodgingMarker(places[i - 1], places[i]) || (mergeBookend && isLodgingBookendPair(places, i, bookedAddress))) {
+            // r3: 같은 숙소 연속 표식 — 이동·버퍼 없이 앞 숙소에 붙이고 자정을 넘기지 않는다(손님은 이미 숙소, 휴식일 북엔드 2개 등).
+            base = Math.max(starts[i - 1], Math.min(starts[i - 1] + stayOf(places[i - 1]), 24 * 60 - 1));
+            merged.push(i);
+        } else {
+            const chain = starts[i - 1] + stayOf(places[i - 1]) + legMins[i - 1] + buffer;
+            base = hasFloor && i === floorIdx ? Math.max(floorMin, chain) : chain;
+        }
+        const origin = mealOrigins[i];
+        if (stopCat(places[i]) === 'food') {
+            const roleMin = Number.isFinite(origin) ? origin : base;
+            const blockRole = places[i]?._blockMealRole === 'lunch' || places[i]?._blockMealRole === 'dinner' ? places[i]._blockMealRole : null;
+            const role = blockRole || (roleMin >= 11 * 60 ? (roleMin < 17 * 60 ? 'lunch' : 'dinner') : null);
+            if (d1Meal && role && rolesTaken.has(role)) {
+                starts.push(applyMealFloor(base, origin));
+                meals.push({ i, infeasible: false, noWindow: false, extra: true });
+                continue;
+            }
+            if (d1Meal && role) {
+                rolesTaken.add(role);
+                const w = role === 'lunch' ? d1Meal.lunch : d1Meal.dinner;
+                if (!w) { starts.push(base); meals.push({ i, infeasible: true, noWindow: true }); continue; }
+                const lo = Math.max(w.from, base);
+                // 구제 식당(_blockMealRole)의 원래 시각(자정 넘김 01:30 등)은 선호값으로 쓰지 않는다 — 창 안 가장 이른 자리.
+                const pref = Number.isFinite(origin) && !blockRole ? origin : lo;
+                starts.push(Math.max(lo, Math.min(pref, w.to)));
+                meals.push({ i, infeasible: lo > w.to, noWindow: false });
+                continue;
+            }
+            starts.push(applyMealFloor(base, origin));
+            continue;
+        }
+        starts.push(base);
+    }
+    return { starts, meals, merged };
+}
+
+/**
+ * B단계 위반 찾기(순서대로 첫 위반). 순수.
+ *   Day1: 배치 불가 식사 → 'meal', 관광 시작 ≥ 투어 종료 → 'tour_end'.
+ *   모든 날: 시작 ≥ 1440, 또는 마지막 비숙소 stop 종료(마지막 stop 이면 + 숙소 복귀 이동) ≥ 1440 → 'midnight'.
+ * @returns {null | {kind: 'meal'|'tour_end'|'midnight', index: number, noWindow?: boolean}}
+ */
+export function findStitchViolation(places, { starts, meals }, { day1TourEndMin = null, lastReturnMin = 0 } = {}) {
+    const mealAt = new Map(meals.map((m) => [m.i, m]));
+    for (let i = 0; i < places.length; i++) {
+        const meal = mealAt.get(i);
+        if (meal && meal.infeasible) return { kind: 'meal', index: i, noWindow: meal.noWindow };
+        if (starts[i] >= 24 * 60) return { kind: 'midnight', index: i };
+        if (i > 0 && starts[i] < starts[i - 1]) return { kind: 'order', index: i }; // r3: 시각 역행은 위반(방어 — stay 는 0 이상)
+        const removableAct = isSightseeingStop(places[i]) || (meal && meal.extra === true);
+        if (Number.isFinite(day1TourEndMin) && removableAct && starts[i] >= day1TourEndMin) return { kind: 'tour_end', index: i };
+    }
+    // r3-7: 공항·공항이동·이동 stop 은 끝 시각 검사 대상이 아니다(출국일 심야 공항 23:00 + 기본 체류 60 이 422 를 내던 문제).
+    let lastAct = -1;
+    places.forEach((p, i) => { if (!NOT_END_CHECKED.has(stopCat(p))) lastAct = i; });
+    if (lastAct >= 0) {
+        const end = starts[lastAct] + stayOf(places[lastAct]) + (lastAct === places.length - 1 ? (Number(lastReturnMin) || 0) : 0);
+        if (end >= 24 * 60) return { kind: 'midnight', index: lastAct };
+    }
+    return null;
+}
+
+/** 자정 안에 표현할 수 없는 하루 — finalItineraryGate 와 같은 모양(422). routeEnrichment 가 삼키지 않고 다시 던진다. */
+export function routeDayInfeasibleError(details) {
+    const e = new Error('This day cannot fit before midnight even after removing sightseeing stops. Please choose an earlier arrival or a shorter day.');
+    e.code = 'ROUTE_DAY_INFEASIBLE';
+    e.statusCode = 422;
+    e.stage = 'routeEnrich';
+    e.details = details;
+    e.cause = { details, code: e.code }; // PR2 r3: Inngest StepError 는 최상위 code 를 잃는다 — cause 에 보존
+    return e;
+}
+
 /** food stop 의 원본 시각(분). category 가 food 이고 start_time 이 엄격한 HH:MM(00:00~23:59)일 때만, 아니면 NaN. */
 export function parseMealOriginMin(place) {
     if (String(place?.category || '').toLowerCase() !== 'food') return NaN;
@@ -1413,8 +1533,6 @@ export class RouteAgent extends BaseAgent {
             //  - 첫 stop = lodging (호텔 체크인) → cap +240min (호텔 체크인 통상 14-15시).
             //  - 첫 stop = 활동 (사찰/맛집/관광) → cap +90min (도착 후 적정 휴식 후 활동).
             // Gemini 값이 [arrival+30, arrival+cap] 범위 안이면 통과, 밖이면 clamp.
-            // P150 (2026-05-22): Gemini 원본 시각 저장. wrap 발생 시 22:30 cascade 대신 Gemini 시각 fallback.
-            const _p150GeminiTimes = places.map(p => this._parseTime(p.start_time || '09:00'));
             // 2026-10-25 meal floor: food stop 원본 시각(엄격한 HH:MM 인 food 만, 아니면 NaN — _parseTime 은 잘못된 문자열도 숫자로 만든다).
             const _mealOriginMins = places.map((p) => parseMealOriginMin(p));
             let currentTime;
@@ -1435,50 +1553,39 @@ export class RouteAgent extends BaseAgent {
                 }
             } else {
                 currentTime = this._parseTime(places[0]?.start_time || "09:00");
-                // P239 (2026-05-27): Day 1 tour_start_time architectural fix.
-                // 운영자 의도: 새벽 도착 시 호텔까지 transit 만 + tour_start_time 부터 stops.
-                // root cause level 해소: P159 새벽 stops (00:00~04:59) / P136 24h wrap / B-13 false positive.
-                //
-                // 룰 (buildPrompt ARRIVAL DAY HANDLING 과 일치):
-                //   - stops[0] (lodging 체크인): arrival_time + 60min — Gemini 값 유지
-                //   - stops[1+] (활동): max(tour_start_time, arrival_time + 60min) 부터 시작
-                //   - tour_start_time hour < 5 또는 잘못된 값: '09:00' 폴백 (안전 + 시설 미운영)
-                //
-                // Day 1 검출: dayIdx === 0 또는 dayPlan.day === 1. 미식별 시 skip (보수적).
-                const isDay1 = dayIdx === 0 || dayPlan.day === 1 || dayPlan.day_index === 1;
-                if (isDay1 && places.length >= 2) {
-                    const firstCat = String(places[0]?.category || '').toLowerCase();
-                    const isLodgingFirst = firstCat === 'lodging';
-                    if (isLodgingFirst) {
-                        // tour_start_time 파싱 + hour<5 폴백 '09:00'.
-                        const tourStartRaw = data.tour_start_time || data.tourStartTime || '09:00';
-                        const tourStartMin = this._parseTime(tourStartRaw);
-                        const tourStartHour = Math.floor((tourStartMin || 0) / 60);
-                        const safeTourStartMin = (tourStartHour >= 5 && tourStartHour <= 23)
-                            ? tourStartMin
-                            : this._parseTime('09:00');
-                        // stops[1] 의 Gemini 시각 vs tour_start_time — 둘 중 늦은 것 사용.
-                        // (Gemini 가 14:00 도착 → 15:00 stops[1] 추천 시 그 값 우선.)
-                        const stop1GeminiMin = this._parseTime(places[1]?.start_time || tourStartRaw);
-                        // 🔴 2026-08-03: 옛 코드는 `arrival_time + 60` 을 바닥으로 썼다. 입국수속·짐·세관
-                        //   (~90분)과 공항→권역 이동이 빠진 값이라, Gemini 가 14:00 ICN 도착에 16:15 을
-                        //   추천하면 그대로 통과했다 — 손님이 아직 공항에 있는 시각이다(실제 17:00).
-                        //   block_mode 는 2026-06-05 부터 현실값을 썼는데 여기만 남아 있었다.
-                        //   constants.arrivalReadyMinutes = 도착 + 입국수속 + 공항→권역 이동(공항별).
-                        // 🔴 2026-08-04: 도시를 같이 넘긴다. 공항 이동 표는 **공항 권역 안** 값이라
-                        //   인천 도착 + 첫날 부산이면 90분으로 계산됐다(실제 4시간+). day.city 가
-                        //   1차 소스 — plan area 를 쓰면 다도시에서 첫 도시와 달라 보정이 무효가 된다.
-                        //   city 는 한글('부산')일 수 있어 normalizeRegionKey 로 영문 키로 맞춘다.
-                        const day1CityKey = normalizeRegionKey(dayPlan.city || '')
-                            || normalizeRegionKey((Array.isArray(data.regions) && data.regions[0]) || data.area || data.region || '');
-                        const arrivalReady = arrivalReadyMinutes(data.arrival_time, data.arrival_airport, day1CityKey) || 0;
-                        const effectiveTourStart = Math.max(safeTourStartMin, stop1GeminiMin, arrivalReady);
-                        // currentTime 은 stops[0] (lodging) 시각 — 변경 X. stitch loop 가 places[1] 부터
-                        // 처리할 때 이 tour_start_time 을 사용하도록 dayPlan 에 cache.
-                        dayPlan._p239TourStartMin = effectiveTourStart;
-                        console.log(`  [Route] Day 1: P239 tour_start_time set = ${this._formatTime(effectiveTourStart)} (raw=${tourStartRaw}, safe=${this._formatTime(safeTourStartMin)}, gemini stop1=${this._formatTime(stop1GeminiMin)}, arrival_ready=${this._formatTime(arrivalReady)})`);
-                    }
-                }
+            }
+            // P239 (2026-05-27) → 2026-10-26 (첫날 도착 PR2): Day1 첫 활동 바닥 — 도시 이동일을 뺀 **모든** Day1, 첫 비숙소 stop
+            //   (첫 stop 이 명소인 블록 Day1 포함; 예전엔 숙소로 시작할 때만, stops[1] 에만 걸렸다).
+            //   R = max(투어 시작(5시 전이면 09:00), 도착 준비 = 도착 + 입국수속 + 공항→권역 이동(day.city 기준, 2026-08-03/04)).
+            //   pref = max(R, 모델이 준 첫 활동 시각) — 모델 시각은 선호값(식사 자리가 부족하면 R 까지 당긴다).
+            //   Day1 끼니 시작 창 = PR1 singleDayMealWindows(같은 R·투어 종료, 1일 여행이면 출국 활동 마감까지) — 복제 계산 금지.
+            const isDay1 = dayIdx === 0 || dayPlan.day === 1 || dayPlan.day_index === 1;
+            let day1 = null;
+            if (isDay1 && !isCityChangeDay && places.length > 0) {
+                const tsMin = this._parseTime(resolveTourStartTime(data));
+                const safeTourStartMin = tsMin >= 5 * 60 ? tsMin : 9 * 60;
+                const day1CityKey = normalizeRegionKey(dayPlan.city || '')
+                    || normalizeRegionKey((Array.isArray(data.regions) && data.regions[0]) || data.area || data.region || '');
+                const arrivalHHMM = resolveArrivalTime(data); // 직접 호출('16:30:00'·숫자)도 같은 엄격 규칙
+                // r3-9: 공항 미상·ALREADY(이미 한국) 손님은 입국수속·공항 이동을 더하지 않는다 — 도착 시각 그대로(arrivalRestDayInfo 의 noAirport 와 같은 판정).
+                const arrAirport = String(data.arrival_airport || '').trim();
+                const noAirport = !arrAirport || /^(already|already_in_korea)$/i.test(arrAirport);
+                const arrivalReady = (noAirport ? Math.max(0, hhmmToMin(arrivalHHMM)) : arrivalReadyMinutes(arrivalHHMM, arrAirport, day1CityKey)) || 0;
+                const R = Math.max(safeTourStartMin, arrivalReady);
+                const firstAct = places.findIndex((p) => isDay1FloorStop(p)); // r3: 첫 관광·식당(이동 stop 시각은 선호값이 아니다)
+                const modelFirst = firstAct >= 0 && /^\d{1,2}:\d{2}$/.test(String(places[firstAct].start_time || '').trim())
+                    ? this._parseTime(places[firstAct].start_time) : R;
+                const tourEndTime = resolveTourEndTime(data);
+                // r5-6: 공항 미상·ALREADY 면 도착 시각을 넘기지 않고 창 시작 = R(입국수속·공항 이동 +160분 없이 — 위 바닥과 같은 판정).
+                const w = singleDayMealWindows({
+                    durationDays: 1, ...(noAirport ? {} : { arrivalTime: arrivalHHMM }), arrivalAirport: data.arrival_airport, cityKey: day1CityKey,
+                    tourStartTime: this._formatTime(noAirport ? R : safeTourStartMin), tourEndTime,
+                    ...(daysList.length === 1 ? { departureTime: data.departure_time, departureAirport: data.departure_airport } : {}),
+                }) || {};
+                const range = (x) => (x ? { from: this._parseTime(x.from), to: this._parseTime(x.to) } : null);
+                day1 = { R, pref: Math.max(R, modelFirst), tourEndMin: this._parseTime(tourEndTime), meal: { lunch: range(w.lunch), dinner: range(w.dinner) } };
+                dayPlan._p239TourStartMin = day1.pref; // 진단용 표식(옛 P239 이름 유지)
+                console.log(`  [Route] Day 1: P239 first-activity floor = ${this._formatTime(day1.pref)} (R=${this._formatTime(R)}, tour start=${this._formatTime(safeTourStartMin)}, arrival_ready=${this._formatTime(arrivalReady)}, meal windows=${JSON.stringify(w)})`);
             }
             const BUFFER_MIN = SCHEDULE_BUFFER_MIN; // 초행길 여유 시간 (constants.js 단일 원천)
 
@@ -1751,6 +1858,10 @@ export class RouteAgent extends BaseAgent {
                 }
             }
             let hotelTransit = null;
+            // PR2: 클로저 — B단계가 0번 stop 을 빼면 새 첫 stop 으로 다시 계산한다(rerun 이면 옛 값을 지운다).
+            const runHotelToFirst = async (rerun = false) => {
+            hotelTransit = null;
+            if (rerun) delete dayPlan.lodging_to_first;
             if (dayHotel.lat && dayHotel.lng && places.length > 0 && places[0].lat && places[0].lng) {
                 // city-change day 의 first stop 이 새 city 라면 day-level hotel (새 city center)
                 // 와 가까운 거리 → ODsay 의미 있음. 단 동일 city 안에서도 100km+ 거리면 skip.
@@ -1792,6 +1903,8 @@ export class RouteAgent extends BaseAgent {
                 // (부산 vs 서울) 구분 가능. 후속 PR 의 validateResponse 검증 대상.
                 if (dayPlan.city) dayPlan.lodging_city = dayPlan.city;
             }
+            };
+            await runHotelToFirst();
 
             // ════════════════════════════════════════════════════════
             // Phase 2.6 (2026-05-08 신규): 마지막 장소 → 숙소 복귀 경로
@@ -1802,6 +1915,9 @@ export class RouteAgent extends BaseAgent {
             //   이전 (B9-39): 100km+ 거리면 skip (trip-level hotel 만 기준이라 잘못).
             //   이후 (PDF-issue-3): day-level hotel = 그 day 의 city center, 거리는
             //   자연스럽게 < 100km.
+            // PR2: 클로저 — B단계가 마지막 stop 을 빼면 새 마지막 stop 으로 다시 계산한다(rerun 이면 옛 값을 지운다).
+            const runLastToLodging = async (rerun = false) => {
+            if (rerun) delete dayPlan.last_to_lodging;
             const lastPlaceCheck = places[places.length - 1];
             const lastDistKm = (lastPlaceCheck?.lat && lastPlaceCheck?.lng && dayHotel.lat && dayHotel.lng)
                 ? this._haversineKm(lastPlaceCheck.lat, lastPlaceCheck.lng, dayHotel.lat, dayHotel.lng)
@@ -1846,6 +1962,8 @@ export class RouteAgent extends BaseAgent {
                     }
                 }
             }
+            };
+            await runLastToLodging();
 
             // ════════════════════════════════════════════════════════
             // Phase 3.5 (PDF-issue-2 v2, 2026-05-14): city-change day currentTime 재조정
@@ -1873,12 +1991,92 @@ export class RouteAgent extends BaseAgent {
                 }
             }
 
+            // ════════════════════════════════════════════════════════
+            // Phase 3 Time Stitch (2026-10-26 첫날 도착 PR2): A 시각 계산(stitchStartMins, 절대 분) → B 배치 확정 → C 이동 정보 기록.
+            //   B: 위반(Day1 식사 창 밖·Day1 투어 종료 이후 관광·자정 이후)이면 식사 위반은 먼저 pref→R, 그다음 그 식사 앞쪽의 가장 뒤
+            //   관광, 그 밖은 하루의 가장 뒤 관광을 하나 빼고 새로 이어진 구간을 **다시 조회**(옛 순번 결과 재사용 금지) → 다시 계산.
+            //   뺄 관광이 없으면 식사 위반 = 그 식사 제거(필수 끼니 판정은 PR1 게이트), 자정 위반 = ROUTE_DAY_INFEASIBLE(422).
+            //   식사 체류를 줄이거나 식당을 만들지 않는다. 예전 P150 wrap(모델 시각으로 되돌림)·_sanitizeTime(22:30 고정)은 삭제 —
+            //   시각 역전(LateBar 23:20 → Hotel 23:00)을 만들었다. C 시점엔 모든 시각이 1440 미만이 보장된다.
+            // ════════════════════════════════════════════════════════
+            const legBetween = async (prev, next, k) => ((prev?.lat && prev?.lng && next?.lat && next?.lng)
+                ? this._getTransitData(prev, next, clientId, clientSecret, k, dayOfWeek)
+                : { index: k, durationMin: 25, distanceKm: 5.0, publicTransit: null, drivingMin: null });
+            const removedStops = [];
+            const removeStop = async (k, why) => {
+                const [gone] = places.splice(k, 1);
+                _mealOriginMins.splice(k, 1);
+                removedStops.push(`${gone?.name || gone?.display_name || '?'}(${why})`);
+                removedKinds.push(why);
+                // r2: 식사를 뺀 날은 식이 손님이 아니어도 종단 게이트가 필수 끼니를 검사한다(finalItineraryGate — 이 표식).
+                if (stopCat(gone) === 'food') dayPlan._routeMealRemoved = true;
+                // r2: 새로 이어진 구간의 도착 stop — 빠진 장소에서 오던 옛 이동 안내(모델 문구·걸어서 n분 등)를 지우고 재조회 결과로만 채운다.
+                const resetIncoming = (p) => { if (p) { delete p.transit_from_prev; delete p.travelFromPrev; p._transitReset = true; } };
+                if (k === 0) { transitResults.splice(0, 1); resetIncoming(places[0]); await runHotelToFirst(true); }
+                else if (k === places.length) { transitResults.splice(k - 1, 1); await runLastToLodging(true); }
+                else { resetIncoming(places[k]); transitResults.splice(k - 1, 2, await legBetween(places[k - 1], places[k], k)); }
+            };
+            const removedKinds = [];
+            // r3: 뺄 수 있는 것 = 관광 + Day1 같은 역할 둘째 식당(카페·디저트 — stitchStartMins meals.extra).
+            let extraMealIdx = new Set();
+            const lastSightseeingBefore = (end) => { for (let k = end - 1; k >= 0; k--) if (isSightseeingStop(places[k]) || extraMealIdx.has(k)) return k; return -1; };
+            const placementPassLimit = 2 * places.length + 2; // 삭제 전 개수로 고정해 연속 삭제 중 상한이 줄지 않게 한다.
+            let stitched = null;
+            for (let guard = 0; guard <= placementPassLimit; guard++) {
+                // r3: 바닥은 첫 관광·식당 stop 에(공항 이동·travel·숙소 표식은 앞 사슬 그대로).
+                const floorIdx = day1 ? places.findIndex((p) => isDay1FloorStop(p)) : -1;
+                const candidate = stitchStartMins(places, {
+                    firstMin: currentTime, legMins: transitResults.map((t, j) => legTransitMin(t, places[j + 1]?.transit_from_prev)), buffer: BUFFER_MIN,
+                    floorIdx, floorMin: day1 ? day1.pref : null, mealOrigins: _mealOriginMins, d1Meal: day1 ? day1.meal : null,
+                    mergeBookend: !isCityChangeDay, // r5: 좌표 없는 같은 예약 숙소 북엔드(도시 이동일은 숙소가 바뀔 수 있어 제외)
+                    bookedAddress: effectiveBookedAddress(data), // r7/r12: 예약 숙소(또는 권역) 주소 — 재계산·품질 집계와 같은 함수
+                });
+                extraMealIdx = new Set(candidate.meals.filter((m) => m.extra).map((m) => m.i));
+                const v = findStitchViolation(places, candidate, { day1TourEndMin: day1 ? day1.tourEndMin : null, lastReturnMin: dayPlan.last_to_lodging?.est_min });
+                if (!v) { stitched = candidate; break; }
+                if (v.kind === 'order') throw routeDayInfeasibleError([`Day ${dayPlan.day || dayIdx + 1}: stop times would run backwards`]);
+                if (v.kind === 'meal' && v.noWindow) { await removeStop(v.index, 'meal-no-window'); continue; }
+                // r2: 어떤 위반이든 Day1 선호 시각(pref)이 R 보다 늦으면 먼저 R 까지 당긴다(첫 stop 이 숙소가 아닐 때도 — stitchStartMins 0번 = pref).
+                if (day1 && day1.pref > day1.R) { day1.pref = day1.R; continue; }
+                const k = lastSightseeingBefore(v.kind === 'meal' ? v.index : places.length);
+                if (k >= 0) { await removeStop(k, v.kind); continue; }
+                if (v.kind === 'meal') { await removeStop(v.index, 'meal-no-room'); continue; }
+                throw routeDayInfeasibleError([`Day ${dayPlan.day || dayIdx + 1}: ${places[v.index]?.name || '?'} would start or end after midnight`]);
+            }
+            if (!stitched) throw routeDayInfeasibleError([`Day ${dayPlan.day || dayIdx + 1}: route placement could not be validated`]);
+            // r2: 자정 때문에 빼다가 그날 활동이 하나도 안 남으면 = 자정 안에 표현할 수 없는 하루 → 명시 실패(빈 날로 저장하지 않는다).
+            if (removedKinds.includes('midnight') && !places.some((p) => stopCat(p) !== 'lodging')) {
+                throw routeDayInfeasibleError([`Day ${dayPlan.day || dayIdx + 1}: no activity fits before midnight`]);
+            }
+            // routeEnrichment 가 이 표식을 보고 결과가 0곳이어도 그대로 반영한다(원본 부활 금지).
+            if (removedStops.length) { dayPlan._routePlacementRemoved = removedStops.length; console.log(`  [Route] Day ${dayPlan.day || '?'}: PR2 placement removed ${removedStops.join(', ')}`); }
+            // TSP(Phase 1.5)가 dayPlan.stops 를 다른 배열로 바꿔 둘 수 있다 — 확정된 배열로 다시 연결.
+            if (dayPlan.stops) dayPlan.stops = places;
+            if (dayPlan.places) dayPlan.places = places;
+            const { starts } = stitched;
+            const mergedIdx = new Set(stitched.merged || []);
+
             for (let i = 0; i < places.length; i++) {
                 const place = places[i];
+                const newStart = this._formatTime(starts[i]);
+                if (place.start_time !== newStart) delete place.end_time; // backfillStopEndTimes 가 다시 계산
+
+                // r8: 같은 숙소로 합친 표식(이름·주소 북엔드 / 50m) — 시각처럼 이동 안내도 없다(옛 25분·택시 안내 금지).
+                //   _transitReset: 병합 단계가 원본 이동 안내로 되돌리지 않게(기존 숨은 키, 출력 전 제거).
+                //   r10: 저장되는 표식 same_lodging_as_prev — 저장 뒤 재계산·품질 지표가 "병합 null" 을 "경로 실패 null" 과 구분(mergedLodging.js).
+                if (i > 0 && mergedIdx.has(i)) {
+                    place.start_time = newStart;
+                    place.transit_from_prev = null;
+                    place.travelFromPrev = null;
+                    place._transitReset = true;
+                    place.same_lodging_as_prev = true;
+                    continue;
+                }
+                delete place.same_lodging_as_prev; // 다시 배치했는데 병합이 아니면 옛 표식 제거
 
                 // 첫 장소: 호텔 경로 있으면 사용, 없으면 null
                 if (i === 0) {
-                    place.start_time = this._formatTime(currentTime);
+                    place.start_time = newStart;
                     place.transit_from_prev = hotelTransit;
                     place.travelFromPrev = null;
                 } else {
@@ -1888,11 +2086,7 @@ export class RouteAgent extends BaseAgent {
                     // 개선: 좌표 없을 때 Gemini가 plan에 넣은 est_min 우선 사용.
                     // Gemini는 보통 거리감 기반 예상치를 제공 (예: 명동→홍대 30분).
                     const geminiOriginal = places[i].transit_from_prev || {};
-                    const realTransitMin = transit.publicTransit?.duration
-                        || transit.drivingMin
-                        || transit.durationMin  // havCarMin if coords exist
-                        || geminiOriginal.est_min  // Gemini plan estimate
-                        || 25;
+                    const realTransitMin = legTransitMin(transit, geminiOriginal);
                     // PR #463 (Audit X-H4 — 2026-05-16): explicit blind-fallback flag.
                     // Pre-fix: warn only — routeEnrichment summary doesn't see how many
                     // transits actually fell through to the flat-25 path, so a regional
@@ -1906,43 +2100,8 @@ export class RouteAgent extends BaseAgent {
                         console.warn(`  ⚠ [transit ${i}] no coords + no Gemini est_min → using flat 25min fallback. Check NCP Maps 키(resolveNcpKeys) / Gemini prompt.`);
                     }
 
-                    // 이전 장소 체류 후 이동 시간 + 버퍼
-                    const prevStayMin = places[i - 1].stay_min || 60;
-                    currentTime += prevStayMin + realTransitMin + BUFFER_MIN;
-
-                    // P239 (2026-05-27): Day 1 tour_start_time floor — i==1 (lodging → 첫 활동) 만.
-                    // 운영자 의도: 새벽 도착 시 lodging stops[0] 02:30 + stops[1] 09:00 (tour_start_time).
-                    // currentTime (02:30 + stay 60 + transit 30 + buffer 5 = 04:05) < tour_start_time (09:00).
-                    // 옛 코드: 04:05 그대로 사용 → P159 새벽 stop alert.
-                    // 신 코드: max(currentTime, tour_start_time) — 04:05 → 09:00 floor 적용.
-                    // 영향 영역: Day 1 의 i==1 만. Day 1 의 i>=2 는 prevStayMin chain 으로 자연 처리.
-                    if (i === 1 && Number.isFinite(dayPlan._p239TourStartMin) && currentTime < dayPlan._p239TourStartMin) {
-                        console.log(`  [Route] Day 1: P239 tour_start_time floor — ${this._formatTime(currentTime)} → ${this._formatTime(dayPlan._p239TourStartMin)} (lodging→첫 활동 시각 명시 lift)`);
-                        currentTime = dayPlan._p239TourStartMin;
-                    }
-
-                    // 2026-10-25 meal floor: food stop 은 Gemini/블록 원본 시각보다 앞당기지 않는다(압축된 날 저녁 18:00 → 15:12 방지, B-MEAL-DINNER).
-                    const mealFloored = applyMealFloor(currentTime, _mealOriginMins[i]);
-                    if (mealFloored !== currentTime) {
-                        console.log(`  [Route] Day ${dayPlan.day || '?'}: meal floor — ${place.name} ${this._formatTime(currentTime)} → ${this._formatTime(mealFloored)} (food stop 원본 시각 유지)`);
-                        currentTime = mealFloored;
-                    }
-
-                    // P150 (2026-05-22): 24h wrap → Gemini 원본 시각 fallback (P136 22:30 cascade 차단).
-                    // 이전: wrap 시 22:30 cap → 이후 stops 도 22:30+stay+transit → 재차 wrap → cascade.
-                    // 이후: wrap 시 해당 stop 의 Gemini 원본 시각 사용 → cascade 차단 → B-MEAL-DINNER 정상.
-                    if (!Number.isFinite(currentTime) || currentTime >= 24 * 60) {
-                        const geminiMin = _p150GeminiTimes[i];
-                        const safeMin = (Number.isFinite(geminiMin) && geminiMin < 24 * 60)
-                            ? geminiMin
-                            : 22 * 60 + 30; // Gemini 시각도 없으면 최종 fallback
-                        console.warn(`[RouteAgent] P150 wrap fallback day${dayPlan.day || '?'}-stop${i}: rawMin=${currentTime} → Gemini ${this._formatTime(safeMin)}`);
-                        currentTime = safeMin;
-                    } else {
-                        currentTime = this._sanitizeTime(currentTime, `day${dayPlan.day || '?'}-stop${i}`);
-                    }
-
-                    place.start_time = this._formatTime(currentTime);
+                    // 시각은 A·B 단계(stitchStartMins)가 확정했다 — 체류·이동·버퍼·Day1 바닥·식사 창·식사 floor 포함.
+                    place.start_time = newStart;
 
                     // ── 통합 transit_from_prev (ODsay 우선, Gemini fallback) ──
                     const pt = transit.publicTransit;
@@ -2742,7 +2901,8 @@ export class RouteAgent extends BaseAgent {
 
     /** "HH:MM" → 분(number) */
     _parseTime(timeStr) {
-        const [h, m] = (timeStr || "09:00").split(":").map(Number);
+        // PR2: 숫자·객체 입력도 TypeError 없이(String) — 930·{h:9} 이 split 에서 터졌다.
+        const [h, m] = String(timeStr || "09:00").split(":").map(Number);
         return (h || 0) * 60 + (m || 0);
     }
 
@@ -2753,45 +2913,5 @@ export class RouteAgent extends BaseAgent {
         return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
     }
 
-    /**
-     * P136: 24h wrap 차단.
-     * rawMin >= 1440 (midnight) → 22:30 (1350min) hard cap + admin alert (non-blocking).
-     * pre-dawn (< 300 = 05:00) 은 planPersister.detectUnreasonableStopTimes 에 위임.
-     *
-     * P150 (2026-05-22): Phase 3 루프 내 wrap 은 이 메서드 대신 Gemini 원본 시각 fallback 사용.
-     * 이 메서드는 non-finite 방어 + non-loop 경로 (예: 직접 호출) 에서만 22:30 cap 적용.
-     *
-     * @param {number} rawMin - 분 단위 누적 시각
-     * @param {string} [context] - 로그용 컨텍스트 (예: "day3-stop2")
-     * @returns {number} sanitized minutes (<= 1439)
-     */
-    _sanitizeTime(rawMin, context = '') {
-        const MIDNIGHT_MIN = 24 * 60;   // 1440
-        const SAFE_CAP_MIN = 22 * 60 + 30; // 1350 = 22:30
-        const MAX_DAY_MIN = 23 * 60 + 59;  // 1439
-
-        if (!Number.isFinite(rawMin)) {
-            console.warn(`[RouteAgent] P136 _sanitizeTime: non-finite rawMin (${rawMin}) → cap 22:30${context ? ' ctx=' + context : ''}`);
-            throttledTelegramAlert({
-                key: `plan-time-wrap:non-finite${context ? ':' + context : ''}`,
-                channel: 'admin',
-                severity: 'low',
-                message: `⚠️ P136 RouteAgent _sanitizeTime: non-finite rawMin=${rawMin}${context ? ' ctx=' + context : ''}`,
-            });
-            return SAFE_CAP_MIN;
-        }
-
-        if (rawMin >= MIDNIGHT_MIN) {
-            console.warn(`[RouteAgent] P136 _sanitizeTime: 24h wrap detected rawMin=${rawMin} → cap 22:30${context ? ' ctx=' + context : ''}`);
-            throttledTelegramAlert({
-                key: `plan-time-wrap:${context || 'unknown'}`,
-                channel: 'admin',
-                severity: 'low',
-                message: `⚠️ P136 RouteAgent 24h wrap 차단: rawMin=${rawMin} (${this._formatTime(rawMin % (24 * 60))}) → capped 22:30${context ? ' ctx=' + context : ''}`,
-            });
-            return SAFE_CAP_MIN;
-        }
-
-        return Math.min(rawMin, MAX_DAY_MIN);
-    }
+    // P136 _sanitizeTime(22:30 고정) 은 2026-10-26 PR2 에서 삭제 — 시각 역전을 만들었다. 자정 처리는 Time Stitch B단계.
 }

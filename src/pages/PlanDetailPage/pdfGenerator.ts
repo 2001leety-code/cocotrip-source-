@@ -22,6 +22,7 @@ import type { PlanDocument, PlanDay, PlanStop, BudgetRow } from './types';
 import { buildActivityMetaHtml } from '@/lib/activityMetaLabels';
 import { buildActivityGuideHtml } from '@/lib/activityGuides';
 import { preparePdfFonts } from '@/lib/pdfFonts';
+import { isSameSpot } from '@/lib/sameSpot'; // PR2 r9: 화면 TransitFallback 과 같은 "같은 지점" 판정
 import { arrivalRestTitle, arrivalRestTomorrowLine, isArrivalRestDay1, nextDayStartTime } from '@/lib/arrivalRestNote.js';
 
 // Sprint 1 Step 4 — 카테고리별 카드 좌측 accent bar 색 (web `CAT_COLORS.bar` parity, #136).
@@ -796,7 +797,8 @@ export async function generatePDF(
         const pLng = (prev as { lng?: number | null })?.lng;
         const cLat = (s as { lat?: number | null })?.lat;
         const cLng = (s as { lng?: number | null })?.lng;
-        if (pLat != null && pLng != null && cLat != null && cLng != null) {
+        // PR2 r9: 같은 지점(서버가 합친 같은 숙소 표식) = 이동 0 — 화면 TransitFallback 과 같은 판정.
+        if (pLat != null && pLng != null && cLat != null && cLng != null && !isSameSpot(pLat, pLng, cLat, cLng)) {
           const φ1 = (pLat * Math.PI) / 180;
           const φ2 = (cLat * Math.PI) / 180;
           const Δφ = ((cLat - pLat) * Math.PI) / 180;
@@ -867,7 +869,8 @@ export async function generatePDF(
         const pLng = (prevStop as { lng?: number | null })?.lng;
         const cLat = (stop as { lat?: number | null }).lat;
         const cLng = (stop as { lng?: number | null }).lng;
-        if (pLat != null && pLng != null && cLat != null && cLng != null) {
+        // PR2 r9: 같은 지점이면 이동 대체 안내 없음(화면과 같은 판정).
+        if (pLat != null && pLng != null && cLat != null && cLng != null && !isSameSpot(pLat, pLng, cLat, cLng)) {
           // haversine km
           const φ1 = (pLat * Math.PI) / 180;
           const φ2 = (cLat * Math.PI) / 180;

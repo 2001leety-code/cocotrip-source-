@@ -177,11 +177,37 @@ export function resolveTourEndTime(source) {
   return `${String(Math.floor(min / 60)).padStart(2, '0')}:${String(min % 60).padStart(2, '0')}`;
 }
 
+/** resolveTourEndTime 과 같은 규칙(camel 우선 → snake, 앞 5자 엄격 HH:MM, 1자리 시는 패딩), 아니면 fallback. 숫자·객체·'25:00'·'9:3' 도 fallback. 순수. */
+function resolveHHMMField(source, camel, snake, fallback) {
+  const s = source && typeof source === 'object' ? source : {};
+  const raw = typeof s[camel] === 'string' && s[camel] ? s[camel] : s[snake];
+  const min = strictHHMMToMin(raw);
+  if (min === null) return fallback;
+  return `${String(Math.floor(min / 60)).padStart(2, '0')}:${String(min % 60).padStart(2, '0')}`;
+}
+
+/** 2026-10-26 (첫날 도착 PR2): 투어 시작 SSOT — resolveTourEndTime 과 같은 규칙, 실패 '09:00'. RouteAgent·routeEnrichment 공통. */
+export function resolveTourStartTime(source) {
+  return resolveHHMMField(source, 'tourStartTime', 'tour_start_time', '09:00');
+}
+
+/** 2026-10-26 (첫날 도착 PR2): 도착 시각 SSOT — camel arrivalTime 우선, 다음 snake. 실패 ''(도착 시각 미상). */
+export function resolveArrivalTime(source) {
+  return resolveHHMMField(source, 'arrivalTime', 'arrival_time', '');
+}
+
+/** 2026-10-26 (첫날 도착 PR2): 출국 시각 — 같은 규칙, 실패 ''. 1일 여행 출국 마감(departureActivityDeadlineMin)용. */
+export function resolveDepartureTime(source) {
+  return resolveHHMMField(source, 'departureTime', 'departure_time', '');
+}
+
 // 2026-10-26 (첫날 도착 PR1): 1일 여행 끼니 창. 식당 체류 = buildPrompt "restaurant 60" 과 같은 값.
 export const MEAL_STAY_MIN = 60;
 const DEFAULT_TOUR_START_MIN = 9 * 60;
 const LUNCH_WINDOW = [11 * 60, 17 * 60];  // B-MEAL 점심(오후 식사) [11,17)
 const DINNER_WINDOW = [17 * 60, 22 * 60]; // B-MEAL 저녁 [17,22)
+/** 끼니 역할 시작 창(분, [from, to)) — blockMode 첫날 식사 유지 판정이 같은 값을 쓴다(복제 금지). */
+export const MEAL_ROLE_WINDOWS = Object.freeze({ lunch: LUNCH_WINDOW, dinner: DINNER_WINDOW });
 
 /** 출국일 활동 마감(분) = 출국 − 공항 도착 여유 − 공항 이동. blockMode.applyDepartureDayFlightCap 과 같은 식(공유). */
 export function departureActivityDeadlineMin(depMin, departureAirport, cityKey) {
@@ -393,6 +419,8 @@ export function lookupZoneCoord(zone) {
 // qualityMetrics.tight_schedule 이 같은 값을 기준으로 촉박 여부를 판정하므로
 // 두 곳에 따로 적지 않는다 (한쪽만 바뀌면 지표가 조용히 어긋난다).
 export const SCHEDULE_BUFFER_MIN = 5;
+/** 구간 이동 기본값(분) — 실제 경로·모델 추정이 없을 때. RouteAgent.legTransitMin 과 경로 실패 정리(blockMode)가 같은 값을 쓴다. */
+export const DEFAULT_LEG_MIN = 25;
 
 // ── Rich System Prompt Language Instructions ──────────────────────────────
 export const LANG_INSTRUCTION = {
