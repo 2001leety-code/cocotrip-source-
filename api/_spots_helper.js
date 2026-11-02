@@ -198,7 +198,8 @@ export function getExactCitySpotsContext({ cityKey, maxItems = 6 } = {}) {
   const candidates = getExactCitySpotCandidates(cityKey).slice(0, maxItems);
   if (candidates.length === 0) return { contextString: '', candidates: [] };
   const cityLabel = String(cityKey).charAt(0).toUpperCase() + String(cityKey).slice(1);
-  const lines = candidates.map((c) => `  • ${c.name.en}${c.name.ko && c.name.ko !== c.name.en ? ` (${c.name.ko})` : ''}`);
+  // r4b (Claude quick): a name with its own parentheses → print that one name only (the quick matcher cannot split nested ones).
+  const lines = candidates.map((c) => `  • ${c.name.en}${c.name.ko && c.name.ko !== c.name.en && !/[()（）]/.test(c.name.en + c.name.ko) ? ` (${c.name.ko})` : ''}`);
   const contextString = `\n\n--- VERIFIED ${cityLabel.toUpperCase()} PLACES (exact-city only — do not use for another city) ---\n` +
     `Use EXACT names from this list for named attractions/landmarks:\n${lines.join('\n')}\n---`;
   return { contextString, candidates };

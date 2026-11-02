@@ -11,7 +11,7 @@
 import { readFileSync } from 'fs';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
-import { isDietaryTrusted, dietaryEvidenceFor, describeDietaryEvidence, acceptTagsForDiet } from './_shared/dietary-trust.js';
+import { isDietaryTrusted, dietaryEvidenceFor, acceptTagsForDiet } from './_shared/dietary-trust.js';
 import { addressNamesCity, isRowCityConsistent } from './_shared/food-row-provenance.js';
 
 // ── Row integrity predicate (2026-08-24, planner-trust-course #3) ──────────
@@ -461,8 +461,21 @@ export function getExactCityGeneralFoodCandidates(cityKey, maxItems = 8, stylePr
   if (styles.length > 0) rows = rows.filter((r) => matchesCuisinePrefs(r, styles));
   return rows
     .slice()
-    .sort((a, b) => (Number(b.rating) || 0) - (Number(a.rating) || 0) || String(a.nameEn || a.name || '').localeCompare(String(b.nameEn || b.name || '')))
+    // r4b: 명시 로캘 'en' — 운영(Vercel, en-US 기본)과 로컬(ko-KR)의 같은 평점 행 순서를 같게(기본 로캘 의존 제거).
+    .sort((a, b) => (Number(b.rating) || 0) - (Number(a.rating) || 0) || String(a.nameEn || a.name || '').localeCompare(String(b.nameEn || b.name || ''), 'en'))
     .slice(0, maxItems);
+}
+
+// 2026-11-02 (Claude quick r4): model-facing list name. "이름 (영문명)" printed "나마스테 해운대점 ()" for an empty nameEn and
+//   "Cherry Garden Restaurant (Halal) (Cherry Garden Restaurant (Halal))" when both are the same — a model copying either
+//   misses the exact candidate match. Same for an English name with parentheses of its own ("(Nutcracker Bros)" →
+//   "호두까끼형제 방배점 ((Nutcracker Bros))" — the matcher's "Name (Other)" split cannot take nested parentheses).
+//   Those → the name alone; otherwise the old two-name form.
+function listedFoodName(r) {
+  const base = String(r.name || '').split('|')[0].trim();
+  const en = String(r.nameEn || '').trim();
+  const fold = (s) => s.normalize('NFKC').toLowerCase().replace(/\s+/g, '');
+  return !en || fold(en) === fold(base) || /[()（）]/.test(en) ? base : `${base} (${en})`;
 }
 
 /**
@@ -481,7 +494,7 @@ export function getExactCityGeneralFoodContext({ cityKey, maxItems = 8, stylePre
   const lines = candidates.map((r) => {
     const matchedStyles = styles.filter((s) => matchesCuisinePrefs(r, [s]));
     const styleTag = matchedStyles.length > 0 ? ` [${matchedStyles.map((s) => s.toUpperCase()).join('/')}]` : '';
-    return `  • ${(r.name || '').split('|')[0].trim()} (${r.nameEn || ''})${styleTag}\n    📍 ${r.address}`;
+    return `  • ${listedFoodName(r)}${styleTag}\n    📍 ${r.address}`;
   });
   const contextString = `\n\n--- VERIFIED ${cityLabel.toUpperCase()} RESTAURANTS (exact-city only — identity/address only, no price/hours/menu claims) ---\n` +
     `Use ONLY restaurants from this list for meal stops. Do not invent others, do not claim exact prices, hours, Michelin status, or specific menu items.\n${lines.join('\n')}\n---`;
@@ -492,9 +505,13 @@ export function getExactCityGeneralFoodContext({ cityKey, maxItems = 8, stylePre
  * Strict exact-city trusted dietary context for prompt injection. Every line
  * carries its honest evidence tier (certified vs. friendly-not-certified) —
  * never relabeled as one thing when it's the other (CLAUDE.md dietary-safety).
+ * 2026-11-02 (Claude quick r3b): no `language` argument any more (r4 removed it from the only caller) — the per-line evidence
+ *   sentence (describeDietaryEvidence) and the "(not certified)" suffix were removed from this MODEL-facing list. The model
+ *   copied them into tips ("halal certification NOT verified…"), which the quick validator rejects as a model-authored
+ *   dietary claim; the server attaches the very same sentence itself afterwards (enforceDietaryRowTips), so guests see no change.
  * @returns {{ contextString: string, candidates: ReturnType<typeof getExactCityTrustedDietaryCandidates> }}
  */
-export function getExactCityTrustedFoodContext({ cityKey, dietaryList, language = 'en', maxItems = 10, stylePrefs = [] } = {}) {
+export function getExactCityTrustedFoodContext({ cityKey, dietaryList, maxItems = 10, stylePrefs = [] } = {}) {
   const candidates = getExactCityTrustedDietaryCandidates(cityKey, dietaryList, maxItems, stylePrefs);
   if (candidates.length === 0) return { contextString: '', candidates: [] };
 
@@ -504,13 +521,12 @@ export function getExactCityTrustedFoodContext({ cityKey, dietaryList, language 
     // honestly instead of collapsing to one (a row can be certified for one
     // diet and friendly-only for another).
     const tierLines = evidence.map((ev) => {
-      const note = describeDietaryEvidence(ev.verification_status, language);
       const tierLabel = ev.verification_status === 'halal_certified' || ev.verification_status === 'vegan_restaurant'
-        ? 'CERTIFIED' : 'FRIENDLY (not certified)';
-      return `[${ev.diet.toUpperCase()} — ${tierLabel}] ⚠️ ${note}`;
+        ? 'CERTIFIED' : 'FRIENDLY';
+      return `[${ev.diet.toUpperCase()} — ${tierLabel}]`;
     });
     return (
-      `  • ${(r.name || '').split('|')[0].trim()} (${r.nameEn || ''})\n` +
+      `  • ${listedFoodName(r)}\n` +
       `    📍 ${r.address}\n` +
       tierLines.map((l) => `    ${l}`).join('\n')
     );
@@ -518,7 +534,10 @@ export function getExactCityTrustedFoodContext({ cityKey, dietaryList, language 
   const contextString = `\n\n--- VERIFIED ${cityLabel.toUpperCase()} DIETARY-SAFE RESTAURANTS (exact-city, trusted evidence only) ---\n` +
     `Use ONLY restaurants from this list for meal recommendations. Do not invent others.\n` +
     `Each entry's tier is honest: CERTIFIED = manually verified; FRIENDLY = listed as offering ` +
-    `this diet but certification is NOT confirmed — say so, do not call it "certified".\n` +
+    // 2026-11-02 (Claude quick r3): was "say so" — told the model to write the tier, which the quick validator rejects as a
+    //   model-authored dietary claim. This context is only used by the quick preview for diet guests.
+    `this diet but certification is NOT confirmed. Never write the tier or any certification status yourself (not in a name, ` +
+    `tip, theme or narrative) — the server attaches the verified evidence note.\n` +
     `${lines.join('\n\n')}\n---`;
   return { contextString, candidates };
 }

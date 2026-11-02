@@ -152,8 +152,11 @@ describe('prompt context (_food_helper)', () => {
     expect(bi).toBeGreaterThan(-1);
     expect(gi).toBeGreaterThan(bi); // index order: friendly row before certified row
     const beta = contextString.slice(bi, gi);
-    expect(beta).toContain('[HALAL — FRIENDLY (not certified)]');
-    expect(beta).toContain(describeDietaryEvidence('muslim_friendly', lang));
+    // 2026-11-02 (Claude quick r3b): 모델용 목록은 등급 태그만 — 근거 문장은 서버가 손님 팁에 붙인다(모델이 옮겨 써 거절되던 원천).
+    //   FRIENDLY 의 뜻("certification is NOT confirmed")은 목록 머리글이 설명한다.
+    expect(beta).toContain('[HALAL — FRIENDLY]');
+    expect(beta).not.toContain(describeDietaryEvidence('muslim_friendly', lang));
+    expect(contextString).toContain('FRIENDLY = listed as offering this diet but certification is NOT confirmed');
     expect(beta).not.toContain('[HALAL — CERTIFIED]');
     // 재시도 프롬프트가 참조하는 HALAL 전용 인증 표시는 이 trusted 목록의 halal_certified 등급 라벨 그대로다
     expect(contextString.slice(gi)).toContain('[HALAL — CERTIFIED]');
