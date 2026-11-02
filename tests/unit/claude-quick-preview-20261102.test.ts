@@ -204,11 +204,11 @@ describe('4 — retry tells the model why attempt 1 was rejected (fixed line, no
 // 5 — r3: 운영 실측(#1481 뒤) 식이 손님만 계속 실패 — 프롬프트가 "등급(CERTIFIED/FRIENDLY)을 그대로 전달" + "인증 주장 금지"를 함께 줘
 //   Claude 가 이름·팁에 "(FRIENDLY, 비인증)"·certified 를 붙였다. 식이 손님 = "등급 쓰지 말 것", 식이 없는 손님 = 종전 문장 그대로.
 describe('5 — diet guests are told not to write the tier; everyone else keeps the old sentence', () => {
-  const OLD = {
-    ko: '목록에 적힌 등급(CERTIFIED/FRIENDLY)을 그대로 전달하세요.',
-    ja: 'リストの等級（CERTIFIED/FRIENDLY）をそのまま伝えてください。',
-    zh: '如实转达列表中标注的等级（CERTIFIED/FRIENDLY）。',
-    en: 'pass along the tier written there (CERTIFIED vs. FRIENDLY) exactly as given.',
+  const OLD = { // 식이 없는 손님 문장 전체(앞 문장과 " — " 이음까지 — 공백 하나도 바뀌면 실패)
+    ko: '목록에 없는 식당을 지어내거나 인증 여부를 추측하지 마세요 — 목록에 적힌 등급(CERTIFIED/FRIENDLY)을 그대로 전달하세요.',
+    ja: 'リストにない店を作り出したり、認証の有無を推測したりしないでください — リストの等級（CERTIFIED/FRIENDLY）をそのまま伝えてください。',
+    zh: '不要编造列表之外的餐厅，也不要猜测认证情况 — 如实转达列表中标注的等级（CERTIFIED/FRIENDLY）。',
+    en: 'Never invent a restaurant not on that list, and never guess at certification — pass along the tier written there (CERTIFIED vs. FRIENDLY) exactly as given.',
   };
   const NEW = {
     ko: '등급(CERTIFIED/FRIENDLY)·인증 여부는 쓰지 마세요',
@@ -216,12 +216,43 @@ describe('5 — diet guests are told not to write the tier; everyone else keeps 
     zh: '不要写出等级（CERTIFIED/FRIENDLY）或认证情况',
     en: 'Never write the tier (CERTIFIED/FRIENDLY) or any certification status yourself',
   };
-  const TIP_GUIDE = { // r3b: 금지만이 아니라 대신 쓸 것
-    ko: '팁 칸에는 그 장소 자체(볼거리·분위기·추천 시간대·동선)만 짧게 쓰세요',
-    ja: 'ヒント欄にはその場所自体（見どころ・雰囲気・おすすめの時間帯・動線）だけを短く書いてください',
-    zh: '贴士栏只简短写该地点本身（看点、氛围、推荐时段、动线）',
-    en: 'Keep each tip short and about the place itself',
+  const TIP_GUIDE = { // r3b: 금지만이 아니라 대신 쓸 것 · r4: 실용 정보만(장소 설명 금지 — 성원 "Muslim"/"清真寺")
+    ko: '팁 칸에는 실용 정보만 짧게 쓰세요(추천 시간대, 가는 법·다음 장소로 이동, 붐빔·줄 서기 팁) — 그 장소가 무엇인지·무엇을 파는지는 설명하지 말고',
+    ja: 'ヒント欄には実用的な情報だけを短く書いてください（おすすめの時間帯、行き方・次の場所への移動、混雑・行列のコツ）— その場所が何か・何を売っているかは説明せず',
+    zh: '贴士栏只简短写实用信息（推荐时段、怎么去及前往下一站、人流和排队技巧）— 不要介绍该地点是什么或卖什么',
+    en: 'Keep each tip short and practical only (the best time to go, how to get there or on to the next stop, crowd and queue tips) — do not describe what the place is or what it sells',
   };
+  // r4: 서사·테마도 식이 손님은 서버가 교체한다 — 음식·식이 낱말 금지. r4b: 장소·식당 이름도 쓰지 말 것
+  //   (재현: zh 서사 "…走访首尔中央清真寺…" = token 清真).
+  const NARRATIVE_GUIDE = {
+    ko: '서사(marketingNarrative)와 테마(themes)에는 하루의 분위기와 흐름만 쓰세요 — 장소·식당 이름도 쓰지 말고(이름은 명소 칸에만), 음식·식이·인증·안전 낱말도 쓰지 마세요',
+    ja: '紹介文（marketingNarrative）とテーマ（themes）には一日の雰囲気と流れだけを書いてください — 場所や店の名前も書かず（名前はスポット欄だけ）、食べ物・食事制限・認証・安全の言葉も書かないでください',
+    zh: '介绍（marketingNarrative）和主题（themes）只写一天的氛围和节奏 — 不要写地点或餐厅的名称（名称只写在地点栏），也不要用食物、饮食限制、认证或安全相关的词',
+    en: 'Keep marketingNarrative and themes about the mood and flow of the day only — no place or restaurant names (names go only in the Spot column), and no food, diet, certification or safety words',
+  };
+  // r4b: 붐빔·줄 팁이 安全/保证/guaranteed/보장 을 불렀다(재현 "周末人流较大，请注意安全", "No table is guaranteed at noon").
+  const CROWD_TIP_WORDS = {
+    ko: '붐빔·줄 서기 팁에서도 "안전"·"보장" 같은 낱말은 쓰지 마세요.',
+    ja: '混雑・行列のコツでも「安全」「保証」のような言葉は使わないでください。',
+    zh: '写人流和排队技巧时也不要用"安全""保证"这类词。',
+    en: 'Even in crowd and queue tips, never use words like "safe" or "guaranteed".',
+  };
+  // r4b: "food_preferences 를 반영하라" 가 테마 "Halal-friendly Busan"·서사 "as Muslim travelers" 를 불렀다 — 식당 고르기로만.
+  const REFLECT_BY_CHOICE = {
+    ko: '식이 선호는 식당 고르기로만 반영하고, 서사·테마·팁에는 손님의 식이를 쓰지 마세요.',
+    ja: '食事の希望はお店選びだけに反映し、紹介文・テーマ・ヒントには旅行者の食事制限を書かないでください。',
+    zh: '饮食需求只通过选择餐厅来体现，不要在介绍、主题和贴士里写游客的饮食限制。',
+    en: 'Reflect a dietary need only through which restaurants you pick — never write about the traveler\'s diet in the narrative, themes or tips.',
+  };
+  // r4: 이름의 원래 괄호는 유지("Cherry Garden Restaurant (Halal)") — 덧붙인 등급만 금지.
+  const KEEP_NAME_PARENS = {
+    ko: '이름에 원래 있는 괄호는 그대로 두고, 등급·인증 표시만 덧붙이지 마세요',
+    ja: '名前に元からある括弧はそのまま残し、等級・認証の表示だけを付け足さないでください',
+    zh: '名称里原有的括号保持不变，只是不要另加等级或认证标注',
+    en: 'keep any parentheses that are part of the name, and never add a tier or certification label',
+  };
+  // r4: 식이 손님 프롬프트에서 사라진 옛 등급 낱말(noMenuClaim·영어 RULES·tierRule).
+  const OLD_TIER_WORDS = ['FRIENDLY(비인증)', 'FRIENDLY（未認証）', 'FRIENDLY（未认证）', 'FRIENDLY (not-certified)', 'FRIENDLY-not-certified', '괄호의 등급 표시 없이', '括弧の等級表示なし', '不要加括号的等级标注', 'no tier label in parentheses', '안전한지', '安全性', '是否安全', 'is safe'];
   // 운영 실측: 서울 채식 ko 1차 "No stop names a restaurant from the trusted dietary-safe list" — 검증은 요구하는데 첫 프롬프트엔 없었다.
   const ONE_TRUSTED_MEAL = {
     ko: '"VERIFIED ... DIETARY-SAFE RESTAURANTS" 목록의 식당을 점심 또는 저녁 식사 장소로 최소 1곳 넣으세요',
@@ -258,6 +289,11 @@ describe('5 — diet guests are told not to write the tier; everyone else keeps 
     expect(system).not.toContain(TIP_GUIDE[lang]);
     for (const s of NAMES_IN_SPOT_ONLY[lang]) expect(system).not.toContain(s);
     expect(system).not.toContain(ONE_TRUSTED_MEAL[lang]);
+    expect(system).not.toContain(NARRATIVE_GUIDE[lang]);
+    expect(system).not.toContain(KEEP_NAME_PARENS[lang]);
+    expect(system).not.toContain(CROWD_TIP_WORDS[lang]);
+    expect(system).not.toContain(REFLECT_BY_CHOICE[lang]);
+    if (lang === 'en') expect(system).toContain('- Make the narrative exciting and personal\n');
     expect(user).not.toContain('DIETARY-SAFE RESTAURANTS');
   });
 
@@ -276,6 +312,12 @@ describe('5 — diet guests are told not to write the tier; everyone else keeps 
       expect(system).toContain(TIP_GUIDE[lang]);
       for (const s of NAMES_IN_SPOT_ONLY[lang]) expect(system).toContain(s);
       expect(system).toContain(ONE_TRUSTED_MEAL[lang]);
+      expect(system).toContain(NARRATIVE_GUIDE[lang]);
+      expect(system).toContain(KEEP_NAME_PARENS[lang]);
+      expect(system).toContain(CROWD_TIP_WORDS[lang]);
+      expect(system).toContain(REFLECT_BY_CHOICE[lang]);
+      if (lang === 'en') expect(system).toContain('- Make the narrative exciting and personal — about the sights only, never the traveler\'s diet');
+      for (const w of OLD_TIER_WORDS) expect(system, w).not.toContain(w);
     }
   });
   it('guest-facing tip is unchanged: the server still attaches the evidence sentence to the matched restaurant row', async () => {
@@ -285,6 +327,113 @@ describe('5 — diet guests are told not to write the tier; everyone else keeps 
     const body = res.body as string;
     expect(TRUSTED_DIETARY_STATUS.filter((s: string) => s === 'halal_certified' || s === 'muslim_friendly').some((s: string) => body.includes(JSON.stringify(describeDietaryEvidence(s, 'en')).slice(1, -1)))).toBe(true);
     expect(body).not.toContain('relaxed lunch near the station exit'); // 모델 팁은 그대로 버려진다
+  });
+});
+
+// 7 — r4 (운영 실측: 서울 식이 없음 zh 두 시도 모두 "安国药房" 후보 불일치): ja/zh 언어 지시가 "장소명도 일본어/중국어로" 라
+//   Claude 가 Spot 이름을 번역했다. Spot 칸은 언어 검사 대상이 아니다(matchesLanguage = 서사·테마·팁만) → 이름은 목록 표기 그대로.
+//   모든 ja/zh 손님(식이 무관)의 이 한 줄만 바뀐다. ko/en 은 그대로.
+describe('7 — ja/zh: Spot names exactly as the VERIFIED list writes them (no translation); narrative, themes and tips stay ja/zh', () => {
+  // r4b: ja/zh 에 "목록 이름은 Spot 칸에만"(재현 "在안국약방享用午餐" → 언어 502)·"[태그] 베끼지 말 것"·ja 가나 필수(한자만 테마 "伝統文化" 거절),
+  //   ko 도 같은 원인(영문 전용 식당명 음역 "스카이 김밥")으로 바꾸고, en 은 한글 전용명 음역 금지 1줄 추가.
+  const LINES = {
+    ja: { old: '回答は必ず日本語で書いてください（marketingNarrative、day1MarkdownTableのスポット名・ヒントもすべて日本語）。', now: '紹介文（marketingNarrative）・テーマ・ヒントは必ず日本語で書いてください。スポット欄のスポット名・店名は下の「VERIFIED」リストの表記そのまま書いてください（翻訳・音訳しないこと）。リストの名前（ハングル・英語）はスポット欄だけに書き、紹介文・テーマ・ヒントには入れないでください。名前の後ろの [SEAFOOD] のようなタグは写さないでください。テーマ・ヒントには必ずひらがな・カタカナを含めてください。' },
+    zh: { old: '回复必须使用中文（marketingNarrative、day1MarkdownTable中的地点名和贴士都必须是中文）。', now: '介绍（marketingNarrative）、主题和贴士必须使用中文。地点栏的地点名和餐厅名请严格按下方"VERIFIED"列表中的写法书写（不要翻译或音译）。列表中的名称（韩文、英文）只写在地点栏，不要写进介绍、主题和贴士。不要照抄名称后面的 [SEAFOOD] 之类标签。' },
+    ko: { old: '응답은 반드시 한국어로 작성하세요 (marketingNarrative, day1MarkdownTable 의 명소/팁 텍스트 모두).', now: '서사(marketingNarrative)·테마·팁은 반드시 한국어로 작성하세요. 명소 칸의 장소·식당 이름은 아래 "VERIFIED" 목록의 표기 그대로 쓰세요(영문 이름도 번역·음역하지 말고, 이름 뒤 [SEAFOOD] 같은 태그는 베끼지 마세요).' },
+    en: { old: '- Respond in English.\n- Make the narrative', now: '- Respond in English.\n- Spot names exactly as listed, even when Korean — never translate or romanize them (Korean letters only in the Spot column), and do not copy a trailing tag like [SEAFOOD].\n- Make the narrative' },
+  };
+  const systemFor = async (language: string, extra: Record<string, unknown>) => {
+    generateContentMock.mockReset();
+    generateContentMock.mockResolvedValue(json({ themes: [], marketingNarrative: '' }));
+    await postJson({ regions: ['Seoul'], durationDays: 3, pax: 2, reservation_status: 'nothing', language, ...extra });
+    return generateContentMock.mock.calls[0][0].systemInstruction.parts[0].text as string;
+  };
+  it.each(['ja', 'zh', 'ko', 'en'] as const)('%s, with and without a safety diet: the new language line replaces the old one exactly once', async (lang) => {
+    for (const extra of [{}, { dietPrefs: ['Seafood'] }, { dietaryRestrictions: ['Halal'] }]) {
+      const s = await systemFor(lang, extra);
+      expect(s).not.toContain(LINES[lang].old);
+      expect(s.split(LINES[lang].now).length - 1).toBe(1);
+    }
+  });
+  it('a Spot cell is not language-checked: a ja guest may name the Korean/English listed spelling (tips stay Japanese) → 200', async () => {
+    const jaTable = '| 時間 | スポット | 交通 | ヒント |\n|---|---|---|---|\n'
+      + '| 10:00 | National Museum of Korea | 出発地 | 朝いちばんに行くと空いています |\n'
+      + '| 12:00 | National Folk Museum | 徒歩5分 | 入口は正門側が近いです |\n'
+      + '| 14:00 | 파샤케밥 | 地下鉄10分 | 駅の出口から歩いてすぐです |';
+    generateContentMock.mockReset();
+    generateContentMock.mockResolvedValueOnce(json({ themes: ['ソウルの一日'], marketingNarrative: 'ソウルの名所をめぐる、ゆったりとした一日の旅です。', day1MarkdownTable: jaTable }));
+    const res = await postJson({ regions: ['Seoul'], durationDays: 3, pax: 2, reservation_status: 'nothing', language: 'ja', dietaryRestrictions: ['Halal'] });
+    expect(res.statusCode, res.body).toBe(200);
+  });
+});
+
+// 8 — r4b (적대적 검증: 관광지 목록 736/741 — 실패 5 = 이름 자체에 괄호가 든 항목 "X (Y) (한글 (Z))"): 모델용 관광지·장소 목록의
+//   모든 줄을 그대로 베끼면 실제 매처(resolveSpotToCandidate)가 정확히 한 후보로 푼다 — 전 도시·4개 언어 전수.
+describe('8 — every attraction / place list line, copied verbatim, resolves through the real matcher', () => {
+  const CITIES = ['seoul', 'busan', 'jeju', 'gyeongju', 'incheon', 'daegu', 'daejeon', 'gwangju', 'ulsan', 'suwon', 'gangneung', 'jeonju', 'sokcho', 'yeosu', 'tongyeong', 'andong', 'pohang', 'chuncheon', 'mokpo', 'gunsan', 'pyeongchang', 'icheon', 'sejong', 'cheongju'];
+  it('0 unresolved lines (names with their own parentheses print one name only)', async () => {
+    const { getExactCityAttractionsContext } = await import('../../api/_attractions_helper.js');
+    const { getExactCitySpotsContext } = await import('../../api/_spots_helper.js');
+    const { buildCanonicalCandidates, resolveSpotToCandidate } = await import('../../api/ai-planner-quick.js');
+    const bullets = (ctx: string) => ctx.split('\n').filter((l) => l.startsWith('  • ')).map((l) => l.slice(4));
+    let checked = 0;
+    const failed: string[] = [];
+    for (const city of CITIES) {
+      for (const language of ['ko', 'en', 'ja', 'zh']) {
+        const a = getExactCityAttractionsContext({ cityKey: city, language, maxLocations: 1000 });
+        const s = getExactCitySpotsContext({ cityKey: city, maxItems: 1000 });
+        for (const [ctx, cands] of [[a.contextString, a.candidates], [s.contextString, s.candidates]] as const) {
+          const pool = buildCanonicalCandidates({ attractionCandidates: cands as never, foodCandidates: [] });
+          for (const line of bullets(ctx)) {
+            checked++;
+            const r = resolveSpotToCandidate(line, pool);
+            if (!r.ok && !/ambiguous/.test(r.reason)) failed.push(`${city}/${language}: ${line}`);
+          }
+        }
+      }
+    }
+    expect(checked).toBeGreaterThan(500);
+    expect(failed).toEqual([]);
+  });
+});
+
+// 6 — r4: 모델용 목록 이름 표기. "이름 (영문명)" 이 영문명이 비면 "나마스테 해운대점 ()", 같으면 "X (Halal) (X (Halal))",
+//   영문명이 이미 괄호면 "이름 ((Nutcracker Bros))" — 그대로 베끼면 정확 매칭 실패. → 그런 행은 이름만, 나머지는 종전 형식.
+describe('6 — model-facing list names: name alone when the English name is empty / the same / already parenthesised', () => {
+  const bullets = (ctx: string) => ctx.split('\n').filter((l) => l.startsWith('  • ')).map((l) => l.slice(4).replace(/ \[[A-Z/]+\]$/, ''));
+  it('trusted (diet) and general lists: no "()" , no doubled name, no "((…))"; a different English name keeps "Name (English)"', async () => {
+    const { getExactCityTrustedFoodContext, getExactCityGeneralFoodContext } = await import('../../api/_food_helper.js');
+    const seoulHalal = bullets(getExactCityTrustedFoodContext({ cityKey: 'seoul', dietaryList: ['Halal'] }).contextString);
+    const busanHalal = bullets(getExactCityTrustedFoodContext({ cityKey: 'busan', dietaryList: ['Halal'] }).contextString);
+    const general = bullets(getExactCityGeneralFoodContext({ cityKey: 'seoul' }).contextString);
+    for (const n of [...seoulHalal, ...busanHalal, ...general]) {
+      expect(n, n).not.toMatch(/\(\s*\)|\(\(|\)\)$/);
+    }
+    expect(seoulHalal).toContain('Cherry Garden Restaurant (Halal)'); // 이름 = 영문명(원래 괄호 유지)
+    expect(seoulHalal).toContain('파샤케밥 (Pasha Kebab)'); // 다른 영문명 = 종전 형식
+    expect(busanHalal).toContain('나마스테 해운대점'); // 영문명 없음
+    expect(general).toContain('호두까끼형제 방배점'); // 영문명이 이미 "(Nutcracker Bros)"
+    expect(general).toContain('구사연남 (94YEONNAM)'); // 식이 없는 손님 목록도 다른 영문명 행은 종전 그대로
+  });
+  const body = { regions: ['Seoul'], durationDays: 3, pax: 2, reservation_status: 'nothing', language: 'en', dietaryRestrictions: ['Halal'] };
+  it.each([
+    ['Cherry Garden Restaurant (Halal)'], // 목록 그대로(이름 속 원래 괄호)
+    ['파샤케밥 (Pasha Kebab)'], ['파샤케밥'], ['Pasha Kebab'], // 종전 형식·이름 단독·영문명 단독
+  ])('the matcher resolves the listed spelling "%s" exactly → 200 (matching rules unchanged)', async (food) => {
+    generateContentMock.mockResolvedValueOnce(json({ ...MODEL, day1MarkdownTable: table(food) }));
+    const res = await postJson(body);
+    expect(res.statusCode, res.body).toBe(200);
+  });
+  it('[QUICK_CLAIM] token folds whitespace (one log line, no line break)', async () => {
+    const warn = vi.spyOn(console, 'warn');
+    try {
+      generateContentMock.mockResolvedValue(json({ ...MODEL, day1MarkdownTable: table('Adm’s Mandi').replace('relaxed lunch near the station exit', 'no \t  cross-contamination here') })); // 표 칸 안이라 줄바꿈 대신 탭·여러 공백
+      await postJson(body);
+      const lines = warn.mock.calls.map((c) => String(c[0])).filter((s) => s.startsWith('[QUICK_CLAIM]'));
+      expect(lines.length).toBeGreaterThan(0);
+      for (const l of lines) expect(l).not.toMatch(/[\n\t]/);
+      expect(lines[0]).toBe('[QUICK_CLAIM] field=tip idx=2 token=no cross-contaminati');
+    } finally { warn.mockRestore(); }
   });
 });
 
