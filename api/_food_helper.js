@@ -461,8 +461,21 @@ export function getExactCityGeneralFoodCandidates(cityKey, maxItems = 8, stylePr
   if (styles.length > 0) rows = rows.filter((r) => matchesCuisinePrefs(r, styles));
   return rows
     .slice()
-    .sort((a, b) => (Number(b.rating) || 0) - (Number(a.rating) || 0) || String(a.nameEn || a.name || '').localeCompare(String(b.nameEn || b.name || '')))
+    // r4b: 명시 로캘 'en' — 운영(Vercel, en-US 기본)과 로컬(ko-KR)의 같은 평점 행 순서를 같게(기본 로캘 의존 제거).
+    .sort((a, b) => (Number(b.rating) || 0) - (Number(a.rating) || 0) || String(a.nameEn || a.name || '').localeCompare(String(b.nameEn || b.name || ''), 'en'))
     .slice(0, maxItems);
+}
+
+// 2026-11-02 (Claude quick r4): model-facing list name. "이름 (영문명)" printed "나마스테 해운대점 ()" for an empty nameEn and
+//   "Cherry Garden Restaurant (Halal) (Cherry Garden Restaurant (Halal))" when both are the same — a model copying either
+//   misses the exact candidate match. Same for an English name with parentheses of its own ("(Nutcracker Bros)" →
+//   "호두까끼형제 방배점 ((Nutcracker Bros))" — the matcher's "Name (Other)" split cannot take nested parentheses).
+//   Those → the name alone; otherwise the old two-name form.
+function listedFoodName(r) {
+  const base = String(r.name || '').split('|')[0].trim();
+  const en = String(r.nameEn || '').trim();
+  const fold = (s) => s.normalize('NFKC').toLowerCase().replace(/\s+/g, '');
+  return !en || fold(en) === fold(base) || /[()（）]/.test(en) ? base : `${base} (${en})`;
 }
 
 /**
@@ -473,17 +486,6 @@ export function getExactCityGeneralFoodCandidates(cityKey, maxItems = 8, stylePr
  * satisfies which requested style without guessing.
  * @returns {{ contextString: string, candidates: Array<object> }}
  */
-// 2026-11-02 (Claude quick r4): model-facing list name. "이름 (영문명)" printed "나마스테 해운대점 ()" for an empty nameEn and
-//   "Cherry Garden Restaurant (Halal) (Cherry Garden Restaurant (Halal))" when both are the same — a model copying either
-//   misses the exact candidate match. Same for an English name stored already in parentheses ("(Nutcracker Bros)" →
-//   "호두까끼형제 방배점 ((Nutcracker Bros))" — no copy of it resolves). Those → the name alone; otherwise the old two-name form.
-function listedFoodName(r) {
-  const base = String(r.name || '').split('|')[0].trim();
-  const en = String(r.nameEn || '').trim();
-  const fold = (s) => s.normalize('NFKC').toLowerCase().replace(/\s+/g, '');
-  return !en || fold(en) === fold(base) || /^[(（].*[)）]$/.test(en) ? base : `${base} (${en})`;
-}
-
 export function getExactCityGeneralFoodContext({ cityKey, maxItems = 8, stylePrefs = [] } = {}) {
   const candidates = getExactCityGeneralFoodCandidates(cityKey, maxItems, stylePrefs);
   if (candidates.length === 0) return { contextString: '', candidates: [] };
@@ -503,7 +505,7 @@ export function getExactCityGeneralFoodContext({ cityKey, maxItems = 8, stylePre
  * Strict exact-city trusted dietary context for prompt injection. Every line
  * carries its honest evidence tier (certified vs. friendly-not-certified) —
  * never relabeled as one thing when it's the other (CLAUDE.md dietary-safety).
- * 2026-11-02 (Claude quick r3b): `language` is still accepted (callers pass it) but no longer used — the per-line evidence
+ * 2026-11-02 (Claude quick r3b): no `language` argument any more (r4 removed it from the only caller) — the per-line evidence
  *   sentence (describeDietaryEvidence) and the "(not certified)" suffix were removed from this MODEL-facing list. The model
  *   copied them into tips ("halal certification NOT verified…"), which the quick validator rejects as a model-authored
  *   dietary claim; the server attaches the very same sentence itself afterwards (enforceDietaryRowTips), so guests see no change.

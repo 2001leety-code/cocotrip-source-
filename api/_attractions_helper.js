@@ -260,7 +260,10 @@ export function getExactCityAttractionsContext({ cityKey, language = 'en', maxLo
   const lines = candidates.map((a) => {
     const displayName = (a.name && (a.name[langKey] || a.name.en || a.name.ko)) || a.key || '';
     const koName = (a.name && a.name.ko) || '';
-    return `  • ${displayName}${koName && koName !== displayName ? ` (${koName})` : ''}`;
+    // 2026-11-02 (Claude quick r4b): a name with parentheses of its own ("Haeundae Blue Line Park (Sky Capsule/Beach Train)")
+    //   + " (한글명)" makes a line the quick matcher cannot split back (no nested parentheses) — print the one name then.
+    const twoNames = koName && koName !== displayName && !/[()（）]/.test(displayName + koName);
+    return `  • ${displayName}${twoNames ? ` (${koName})` : ''}`;
   });
   const cityLabel = String(cityKey).charAt(0).toUpperCase() + String(cityKey).slice(1);
   const contextString = `\n\n--- VERIFIED ${cityLabel.toUpperCase()} ATTRACTIONS (exact-city only — do not use for another city) ---\n` +
