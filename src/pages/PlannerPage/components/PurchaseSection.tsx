@@ -18,6 +18,9 @@ import {
 import { PayPalBookingButton } from '@/components/PayPalBookingButton';
 import type { PlannerFormValues } from '@/components/PlannerForm';
 import type { PlannerDict } from '../types';
+import { buildPlannerOrderInput } from '../lib/plannerIntent';
+import type { PaidOrderIssue } from '../hooks/usePlannerHandlers';
+import { recoveryCopy } from '@/lib/paymentRecovery';
 import { TriviaLoadingAnimation } from './TriviaLoadingAnimation';
 import { useAuth } from '@/hooks/useAuth';
 import { signInWithGoogle, getAvailableAiCoupon } from '@/lib/firebase';
@@ -48,6 +51,9 @@ interface PurchaseSectionProps {
   avoidList?: string | null;
   onPaymentSuccess: (orderId: string, aiCouponCode?: string) => void;
   onRevisionRegenerate: (values: PlannerFormValues, planId: string, token: string | null, revisionReason?: string | null, revisionNote?: string | null, avoidList?: string | null) => void;
+  /** 결제된 주문으로 생성이 실패한 상태(usePlannerHandlers) — 있으면 새 결제 버튼 대신 같은 주문 재시도. */
+  paidOrderIssue?: PaidOrderIssue | null;
+  onGenerateWithPaidInput?: () => Promise<void>;
 }
 
 export function PurchaseSection({
@@ -56,6 +62,7 @@ export function PurchaseSection({
   revisionMode, revisionPlanId, revisionToken,
   revisionReason, revisionNote, avoidList,
   onPaymentSuccess, onRevisionRegenerate,
+  paidOrderIssue = null, onGenerateWithPaidInput = async () => {},
 }: PurchaseSectionProps) {
   // 5/7 변경: PayPalBookingButton 이 PayPal Smart Buttons (live) + SDK 차단 시 paypal.me QR
   // fallback 통합. PurchaseSection 은 단순히 button 렌더만.
@@ -238,6 +245,29 @@ export function PurchaseSection({
               <p className="ec-body-sm text-ec-ink-3">{p.planReadyEmailSub}</p>
             </div>
           </div>
+        ) : paidOrderIssue ? (
+          /* 🔴 2026-10-26 B6-1 r2: 결제된 주문의 생성 실패 — 새 결제 버튼을 숨기고 같은 주문 재시도·문의만.
+             409 PREPAY_INPUT_MISMATCH 면 결제 주문에 고정된 조건으로 생성 요청을 다시 만든다(재결제 없음). */
+          <div className="space-y-3 border-l-2 border-ec-brand pl-3 customer-purchase-paid-order" role="status">
+            <p className="text-[14px] font-semibold text-ec-ink">{p.paidOrderTitle || 'This order is already paid — please do not pay again'}</p>
+            <p className="ec-body-sm text-ec-ink-2">{p.paidOrderBody}</p>
+            <p className="ec-body-sm text-ec-ink-3">{recoveryCopy(language).order}: <span className="font-mono">{paidOrderIssue.orderId}</span></p>
+            {paidOrderIssue.code === 'PREPAY_INPUT_MISMATCH' && paidOrderIssue.pinnedInput ? (
+              <>
+                <p className="ec-body-sm text-ec-ink-2">
+                  {p.paidOrderPinned}: {paidOrderIssue.pinnedInput.regions.join(', ')} · {paidOrderIssue.pinnedInput.startDate} ({paidOrderIssue.pinnedInput.durationDays}d)
+                  {paidOrderIssue.pinnedInput.diets.length ? ` · ${paidOrderIssue.pinnedInput.diets.join(', ')}` : ''}
+                </p>
+                <button onClick={() => { void onGenerateWithPaidInput(); }} type="button" className="ec-btn ec-btn-primary w-full">
+                  {p.paidOrderUsePaidInput || 'Create the plan with the details I paid for'}
+                </button>
+              </>
+            ) : (
+              <button onClick={() => onPaymentSuccess(paidOrderIssue.orderId)} type="button" className="ec-btn ec-btn-primary w-full">
+                {p.paidOrderRetry || 'Try again with this order'}
+              </button>
+            )}
+          </div>
         ) : revisionMode && revisionPlanId ? (
           <button
             onClick={() => { const v = lastValues.current; if (v) onRevisionRegenerate(v, revisionPlanId, revisionToken, revisionReason, revisionNote, avoidList); }}
@@ -331,6 +361,10 @@ export function PurchaseSection({
                 itineraryData={resultQuick}
                 onPaymentSuccess={onPaymentSuccess}
                 userEmail={userEmail}
+                // 🔴 2026-10-26 B6-1: 결제 전 서버 식이 커버리지 확인 — 결제 후 생성 요청과 같은 함수로 만든 여행 입력.
+                plannerInput={lastValues.current ? buildPlannerOrderInput(lastValues.current, language) : undefined}
+                // 결제 뒤 플랜 발급까지 복구 포인터 유지(발급 시 usePlannerHandlers 가 지운다) — 새로고침해도 재결제 대신 같은 주문 확인.
+                keepRecoveryUntilFulfilled
               />
             )}
 

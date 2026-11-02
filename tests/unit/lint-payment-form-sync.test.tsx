@@ -33,7 +33,7 @@ vi.mock('@/lib/haptic', () => ({ haptic: vi.fn() }));
 
 import { PurchaseSection } from '../../src/pages/PlannerPage/components/PurchaseSection';
 import { translations } from '../../src/i18n';
-import { recoveryKey } from '../../src/lib/paymentRecovery';
+import { readRecoveryOrder, resetPaymentRecoveryMemory } from '../../src/lib/paymentRecovery';
 
 // Firebase adapters are replaced before the actual UI module is evaluated.
 const { PayPalBookingButton } = await vi.importActual<{
@@ -61,8 +61,9 @@ afterEach(() => {
   vi.unstubAllGlobals();
   delete window.paypal;
   // The payment recovery pointer persists in jsdom localStorage; a leftover one blocks the next checkout.
-  localStorage.removeItem(recoveryKey('single'));
-  localStorage.removeItem(recoveryKey('cart'));
+  // r16: 주문별 키(order:/done:)와 옛 범위 키 모두 같은 접두사 — 접두사로 정리.
+  for (const key of Object.keys(localStorage)) if (key.startsWith('cocotrip:payment-recovery:')) localStorage.removeItem(key);
+  resetPaymentRecoveryMemory();
 });
 
 function EchoingPhoneForm({ onEcho }: { onEcho: (phone: string) => void }) {
@@ -176,7 +177,7 @@ describe('PayPalBookingButton payment handoff', () => {
     expect(unauthenticatedFetch).not.toHaveBeenCalled();
     expect(onPaymentSuccess).toHaveBeenCalledWith('ORDER-123');
     // Durable success for this order clears the recovery pointer written before capture.
-    expect(localStorage.getItem(recoveryKey('single'))).toBeNull();
+    expect(readRecoveryOrder('ORDER-123')).toBeNull(); // r16: 주문별 키(완료 표식)
   });
 });
 

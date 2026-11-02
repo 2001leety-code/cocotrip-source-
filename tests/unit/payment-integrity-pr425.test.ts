@@ -135,16 +135,19 @@ describe('PR #425 CY1 — capturePaypalOrder lock is transactional + releasable'
     expect(db.store.get(LOCK)).toMatchObject({ captureState: 'posted' });
   });
 
-  it('explicit NOT_CAPTURED → discardAttempt releases the lock so the customer can pay again', async () => {
+  // r19: proven nonpayment no longer deletes the lock (a deleted record let a stalled worker or a new claim pay the same
+  //   order later). It becomes a permanent void tombstone; the customer pays again with a NEW order.
+  it('explicit NOT_CAPTURED → discardAttempt voids the order (tombstone), the same order can never be claimed again', async () => {
     const db = memoryDb();
     const acquired = await claim(db);
     const result = await reconcile(acquired.attempt, async () => ({
       status: 422, body: { details: [{ issue: 'INSTRUMENT_DECLINED' }] }, parseError: null,
     }));
     expect(result.state).toBe('not_captured');
-    await discardAttempt(acquired.attempt);
-    expect(db.store.has(LOCK)).toBe(false);
-    expect((await claim(db)).kind).toBe('claimed');
+    await discardAttempt(acquired.attempt, 'INSTRUMENT_DECLINED');
+    expect(db.store.get(LOCK)).toMatchObject({ status: 'void_not_captured', captureState: 'not_captured', reason: 'INSTRUMENT_DECLINED', claimUntil: 0 });
+    expect(db.store.get(LOCK)).not.toHaveProperty('intent');
+    expect((await claim(db)).kind).toBe('voided');
   });
 
   it('a lock carrying verified-capture evidence is never discarded', async () => {
@@ -177,10 +180,11 @@ describe('PR #425 CY1 — capturePaypalOrder lock is transactional + releasable'
 
   it('handler discards the attempt only on not_captured; the UNKNOWN branch keeps it and answers 202', () => {
     const notCaptured = capture.indexOf("reconciled.state === 'not_captured'");
-    const unknown = capture.indexOf("reconciled.state !== 'captured'");
+    // r23: anchored on the UNKNOWN log line — the first `reconciled.state !== 'captured'` is now the noPost-unproven delete branch.
+    const unknown = capture.indexOf("console.error('[capturePaypalOrder] capture result UNKNOWN");
     expect(notCaptured).toBeGreaterThan(-1);
     expect(unknown).toBeGreaterThan(notCaptured);
-    expect(capture.slice(notCaptured, unknown)).toMatch(/discardAttempt\(attempt\)/);
+    expect(capture.slice(notCaptured, unknown)).toMatch(/voidOrUnknown\(reconciled\.reason, couponLockRef\)/); // r19/r20: tombstone (+coupon) via discardAttempt, failure = UNKNOWN
     const unknownBranch = capture.slice(unknown, capture.indexOf('return res.end', unknown));
     expect(unknownBranch).not.toMatch(/discardAttempt|\.delete\(/);
     expect(unknownBranch).toMatch(/releaseAttemptClaim\(attempt\)/);

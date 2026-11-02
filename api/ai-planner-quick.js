@@ -44,8 +44,15 @@ export const config = { runtime: 'nodejs' };
 // so a prod misconfiguration can't accidentally widen the allowlist.
 const QUICK_ALLOWED_ORIGINS = ['https://cocotripkr.com', 'https://www.cocotripkr.com'];
 const QUICK_LOCALHOST_RE = /^http:\/\/localhost:\d+$/;
+// 2026-11-01: 운영자 시험용 Preview 고정 별칭 — 정확히 이 주소 하나만(와일드카드 *.vercel.app 금지), 운영 배포에서는 절대 허용하지 않는다.
+//   별칭은 배포 고유 주소(VERCEL_URL)가 아니라서 아래 VERCEL_URL 규칙에 걸리지 않았다(Preview 에서 "1일차 무료로 보기" 403).
+const QUICK_PREVIEW_ALIAS_ORIGIN = 'https://cocotrip-preview-2026.vercel.app';
 function isProdEnv() {
   return process.env.VERCEL_ENV === 'production' || process.env.NODE_ENV === 'production';
+}
+// Vercel 은 Preview 배포에서도 NODE_ENV=production 이다 — Preview 판정은 VERCEL_ENV 로 한다(운영 = VERCEL_ENV 'production' 은 항상 제외).
+function isPreviewAliasAllowed() {
+  return process.env.VERCEL_ENV !== 'production' && (process.env.VERCEL_ENV === 'preview' || !isProdEnv());
 }
 // 2026-08-24 (planner-trust-course, hardening #9): exact `https://${VERCEL_URL}`
 // only (never a wildcard *.vercel.app pattern) — VERCEL_URL is the deployment's
@@ -55,6 +62,7 @@ function isOriginAllowed(origin) {
   if (QUICK_ALLOWED_ORIGINS.includes(origin)) return true;
   if (!isProdEnv() && QUICK_LOCALHOST_RE.test(origin)) return true;
   if (process.env.VERCEL_URL && origin === `https://${process.env.VERCEL_URL}`) return true;
+  if (origin === QUICK_PREVIEW_ALIAS_ORIGIN && isPreviewAliasAllowed()) return true; // 정확히 일치할 때만, 운영 제외
   return false;
 }
 function buildQuickCors(req) {

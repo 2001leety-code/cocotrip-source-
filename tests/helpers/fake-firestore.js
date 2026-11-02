@@ -87,17 +87,25 @@ function mergeInto(target, patch, nowMs) {
   return target;
 }
 
-/** update() 는 'a.b' 점 표기 경로를 지원한다(set 은 안 한다). */
+/**
+ * update() 는 'a.b' 점 표기 경로를 지원한다(set 은 안 한다).
+ *   2026-11-01 결제 r22: 실제 Firestore update 는 지정한 필드 경로의 값을 **통째로 교체**한다(map 값도 하위 칸 병합 아님 —
+ *   빠진 하위 칸은 사라진다). 예전 대역은 재귀 병합이라 "입력 통째 교체" 같은 계약을 검증하지 못했다. 변환(sentinel)은 그대로 적용.
+ */
+function replaceField(container, key, raw, nowMs) {
+  if (isPlainObject(raw) && !raw.__sentinel) { container[key] = {}; mergeInto(container[key], raw, nowMs); return; }
+  mergeInto(container, { [key]: raw }, nowMs);
+}
 function applyUpdate(target, patch, nowMs) {
   for (const [path, raw] of Object.entries(patch)) {
-    if (!path.includes('.')) { mergeInto(target, { [path]: raw }, nowMs); continue; }
+    if (!path.includes('.')) { replaceField(target, path, raw, nowMs); continue; }
     const parts = path.split('.');
     let cur = target;
     for (const p of parts.slice(0, -1)) {
       if (!isPlainObject(cur[p])) cur[p] = {};
       cur = cur[p];
     }
-    mergeInto(cur, { [parts.at(-1)]: raw }, nowMs);
+    replaceField(cur, parts.at(-1), raw, nowMs);
   }
   return target;
 }

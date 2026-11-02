@@ -42,12 +42,16 @@ export function memoryDb(failPaths: string[] = []) {
     const index = pendingFailures.findIndex((rule) => (typeof rule === 'string' ? path.startsWith(rule) : rule(path, value)));
     if (index >= 0) { pendingFailures.splice(index, 1); throw new Error(`OFFLINE_INJECTED_WRITE_FAILURE:${path}`); }
   };
-  const apply = (path: string, value: Row, merge: boolean) => rows.set(path, merge ? deepMerge(rows.get(path) || {}, value) : { ...value });
+  // r22: update() replaces each named field wholesale (a map value is not merged into the old map) — like real Firestore.
+  //   set(merge:true) keeps the recursive merge. mode: true = merge, 'update' = field replace, false = overwrite.
+  const apply = (path: string, value: Row, merge: boolean | 'update') => rows.set(path, merge === 'update'
+    ? { ...(rows.get(path) || {}), ...value }
+    : merge ? deepMerge(rows.get(path) || {}, value) : { ...value });
   const docRef = (path: string): DocRef => ({
     path, id: path.split('/').pop(),
     get: async () => ({ exists: rows.has(path), id: path.split('/').pop(), data: () => (rows.has(path) ? { ...rows.get(path) } : undefined) }),
     set: async (v: Row, o?: SetOptions) => { check(path, v); apply(path, v, !!o?.merge); },
-    update: async (v: Row) => { check(path, v); apply(path, v, true); },
+    update: async (v: Row) => { check(path, v); apply(path, v, 'update'); },
     delete: async () => { check(path); rows.delete(path); },
     collection: (name: string) => ({ doc: (id: string) => docRef(`${path}/${name}/${id}`) }),
   });
@@ -55,16 +59,16 @@ export function memoryDb(failPaths: string[] = []) {
     collection: (name: string) => ({ doc: (id: string) => docRef(`${name}/${id}`) }),
     doc: (path: string) => docRef(path),
     runTransaction: async <T>(cb: (tx: Tx) => Promise<T>): Promise<T> => {
-      const writes: { path: string; value?: Row; merge?: boolean; del?: boolean }[] = [];
+      const writes: { path: string; value?: Row; merge?: boolean | 'update'; del?: boolean }[] = [];
       const tx: Tx = {
         get: async (ref) => { expect(writes, 'transaction reads must precede writes').toHaveLength(0); return ref.get(); },
         set: (ref, value, o) => writes.push({ path: ref.path, value, merge: !!o?.merge }),
-        update: (ref, value) => writes.push({ path: ref.path, value, merge: true }),
+        update: (ref, value) => writes.push({ path: ref.path, value, merge: 'update' }),
         delete: (ref) => writes.push({ path: ref.path, del: true }),
       };
       const result = await cb(tx);
       for (const w of writes) check(w.path, w.value);
-      for (const w of writes) { if (w.del) rows.delete(w.path); else apply(w.path, w.value!, !!w.merge); }
+      for (const w of writes) { if (w.del) rows.delete(w.path); else apply(w.path, w.value!, w.merge === 'update' ? 'update' : !!w.merge); }
       return result;
     },
   };

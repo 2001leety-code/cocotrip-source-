@@ -37,7 +37,7 @@ vi.mock('react-router-dom', async () => {
 
 import { PayPalBookingButton } from '../../src/components/PayPalBookingButton';
 import { CartCheckout } from '../../src/components/CartCheckout';
-import { recoveryKey } from '../../src/lib/paymentRecovery';
+import { recoveryKey, orderRecoveryKey, readRecoveryOrder, isRecoveryDone } from '../../src/lib/paymentRecovery';
 
 type ButtonsConfig = { onApprove: (data: { orderID: string }) => Promise<void> };
 const buttons: ButtonsConfig[] = [];
@@ -85,7 +85,8 @@ describe('PayPalBookingButton — pending pointer and same-order reconcile', () 
     let pointerAtCapture: string | null = null;
     route({
       '/api/createPaypalOrder': () => createOk,
-      '/api/capturePaypalOrder': () => { pointerAtCapture = localStorage.getItem(recoveryKey('single')); return pending('ORD-1'); },
+      // r16: 포인터는 주문별 키에 저장된다(capture 전).
+      '/api/capturePaypalOrder': () => { pointerAtCapture = localStorage.getItem(orderRecoveryKey('ORD-1')); return pending('ORD-1'); },
     });
     const onSuccess = await approveSingle();
     await act(async () => { await buttons[0].onApprove({ orderID: 'ORD-1' }); });
@@ -97,7 +98,7 @@ describe('PayPalBookingButton — pending pointer and same-order reconcile', () 
     expect(screen.queryByText('Book now')).toBeNull();
     expect(screen.queryByText(/Pay via QR/)).toBeNull();
     expect(screen.queryByText('Booking Confirmed!')).toBeNull();
-    expect(JSON.parse(localStorage.getItem(recoveryKey('single')) || 'null')).toMatchObject({ orderID: 'ORD-1' });
+    expect(readRecoveryOrder('ORD-1')).toMatchObject({ orderID: 'ORD-1' }); // r16: 주문별 키
   });
 
   it('a second approve for the same mount is ignored while a capture is in flight (synchronous guard)', async () => {
@@ -121,7 +122,7 @@ describe('PayPalBookingButton — pending pointer and same-order reconcile', () 
     expect(onSuccess).not.toHaveBeenCalled();
     expect(await screen.findByText('Check this order')).toBeInTheDocument();
     expect(screen.queryByText('Retry')).toBeNull();
-    expect(JSON.parse(localStorage.getItem(recoveryKey('single')) || 'null')).toMatchObject({ orderID: 'ORD-1', paymentStatus: 'CAPTURE_UNKNOWN' });
+    expect(readRecoveryOrder('ORD-1')).toMatchObject({ orderID: 'ORD-1', paymentStatus: 'CAPTURE_UNKNOWN' }); // r16: 주문별 키
   });
 
   it('a restored pointer (reload) shows the same order; a generic 503 keeps it; explicit NOT_CAPTURED clears it and re-enables payment', async () => {
@@ -135,14 +136,18 @@ describe('PayPalBookingButton — pending pointer and same-order reconcile', () 
     await waitFor(() => expect(calls).toHaveLength(1));
     expect(calls[0]).toEqual({ orderID: 'ORD-9', reconcile: true });
     await screen.findByText('Could not verify the order right now — please retry');
-    expect(localStorage.getItem(recoveryKey('single'))).not.toBeNull();
+    expect(readRecoveryOrder('ORD-9')).not.toBeNull();
     expect(screen.queryByText('Book now')).toBeNull();
     fireEvent.click(screen.getByText('Check this order'));
-    await waitFor(() => expect(localStorage.getItem(recoveryKey('single'))).toBeNull());
+    // r16: 옛 키는 읽기만 — 정리 = 완료 표식(목록에서 빠짐).
+    await waitFor(() => expect(readRecoveryOrder('ORD-9')).toBeNull());
+    expect(isRecoveryDone('ORD-9')).toBe(true);
     expect(await screen.findByText('Book now')).toBeInTheDocument();
   });
 
-  it('durable success for the SAME product calls onPaymentSuccess once; a different product shows the confirmation instead', async () => {
+  // 2026-10-26 B6-1 r4 (Astra P1-2): a different (or unknown) product never shows THIS product's "Booking Confirmed!" —
+  //   it showed a charter confirmation for an unpaid charter. A neutral "confirmed for a different order" notice instead.
+  it('durable success for the SAME product calls onPaymentSuccess once; a different product shows a neutral notice, never this product\'s confirmation', async () => {
     localStorage.setItem(recoveryKey('single'), JSON.stringify({ orderID: 'ORD-9', flow: 'single', paymentStatus: 'CAPTURED', review: false, productType: 'airport_seoul_central', updatedAt: 1 }));
     route({ '/api/capturePaypalOrder': () => final('ORD-9') });
     const onSuccess = vi.fn();
@@ -151,14 +156,26 @@ describe('PayPalBookingButton — pending pointer and same-order reconcile', () 
     await waitFor(() => expect(onSuccess).toHaveBeenCalledTimes(1));
     expect(onSuccess).toHaveBeenCalledWith('ORD-9');
     expect(mocks.paid).not.toHaveBeenCalled(); // restored replay never re-fires conversions
-    expect(localStorage.getItem(recoveryKey('single'))).toBeNull();
+    expect(readRecoveryOrder('ORD-9')).toBeNull(); // r16: 완료 표식 → 목록에서 빠짐
+    expect(isRecoveryDone('ORD-9')).toBe(true);
 
-    cleanup();
+    cleanup(); localStorage.clear();
+    // r16: 다른 상품(airport) 주문은 차터 화면이 맡지 않는다 — 패널·확정 없음, 주문은 그대로 보존.
     localStorage.setItem(recoveryKey('single'), JSON.stringify({ orderID: 'ORD-9', flow: 'single', paymentStatus: 'CAPTURED', review: false, productType: 'airport_seoul_central', updatedAt: 1 }));
     const otherSuccess = vi.fn();
     render(<PayPalBookingButton productType="charter_dmz" passengers={2} priceKRW={135000} lang="en" onPaymentSuccess={otherSuccess} p={{ paypalBookBtn: 'Book now' }} />);
+    expect(screen.queryByText('Check this order')).toBeNull();
+    expect(screen.queryByText('Booking Confirmed!')).toBeNull();
+    expect(readRecoveryOrder('ORD-9')).toMatchObject({ productType: 'airport_seoul_central' });
+    expect(otherSuccess).not.toHaveBeenCalled();
+
+    cleanup(); localStorage.clear();
+    // r16: 상품 미상(unknown) 주문은 단건 화면이 여전히 맡는다 — final 이어도 이 상품의 확정이 아니라 중립 안내.
+    localStorage.setItem(recoveryKey('single'), JSON.stringify({ orderID: 'ORD-9', flow: 'single', paymentStatus: 'CAPTURED', review: false, updatedAt: 1 }));
+    render(<PayPalBookingButton productType="charter_dmz" passengers={2} priceKRW={135000} lang="en" onPaymentSuccess={otherSuccess} p={{ paypalBookBtn: 'Book now' }} />);
     fireEvent.click(screen.getByText('Check this order'));
-    expect(await screen.findByText('Booking Confirmed!')).toBeInTheDocument();
+    expect(await screen.findByText(/This payment was confirmed for a different order \(ORD-9\)/)).toBeInTheDocument();
+    expect(screen.queryByText('Booking Confirmed!')).toBeNull();
     expect(otherSuccess).not.toHaveBeenCalled();
   });
 
@@ -173,15 +190,16 @@ describe('PayPalBookingButton — pending pointer and same-order reconcile', () 
     fireEvent.click(screen.getByText('Done'));
     expect(await screen.findByText('Payment received; our team is verifying it')).toBeInTheDocument();
     expect(screen.queryByText('Book now')).toBeNull();
-    expect(JSON.parse(localStorage.getItem(recoveryKey('single')) || 'null')).toMatchObject({ orderID: 'ORD-1', review: true });
+    expect(readRecoveryOrder('ORD-1')).toMatchObject({ orderID: 'ORD-1', review: true }); // r16: 주문별 키
 
     cleanup(); localStorage.clear(); buttons.length = 0;
     route({ '/api/createPaypalOrder': () => ({ ...pending('ORD-7'), flow: 'cart' }) });
     render(<PayPalBookingButton productType="airport_seoul_central" passengers={2} priceKRW={135000} lang="en" p={{ paypalBookBtn: 'Book now' }} />);
     fireEvent.click(screen.getByText('Book now'));
-    expect(await screen.findByText('ORD-7')).toBeInTheDocument();
+    // r14: 장바구니 flow 주문은 단건 화면의 외부 주문(isForeignOrder) — 패널로 맡지 않고 중립 안내 + cart 키에 보존(덮지 않음).
+    expect(await screen.findByText(/ORD-7/)).toBeInTheDocument();
     expect(buttons).toHaveLength(0);
-    expect(JSON.parse(localStorage.getItem(recoveryKey('cart')) || 'null')).toMatchObject({ orderID: 'ORD-7', flow: 'cart' });
+    expect(readRecoveryOrder('ORD-7')).toMatchObject({ orderID: 'ORD-7', flow: 'cart' }); // r16: 그 주문 키에 원래 flow 그대로
   });
 
   it('no PayPal SDK initialisation, load or Buttons while a pointer is unresolved; normal SDK load resumes after NOT_CAPTURED', async () => {
@@ -195,7 +213,7 @@ describe('PayPalBookingButton — pending pointer and same-order reconcile', () 
     expect(buttons).toHaveLength(0);
     expect(screen.queryByText('SDK ERROR')).toBeNull();
     fireEvent.click(screen.getByText('Check this order'));
-    await waitFor(() => expect(localStorage.getItem(recoveryKey('single'))).toBeNull());
+    await waitFor(() => expect(readRecoveryOrder('ORD-9')).toBeNull()); // r16: 완료 표식 → 목록에서 빠짐
     expect(await screen.findByText('Book now')).toBeInTheDocument();
     await waitFor(() => expect(document.getElementById('paypal-sdk')).not.toBeNull());
     expect((document.getElementById('paypal-sdk') as HTMLScriptElement).src).toContain('client-id=offline-client');
@@ -218,11 +236,11 @@ describe('PayPalBookingButton — pending pointer and same-order reconcile', () 
       fireEvent.click(await screen.findByText('Check this order'));
       await waitFor(() => expect(replies).toHaveLength(left));
       await screen.findByText('Check this order');
-      expect(JSON.parse(localStorage.getItem(recoveryKey('single')) || 'null')).toMatchObject({ orderID: 'ORD-9' });
+      expect(readRecoveryOrder('ORD-9')).toMatchObject({ orderID: 'ORD-9' }); // r16
       expect(screen.queryByText('Book now')).toBeNull();
     }
     fireEvent.click(screen.getByText('Check this order'));
-    await waitFor(() => expect(localStorage.getItem(recoveryKey('single'))).toBeNull());
+    await waitFor(() => expect(readRecoveryOrder('ORD-9')).toBeNull()); // r16: 완료 표식 → 목록에서 빠짐
     expect(await screen.findByText('Book now')).toBeInTheDocument();
     expect(screen.getByText(REFUNDED_MSG)).toBeInTheDocument();
     expect(onSuccess).not.toHaveBeenCalled();
@@ -247,9 +265,9 @@ describe('CartCheckout — cart stays intact while a capture is unresolved', () 
     expect(mocks.clear).not.toHaveBeenCalled();
     expect(await screen.findByText('Check this order')).toBeInTheDocument();
     expect(screen.queryByText('Booking confirmed!')).toBeNull();
-    expect(JSON.parse(localStorage.getItem(recoveryKey('cart')) || 'null')).toMatchObject({ orderID: 'CART-1', flow: 'cart' });
+    expect(readRecoveryOrder('CART-1')).toMatchObject({ orderID: 'CART-1', flow: 'cart' }); // r16: 주문별 키
     fireEvent.click(screen.getByText('Check this order'));
-    await waitFor(() => expect(localStorage.getItem(recoveryKey('cart'))).toBeNull());
+    await waitFor(() => expect(readRecoveryOrder('CART-1')).toBeNull());
     expect(mocks.clear).not.toHaveBeenCalled();
     expect(await screen.findByText('Confirm & pay')).toBeInTheDocument();
   });
@@ -261,7 +279,7 @@ describe('CartCheckout — cart stays intact while a capture is unresolved', () 
     expect(await screen.findByText('Payment received')).toBeInTheDocument();
     expect(screen.queryByText('Booking confirmed!')).toBeNull();
     expect(mocks.paid).not.toHaveBeenCalled();
-    expect(JSON.parse(localStorage.getItem(recoveryKey('cart')) || 'null')).toMatchObject({ orderID: 'CART-1', flow: 'cart', review: true, paymentStatus: 'CAPTURED' });
+    expect(readRecoveryOrder('CART-1')).toMatchObject({ orderID: 'CART-1', flow: 'cart', review: true, paymentStatus: 'CAPTURED' }); // r16: 주문별 키
     cleanup(); buttons.length = 0;
     render(<CartCheckout onClose={() => {}} />);
     expect(await screen.findByText('Payment received; our team is verifying it')).toBeInTheDocument();
@@ -280,7 +298,7 @@ describe('CartCheckout — cart stays intact while a capture is unresolved', () 
     fireEvent.click(screen.getByText('Check this order'));
     expect(await screen.findByText('Booking confirmed!')).toBeInTheDocument();
     expect(mocks.clear).toHaveBeenCalledTimes(1);
-    expect(localStorage.getItem(recoveryKey('cart'))).toBeNull();
+    expect(readRecoveryOrder('CART-1')).toBeNull(); // r16: 주문별 키 정리(완료 표식)
   });
 
   it('a server-proven refund of the same order releases the pointer but keeps the cart: no success, checkout re-enabled', async () => {
@@ -289,7 +307,7 @@ describe('CartCheckout — cart stays intact while a capture is unresolved', () 
     await approveCart();
     await act(async () => { await buttons[0].onApprove({ orderID: 'CART-1' }); });
     fireEvent.click(await screen.findByText('Check this order'));
-    await waitFor(() => expect(localStorage.getItem(recoveryKey('cart'))).toBeNull());
+    await waitFor(() => expect(readRecoveryOrder('CART-1')).toBeNull()); // r16: 주문별 키 정리(완료 표식)
     expect(await screen.findByText('Confirm & pay')).toBeInTheDocument();
     expect(screen.getByText(REFUNDED_MSG)).toBeInTheDocument();
     expect(mocks.clear).not.toHaveBeenCalled();
@@ -300,7 +318,10 @@ describe('CartCheckout — cart stays intact while a capture is unresolved', () 
     route({ '/api/createCartOrder': () => ({ ...pending('ORD-3'), flow: 'single' }) });
     render(<CartCheckout onClose={() => {}} />);
     fireEvent.click(screen.getByText('Confirm & pay'));
-    expect(await screen.findByText('ORD-3')).toBeInTheDocument();
+    // r13: 단건 flow 주문은 장바구니 주문이 아니다 — 장바구니 패널로 맡지 않고 중립 안내 + 원래 flow 키에 보존(덮지 않음).
+    expect(await screen.findByText(/ORD-3/)).toBeInTheDocument();
+    expect(readRecoveryOrder('ORD-3')).toMatchObject({ orderID: 'ORD-3', flow: 'single' }); // r16: 그 주문 키에 원래 flow 그대로
+    expect(localStorage.getItem(recoveryKey('cart'))).toBeNull(); // r16: 옛 키는 쓰지 않는다
     expect(buttons).toHaveLength(0);
     expect(mocks.clear).not.toHaveBeenCalled();
   });
@@ -315,7 +336,7 @@ describe('RECOVERY_AUTH_REQUIRED on a fresh order (2026-10-10 R2) — no flow-wi
     await act(async () => { await buttons[0].onApprove({ orderID: 'ORD-1' }); });
     expect(onSuccess).not.toHaveBeenCalled();
     expect(mocks.paid).not.toHaveBeenCalled();
-    expect(localStorage.getItem(recoveryKey('single'))).toBeNull();
+    expect(readRecoveryOrder('ORD-1')).toBeNull(); // r16: 주문별 키
     expect(await screen.findByText(/only be checked from the device/)).toBeInTheDocument();
     expect(screen.queryByText('Check this order')).toBeNull();
   });
@@ -326,7 +347,7 @@ describe('RECOVERY_AUTH_REQUIRED on a fresh order (2026-10-10 R2) — no flow-wi
     fireEvent.click(screen.getByText('Confirm & pay'));
     await waitFor(() => expect(buttons).toHaveLength(1));
     await act(async () => { await buttons[0].onApprove({ orderID: 'CART-1' }); });
-    expect(localStorage.getItem(recoveryKey('cart'))).toBeNull();
+    expect(readRecoveryOrder('CART-1')).toBeNull(); // r16: 주문별 키
     expect(mocks.clear).not.toHaveBeenCalled();
     expect(await screen.findByText(/only be checked from the device/)).toBeInTheDocument();
     expect(screen.queryByText('Check this order')).toBeNull();

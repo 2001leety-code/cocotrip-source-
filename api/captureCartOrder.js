@@ -30,6 +30,7 @@ import {
   isSameOrderProven, isLegacyOpenSnapshot, verifyBearerUid, validateIntent, acquirePaymentAttempt, reconcileCapture, summarizeVerifiedCapture,
   persistBookingsAtomically, shouldDispatchRetry, releaseHeldIntents, makeRetryPersister, recordProcessorResult, updateAttempt,
   releaseAttemptClaim, discardAttempt, finalizeAttempt, pendingPaymentResponse, notCapturedResponse, withBackoff,
+  resolveAbsentAttempt, orderVoidedResponse, fetchPaypalOrder, replaceAttemptIntent,
 } from './_shared/payment-fulfillment-recovery.js';
 
 export const maxDuration = 60;
@@ -53,6 +54,8 @@ export default async function handler(req, res) {
     return res.end(JSON.stringify(_err('Cart checkout not enabled', 'CART_DISABLED')));
   }
 
+  // r22: claimed attempt not yet handed to the capture POST — an unexpected exception deletes an UNPROVEN request's record.
+  const preCapture = { attempt: null, proven: false };
   try {
     let body = req.body;
     if (typeof body === 'string') { try { body = JSON.parse(body); } catch { body = {}; } }
@@ -103,7 +106,7 @@ export default async function handler(req, res) {
 
     const isSandbox = resolveIsSandbox();
     if (isSandbox) console.warn('[captureCartOrder] SANDBOX MODE — 실제 결제 아님 (preview e2e)');
-    const { accessToken, baseUrl: PAYPAL_BASE_URL } = await getPaypalAccessToken(isSandbox);
+    // r19: the OAuth token is fetched only after the attempt record decided (a voided order => zero provider calls).
 
     // 1. Attempt record (used_paypal_orders lock + frozen intent + exclusive claim). Storage failure => capture 0.
     let intent;
@@ -115,12 +118,33 @@ export default async function handler(req, res) {
     }
     const acquired = await acquirePaymentAttempt({
       db, orderID, flow: 'cart', environment: isSandbox ? 'sandbox' : 'live', requestKey: `${orderID}-cart-cap`, intent, userEmail, product: 'cart',
-      createIfMissing: !reconcileOnly, allowRecovery: sameOrderProven,
+      createIfMissing: !reconcileOnly, allowRecovery: sameOrderProven, intentProven: sameOrderProven, // r22 S1
     });
-    if (acquired.kind === 'absent') {
+    if (acquired.kind === 'voided') {
       res.writeHead(409, JSON_CORS);
-      return res.end(JSON.stringify({ ...notCapturedResponse({ orderID, flow: 'cart', reason: 'no_attempt_record' }), evidence: 'no_attempt_record' }));
+      return res.end(JSON.stringify(orderVoidedResponse({ orderID, flow: 'cart' })));
     }
+    // r19: read PayPal, then void in a transaction only if the record is still absent (resolveAbsentAttempt).
+    //   r22: also the end of a same-order check that refused to replay an unproven input.
+    const answerAbsent = async () => {
+      const out = await resolveAbsentAttempt({
+        db, orderID, flow: 'cart', environment: isSandbox ? 'sandbox' : 'live', proven: sameOrderProven,
+        lookupOrder: async () => {
+          const token = await getPaypalAccessToken(isSandbox);
+          return fetchPaypalOrder({ baseUrl: token.baseUrl, accessToken: token.accessToken, orderID });
+        },
+      });
+      if (out.alert) {
+        await throttledTelegramAlert({
+          key: `cart-absent-captured-${orderID}`, channel: 'admin', severity: 'critical',
+          message: [`🚨 <b>CART — 시도 기록 없이 PayPal 결제 완료</b>`, `<b>OrderID:</b> <code>${orderID}</code>`, `<b>사유:</b> ${out.alert}`, '→ 기록 유실·옛 주문(또는 기록 재확인 실패 — reread-failed). 묘비 안 씀, 손님에겐 "결제 접수 — 다시 결제 금지". PayPal·시도 기록 확인 후 수동 처리.'].join('\n'),
+          context: { orderID, reason: out.alert },
+        }).catch(() => {});
+      }
+      res.writeHead(out.status, JSON_CORS);
+      return res.end(JSON.stringify(out.body));
+    };
+    if (acquired.kind === 'absent') return answerAbsent();
     if (acquired.kind === 'unauthorized') {
       console.warn('[captureCartOrder] recovery refused without same-order proof:', orderID);
       res.writeHead(409, JSON_CORS);
@@ -148,8 +172,42 @@ export default async function handler(req, res) {
       return res.end(JSON.stringify(_err('Order belongs to a different PayPal environment', 'ORDER_ENVIRONMENT_MISMATCH')));
     }
     const attempt = acquired.attempt;
+    preCapture.attempt = attempt; preCapture.proven = sameOrderProven;
     const stages = (attempt.lock && attempt.lock.stages) || {};
-    const savedEmail = attempt.recovering ? ((attempt.lock.intent.body && attempt.lock.intent.body.userEmail) || '') : userEmail;
+    const unknownResponse = () => {
+      res.writeHead(202, JSON_CORS);
+      return res.end(JSON.stringify(pendingPaymentResponse({ orderID, flow: 'cart', paymentStatus: 'CAPTURE_UNKNOWN' })));
+    };
+    // r21: POST 전 기록(captureState 'none')을 이어받은 전체 capture 요청 = 새 시도 — 저장된 입력 대신 이 요청의 입력(단건과 같은 규칙).
+    //   r22 S2: `intent` 필드 통째 교체 + intentProven. S1: 같은 주문 확인은 증명 없이 쓰인 입력을 재생하지 않는다 —
+    //   POST 전 기록을 지우고 absent 경로(PayPal GET → 묘비/결제됨/UNKNOWN)로 끝낸다. 삭제 실패 = UNKNOWN.
+    const noPostYet = !!attempt.recovering && (attempt.lock || {}).captureState === 'none';
+    const beforePost = noPostYet && !reconcileOnly;
+    //   r23: only an EXPLICIT false is unproven (pre-r22 records without the field replay like main). Cart inputs carry no coupon.
+    if (noPostYet && reconcileOnly && attempt.lock.intentProven === false) {
+      try { await discardAttempt(attempt, 'unproven-intent', { voidOrder: false }); } catch (delErr) {
+        console.warn('[captureCartOrder] unproven input not deleted — answering UNKNOWN:', orderID, delErr.message);
+        return unknownResponse();
+      }
+      preCapture.attempt = null;
+      return answerAbsent();
+    }
+    if (beforePost) {
+      try { await replaceAttemptIntent(attempt, { intent, userEmail, intentProven: true }); } catch (intentErr) {
+        console.warn('[captureCartOrder] intent replace before POST failed — answering UNKNOWN:', orderID, intentErr.message);
+        return unknownResponse();
+      }
+    }
+    const savedEmail = attempt.recovering && !beforePost ? ((attempt.lock.intent.body && attempt.lock.intent.body.userEmail) || '') : userEmail;
+    let accessToken; let PAYPAL_BASE_URL;
+    try {
+      ({ accessToken, baseUrl: PAYPAL_BASE_URL } = await getPaypalAccessToken(isSandbox));
+    } catch (tokenErr) {
+      // no POST happened — r21: proven = release the claim (same-order retry); unproven = delete (no stranger's record left)
+      if (sameOrderProven) await releaseAttemptClaim(attempt);
+      else await discardAttempt(attempt, 'transient', { voidOrder: false }).catch(() => releaseAttemptClaim(attempt));
+      throw tokenErr;
+    }
 
     // 2. 캡처/대조 — unknown 은 락 유지 + 202, provider 가 증명한 미결제만 락 해제.
     const postCapture = async () => {
@@ -167,11 +225,30 @@ export default async function handler(req, res) {
       try { body = JSON.parse(text); } catch (e) { parseError = e.message; }
       return { status: captureRes.status, body, parseError };
     };
+    preCapture.attempt = null; // from here a capture POST may be sent
     const reconciled = await reconcileCapture({ attempt, orderID, baseUrl: PAYPAL_BASE_URL, accessToken, postCapture });
     if (reconciled.state === 'not_captured') {
-      await discardAttempt(attempt).catch(() => {});
+      // r19: tombstone (claim-checked). A failed void is never answered NOT_CAPTURED — UNKNOWN keeps the lock.
+      //   r20: tombstone only with same-order proof; without it the attempt is just deleted (orderID alone voids nothing).
+      try { await discardAttempt(attempt, reconciled.reason, { voidOrder: sameOrderProven }); } catch (voidErr) {
+        console.warn('[captureCartOrder] void tombstone not written — answering UNKNOWN:', orderID, voidErr.message);
+        res.writeHead(202, JSON_CORS);
+        return res.end(JSON.stringify(pendingPaymentResponse({ orderID, flow: 'cart', paymentStatus: 'CAPTURE_UNKNOWN' })));
+      }
       res.writeHead(409, JSON_CORS);
       return res.end(JSON.stringify(notCapturedResponse({ orderID, flow: 'cart', reason: reconciled.reason })));
+    }
+    if (reconciled.state !== 'captured' && reconciled.noPost && !sameOrderProven && (attempt.lock || {}).captureState === 'none') {
+      // r23: nothing was sent to PayPal ('posted' write failed) — an unproven request's record is deleted, not kept as 'unknown'.
+      //   Only a record that never POSTed ('none' at claim); an older 'posted'/'unknown' record may have a POST in flight.
+      try {
+        await discardAttempt(attempt, 'post-not-sent', { voidOrder: false });
+        // r24: main 과 같은 202 CAPTURE_UNKNOWN 모양(화면엔 기존 '확인 중' 패널만). 기록 삭제는 위 그대로.
+        res.writeHead(202, JSON_CORS);
+        return res.end(JSON.stringify(pendingPaymentResponse({ orderID, flow: 'cart', paymentStatus: 'CAPTURE_UNKNOWN' })));
+      } catch (delErr) {
+        console.warn('[captureCartOrder] unproven POST-less record not deleted — answering UNKNOWN:', orderID, delErr.message);
+      }
     }
     if (reconciled.state !== 'captured') {
       console.error('[captureCartOrder] capture result UNKNOWN — lock retained:', orderID, reconciled.reason);
@@ -436,7 +513,12 @@ export default async function handler(req, res) {
     res.end(JSON.stringify(successBody));
   } catch (err) {
     console.error('[captureCartOrder] Error:', err);
+    if (preCapture.attempt && !preCapture.proven) {
+      await discardAttempt(preCapture.attempt, 'unproven-exception', { voidOrder: false })
+        .catch((e) => console.warn('[captureCartOrder] unproven attempt cleanup failed:', e.message));
+    }
+    // r22 S3: fixed text — the original message stays in the log only.
     res.writeHead(500, JSON_CORS);
-    res.end(JSON.stringify(_err(err.message, 'INTERNAL_ERROR')));
+    res.end(JSON.stringify(_err('Payment could not be processed right now — please try again or contact us.', 'INTERNAL_ERROR')));
   }
 }

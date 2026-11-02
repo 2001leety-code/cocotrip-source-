@@ -13,8 +13,6 @@ import { useState, useEffect, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useLanguage } from '@/hooks/useLanguage';
 import { useAuth } from '@/hooks/useAuth';
-import { notify } from '@/lib/notify';
-import { haptic } from '@/lib/haptic';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { usePageMeta } from '@/hooks/usePageMeta';
 import { Header } from '@/sections/Header';
@@ -31,7 +29,8 @@ import { pickPlannerCopy } from './plannerCopy';
 import { focusAndReveal } from '@/lib/motion';
 import { PlannerMasthead, PlannerBriefNotes, PlannerEvidence } from './components/PlannerMasthead';
 import { usePlannerHandlers } from './hooks/usePlannerHandlers';
-import { resolveErrorMessage } from './hooks/errorMessages';
+import { useNotifyPlanReady } from './hooks/useNotifyPlanReady';
+import { resolveErrorMessage, resolvePaidOrderErrorMessage } from './hooks/errorMessages';
 import { TriviaLoadingAnimation } from './components/TriviaLoadingAnimation';
 import { QuickPreviewCard } from './components/QuickPreviewCard';
 import { PlannerErrorPanel } from './components/PlannerErrorPanel';
@@ -166,37 +165,19 @@ export default function PlannerPage() {
     status, resultQuick, errorMsg, errorCode,
     isGeneratingPlan, planError, planErrorCode, lastValues,
     handleSubmit, handleRevisionSubmit, handlePaymentSuccess, handleRevisionRegenerate, handleReset,
+    paidOrderIssue, handleGenerateWithPaidInput,
   } = usePlannerHandlers({ language, userEmail, setUserEmail });
 
   const localizedError = resolveErrorMessage(errorCode, errorMsg, (p as { errors?: Record<string, string> }).errors);
+  // 결제된 주문의 생성 실패는 결제 전 거부와 다른 문구(PAID_* — 이미 결제됨·다시 결제하지 마세요).
   const localizedPlanError = planError
-    ? resolveErrorMessage(planErrorCode, planError, (p as { errors?: Record<string, string> }).errors)
+    ? (paidOrderIssue
+      ? resolvePaidOrderErrorMessage(planErrorCode, (p as { errors?: Record<string, string> }).errors)
+      : resolveErrorMessage(planErrorCode, planError, (p as { errors?: Record<string, string> }).errors))
     : null;
 
-  // Notify-on-ready: fire OS notification + haptic when generation finishes.
-  // Track previous status so we only fire once per transition (not on every
-  // re-render where status === 'quickSuccess').
-  //
-  // 2026-08-10: the fallbacks used to be Korean string literals, so an English,
-  // Japanese or Chinese reader whose locale file was missing the key got a
-  // Korean notification. They now come from the four-language planner copy.
-  const prevStatus = useRef(status);
-  useEffect(() => {
-    if (prevStatus.current === 'loadingQuick' && status === 'quickSuccess') {
-      haptic('success');
-      const notifP = (p as { notifyPlanReadyTitle?: string; notifyPlanReadyBody?: string });
-      notify({
-        title: notifP.notifyPlanReadyTitle || c.ready.notifyTitle,
-        body: notifP.notifyPlanReadyBody || c.ready.notifyBody,
-        onlyIfHidden: true,  // skip OS notif when user is already looking
-        onClick: () => {
-          const el = document.getElementById('planner-quick-result');
-          el?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-        },
-      });
-    }
-    prevStatus.current = status;
-  }, [status, p, c]);
+  // Notify-on-ready (OS notification + haptic once per loadingQuick -> quickSuccess): hooks/useNotifyPlanReady.
+  useNotifyPlanReady(status, p, { notifyTitle: c.ready.notifyTitle, notifyBody: c.ready.notifyBody });
 
   // Retry puts the traveller back on the brief they already filled in.
   //
@@ -396,6 +377,8 @@ export default function PlannerPage() {
               avoidList={avoidList}
               onPaymentSuccess={handlePaymentSuccess}
               onRevisionRegenerate={handleRevisionRegenerate}
+              paidOrderIssue={paidOrderIssue}
+              onGenerateWithPaidInput={handleGenerateWithPaidInput}
             />
           </div>
         )}

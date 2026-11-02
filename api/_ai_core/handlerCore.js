@@ -10,7 +10,7 @@
  * SAFETY-CRITICAL (CLAUDE.md J): dietary 흐름 100% 유지 — block-mode + legacy 양쪽 모두 dietPrefs forward + validateResponse + halal/vegan critical violation throw.
  */
 import { resolveLlmApiKey, adoptLlmMock, enterLlmMockContext } from '../_shared/llm/index.js';
-import { verifyUserToken, resolveGuestAnonOwner, isGuestCheckoutAllowed } from '../_shared/user-auth.js';
+import { verifyUserToken, verifyFirebaseIdentityToken, resolveGuestAnonOwner, isGuestCheckoutAllowed } from '../_shared/user-auth.js';
 import { getSpotContext } from '../_spots_helper.js';
 import { enforceDietaryCoverage, mealCitiesForTrip, buildTripFoodContext } from './dietaryCoverageGate.js';
 import { getAttractionsContext } from '../_attractions_helper.js';
@@ -159,7 +159,9 @@ export default async function handler(req, res) {
     const authenticatedEmail = auth.ok ? auth.email : null;
     lastEmail = authenticatedEmail;
     // ── 결제 + 재생성 게이트 (인증된 email 전달) ──────────────────────────
-    const gate = await withStep('paymentGate', () => enforcePaymentAndRevision(body, adminDb, authenticatedEmail, auth.uid));
+    // B6-1 r3: 결제 주문 소유자 대조는 createPaypalOrder 가 ownerUid 를 기록한 기준(이메일 없는 전화 로그인 토큰 포함, uid)과 같게.
+    const ownerUid = auth.ok ? auth.uid : ((await verifyFirebaseIdentityToken(req)).uid || null);
+    const gate = await withStep('paymentGate', () => enforcePaymentAndRevision(body, adminDb, authenticatedEmail, auth.uid, { ownerUid }));
     if (gate.rejection) {
       const { statusCode, code, message, details } = gate.rejection;
       res.writeHead(statusCode, { ...CORS, 'Content-Type': 'application/json' });
@@ -171,7 +173,8 @@ export default async function handler(req, res) {
     issuance.adopt(gate);  // P0: 게이트가 선점한 발급권 흡수 (유료 PayPal 경로만)
 
     // ── AI 플래너 출발일 검증 (day1=오늘 불가, 내일 이후만). 로직=validateStartDate.js (P129 handlerCore 슬림). ──
-    const tooSoon = checkStartDateTooSoon(body, gate.isRevision);
+    //   면제: 결제·소유자·고정 지문 검증 주문(prepayVerified — create·capture 가 검사), 무료 쿠폰(isFreeAiCoupon — 게이트가 소비 직전 검사, 자정 경합 시 쿠폰 소실 방지).
+    const tooSoon = checkStartDateTooSoon(body, gate.isRevision || gate.prepayVerified === true || gate.isFreeAiCoupon === true);
     if (tooSoon) {
       console.warn('[ai-planner-full] day1 today rejected:', tooSoon.reqStartDate, 'today KST:', tooSoon.todayKST);
       await issuance.releaseIfUnused(adminDb, false, 'start-date-rejected');  // P0: 생성 전 거부 → 재시도 가능
