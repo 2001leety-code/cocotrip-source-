@@ -1,3 +1,5 @@
+import { verifyMealActor } from './_ai_core/mealActor.js';
+import { loadBoundMealDraft, MEAL_DRAFT_BINDING_VERSION } from './_shared/meal-draft-binding.js';
 /**
  * Vercel API Route: Create PayPal Order
  * POST /api/createPaypalOrder
@@ -219,7 +221,8 @@ export default async function handler(req, res) {
       return res.end(JSON.stringify(_err('Could not verify earlier payments right now — please retry', 'RECOVERY_CHECK_UNAVAILABLE')));
     }
     const checkoutCapability = newCheckoutCapability();
-    const ownerUid = await verifyBearerUid(req.headers && req.headers.authorization);
+    let ownerUid = await verifyBearerUid(req.headers && req.headers.authorization);
+    let mealDraftSnapshot = null;
 
     // 🔴 2026-10-26 B6-1: AI 플래너(풀) — 결제 전 식이 커버리지 서버 확인. 플래너 입력을 서버가 다시 정규화하고
     //   생성 단계와 같은 게이트로 검사한다. 실패하면 PayPal 주문을 만들지 않는다(돈이 움직이기 전, 재시도 안전).
@@ -235,6 +238,14 @@ export default async function handler(req, res) {
         return res.end(JSON.stringify({ ..._err(checked.message, checked.code), ...(checked.details ? { details: checked.details } : {}) }));
       }
       prepayFields = prepaySnapshotFields(checked.input, foodIndex);
+      const actor = await verifyMealActor(req);
+      try {
+        mealDraftSnapshot = await loadBoundMealDraft({ db: initAdminDb('createPaypalOrder-meal'), uid: actor.ok ? actor.uid : null, binding: body.mealDraft, prepayInput: checked.input });
+        ownerUid = actor.uid;
+      } catch (error) {
+        res.writeHead(409, JSON_CORS);
+        return res.end(JSON.stringify(_err('The verified meal draft is required for checkout', error.code || 'MEAL_DRAFT_UNAVAILABLE')));
+      }
     }
 
     // PR-R (2026-05-08): 예약 마감 정책 검증 — 값의 SSOT = _shared/booking-cutoff.js
@@ -590,6 +601,7 @@ export default async function handler(req, res) {
         ownerUid: ownerUid || null,
         // 🔴 B6-1: AI 플래너 결제 전 검사를 통과한 서버 정규 입력·지문(다른 상품은 필드 없음).
         ...(prepayFields || {}),
+        ...(mealDraftSnapshot ? { mealDraftBindingVersion: MEAL_DRAFT_BINDING_VERSION, mealDraftSnapshot } : {}),
         createdAt: new Date().toISOString(),
       });
     } catch (_snapErr) {

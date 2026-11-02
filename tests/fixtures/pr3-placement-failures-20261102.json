@@ -1,0 +1,242 @@
+[
+  {
+    "key": "BUSAN_DAY_FULL_ACTION|A1530|1dDep|Halal|single",
+    "leg": "20",
+    "departure": "21:00"
+  },
+  {
+    "key": "BUSAN_DAY_FULL_ACTION|A1530|1dDep|Halal|single",
+    "leg": "20",
+    "departure": "23:00"
+  },
+  {
+    "key": "BUSAN_DAY_FULL_ACTION|A1530|1dDep|Halal|single",
+    "leg": "30",
+    "departure": "21:00"
+  },
+  {
+    "key": "BUSAN_DAY_FULL_ACTION|A1530|1dDep|Halal|single",
+    "leg": "30",
+    "departure": "23:00"
+  },
+  {
+    "key": "BUSAN_DAY_FULL_ACTION|A1530|1dDep|Halal|single",
+    "leg": "45",
+    "departure": "21:00"
+  },
+  {
+    "key": "BUSAN_DAY_FULL_ACTION|A1530|1dDep|Halal|single",
+    "leg": "45",
+    "departure": "23:00"
+  },
+  {
+    "key": "BUSAN_DAY_FULL_ACTION|A1530|1dDep|Halal|single",
+    "leg": "60",
+    "departure": "21:00"
+  },
+  {
+    "key": "BUSAN_DAY_FULL_ACTION|A1530|1dDep|Halal|single",
+    "leg": "60",
+    "departure": "23:00"
+  },
+  {
+    "key": "BUSAN_DAY_FULL_ACTION|A1530|1dDep|Halal|single",
+    "leg": "distA",
+    "departure": "21:00"
+  },
+  {
+    "key": "BUSAN_DAY_FULL_ACTION|A1530|1dDep|Halal|single",
+    "leg": "distA",
+    "departure": "23:00"
+  },
+  {
+    "key": "BUSAN_DAY_FULL_ACTION|A1530|1dDep|Halal|single",
+    "leg": "distB",
+    "departure": "21:00"
+  },
+  {
+    "key": "BUSAN_DAY_FULL_ACTION|A1530|1dDep|Halal|single",
+    "leg": "distB",
+    "departure": "23:00"
+  },
+  {
+    "key": "BUSAN_DAY_FULL_ACTION|A1530|1dDep|Halal|single",
+    "leg": "mixA",
+    "departure": "21:00"
+  },
+  {
+    "key": "BUSAN_DAY_FULL_ACTION|A1530|1dDep|Halal|single",
+    "leg": "mixA",
+    "departure": "23:00"
+  },
+  {
+    "key": "BUSAN_DAY_FULL_ACTION|A1530|1dDep|Halal|single",
+    "leg": "mixB",
+    "departure": "21:00"
+  },
+  {
+    "key": "BUSAN_DAY_FULL_ACTION|A1530|1dDep|Halal|single",
+    "leg": "mixB",
+    "departure": "23:00"
+  },
+  {
+    "key": "BUSAN_DAY_YEONGDO_LOCAL_STANDARD|A1530|1d|none|single",
+    "leg": "30",
+    "departure": "17:00"
+  },
+  {
+    "key": "BUSAN_DAY_YEONGDO_LOCAL_STANDARD|A1530|1d|none|single",
+    "leg": "30",
+    "departure": "19:00"
+  },
+  {
+    "key": "BUSAN_DAY_YEONGDO_LOCAL_STANDARD|A1530|1d|none|single",
+    "leg": "30",
+    "departure": "21:00"
+  },
+  {
+    "key": "BUSAN_DAY_YEONGDO_LOCAL_STANDARD|A1530|1d|none|single",
+    "leg": "30",
+    "departure": "23:00"
+  },
+  {
+    "key": "BUSAN_DAY_YEONGDO_LOCAL_STANDARD|A1530|1d|none|single",
+    "leg": "45",
+    "departure": "17:00"
+  },
+  {
+    "key": "BUSAN_DAY_YEONGDO_LOCAL_STANDARD|A1530|1d|none|single",
+    "leg": "45",
+    "departure": "19:00"
+  },
+  {
+    "key": "BUSAN_DAY_YEONGDO_LOCAL_STANDARD|A1530|1d|none|single",
+    "leg": "45",
+    "departure": "21:00"
+  },
+  {
+    "key": "BUSAN_DAY_YEONGDO_LOCAL_STANDARD|A1530|1d|none|single",
+    "leg": "45",
+    "departure": "23:00"
+  },
+  {
+    "key": "BUSAN_DAY_YEONGDO_LOCAL_STANDARD|A1530|1d|none|single",
+    "leg": "60",
+    "departure": "17:00"
+  },
+  {
+    "key": "BUSAN_DAY_YEONGDO_LOCAL_STANDARD|A1530|1d|none|single",
+    "leg": "60",
+    "departure": "19:00"
+  },
+  {
+    "key": "BUSAN_DAY_YEONGDO_LOCAL_STANDARD|A1530|1d|none|single",
+    "leg": "60",
+    "departure": "21:00"
+  },
+  {
+    "key": "BUSAN_DAY_YEONGDO_LOCAL_STANDARD|A1530|1d|none|single",
+    "leg": "60",
+    "departure": "23:00"
+  },
+  {
+    "key": "BUSAN_DAY_YEONGDO_LOCAL_STANDARD|A1530|1d|none|single",
+    "leg": "distA",
+    "departure": "17:00"
+  },
+  {
+    "key": "BUSAN_DAY_YEONGDO_LOCAL_STANDARD|A1530|1d|none|single",
+    "leg": "distA",
+    "departure": "19:00"
+  },
+  {
+    "key": "BUSAN_DAY_YEONGDO_LOCAL_STANDARD|A1530|1d|none|single",
+    "leg": "distA",
+    "departure": "21:00"
+  },
+  {
+    "key": "BUSAN_DAY_YEONGDO_LOCAL_STANDARD|A1530|1d|none|single",
+    "leg": "distA",
+    "departure": "23:00"
+  },
+  {
+    "key": "SEOUL_DAY_MUSEUM_HISTORY_STANDARD|A1530|1dDep|Halal|single",
+    "leg": "20",
+    "departure": "21:00"
+  },
+  {
+    "key": "SEOUL_DAY_MUSEUM_HISTORY_STANDARD|A1530|1dDep|Halal|single",
+    "leg": "20",
+    "departure": "23:00"
+  },
+  {
+    "key": "SEOUL_DAY_MUSEUM_HISTORY_STANDARD|A1530|1dDep|Halal|single",
+    "leg": "30",
+    "departure": "21:00"
+  },
+  {
+    "key": "SEOUL_DAY_MUSEUM_HISTORY_STANDARD|A1530|1dDep|Halal|single",
+    "leg": "30",
+    "departure": "23:00"
+  },
+  {
+    "key": "SEOUL_DAY_MUSEUM_HISTORY_STANDARD|A1530|1dDep|Halal|single",
+    "leg": "45",
+    "departure": "21:00"
+  },
+  {
+    "key": "SEOUL_DAY_MUSEUM_HISTORY_STANDARD|A1530|1dDep|Halal|single",
+    "leg": "45",
+    "departure": "23:00"
+  },
+  {
+    "key": "SEOUL_DAY_MUSEUM_HISTORY_STANDARD|A1530|1dDep|Halal|single",
+    "leg": "60",
+    "departure": "21:00"
+  },
+  {
+    "key": "SEOUL_DAY_MUSEUM_HISTORY_STANDARD|A1530|1dDep|Halal|single",
+    "leg": "60",
+    "departure": "23:00"
+  },
+  {
+    "key": "SEOUL_DAY_MUSEUM_HISTORY_STANDARD|A1530|1dDep|Halal|single",
+    "leg": "distA",
+    "departure": "21:00"
+  },
+  {
+    "key": "SEOUL_DAY_MUSEUM_HISTORY_STANDARD|A1530|1dDep|Halal|single",
+    "leg": "distA",
+    "departure": "23:00"
+  },
+  {
+    "key": "SEOUL_DAY_MUSEUM_HISTORY_STANDARD|A1530|1dDep|Halal|single",
+    "leg": "distB",
+    "departure": "21:00"
+  },
+  {
+    "key": "SEOUL_DAY_MUSEUM_HISTORY_STANDARD|A1530|1dDep|Halal|single",
+    "leg": "distB",
+    "departure": "23:00"
+  },
+  {
+    "key": "SEOUL_DAY_MUSEUM_HISTORY_STANDARD|A1530|1dDep|Halal|single",
+    "leg": "mixA",
+    "departure": "21:00"
+  },
+  {
+    "key": "SEOUL_DAY_MUSEUM_HISTORY_STANDARD|A1530|1dDep|Halal|single",
+    "leg": "mixA",
+    "departure": "23:00"
+  },
+  {
+    "key": "SEOUL_DAY_MUSEUM_HISTORY_STANDARD|A1530|1dDep|Halal|single",
+    "leg": "mixB",
+    "departure": "21:00"
+  },
+  {
+    "key": "SEOUL_DAY_MUSEUM_HISTORY_STANDARD|A1530|1dDep|Halal|single",
+    "leg": "mixB",
+    "departure": "23:00"
+  }
+]

@@ -1,3 +1,5 @@
+import { verifiedDepartureMealWindows } from './verifiedDepartureRoute.js';
+import { proveDepartureMealExemption } from './departureMealExemption.js';
 /**
  * Response validation + JSON repair helpers.
  * Extracted verbatim from api/ai-planner-full.js L129-169, L877-946.
@@ -10,7 +12,8 @@
  */
 import { sanitizeStopName } from './sanitizeName.js';
 // 도착일 "활동 가능 시각" — blockMode·buildPrompt·RouteAgent 와 같은 계산을 쓴다(단일 원천).
-import { arrivalReadyMinutes, arrivalRestDayInfo, singleDayMealWindows } from './constants.js';
+import { arrivalReadyMinutes, arrivalRestDayInfo, singleDayMealWindows, resolveArrivalTime, resolveDepartureTime, resolveTourStartTime, resolveTourEndTime, isAlreadyInKoreaAirport, departureActivityDeadlineMin } from './constants.js';
+import { strictHHMMToMin } from '../../src/lib/arrivalRestRules.js';
 import { throttledTelegramAlert } from '../_shared/telegram-throttle.js';
 import { dietaryEvidenceFor } from '../_shared/dietary-trust.js';
 import { findSelectedFoodRow } from '../_shared/food-name-match.js';
@@ -360,16 +363,30 @@ export function arrivalRestDayCityKey({ arrivalCity, regions, area } = {}) {
 export function mealWindowsFromRequest(src = {}) {
   const s = src && typeof src === 'object' ? src : {};
   const pick = (camel, snake) => (s[camel] !== undefined && s[camel] !== null && s[camel] !== '' ? s[camel] : s[snake]);
+  // PR3: 시각 4종은 요청 정규화·저장·blockMode 와 같은 constants resolver(같은 우선순위·기본값).
   return singleDayMealWindows({
     durationDays: pick('durationDays', 'duration_days'),
-    arrivalTime: pick('arrivalTime', 'arrival_time'),
+    arrivalTime: resolveArrivalTime(s),
     arrivalAirport: pick('arrivalAirport', 'arrival_airport'),
-    departureTime: pick('departureTime', 'departure_time'),
+    departureTime: resolveDepartureTime(s),
     departureAirport: pick('departureAirport', 'departure_airport'),
-    tourStartTime: pick('tourStartTime', 'tour_start_time'),
-    tourEndTime: pick('tourEndTime', 'tour_end_time'),
+    tourStartTime: resolveTourStartTime(s),
+    tourEndTime: resolveTourEndTime(s),
     cityKey: arrivalRestDayCityKey({ arrivalCity: pick('arrivalCity', 'arrival_city'), regions: s.regions, area: s.area }),
   });
+}
+
+/**
+ * PR3 r2: 저장된 플랜(수정 API)의 1일 끼니 창 — 생성 때 서버가 저장한 input.meal_windows 가 있으면(다일 null·1일 {lunch,dinner} 그대로) 그 값,
+ *   필드가 없는 옛 플랜만 계산한다. 옛 ALREADY 플랜은 PR3 이전 규칙(도착 + IMMIGRATION_BUFFER_MIN + estimateAirportTransitMinFrom(도시, 'ALREADY'))
+ *   으로 만들어졌다 — 공항을 비워 계산하면 정확히 그 값(둘 다 공항 표 기본 70분·좌표 없음)이다. 160 하드코딩·자정 순환 없음.
+ *   일반 생성 요청 본문의 meal_windows 는 이 함수가 받지 않는다(저장 플랜 전용).
+ */
+export function mealWindowsForStoredPlan(input, durationDays) {
+  const s = input && typeof input === 'object' ? input : {};
+  if (Object.prototype.hasOwnProperty.call(s, 'meal_windows') && (s.meal_windows === null || typeof s.meal_windows === 'object')) return s.meal_windows;
+  const legacyAlready = isAlreadyInKoreaAirport(s.arrival_airport || s.arrivalAirport);
+  return mealWindowsFromRequest({ ...s, durationDays, ...(legacyAlready ? { arrival_airport: '', arrivalAirport: '' } : {}) });
 }
 
 /**
@@ -427,6 +444,7 @@ export function checkRequiredMeals(itinerary, request = {}) {
     departure_time: request.departure_time || request.departureTime,
     arrival_time: request.arrival_time || request.arrivalTime,
     arrival_airport: request.arrival_airport || request.arrivalAirport,
+    departure_airport: request.departure_airport || request.departureAirport, // PR3 r7: 면제 끼니 마감 재판정
     area: request.area,
     regions: request.regions,
     tour_end_time: request.tour_end_time || request.tourEndTime,
@@ -439,7 +457,32 @@ export function checkRequiredMeals(itinerary, request = {}) {
   return validatePatternStructure(itinerary, req).filter((e) => /\(B-MEAL/.test(String(e)));
 }
 
+/**
+ * PR3 r7 (운영자 결정 ③): 1일 출국일 면제 끼니 — B-12·B-MEAL 이 같은 집합. 출국 시각(생성 = departure_time, 수정 API =
+ *   exempt_meal_departure_time — 다른 출국 규칙을 켜지 않는 전용 키)이 있는 1일 여행에서, 표식의 근거(가장 이른 시작 + 체류,
+ *   day.exempt_meal_basis)가 출국 활동 마감(RouteAgent·blockMode 와 같은 함수·같은 도시 키)을 실제로 넘는 끼니만 — 표식만 믿지 않는다.
+ */
+function departureExemptMeals(day, isSingleDay, request, airport) {
+  const depMin = strictHHMMToMin(request.departure_time || request.departureTime || request.exempt_meal_departure_time);
+  if (!isSingleDay || depMin === null || !Array.isArray(day?.exempt_meals)) return new Set();
+  const deadline = departureActivityDeadlineMin(depMin, airport, normalizeRegionKey(day.city || '')
+    || normalizeRegionKey((Array.isArray(request.regions) && request.regions[0]) || request.area || ''));
+  const basis = day.exempt_meal_basis && typeof day.exempt_meal_basis === 'object' ? day.exempt_meal_basis : {};
+  return new Set(day.exempt_meals.filter((r) => {
+    const b = basis[r];
+    const windows = request.meal_windows || mealWindowsFromRequest({ ...request, durationDays: 1 });
+    const proof = proveDepartureMealExemption(r, b?.stay, { deadline, windows });
+    const from = b ? strictHHMMToMin(b.from) : null;
+    const expectedFrom = proof ? strictHHMMToMin(proof.from) : null;
+    // A proof from an earlier lower bound is stronger, provided it still independently exceeds the deadline.
+    return !!proof && from !== null && expectedFrom !== null && /^\d{2}:\d{2}$/.test(b.from)
+      && from <= expectedFrom && from + proof.stay > deadline;
+  }));
+}
+
 export function validatePatternStructure(itinerary, request = {}) {
+  const verifiedWindows = verifiedDepartureMealWindows(itinerary);
+  if (verifiedWindows) request = { ...request, meal_windows: verifiedWindows };
   const errors = [];
   if (!itinerary || !Array.isArray(itinerary.days)) {
     errors.push('itinerary.days array missing or not array');
@@ -539,8 +582,10 @@ export function validatePatternStructure(itinerary, request = {}) {
     //   2 stop 이 정상인데 4 강제 → 재시도해도 위반 → 500. 도착/출국일 최소 2 로 완화.
     // 2026-10-26: 도착 휴식일 Day1 은 숙소 하나만도 정상(UI 휴식일 카드는 Day1 1 stop 일 때 뜬다).
     // 2026-10-26 (첫날 도착 PR1): 1일 여행 + 끼니 창 = 숙소 bookend 2 + 필수 끼니 수(기존 4 이하 — 기준을 풀기만 한다).
+    //   PR3 r7: 면제 끼니(결정 ③)는 필수 끼니 수에서 뺀다 — 면제 플랜 수정(식당 바꾸기)이 B-12 로 422 나지 않게.
+    const exemptMeals = departureExemptMeals(d, isSingleDayPlan, request, departureAirport || arrivalAirport);
     const minStops = (isFirstDay && restInfo.rest) ? 1 : (isFirstDay || isLastDay) ? 2
-      : mealWindows ? 2 + (mealWindows.lunch ? 1 : 0) + (mealWindows.dinner ? 1 : 0) : 4;
+      : mealWindows ? 2 + (mealWindows.lunch && !exemptMeals.has('lunch') ? 1 : 0) + (mealWindows.dinner && !exemptMeals.has('dinner') ? 1 : 0) : 4;
     if (stops.length < minStops) {
       errors.push(`Day ${dayNum}: stops.length=${stops.length} < ${minStops} minimum (B-12)`);
     }
@@ -730,7 +775,9 @@ export function validatePatternStructure(itinerary, request = {}) {
     // 2026-05-13 PR #412 env flag (P40 일환): `VALIDATOR_BMEAL_ENABLED=false` 시 skip.
     // 운영자 비상 circuit breaker — Gemini 가 일관되게 식사 시간대 못 맞추면 일시 비활성.
     if (process.env.VALIDATOR_BMEAL_ENABLED !== 'false') {
-      const foodStops = stops.filter((s) => s?.category === 'food');
+      // PR3 r2: 블록 카페(_blockMealRole 'cafe' — persistPlan 직전까지만 붙는 표식)는 끼니가 아닌 선택 활동 — 끼니로 세지 않는다.
+      //   r3: 저장된 플랜은 cafe_not_meal(저장 메타)로 같은 판정 — 수정 검사도 카페를 끼니로 세지 않는다.
+      const foodStops = stops.filter((s) => s?.category === 'food' && s?._blockMealRole !== 'cafe' && s?.cafe_not_meal !== true);
       const matchHour = (s, lo, hi) => {
         const t = String(s?.start_time || '');
         const m = t.match(/^(\d{2}):(\d{2})$/);
@@ -849,8 +896,11 @@ export function validatePatternStructure(itinerary, request = {}) {
         // full day (또는 단일일) — 점심/snack + 저녁 둘 다 필수.
         // 2026-10-26 (첫날 도착 PR1): 단일일 + 끼니 창이면 null 아닌 끼니만 필수(세는 방식은 시간대 그대로 — 시작 범위 강제는 PR2).
         //   접미사 (B-MEAL-LUNCH)/(B-MEAL-DINNER) 유지(게이트가 /\(B-MEAL/ 로 거른다).
-        const needLunch = mealWindows ? !!mealWindows.lunch : true;
-        const needDinner = mealWindows ? !!mealWindows.dinner : true;
+        // 2026-11-02 (운영자 결정 ③ — PR3): 1일 출국일에 출국 활동 마감 전 남은 시간 안에 못 들어간 끼니(day.exempt_meals —
+        //   RouteAgent 가 관광을 다 빼고도 체류가 마감을 넘을 때만 기록, 안내 = planPersister.applyDepartureMealNote)는 필수에서 뺀다.
+        //   r7: 집합 = 위 B-12 와 같은 departureExemptMeals(근거 재판정). 생성 게이트·응답 검증·수정 검사가 모두 이 함수를 거친다.
+        const needLunch = (mealWindows ? !!mealWindows.lunch : true) && !exemptMeals.has('lunch');
+        const needDinner = (mealWindows ? !!mealWindows.dinner : true) && !exemptMeals.has('dinner');
         const range = (w) => (w && w.from && w.to ? `, ${w.from}-${w.to} 시작` : '');
         if (needLunch) {
           if (afternoonMealCount === 0) errors.push(`Day ${dayNum}: 오후식사(11-16시, 점심 또는 snack${mealWindows ? range(mealWindows.lunch) : ''}) food stop 누락 (B-MEAL-LUNCH)`);

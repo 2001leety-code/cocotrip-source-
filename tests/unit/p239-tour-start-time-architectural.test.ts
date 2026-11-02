@@ -22,6 +22,7 @@ import { readFileSync } from 'node:fs';
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, it, expect } from 'vitest';
+import { resolveTourStartTime } from '../../api/_ai_core/constants.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(__dirname, '../../');
@@ -34,11 +35,17 @@ function readFile(rel: string): string {
 // 1. requestShaper.js — tourStartTime parse + default + HH:MM 검증
 // ────────────────────────────────────────────────────────────────────────────
 describe('P239 architectural: requestShaper tourStartTime', () => {
+  // 2026-11-01 (PR3): 코드 모양(정규식 리터럴) 대신 resolver 연결 + 동작 — requestShaper 는 constants.resolveTourStartTime(body)
+  //   (camel 우선 + snake tour_start_time, 앞 5자 엄격 HH:MM, 실패 09:00) 을 쓴다. worker·저장·blockMode 와 같은 값.
   it('tourStartTime 변수가 정의되어 있어야 함 (default 09:00 fallback)', () => {
     const src = readFile('api/_ai_core/requestShaper.js');
-    expect(/const\s+tourStartTime\s*=/.test(src), 'tourStartTime 변수 누락').toBe(true);
-    expect(/['"]09:00['"]/.test(src), "default '09:00' 폴백 누락").toBe(true);
-    expect(/\/\^\\d\{2\}:\\d\{2\}\$\//.test(src), 'HH:MM 정규식 검증 누락').toBe(true);
+    expect(/const\s+tourStartTime\s*=\s*resolveTourStartTime\(body\)/.test(src), 'tourStartTime 변수 누락').toBe(true);
+    expect(resolveTourStartTime({})).toBe('09:00');
+    expect(resolveTourStartTime({ tourStartTime: '7am' })).toBe('09:00');
+    expect(resolveTourStartTime({ tourStartTime: '25:00' })).toBe('09:00');
+    expect(resolveTourStartTime({ tourStartTime: '10:30:00' })).toBe('10:30');
+    // snake 도 받는다 — 예전 생성은 '17:00' 을 버리고 09:00, worker 는 17:00 을 써서 갈렸다(PR3 지도 0절).
+    expect(resolveTourStartTime({ tour_start_time: '17:00' })).toBe('17:00');
   });
 
   it('return 객체에 tourStartTime 포함 (handlerCore destructure)', () => {

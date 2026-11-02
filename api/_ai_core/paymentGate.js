@@ -1,3 +1,4 @@
+import { assertMealDraftIntegrity, mealDraftContractMode } from '../_shared/meal-draft-binding.js';
 /**
  * Payment + revision gate for /api/ai-planner-full.
  *
@@ -279,6 +280,7 @@ export async function enforcePaymentAndRevision(body, adminDb, authenticatedEmai
   const coverageRejection = paidOrderRequest ? null : await coverageRejectionBeforeConsumption(body, authenticatedEmail, authenticatedUid, loadFoodIndex);
   if (coverageRejection) return coverageRejection;
   let prepayVerified = false;
+  let boundMealDraft = null;
 
   const revisionOf = body.revisionOf;
   const revisionToken = body.revisionToken;
@@ -753,6 +755,13 @@ export async function enforcePaymentAndRevision(body, adminDb, authenticatedEmai
           if (pinRejection) return pinRejection;
         }
         prepayVerified = bound.prepayVerified === true;
+        if (mealDraftContractMode(snapData) !== 'legacy') {
+          try {
+            if (mealDraftContractMode(snapData) !== 'v1' || !snapData.mealDraftSnapshot) throw Object.assign(new Error('Invalid meal draft contract'), { code: 'MEAL_DRAFT_CONTRACT_INVALID' });
+            boundMealDraft = snapData.mealDraftSnapshot;
+            assertMealDraftIntegrity(boundMealDraft, ownerUid, boundMealDraft, snapData.prepayInput);
+          } catch (error) { return reject(409, error.code || 'MEAL_DRAFT_INVALID', 'The paid meal draft could not be verified'); }
+        }
 
         let claimResult;
         try {
@@ -811,5 +820,5 @@ export async function enforcePaymentAndRevision(body, adminDb, authenticatedEmai
   console.log('[planner] ✅ Auth passed:', isRevision ? `REVISION of ${revisionOf}` : paypalOrderId);
   // planClaim 은 유료 PayPal 경로에서만 실린다 — 여기는 revision/admin-bypass/TEST-/MANUAL-/유료가
   // 합류하는 지점이라 무조건 실으면 claim 하지 않은 경로도 attemptId 를 갖게 된다. 조건부 spread 유지.
-  return { isRevision, isAdminBypass, ...(planClaim ? { planClaim } : {}), ...(prepayVerified ? { prepayVerified: true } : {}) };
+  return { isRevision, isAdminBypass, ...(boundMealDraft ? { boundMealDraft } : {}), ...(planClaim ? { planClaim } : {}), ...(prepayVerified ? { prepayVerified: true } : {}) };
 }

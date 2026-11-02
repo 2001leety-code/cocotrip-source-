@@ -156,7 +156,15 @@ export function estimateAirportTransitMinFrom(cityKey, airport) {
 export function arrivalReadyMinutes(arrivalHHMM, airport, cityKey) {
   const base = hhmmToMin(arrivalHHMM);
   if (base < 0) return null;
+  // 2026-11-01 (첫날 도착 PR3): 이미 한국에 있는 손님(ALREADY·already_in_korea, 대소문자·앞뒤 공백 무관)은 입국수속·공항 이동이
+  //   없다 — 도착 분 그대로. 빈 공항·알 수 없는 공항·실제 공항은 종전 계산.
+  if (isAlreadyInKoreaAirport(airport)) return base;
   return base + IMMIGRATION_BUFFER_MIN + estimateAirportTransitMinFrom(cityKey, airport);
+}
+
+/** PR3: 도착 공항 값이 "이미 한국" 표식(ALREADY / already_in_korea)인가 — 대소문자·앞뒤 공백 정리. 순수. */
+export function isAlreadyInKoreaAirport(airport) {
+  return /^(already|already_in_korea)$/i.test(String(airport || '').trim());
 }
 
 // 2026-10-26 운영자 승인: 도착 휴식일 — 그날 끼니 의무 면제(출국 11:00 전 조식 면제와 같은 결).
@@ -243,7 +251,7 @@ export function singleDayMealWindows({ durationDays, arrivalTime, arrivalAirport
  * 도착 휴식일 판정(순수 — 로그·부작용 없음). 검증기·게이트·mock·안내가 이 함수 하나만 쓴다(경계값 복제 금지).
  *   (i)  도착 시각 ≥ 18:00 → late_arrival
  *   (ii) 도착 준비 시각(arrivalReadyMinutes — 절대 분, 자정 넘어도 1440 이상 그대로) ≥ 투어 종료 − 60분 → ready_near_tour_end
- *        공항이 비었거나 ALREADY/already_in_korea 면 (ii) 는 추론하지 않는다.
+ *        공항이 비었으면 (ii) 는 추론하지 않는다(readyMin null). PR3: ALREADY/already_in_korea 는 준비 = 도착 분 그대로로 (ii) 에 참여.
  * @returns {{rest: boolean, reason: 'late_arrival'|'ready_near_tour_end'|null, readyMin: number|null, tourEndMin: number}}
  */
 export function arrivalRestDayInfo({ arrivalTime, arrivalAirport, cityKey, tourEndTime } = {}) {
@@ -253,8 +261,8 @@ export function arrivalRestDayInfo({ arrivalTime, arrivalAirport, cityKey, tourE
   if (arrMin === null) return { rest: false, reason: null, readyMin: null, tourEndMin };
   const arrivalHHMM = String(arrivalTime).trim().slice(0, 5);
   const airport = String(arrivalAirport || '').trim();
-  const noAirport = !airport || /^(already|already_in_korea)$/i.test(airport);
-  const readyMin = noAirport ? null : arrivalReadyMinutes(arrivalHHMM, airport, cityKey);
+  // PR3: 빈 공항만 준비 시각 미상(null) — ALREADY 는 arrivalReadyMinutes 가 도착 분 그대로를 준다(종료−60 판정 참여).
+  const readyMin = !airport ? null : arrivalReadyMinutes(arrivalHHMM, airport, cityKey);
   if (arrMin >= REST_DAY_LATE_ARRIVAL_MIN) return { rest: true, reason: 'late_arrival', readyMin, tourEndMin };
   if (readyMin !== null && readyMin >= tourEndMin - REST_DAY_TOUR_END_MARGIN_MIN) {
     return { rest: true, reason: 'ready_near_tour_end', readyMin, tourEndMin };

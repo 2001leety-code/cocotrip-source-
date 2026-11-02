@@ -1,15 +1,17 @@
+import { mealDraftGuestHeaders } from '@/lib/mealDraftIdentity';
 // Plan editor hook -- optimistic Firestore updates with rollback.
 // Level 2: delete / add / reorder + automatic transit recalculation.
 // After any edit, stale transits are sent to /api/recalc-transit for
 // server-side ODsay + Naver refresh. The plan auto-updates via the
 // existing Firestore onSnapshot listener in index.tsx.
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback, useRef, useLayoutEffect } from 'react';
 import { doc, updateDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { authFetch } from '@/lib/authFetch';
 import type { PlanDocument, PlanDay, PlanStop, SetPlanFn } from '../types';
 import { stripArrivalRestNoteIfDay1Active } from '@/lib/arrivalRestNote.js';
 import { stripBreakfastNoteIfLastDayHasMeal } from '@/lib/departureBreakfastNote.js';
+import { stripDepartureMealExemptionIfMealAdded } from '@/lib/departureMealNote.js';
 
 interface StopData {
   name: string;
@@ -45,22 +47,74 @@ export function usePlanEditor(
   planId: string,
   plan: PlanDocument | null,
   setPlan: SetPlanFn,
+  accessScope: string = planId,
 ) {
   const [isRecalculating, setIsRecalculating] = useState(false);
+  const [editError, setEditError] = useState(false);
+  const [editRefreshError, setEditRefreshError] = useState(false);
   const recalcTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const activeScope = useRef<string | null>(accessScope);
+  const scopeEpoch = useRef(0);
+  const [previousScope, setPreviousScope] = useState(accessScope);
+  if (previousScope !== accessScope) {
+    setPreviousScope(accessScope);
+    setEditError(false);
+    setEditRefreshError(false);
+  }
+  useLayoutEffect(() => {
+    activeScope.current = accessScope;
+    scopeEpoch.current++;
+    return () => { if (activeScope.current === accessScope) activeScope.current = null; scopeEpoch.current++; };
+  }, [accessScope]);
 
   // Persist updated days array to Firestore
-  async function commitDays(nextDays: PlanDay[], snapshot: PlanDocument) {
+  async function commitDays(nextDays: PlanDay[], snapshot: PlanDocument): Promise<boolean> {
+    const epoch = scopeEpoch.current;
+    const isCurrent = () => activeScope.current === accessScope && scopeEpoch.current === epoch;
+    setEditError(false);
+    setEditRefreshError(false);
     try {
+      if (snapshot.itinerary?.meal_options_version === 1) {
+        const guestHeaders = await mealDraftGuestHeaders();
+        if (!isCurrent()) return false;
+        const res = await authFetch('/api/plan-meal-options', {
+          method: 'POST', headers: { 'Content-Type': 'application/json', ...guestHeaders },
+          body: JSON.stringify({ action: 'edit', planId, days: nextDays,
+            baseRevision: snapshot.mealOptionsRevision, token: new URLSearchParams(window.location.search).get('token') }),
+        });
+        const result = await res.json();
+        if (!isCurrent()) return false;
+        if (!res.ok || result.status !== 'saved') throw new Error('Meal plan edit validation failed');
+        // The write succeeded; snapshot errors must never be reported as an unsaved edit.
+        try {
+          let canonical = result.plan as PlanDocument | undefined;
+          if (!canonical) {
+            if (!isCurrent()) return false;
+            const snapshotRes = await authFetch('/api/plan-meal-options', {
+              method: 'POST', headers: { 'Content-Type': 'application/json', ...guestHeaders },
+              body: JSON.stringify({ action: 'snapshot', planId, token: new URLSearchParams(window.location.search).get('token') }),
+            });
+            const data = await snapshotRes.json();
+            if (!snapshotRes.ok || !data.ok || !data.plan) throw new Error('Snapshot unavailable');
+            canonical = data.plan as PlanDocument;
+          }
+          if (canonical.planId !== planId || !canonical.itinerary || !Array.isArray(canonical.itinerary.days)) throw new Error('Invalid plan snapshot');
+          if (isCurrent()) setPlan(() => canonical as PlanDocument);
+        } catch {
+          if (isCurrent()) setEditRefreshError(true);
+        }
+        return isCurrent();
+      }
       await updateDoc(doc(db, 'plans', planId), {
         'itinerary.days': nextDays,
         edited: true,
         lastEditedAt: Date.now(),
       });
+      return isCurrent();
     } catch (e) {
       console.error('[planEditor] Firestore write failed, rolling back:', e);
-      setPlan(() => snapshot);
-      throw e;
+      if (isCurrent()) { setPlan(() => snapshot); setEditError(true); }
+      return false;
     }
   }
 
@@ -100,13 +154,14 @@ export function usePlanEditor(
 
   // Schedule transit recalculation (debounced 2s after last edit)
   const scheduleRecalc = useCallback((dayIdx: number, token: string | null) => {
+    if (plan?.itinerary?.meal_options_version === 1) return; // Server validated and saved the complete edit atomically.
     if (recalcTimerRef.current) {
       clearTimeout(recalcTimerRef.current);
     }
     recalcTimerRef.current = setTimeout(() => {
       recalcTransit(dayIdx, token);
     }, 2000);
-  }, [recalcTransit]);
+  }, [recalcTransit, plan?.itinerary?.meal_options_version]);
 
   async function deleteStop(dayIdx: number, stopIdx: number, token?: string | null) {
     if (!plan || !plan.itinerary) return;
@@ -125,14 +180,14 @@ export function usePlanEditor(
 
     stripArrivalRestNoteIfDay1Active({ days: nextDays }); // 2026-10-26: Day1 에 식당·관광이 생기면 휴식 안내 제거(저장 전)
     stripBreakfastNoteIfLastDayHasMeal({ days: nextDays }); // 2026-10-26: 출국일에 식당이 생기면 조식 안내 제거(저장 전)
+    stripDepartureMealExemptionIfMealAdded({ days: nextDays }); // 2026-11-02 PR3 결정 ③: 면제 끼니 시간대에 식당이 생기면 면제·안내 제거
     setPlan((prev) => prev ? ({
       ...prev,
       itinerary: { ...prev.itinerary, days: nextDays },
       edited: true,
       lastEditedAt: Date.now(),
     }) : prev);
-    await commitDays(nextDays, snapshot);
-    scheduleRecalc(dayIdx, token || null);
+    if (await commitDays(nextDays, snapshot)) scheduleRecalc(dayIdx, token || null);
   }
 
   async function addStop(dayIdx: number, stopData: Partial<StopData>, token?: string | null) {
@@ -164,14 +219,14 @@ export function usePlanEditor(
 
     stripArrivalRestNoteIfDay1Active({ days: nextDays }); // 2026-10-26: Day1 에 식당·관광이 생기면 휴식 안내 제거(저장 전)
     stripBreakfastNoteIfLastDayHasMeal({ days: nextDays }); // 2026-10-26: 출국일에 식당이 생기면 조식 안내 제거(저장 전)
+    stripDepartureMealExemptionIfMealAdded({ days: nextDays }); // 2026-11-02 PR3 결정 ③: 면제 끼니 시간대에 식당이 생기면 면제·안내 제거
     setPlan((prev) => prev ? ({
       ...prev,
       itinerary: { ...prev.itinerary, days: nextDays },
       edited: true,
       lastEditedAt: Date.now(),
     }) : prev);
-    await commitDays(nextDays, snapshot);
-    scheduleRecalc(dayIdx, token || null);
+    if (await commitDays(nextDays, snapshot)) scheduleRecalc(dayIdx, token || null);
   }
 
   async function reorderStops(dayIdx: number, oldIdx: number, newIdx: number, token?: string | null) {
@@ -193,14 +248,14 @@ export function usePlanEditor(
 
     stripArrivalRestNoteIfDay1Active({ days: nextDays }); // 2026-10-26: Day1 에 식당·관광이 생기면 휴식 안내 제거(저장 전)
     stripBreakfastNoteIfLastDayHasMeal({ days: nextDays }); // 2026-10-26: 출국일에 식당이 생기면 조식 안내 제거(저장 전)
+    stripDepartureMealExemptionIfMealAdded({ days: nextDays }); // 2026-11-02 PR3 결정 ③: 면제 끼니 시간대에 식당이 생기면 면제·안내 제거
     setPlan((prev) => prev ? ({
       ...prev,
       itinerary: { ...prev.itinerary, days: nextDays },
       edited: true,
       lastEditedAt: Date.now(),
     }) : prev);
-    await commitDays(nextDays, snapshot);
-    scheduleRecalc(dayIdx, token || null);
+    if (await commitDays(nextDays, snapshot)) scheduleRecalc(dayIdx, token || null);
   }
 
   /**
@@ -222,15 +277,15 @@ export function usePlanEditor(
 
     stripArrivalRestNoteIfDay1Active({ days: nextDays }); // 2026-10-26: Day1 에 식당·관광이 생기면 휴식 안내 제거(저장 전)
     stripBreakfastNoteIfLastDayHasMeal({ days: nextDays }); // 2026-10-26: 출국일에 식당이 생기면 조식 안내 제거(저장 전)
+    stripDepartureMealExemptionIfMealAdded({ days: nextDays }); // 2026-11-02 PR3 결정 ③: 면제 끼니 시간대에 식당이 생기면 면제·안내 제거
     setPlan((prev) => prev ? ({
       ...prev,
       itinerary: { ...prev.itinerary, days: nextDays },
       edited: true,
       lastEditedAt: Date.now(),
     }) : prev);
-    await commitDays(nextDays, snapshot);
-    scheduleRecalc(dayIdx, token || null);
+    if (await commitDays(nextDays, snapshot)) scheduleRecalc(dayIdx, token || null);
   }
 
-  return { deleteStop, addStop, reorderStops, applyStopOrder, recalcTransit, isRecalculating };
+  return { deleteStop, addStop, reorderStops, applyStopOrder, recalcTransit, isRecalculating, editError, editRefreshError };
 }

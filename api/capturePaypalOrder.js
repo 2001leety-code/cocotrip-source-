@@ -1,3 +1,5 @@
+import { verifyMealActor } from './_ai_core/mealActor.js';
+import { loadBoundMealDraft, mealDraftContractMode } from './_shared/meal-draft-binding.js';
 /**
  * Vercel API Route: Capture PayPal Order + trigger booking-processor
  * POST /api/capturePaypalOrder
@@ -180,6 +182,8 @@ export default async function handler(req, res) {
     let _snapSlotBooking = null;
     let _snapRecoveryDigest = null;
     let _snapOwnerUid = null;
+    let _snapMealDraft = null;
+    let _snapMealDraftMode = 'legacy';
     let _snapPrepayInput = null; // 🔴 B6-1: createPaypalOrder 가 검사·저장한 AI 플래너 정규 입력(없으면 옛 주문)
     try {
       const _snapDb = _db; // 위 cross-flow 가드에서 확보한 인스턴스 재사용 (initAdminDb 는 싱글톤 반환).
@@ -208,6 +212,8 @@ export default async function handler(req, res) {
           if (_s.slotBooking) _snapSlotBooking = _s.slotBooking;
           if (_s.recoveryDigest) _snapRecoveryDigest = _s.recoveryDigest;
           if (_s.ownerUid) _snapOwnerUid = _s.ownerUid;
+          _snapMealDraft = _s.mealDraftSnapshot || null;
+          _snapMealDraftMode = mealDraftContractMode(_s);
           if (_s.prepayInput && _s.prepayInputVersion === PREPAY_INPUT_VERSION) _snapPrepayInput = _s.prepayInput;
           console.log('[capturePaypalOrder] order snapshot applied:', { orderID, product: _s.productType, hasExpectedUSD: _snapExpectedUSD != null });
         }
@@ -253,6 +259,28 @@ export default async function handler(req, res) {
     //   creates is then closed to everyone without proof. A bare orderID is never authority to replay
     //   someone's order. Snapshots without digest/owner are the documented legacy boundary.
     let verifiedBuyerUid = await verifyTokenUid(req.headers?.authorization);
+    let mealDraftBlock = null;
+    if (isPrepayCheckedProduct(product) && _snapMealDraftMode !== 'legacy') {
+      try {
+        if (_snapMealDraftMode !== 'v1') throw Object.assign(new Error('Invalid meal draft contract'), { code: 'MEAL_DRAFT_CONTRACT_INVALID' });
+        const actor = await verifyMealActor(req);
+        if (!actor.ok || actor.uid !== _snapOwnerUid) {
+          // Lost actor sessions may still reconcile an existing POST through the checkout capability.
+          // Treat this as retryable authority loss; never void an order or permit a new capture POST.
+          throw Object.assign(new Error('The meal draft owner is required'), { code: 'MEAL_DRAFT_OWNER_MISMATCH', retryable: true });
+        }
+        verifiedBuyerUid = actor.uid;
+        if (!_snapMealDraft) throw Object.assign(new Error('Missing draft'), { code: 'MEAL_DRAFT_REQUIRED' });
+        const current = await loadBoundMealDraft({ db: _db, uid: actor.uid, binding: _snapMealDraft, prepayInput: _snapPrepayInput });
+        if (current.fingerprint !== _snapMealDraft.fingerprint) throw new Error('Draft changed');
+        userEmail = _snapMealDraft.input.email || actor.email || '';
+        // Capture bodies cannot replace the authoritative server itinerary.
+        itineraryData = { itinerary: _snapMealDraft.itinerary, mealDraft: { draftId: _snapMealDraft.draftId, revision: _snapMealDraft.revision, fingerprint: _snapMealDraft.fingerprint, ...(_snapMealDraft.openingNoticeVersion ? { openingNoticeVersion: _snapMealDraft.openingNoticeVersion } : {}) } };
+      } catch (error) {
+        const definitive = !error.retryable && typeof error.code === 'string' && error.code.startsWith('MEAL_DRAFT_');
+        mealDraftBlock = { status: error.retryable ? 403 : definitive ? 409 : 503, code: error.code || 'MEAL_DRAFT_UNAVAILABLE', message: 'The verified meal draft could not be confirmed', unavailable: !definitive };
+      }
+    }
     const _recoverySnapshot = { recoveryDigest: _snapRecoveryDigest, ownerUid: _snapOwnerUid };
     const _sameOrderProven = isSameOrderProven({ req, flow: 'single', orderID, snapshot: _recoverySnapshot, verifiedUid: verifiedBuyerUid });
     // Same-order reconcile ({orderID, reconcile:true}): never starts a new attempt from a bare orderID.
@@ -344,8 +372,8 @@ export default async function handler(req, res) {
     // 🔴 2026-10-26 B6-1: AI 플래너(풀) 결제 전 재검사 판정 — snapshot·식당 자료만 필요하므로 시도 기록을 만들기 **전에** 계산(r3):
     //   계산이 터지면 기록이 'none' 으로 남아 영구 미결이 되던 경로 차단. 실패는 판정(503 표시)으로 바꿔 아래 분기가 처리한다.
     //   검사 = 저장 입력의 출발일 > KST 오늘(생성 단계와 같은 함수) + 식이 커버리지. 정규 입력 없는 옛 미결제 주문도 거부.
-    let preCaptureBlock = null;
-    if (isPrepayCheckedProduct(product)) {
+    let preCaptureBlock = mealDraftBlock;
+    if (isPrepayCheckedProduct(product) && !preCaptureBlock) {
       try {
         const tooSoon = _snapPrepayInput ? startDateTooSoon(_snapPrepayInput.startDate) : null;
         if (!_snapPrepayInput) {
@@ -523,7 +551,7 @@ export default async function handler(req, res) {
           //   (record stays as before any POST; the same order can be retried). Never a tombstone.
           await releaseTransient(); // r21: 무증명이면 기록 삭제
           console.warn('[capturePaypalOrder] AI planner pre-capture check unavailable — claim released, no capture:', orderID);
-          res.writeHead(503, JSON_CORS);
+          res.writeHead(preCaptureBlock.status || 503, JSON_CORS);
           return res.end(JSON.stringify(_err(preCaptureBlock.message, preCaptureBlock.code)));
         }
         if (!(await voidOrUnknown(preCaptureBlock.code))) return unknownResponse();

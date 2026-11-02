@@ -1,3 +1,4 @@
+import { PrepaymentMealDraftGate } from './PrepaymentMealDraftGate';
 // Purchase section -- single primary CTA (Klook pattern).
 // 2026-05-05: free-claim funnel 폐기 — Option B "already booked? get it free"
 // bundle toggle 분기 제거. 유료 PayPal flow만 노출.
@@ -350,7 +351,8 @@ export function PurchaseSection({
                 </button>
               </div>
             ) : (
-              <PayPalBookingButton
+              <PrepaymentMealDraftGate input={lastValues.current ? { ...buildPlannerOrderInput(lastValues.current, language), email: userEmail } as unknown as Record<string, unknown> : null} language={language} userId={user?.uid || null}>
+                {(mealDraft) => <PayPalBookingButton
                 productType="ai-planner-full" passengers={1} dateStart="" dateEnd=""
                 priceKRW={AI_PLANNER_REFERENCE_KRW} p={p} lang={language}
                 // 🔴 2026-07-29: 화면이 보여준 금액을 서버에 함께 보낸다.
@@ -358,14 +360,15 @@ export function PurchaseSection({
                 //   (표시가 ≠ 청구가 방지).
                 expectedUSD={AI_PLANNER_FULL_USD}
                 memo={`Full itinerary for: ${userEmail}`}
-                itineraryData={resultQuick}
+                itineraryData={{ ...resultQuick, mealDraft }}
                 onPaymentSuccess={onPaymentSuccess}
                 userEmail={userEmail}
                 // 🔴 2026-10-26 B6-1: 결제 전 서버 식이 커버리지 확인 — 결제 후 생성 요청과 같은 함수로 만든 여행 입력.
                 plannerInput={lastValues.current ? buildPlannerOrderInput(lastValues.current, language) : undefined}
                 // 결제 뒤 플랜 발급까지 복구 포인터 유지(발급 시 usePlannerHandlers 가 지운다) — 새로고침해도 재결제 대신 같은 주문 확인.
                 keepRecoveryUntilFulfilled
-              />
+              />}
+              </PrepaymentMealDraftGate>
             )}
 
             {/* AI 플랜은 디지털 상품(즉시 다운로드)이라 환불 불가 — 소비자 사전 고지. */}

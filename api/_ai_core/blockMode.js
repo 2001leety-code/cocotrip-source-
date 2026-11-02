@@ -1,3 +1,5 @@
+import { canServeMeal } from '../_shared/meal-venue.js';
+import { departureMealContext, exemptImpossibleDepartureMeals } from './departureMealExemption.js';
 /**
  * blockMode.js — zone_courses 기반 block-mode planner pipeline (P128, 2026-05-21).
  *
@@ -39,7 +41,8 @@ import {
   // 거리 보정판(estimateAirportTransitMinFrom)은 출국일에만 배선돼 있었는데 도착일도
   // 같이 쓰게 되면서 leaf 로 올렸다(2026-08-04).
   estimateAirportTransitMinFrom, hhmmToMin, arrivalReadyMinutes, arrivalRestDayInfo, departureActivityDeadlineMin,
-  MEAL_ROLE_WINDOWS, SCHEDULE_BUFFER_MIN, DEFAULT_LEG_MIN,
+  MEAL_ROLE_WINDOWS, SCHEDULE_BUFFER_MIN, DEFAULT_LEG_MIN, singleDayMealWindows,
+  resolveTourStartTime, resolveTourEndTime, resolveArrivalTime, resolveDepartureTime, isAlreadyInKoreaAirport,
 } from './constants.js';
 import { repairAndParseJSON, normalizeRegionKey, arrivalRestDayCityKey, regionCityKey } from './responseValidator.js';
 import { stopDuplicateKey } from './qualityMetrics.js';
@@ -665,8 +668,6 @@ No markdown. No code blocks. No explanation. Pure JSON only.
 // Expand block selections to itinerary.days[].stops[].
 // ─────────────────────────────────────────────────────────────────────
 
-const DEFAULT_DAY_START_HHMM = '09:00';
-const DEFAULT_TOUR_END_HHMM = '21:00';
 
 // 공항 이동 거리 보정(SAME_METRO_KM / INTERCITY_* / estimateAirportTransitMinFrom)은
 // constants.js 로 옮겼다(2026-08-04). 출국일 컷만 쓰던 것을 도착일 5개 표면도 쓰게 되어
@@ -799,7 +800,7 @@ function keptMealRoles(stops, isKept) {
   return roles;
 }
 
-export function applyDepartureDayFlightCap(stops, departureTime, departureAirport, language, cityKey) {
+export function applyDepartureDayFlightCap(stops, departureTime, departureAirport, language, cityKey, options = {}) {
   const result = { trimmed: 0, airportStopAdded: false };
   if (!Array.isArray(stops)) return result;
   if (!/^\d{1,2}:\d{2}$/.test(String(departureTime || ''))) return result;
@@ -821,7 +822,7 @@ export function applyDepartureDayFlightCap(stops, departureTime, departureAirpor
   // tail-pop 이 아니라 filter — 뒤에 보호 stop 이 있어도 그 앞의 초과 활동을 잘라야 한다.
   const before = stops.length;
   const kept = stops.filter((s) => {
-    if (isProtected(s)) return true;
+    if (isProtected(s) || options.deferActivityTrim === true) return true;
     const end = endMinOf(s);
     if (end < 0) return true;           // 시각을 모르면 건드리지 않는다
     return end <= activityDeadlineMin;
@@ -1118,6 +1119,7 @@ export function matchFoodPlaceholder(placeholderStop, foodIndex, city, userDietP
     if (isCafe) {
       if (!cafeTypes.some((t) => rType.includes(t))) return false;
     }
+    if (!isCafe && !canServeMeal(r)) return false;
     const tags = dietaryTagsOf(r); // r.tag(문자열) + r.dietary_tags(배열) 정규화 — SAFETY hard-filter
     if (dietRequired.length > 0) {
       const evidence = [];
@@ -1353,17 +1355,15 @@ export function expandBlocksToItinerary(blockSelections, blocks, userInput) {
   const recentFoodNames = new Set(Array.isArray(userInput?.recentFoodNames) ? userInput.recentFoodNames.filter((n) => typeof n === 'string' && n.trim()).map((n) => n.trim()).slice(0, 20) : []);
   const area = String(userInput?.area || '').toLowerCase();
   const startDate = userInput?.startDate || null;
-  const arrivalTime = String(userInput?.arrival_time || userInput?.arrivalTime || '');
-  const departureTime = String(userInput?.departure_time || userInput?.departureTime || '');
+  const arrivalTime = resolveArrivalTime(userInput);
+  const departureTime = resolveDepartureTime(userInput);
   // P245 (2026-05-27): tour_start_time architectural — block_mode 가 P239 tour_start_time 무시했던
   // sleeper bug 진짜 fix. arrival=14:00 + 9h = 23:00 → Day1 stops cascade 00:45/02:23/04:10 (P159 alert).
   // 운영자 의도 (P239): arrival_time 무관하게 Day1 stops 시작 시각을 고정 (default '09:00').
   // 본 fix = buildPrompt + RouteAgent 와 동일 룰을 block_mode 에도 적용 (sleeper bug 해소).
-  const tourStartTimeRaw = String(userInput?.tour_start_time || userInput?.tourStartTime || '09:00');
-  const tourStartTime = /^\d{1,2}:\d{2}$/.test(tourStartTimeRaw) ? tourStartTimeRaw : DEFAULT_DAY_START_HHMM;
+  const tourStartTime = resolveTourStartTime(userInput);
   // #arrival-realtime/tour-end (2026-06-05, 운영자): 종료 시간 cap + 도착 현실 계산용 공항.
-  const tourEndTimeRaw = String(userInput?.tour_end_time || userInput?.tourEndTime || DEFAULT_TOUR_END_HHMM);
-  const tourEndTime = /^\d{1,2}:\d{2}$/.test(tourEndTimeRaw) ? tourEndTimeRaw : DEFAULT_TOUR_END_HHMM;
+  const tourEndTime = resolveTourEndTime(userInput);
   const arrivalAirportInput = String(userInput?.arrival_airport || '').trim();
   // 출국 공항 — 출국일 컷과 공항 stop 생성에 쓴다. 미입력이면 입국 공항으로 왕복 가정
   // (departure_guide 를 만드는 아래 :1147 과 같은 폴백).
@@ -1417,6 +1417,10 @@ export function expandBlocksToItinerary(blockSelections, blocks, userInput) {
 
     // stops expand
     const stops = [];
+    const departureMealRoles = new Map();
+    const useConstraintPlacement = isFirstDay && !arrivalRestDay && isAlreadyInKoreaAirport(arrivalAirportInput) && !!arrivalTime;
+    const legacyReady = Math.max(hhmmToMin(tourStartTime), arrivalReadyMinutes(arrivalTime, '', block.city || area) || 0);
+    const placementDeparture = departureMealContext(userInput, block.city || area, totalDays);
     const blockStops = Array.isArray(block.stops) ? block.stops : [];
     // #arrival-needle (운영자 신고): 밤도착 → 짧은 저녁 window 에 큐레이션 "첫 stop" 이 숙소에서 멀면
     //   (예: 명동 호텔 ↔ 조계사 1.2km) 호텔→먼stop→호텔 왕복 needle 패턴. 도착일에 한해, stop 좌표와
@@ -1535,7 +1539,34 @@ export function expandBlocksToItinerary(blockSelections, blocks, userInput) {
         source_block_id: block.id,
         // P112: end_time backfill 은 planPersister 가 처리 — 여기서는 skip.
       });
+      const departureRole = /^verified_(lunch|dinner|cafe|breakfast)$/.exec(String(bs.placeholder || ''))?.[1];
+      if (departureRole) departureMealRoles.set(stops[stops.length - 1], departureRole);
+      if (useConstraintPlacement) {
+        const candidate = stops[stops.length - 1];
+        if (departureRole) candidate._blockMealRole = departureRole;
+        if (departureRole === 'cafe') candidate.cafe_not_meal = true;
+        const legacyStart = legacyReady + offsetMin;
+        candidate._day1LegacyPriority = candidate.category !== 'food' && legacyStart < hhmmToMin(tourEndTime)
+          && legacyStart < 1440 && (!placementDeparture || legacyStart + stayMinOf(candidate) <= placementDeparture.deadline);
+      }
     }
+
+    if (useConstraintPlacement) {
+      // Actual dining is 60 minutes under the approved meal contract; travel remains separate.
+      for (const stop of stops) if (stop.category === 'food' && stop.cafe_not_meal !== true && stop._blockMealRole !== 'cafe') {
+        stop.stay_min = 60; delete stop.end_time;
+      }
+      const windows = singleDayMealWindows({ ...userInput, durationDays: totalDays, cityKey: block.city || area,
+        arrivalTime, arrivalAirport: arrivalAirportInput, tourStartTime, tourEndTime });
+      if (windows?.lunch && windows?.dinner && stops.filter((stop) => stop.category === 'food' && stop.cafe_not_meal !== true && stop._blockMealRole !== 'breakfast').length < 2) {
+        const anchor = stops.find((stop) => stop.lat && stop.lng) || {};
+        const matched = matchFoodPlaceholder({ placeholder: 'verified_lunch', lat: anchor.lat, lng: anchor.lng },
+          foodIndex, block.city || area, dietPrefs, usedFoodNames, recentFoodNames, todayFoodNames);
+        if (matched) stops.push({ ...matched, category: 'food', _blockMealRole: 'lunch', stay_min: 60,
+          start_time: windows.lunch.from, source_block_id: block.id, order: stops.length + 1 });
+      }
+    }
+    const departureMealMeta = useConstraintPlacement ? {} : exemptImpossibleDepartureMeals(stops, departureMealContext(userInput, block.city || area, totalDays), departureMealRoles);
 
     // 일별 tour_end_time cap + Day1(도착일) late-arrival 새벽 cutoff + 휴식일
     //   (2026-06-05 운영자: 종료시간 정확 설정 / 2026-06-02 plan 4d214e83 새벽 cascade 신고):
@@ -1561,6 +1592,7 @@ export function expandBlocksToItinerary(blockSelections, blocks, userInput) {
       const kept = orig.filter((s) => {
         if (isProtected(s)) return true;            // 호텔/공항/이동 = 보존
         if (arrivalRestDay) return false;           // 휴식일 = 모든 관광 제거
+        if (useConstraintPlacement) return true; // Keep the matched pool until the route scheduler has real legs.
         if (capKeeps(s)) return true;
         const m = toMin(s.start_time);
         return !!d1Roles && rescueFirstDayMeal(s, m, dayStartMin >= 0 && m < dayStartMin, dayStartMin, capMin, d1Roles);
@@ -1580,7 +1612,7 @@ export function expandBlocksToItinerary(blockSelections, blocks, userInput) {
     if (isLastDay) {
       // 도시는 day.city 와 같은 식으로 구한다(아래 city: block.city || area) —
       // 다도시 여행에서 마지막 날 도시가 plan area 와 다를 수 있다(부산에서 인천 출국 등).
-      applyDepartureDayFlightCap(stops, departureTime, departureAirportInput, language, block.city || area);
+      applyDepartureDayFlightCap(stops, departureTime, departureAirportInput, language, block.city || area, { deferActivityTrim: useConstraintPlacement });
     }
 
     // PR-E SAFETY: 트레킹/러닝 블록이면 난이도/체력/hazards/부적합 대상을 day 에 보존 (표기 누락 금지).
@@ -1595,6 +1627,8 @@ export function expandBlocksToItinerary(blockSelections, blocks, userInput) {
       city: block.city || area,
       lodging: undefined, // planPersister.backfillDayLodging 가 stops[] 의 lodging 으로 채움
       stops,
+      ...departureMealMeta,
+      ...(useConstraintPlacement ? { _day1PlacementPending: true } : {}),
       // block-mode trace — admin dashboard 분석용
       source_block_id: block.id,
       source_block_zone: block.zone,
@@ -2054,15 +2088,13 @@ export function expandBlocksToItineraryMultiCity(blockSelections, cityBlocksList
   const foodIndex = Array.isArray(userInput?.foodIndex) ? userInput.foodIndex : [];
   const recentFoodNames = new Set(Array.isArray(userInput?.recentFoodNames) ? userInput.recentFoodNames.filter((n) => typeof n === 'string' && n.trim()).map((n) => n.trim()).slice(0, 20) : []);
   const startDate = userInput?.startDate || null;
-  const arrivalTime = String(userInput?.arrival_time || userInput?.arrivalTime || '');
-  const departureTime = String(userInput?.departure_time || userInput?.departureTime || '');
+  const arrivalTime = resolveArrivalTime(userInput);
+  const departureTime = resolveDepartureTime(userInput);
   // P245 (2026-05-27): tour_start_time — multi-city block_mode 도 동일 룰 적용
   // (단도시 expandBlocksToItinerary 와 일관). default '09:00' (P239 architectural).
-  const tourStartTimeRaw = String(userInput?.tour_start_time || userInput?.tourStartTime || '09:00');
-  const tourStartTime = /^\d{1,2}:\d{2}$/.test(tourStartTimeRaw) ? tourStartTimeRaw : DEFAULT_DAY_START_HHMM;
+  const tourStartTime = resolveTourStartTime(userInput);
   // #arrival-realtime/tour-end (2026-06-05, 운영자): 종료시간 cap + 도착 현실 계산용 공항 (loop 전 hoist).
-  const tourEndTimeRaw = String(userInput?.tour_end_time || userInput?.tourEndTime || DEFAULT_TOUR_END_HHMM);
-  const tourEndTime = /^\d{1,2}:\d{2}$/.test(tourEndTimeRaw) ? tourEndTimeRaw : DEFAULT_TOUR_END_HHMM;
+  const tourEndTime = resolveTourEndTime(userInput);
   const mcArrivalAirport = String(userInput?.arrival_airport || '').trim();
   // 출국 공항도 loop 전 hoist — 출국일 컷·공항 stop 이 day loop 안에서 쓴다.
   // 미입력이면 입국 공항으로 왕복 가정(아래 departure_guide 폴백과 동일).
@@ -2129,6 +2161,10 @@ export function expandBlocksToItineraryMultiCity(blockSelections, cityBlocksList
 
     // stops expand (단도시 expandBlocksToItinerary 와 동일 로직)
     const stops = [];
+    const departureMealRoles = new Map();
+    const useConstraintPlacement = isFirstDay && !arrivalRestDay && isAlreadyInKoreaAirport(mcArrivalAirport) && !!arrivalTime;
+    const legacyReady = Math.max(hhmmToMin(tourStartTime), arrivalReadyMinutes(arrivalTime, '', dayCityKey || block.city) || 0);
+    const placementDeparture = departureMealContext(userInput, dayCityKey || block.city, totalDays);
     const blockStops = Array.isArray(block.stops) ? block.stops : [];
     // 2026-06-10: 식당 placeholder 근접 앵커 — 단도시 expandBlocksToItinerary 와 동일.
     //   다도시(서울+부산 등)는 본 함수를 타므로 여기에도 적용해야 식당이 동선 위에 온다
@@ -2223,7 +2259,24 @@ export function expandBlocksToItineraryMultiCity(blockSelections, cityBlocksList
           : `Pre-curated ${block.zone} block — ${block.theme}`,
         source_block_id: block.id,
       });
+      const departureRole = /^verified_(lunch|dinner|cafe|breakfast)$/.exec(String(bs.placeholder || ''))?.[1];
+      if (departureRole) departureMealRoles.set(stops[stops.length - 1], departureRole);
+      if (useConstraintPlacement) {
+        const candidate = stops[stops.length - 1];
+        if (departureRole) candidate._blockMealRole = departureRole;
+        if (departureRole === 'cafe') candidate.cafe_not_meal = true;
+        const legacyStart = legacyReady + offsetMin;
+        candidate._day1LegacyPriority = candidate.category !== 'food' && legacyStart < hhmmToMin(tourEndTime)
+          && legacyStart < 1440 && (!placementDeparture || legacyStart + stayMinOf(candidate) <= placementDeparture.deadline);
+      }
     }
+
+    if (useConstraintPlacement) {
+      for (const stop of stops) if (stop.category === 'food' && stop.cafe_not_meal !== true && stop._blockMealRole !== 'cafe') {
+        stop.stay_min = 60; delete stop.end_time;
+      }
+    }
+    const departureMealMeta = useConstraintPlacement ? {} : exemptImpossibleDepartureMeals(stops, departureMealContext(userInput, dayCityKey || block.city, totalDays), departureMealRoles);
 
     // 일별 tour_end_time cap + Day1(도착일) late-arrival 새벽 cutoff + 휴식일 (2026-06-05 운영자: 종료시간
     //   정확 설정 / 2026-06-02 plan 4d214e83 새벽 cascade 신고 20:29 도착→02:16 북촌). 모든 날 tour_end_time
@@ -2246,6 +2299,7 @@ export function expandBlocksToItineraryMultiCity(blockSelections, cityBlocksList
       const kept = orig.filter((s) => {
         if (isProtected(s)) return true;
         if (arrivalRestDay) return false;
+        if (useConstraintPlacement) return true; // Keep the matched pool until the route scheduler has real legs.
         if (capKeeps(s)) return true;
         const m = toMin(s.start_time);
         return !!d1Roles && rescueFirstDayMeal(s, m, dayStartMin >= 0 && m < dayStartMin, dayStartMin, capMin, d1Roles);
@@ -2264,6 +2318,7 @@ export function expandBlocksToItineraryMultiCity(blockSelections, cityBlocksList
       // day.city 와 같은 식(아래 city: dayCityKey || block.city)
       applyDepartureDayFlightCap(
         stops, departureTime, mcDepartureAirportHoisted, language, dayCityKey || block.city,
+        { deferActivityTrim: useConstraintPlacement },
       );
     }
 
@@ -2283,6 +2338,8 @@ export function expandBlocksToItineraryMultiCity(blockSelections, cityBlocksList
       city: dayCityKey || block.city,
       lodging: lodgingHint ? { name: lodgingHint } : undefined,
       stops,
+      ...departureMealMeta,
+      ...(useConstraintPlacement ? { _day1PlacementPending: true } : {}),
       source_block_id: block.id,
       source_block_zone: block.zone,
       source_block_intensity: block.intensity,

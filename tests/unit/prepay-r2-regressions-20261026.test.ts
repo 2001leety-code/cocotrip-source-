@@ -347,6 +347,14 @@ describe('paymentGate binding: owner check first; 409 carries the pinned input',
   const loadFoodIndex = async () => [HALAL_SEOUL, HALAL_BUSAN];
   const pinnedSnap = (extra: Dict = {}) => { const n = norm(input()); return paidSnap({ prepayInput: n, prepayInputVersion: 1, prepayFingerprint: prepayFingerprint(n as never), ...extra }); };
 
+  it.each([1, null, 0, '1', 2])('paid issuance fails closed for contract version %j without its bound draft', async (mealDraftBindingVersion) => {
+    paidOrderFetch();
+    const db = memDb({ [`paypal_order_snapshots/${ORDER}`]: pinnedSnap({ ownerUid: 'uid1', mealDraftBindingVersion }) });
+    const result = await enforcePaymentAndRevision({ ...input(), paypalOrderId: ORDER, mealDraftBindingVersion: undefined }, db, 'u@e.x', 'uid1', { loadFoodIndex });
+    expect(result.rejection).toMatchObject({ statusCode: 409, code: 'MEAL_DRAFT_CONTRACT_INVALID' });
+    expect([...db._store.keys()].some((key) => key.startsWith('plan_issued_orders/'))).toBe(false);
+  });
+
   it('Astra repro: intruder with the SAME (fingerprint-matching) input → 403, no issuance claim', async () => {
     paidOrderFetch();
     const db = memDb({ [`paypal_order_snapshots/${ORDER}`]: pinnedSnap({ ownerUid: 'owner' }) });
@@ -546,7 +554,7 @@ describe('r3 B/J/D/F — paid orders: owner → pinned input → coverage → cl
     const other = memDb({ [`paypal_order_snapshots/${ORDER}`]: paidSnap(input(), { ownerUid: 'phoneUid' }) });
     const no = await enforcePaymentAndRevision({ ...input(), paypalOrderId: ORDER }, other, null, undefined, { loadFoodIndex: async () => [HALAL_SEOUL], ownerUid: 'someoneElse' });
     expect(no.rejection).toMatchObject({ statusCode: 403 });
-    expect(read('api/_ai_core/handlerCore.js')).toContain('const ownerUid = auth.ok ? auth.uid : ((await verifyFirebaseIdentityToken(req)).uid || null);');
+    expect(read('api/_ai_core/handlerCore.js')).toContain('const ownerUid = auth.ok ? auth.uid : (mealActor.ok ? mealActor.uid : ((await verifyFirebaseIdentityToken(req)).uid || null));');
   });
 });
 

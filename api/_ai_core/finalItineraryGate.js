@@ -20,6 +20,7 @@
  */
 import { validateResponse, hasCriticalDietaryViolation, checkRequiredMeals } from './responseValidator.js';
 import { findDuplicateStops, findRevisits } from './qualityMetrics.js';
+import { resolveArrivalTime, resolveDepartureTime, resolveTourEndTime } from './constants.js'; // PR3 r2: tripTimesFrom 시각 해석
 
 export const FINAL_GATE_DIETARY_CODE = 'DIETARY_VIOLATION';
 export const FINAL_GATE_MEAL_CODE = 'DIETARY_MEAL_COVERAGE_FAILED';
@@ -61,7 +62,8 @@ export function checkZeroFoodDays(itinerary, dietary) {
   const failures = [];
   days.forEach((day, idx) => {
     const stops = Array.isArray(day && day.stops) ? day.stops : [];
-    const foodStops = stops.filter((s) => s && s.category === 'food').length;
+    // PR3 r2: 블록 카페 표식(_blockMealRole 'cafe')은 끼니가 아니다 — 식사 0곳 판정에서 세지 않는다.
+    const foodStops = stops.filter((s) => s && s.category === 'food' && s._blockMealRole !== 'cafe' && s.cafe_not_meal !== true).length;
     if (foodStops > 0) return;
     const activityStops = stops.filter((s) => s && !isProtectedCategory(s.category) && s.category !== 'food').length;
     if (activityStops < MIN_ACTIVITY_STOPS) return; // 도착/출국·휴식 등 부분 day → 면제
@@ -92,12 +94,16 @@ export function runFinalItineraryValidation(itinerary, ctx = {}) {
   const dietary = Array.isArray(ctx.dietary) ? ctx.dietary : [];
   const empty = { ok: true, code: null, issues: [], violations: [], zeroFoodDays: [], requiredMealIssues: [] };
   if (!itinerary || typeof itinerary !== 'object') return empty;
+  if ((itinerary.days || []).some((day) => day?._day1PlacementPending === true)) {
+    return { ...empty, ok: false, code: FINAL_GATE_MEAL_CODE, requiredMealIssues: ['Day 1 schedule has not been verified'] };
+  }
+
   if (!hasSafetyDiet(dietary)) {
     // 2026-10-26 (첫날 도착 PR2 r2): 경로 배치(RouteAgent)가 식사를 뺀 날(_routeMealRemoved)은 식이 요구가 없어도 필수 끼니
     //   (PR1 meal_windows 포함)를 검사한다 — "필수 끼니는 게이트가 본다" 는 전제가 일반 손님에게 성립하지 않았다.
     //   그 밖의 날·일반 손님 판정은 종전 그대로(no-op).
     const mealRemovedDays = (Array.isArray(itinerary.days) ? itinerary.days : [])
-      .map((d, idx) => (d && d._routeMealRemoved === true ? (Number(d.day) || idx + 1) : null)).filter((n) => n !== null);
+      .map((d, idx) => (d && (d._routeMealRemoved === true || d._day1PlacementSolved === true) ? (Number(d.day) || idx + 1) : null)).filter((n) => n !== null);
     if (mealRemovedDays.length === 0 || !ctx.tripTimes || typeof ctx.tripTimes !== 'object') return empty;
     // r3: 일차 번호로 매칭 — 메시지 접두어가 "Day 1 (도착일): …"·"Day N (출국일): …" 일 수 있다(문자열 startsWith 는 도착일·출국일을 놓쳤다).
     const dayOf = (m) => { const hit = /^Day (\d+)\b/.exec(String(m)); return hit ? Number(hit[1]) : null; };
@@ -147,14 +153,16 @@ export function failureDetailsOf(error) {
  */
 export function tripTimesFrom(source) {
   const s = source && typeof source === 'object' ? source : {};
-  const hhmm = (v) => (typeof v === 'string' && v ? v.slice(0, 5) : undefined);
   const str = (v) => (typeof v === 'string' && v ? v : undefined);
+  // PR3 r2: 시각은 생성·저장·blockMode 와 같은 constants resolver(camel 우선 + snake, 앞 5자 엄격 HH:MM) — 잘못된 값은 없음(undefined).
+  //   투어 종료는 입력이 있을 때만(없으면 undefined — 판정 쪽 기본 21:00).
   return {
-    departure_time: hhmm(s.departure_time || s.departureTime),
-    arrival_time: hhmm(s.arrival_time || s.arrivalTime),
+    departure_time: resolveDepartureTime(s) || undefined,
+    arrival_time: resolveArrivalTime(s) || undefined,
     arrival_airport: str(s.arrival_airport || s.arrivalAirport),
+    departure_airport: str(s.departure_airport || s.departureAirport), // PR3 r7: 1일 출국일 면제 끼니 마감 재판정(RouteAgent 와 같은 공항)
     area: str(s.area || (Array.isArray(s.regions) ? s.regions[0] : undefined)),
-    tour_end_time: hhmm(s.tour_end_time || s.tourEndTime),
+    tour_end_time: (s.tour_end_time || s.tourEndTime) ? resolveTourEndTime(s) : undefined,
     // 2026-10-26: 호출부가 요청 입력으로 계산한 휴식일 여부(boolean 일 때만) — validatePatternStructure 의 플래그 우선 경로.
     ...(typeof s.arrival_rest_day === 'boolean' ? { arrival_rest_day: s.arrival_rest_day } : {}),
     // 2026-10-26 (첫날 도착 PR1): 호출부가 계산한 1일 여행 끼니 창(객체일 때만 그대로) — 필수 끼니 판정이 같은 값을 쓴다.

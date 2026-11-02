@@ -7,10 +7,15 @@ import { createMemoryRouter, RouterProvider } from 'react-router-dom';
 void React;
 
 let authLoading = true;
+let authUser: { uid: string } | null = null;
 const fetchMock = vi.fn();
+const { snapshotRequest } = vi.hoisted(() => ({ snapshotRequest: vi.fn() }));
+vi.mock('@/lib/authFetch', () => ({ authFetch: snapshotRequest }));
+vi.mock('@/lib/mealDraftIdentity', () => ({ mealDraftGuestHeaders: async () => ({}) }));
+vi.mock('../../src/pages/PlanDetailPage/components/DayTimeline', () => ({ DayTimeline: ({ onPlanSaved }: { onPlanSaved?: () => Promise<void> }) => React.createElement('button', { onClick: () => { void onPlanSaved?.(); } }, 'Refresh saved plan') }));
 
 vi.mock('../../src/hooks/useAuth', () => ({
-  useAuth: () => ({ user: null, loading: authLoading }),
+  useAuth: () => ({ user: authUser, loading: authLoading }),
 }));
 vi.mock('../../src/lib/firebase', () => ({ db: {} }));
 vi.mock('../../src/lib/firebase-auth.js', () => ({ auth: { currentUser: null } }));
@@ -33,7 +38,11 @@ function response(status: number) {
 
 beforeEach(() => {
   authLoading = true;
+  authUser = null;
+  snapshotRequest.mockReset();
   fetchMock.mockReset();
+  vi.stubGlobal('IntersectionObserver', class { observe() {} unobserve() {} disconnect() {} takeRecords() { return []; } });
+  HTMLElement.prototype.scrollIntoView = vi.fn();
   Object.defineProperty(window, 'matchMedia', {
     configurable: true,
     value: () => ({ matches: false, addEventListener: vi.fn(), removeEventListener: vi.fn() }),
@@ -103,4 +112,30 @@ describe('PlanDetailPage auth and route request lifecycle', () => {
     expect(await screen.findByTestId('plan-error-state')).toBeInTheDocument();
     expect(screen.queryByTestId('plan-detail-loading')).not.toBeInTheDocument();
   });
+  it('discards a late private snapshot after the token is removed on the same plan', async () => {
+    authLoading = false;
+    const late = deferred<{ ok: boolean; json: () => Promise<object> }>();
+    snapshotRequest.mockImplementation((_url: string, init?: RequestInit) => {
+      const body = typeof init?.body === 'string' ? JSON.parse(init.body) : {};
+      return body.action === 'snapshot' ? late.promise : Promise.resolve(response(500));
+    });
+    const safe = { planId: 'same', uid: 'owner', isPublic: true, status: 'ready', itinerary: { tour_title: 'Public itinerary', days: [{ day: 1, city: 'seoul', stops: [] }] } };
+    fetchMock.mockImplementation(async (url: string) => String(url).startsWith('/local-plans/')
+      ? { ok: true, json: async () => ({ ...safe, accessToken: 'private-token' }) }
+      : { ok: true, status: 200, json: async () => ({ ok: true, plan: safe }) });
+    vi.stubGlobal('fetch', fetchMock);
+    const router = createMemoryRouter([{ path: '/my-plans/:planId', element: <PlanDetailPage /> }],
+      { initialEntries: ['/my-plans/same?token=private-token&localPlan=scope-check'] });
+    render(<RouterProvider router={router} />);
+    const day = await screen.findByRole('tab', { name: 'Day 1' });
+    await act(async () => { day.click(); });
+    await act(async () => { screen.getByRole('button', { name: 'Refresh saved plan' }).click(); });
+    await waitFor(() => expect(snapshotRequest.mock.calls.some((call) => typeof call[1]?.body === 'string' && JSON.parse(call[1].body).action === 'snapshot')).toBe(true));
+    await act(async () => { await router.navigate('/my-plans/same'); });
+    await waitFor(() => expect(fetchMock.mock.calls.some((call) => String(call[0]).startsWith('/api/get-plan'))).toBe(true));
+    await act(async () => { late.resolve({ ok: true, json: async () => ({ ok: true, plan: { ...safe, itinerary: { ...safe.itinerary, tour_title: 'LATE PRIVATE VALUE' } } }) }); await Promise.resolve(); });
+    expect(screen.queryByText('LATE PRIVATE VALUE')).toBeNull();
+    expect(document.title).not.toContain('LATE PRIVATE VALUE');
+  });
+
 });

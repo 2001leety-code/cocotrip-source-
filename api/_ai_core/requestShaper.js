@@ -9,7 +9,7 @@
  *
  * 이 모듈은 순수 함수 — adminDb / Gemini 호출 없음. 부수효과 없음.
  */
-import { AIRPORT_ADDRESSES, resolveTourEndTime } from './constants.js';
+import { AIRPORT_ADDRESSES, resolveTourEndTime, resolveTourStartTime, resolveArrivalTime, resolveDepartureTime } from './constants.js';
 import { inferDepartureAirport } from './airportInference.js';
 import { selectVehicle } from './vehicleAndPrice.js';
 import { normalizePlannerIntentV1 } from '../_shared/plannerIntentV1.js';
@@ -178,18 +178,15 @@ export function shapeRequest(body, authenticatedEmail, guestCheckoutAllowed = fa
   // late-night/heavy-luggage 분기 + Gemini prompt 정확도 개선용.
   // P254 (2026-05-27): snake_case fallback 추가 — verify script / admin tool 이 arrival_time
   // (snake_case) 로 직접 전달 시에도 처리. frontend(usePlannerHandlers) 는 camelCase 변환 정상.
-  const _rawArrivalTime = typeof body.arrivalTime === 'string' ? body.arrivalTime
-    : typeof body.arrival_time === 'string' ? body.arrival_time : '';
-  const arrivalTime = _rawArrivalTime.slice(0, 5);
-  const _rawDepartureTime = typeof body.departureTime === 'string' ? body.departureTime
-    : typeof body.departure_time === 'string' ? body.departure_time : '';
-  const departureTime = _rawDepartureTime.slice(0, 5);
+  // 2026-11-01 (PR3): 도착·출국 시각 = constants resolver(camel 우선 + snake, 앞 5자 엄격 HH:MM, 실패 '') — worker·저장·수정·blockMode 와 같은 값.
+  const arrivalTime = resolveArrivalTime(body);
+  const departureTime = resolveDepartureTime(body);
   // P239 (2026-05-27): tourStartTime — 운영자 architectural fix. arrival_time 무관하게
   // Day1 stops 시작 시각 고정. body 미입력 (옛 client) 시 '09:00' default 폴백 (R-P239 lint).
   // HH:MM 형식 검증 (잘못된 입력 시 default '09:00' 폴백 — silent fail 방지).
   // root cause level 해결: P159 새벽 stops / P136 RouteAgent 24h wrap / B-13 false positive.
-  const _rawTourStart = typeof body.tourStartTime === 'string' ? body.tourStartTime.slice(0, 5) : '';
-  const tourStartTime = /^\d{2}:\d{2}$/.test(_rawTourStart) ? _rawTourStart : '09:00';
+  // PR3: SSOT = constants.resolveTourStartTime(camel 우선 + snake tour_start_time 수용) — 예전엔 snake 를 버려 worker(17:00)와 갈렸다.
+  const tourStartTime = resolveTourStartTime(body);
   // #tour-end (2026-06-05, 운영자): tourEndTime — 매일 관광 종료 시각 cap. body 미입력 (옛 client) 시
   // '21:00' default 폴백. HH:MM 형식 검증 (잘못된 입력 시 default — silent fail 방지). tourStartTime 와 대칭.
   // 2026-10-26: SSOT = constants.resolveTourEndTime(camel 우선 + snake 수용, 엄격 HH:MM, 기본 '21:00') — 모든 경로 같은 값.

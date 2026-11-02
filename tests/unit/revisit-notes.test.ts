@@ -184,7 +184,7 @@ describe('modify API and translation wiring', () => {
     const n = post.indexOf("normalizeRevisits(itinerary, revisitCtx, { mode: 'markOnly' })");
     expect(n).toBeGreaterThan(-1);
     expect(post.indexOf('applyRevisitNotes(itinerary, { language })', n)).toBeGreaterThan(n);
-    expect(post.indexOf("assertNoDuplicateStops(itinerary, blockModeUsed ? 'block_mode' : 'post_response', revisitCtx)")).toBeGreaterThan(n);
+    expect(post.indexOf("assertNoDuplicateStops(ctx.verifiedMealDraft === true ? mealRepeatGateItinerary(itinerary, foodIndexForQuality, dietPrefs) : itinerary, blockModeUsed ? 'block_mode' : 'post_response', revisitCtx)")).toBeGreaterThan(n);
     const bg = read('api/_ai_core/backgroundPipelines.js');
     expect(bg).toMatch(/normalizeRevisits\(enriched, revisitCtx, \{ mode: 'markOnly' \}\);\s*applyRevisitNotes\(enriched, \{ language \}\);/);
     expect(bg).toMatch(/runDuplicateStopGate\(enriched, revisitCtx\)/);

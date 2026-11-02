@@ -1,3 +1,4 @@
+import { visitNotice } from '../../src/lib/visitNotice.js';
 // Vercel serverless function — server-side PDF generation via Puppeteer + Chromium.
 // Replaces client html2canvas pipeline 5대 root cause:
 //   1. CJK 폰트 timing: 서버 컨테이너에 Noto Sans 사전 로드 → 100% 보장
@@ -275,6 +276,9 @@ export function buildPlanHtml(plan) {
   </div>`;
 
   // ── P209: Arrival Guide 섹션 ─────────────────────────────────────────────────
+  const visit = visitNotice(lang, input);
+  body += `<div class="guide-card" style="page-break-inside:avoid;"><strong>${escapeHtml(visit.title)}</strong><p>${escapeHtml(visit.body)}</p></div>`;
+
   // client pdfGenerator.ts L484-573 의 Pure HTML Port.
   // charter cross-sell 카드 (cocotrip_charter) 제외 — server PDF 핵심만.
   // 위치: header 와 days loop 사이 (입국 가이드가 일정 전에 나와야 함).

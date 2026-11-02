@@ -1,3 +1,5 @@
+import { verifyMealActor } from './mealActor.js';
+import { fulfillBoundMealDraft } from '../_shared/meal-draft-binding.js';
 /**
  * AI Planner Full v2 — Vercel handler 진입점 (P129, 2026-05-21). Refactored from
  * api/ai-planner-full.js (800L → 50L wrapper). Behavior-preserving extraction — request
@@ -160,7 +162,8 @@ export default async function handler(req, res) {
     lastEmail = authenticatedEmail;
     // ── 결제 + 재생성 게이트 (인증된 email 전달) ──────────────────────────
     // B6-1 r3: 결제 주문 소유자 대조는 createPaypalOrder 가 ownerUid 를 기록한 기준(이메일 없는 전화 로그인 토큰 포함, uid)과 같게.
-    const ownerUid = auth.ok ? auth.uid : ((await verifyFirebaseIdentityToken(req)).uid || null);
+    const mealActor = await verifyMealActor(req);
+    const ownerUid = auth.ok ? auth.uid : (mealActor.ok ? mealActor.uid : ((await verifyFirebaseIdentityToken(req)).uid || null));
     const gate = await withStep('paymentGate', () => enforcePaymentAndRevision(body, adminDb, authenticatedEmail, auth.uid, { ownerUid }));
     if (gate.rejection) {
       const { statusCode, code, message, details } = gate.rejection;
@@ -171,6 +174,13 @@ export default async function handler(req, res) {
     if (gate.consumedCoupon) consumedCouponInfo = gate.consumedCoupon;
     if (gate.isAdminBypass) adoptLlmMock('admin-bypass + x-llm-mock'); // LLM 공급자 전환: CI 테스트 주문만 mock (유료 호출 0)
     issuance.adopt(gate);  // P0: 게이트가 선점한 발급권 흡수 (유료 PayPal 경로만)
+    if (gate.boundMealDraft) {
+      const result = await withStep('persistBoundMealDraft', () => fulfillBoundMealDraft({ db: adminDb, draft: gate.boundMealDraft, claim: issuance.claim, guest: !auth.ok, authenticatedEmail, pricingFor: computePricing, notify: sendPlanReadyNotifications }));
+      planPersisted = true;
+      res.writeHead(200, { ...CORS, 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify(_ok({ ...result, pricing: { ...result.pricing, vehicleLabel: VEHICLE_LABELS[result.pricing.vehicle] || VEHICLE_LABELS.staria_8, currency: 'KRW' } })));
+    }
+
 
     // ── AI 플래너 출발일 검증 (day1=오늘 불가, 내일 이후만). 로직=validateStartDate.js (P129 handlerCore 슬림). ──
     //   면제: 결제·소유자·고정 지문 검증 주문(prepayVerified — create·capture 가 검사), 무료 쿠폰(isFreeAiCoupon — 게이트가 소비 직전 검사, 자정 경합 시 쿠폰 소실 방지).
@@ -433,7 +443,7 @@ export default async function handler(req, res) {
       hotel_address, mobility, language,
       dietary: dietaryAll, foodIndex: foodIndexForQuality,
       plannerIntent,  // persistPlan persists this verbatim as input.planner_intent_v1.
-      arrivalRestDay, arrivalCity,  // 2026-10-26: input.arrival_rest_day / arrival_city 저장(수정 API 가 저장 플래그 우선)
+      arrivalRestDay, arrivalCity, mealWindows,  // 2026-10-26: input.arrival_rest_day / arrival_city 저장(수정 API 가 저장 플래그 우선) · PR3 r2: input.meal_windows
       cacheMetadata: itinerary?._cache_metadata || null,  // P266: P195 cache instrumentation explicit pass-through (geminiPipeline:1515 attach → debugInfo:42 pop 전)
       plannerMode: blockModeUsed ? 'block_mode' : PLANNER_MODE,  // P128 block-mode trace
       abReason: abDecision.reason, abBucket: abDecision.bucket,
@@ -445,7 +455,7 @@ export default async function handler(req, res) {
 
     // ── P168/P170/P171/P172/P173: Pass3 background trigger (fire-and-forget; backgroundPipelines.js 추출; gate.isAdminBypass 명시 전달)
     //   2026-08-24: dietary/styles 전달 — background enrich 결과가 종단 검증을 통과할 때만 Firestore 를 덮어쓴다.
-    triggerPass3BackgroundIfPending({ adminDb, planId, language, apiKey, itinerary, isAdminBypass: !!gate.isAdminBypass, identifierForBucketing, dietary: dietaryAll, styles, mealWindows, tripTimes: tripTimesFrom({ departureTime, arrivalTime, arrivalAirport: arrival_airport, area, regions, tourEndTime, arrival_rest_day: arrivalRestDay }), avoidStopNames });
+    triggerPass3BackgroundIfPending({ adminDb, planId, language, apiKey, itinerary, isAdminBypass: !!gate.isAdminBypass, identifierForBucketing, dietary: dietaryAll, styles, mealWindows, tripTimes: tripTimesFrom({ departureTime, arrivalTime, arrivalAirport: arrival_airport, departureAirport: departure_airport, area, regions, tourEndTime, arrival_rest_day: arrivalRestDay }), avoidStopNames });
 
     // ── JSON 응답 ────────────────────────────────────────────────────────
     // P169: streaming 모드에서는 이미 early response 전송 완료 → skip.

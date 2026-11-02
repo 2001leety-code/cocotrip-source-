@@ -18,6 +18,7 @@ import { Footprints, Wallet } from 'lucide-react';
 import { LodgingBookend } from './LodgingBookend';
 import { ActivityMetaChips } from './ActivityMetaChips';
 import { DayRouteMap } from './DayRouteMap';
+import { PlanMealOptions } from './PlanMealOptions';
 import { useLanguage } from '@/hooks/useLanguage';
 import type { Language } from '@/i18n';
 import type { PlanDay, PlanStop, PlanDocument, IntercityTransitSegment } from '../types';
@@ -30,6 +31,9 @@ interface DayTimelineProps {
   day: PlanDay;
   dayIndex: number;
   routeScopeKey?: string;
+  planId?: string;
+  accessToken?: string | null;
+  onPlanSaved?: (plan?: PlanDocument) => void | Promise<void>;
   editMode: boolean;
   isRecalculating?: boolean;
   onDeleteStop: (dayIdx: number, stopIdx: number) => void;
@@ -107,7 +111,7 @@ function getLodgingLabelForDay(plan: PlanDocument | undefined, day: PlanDay): st
   return undefined;
 }
 
-export function DayTimeline({ day, dayIndex, editMode, isRecalculating, onDeleteStop, onAddStop, onApplyOrder, plan, isOwner, routeScopeKey }: DayTimelineProps) {
+export function DayTimeline({ day, dayIndex, editMode, isRecalculating, onDeleteStop, onAddStop, onApplyOrder, plan, isOwner, routeScopeKey, planId, accessToken, onPlanSaved }: DayTimelineProps) {
   const { t, language } = useLanguage();
   const pd = getPlanDetailDict(t);
   const ed = pd.editor || {};
@@ -122,6 +126,9 @@ export function DayTimeline({ day, dayIndex, editMode, isRecalculating, onDelete
   const regionNames = ((t as unknown as { planner?: { regionNames?: Record<string, string> } }).planner?.regionNames) || {};
   const stopIds = stops.map((_: PlanStop, i: number) => `day-${dayIndex}-stop-${i}`);
   const dayNumber = Number(day.day || dayIndex + 1);
+  const firstMealIndex = stops.findIndex((stop) => stop.category === 'food');
+  const showMealOptions = plan?.itinerary?.meal_options_version === 1 && !!planId;
+  const mealOptions = showMealOptions ? <PlanMealOptions key={`${planId}:${dayNumber}:${accessToken || ""}:${!!isOwner}:${String(plan?.mealOptionsRevision || 0)}`} planId={planId} accessToken={accessToken} day={dayNumber} language={language} isOwner={!!isOwner} onPlanSaved={onPlanSaved} /> : null;
   const dayLabel = dayLabelParts(language, dayNumber);
 
   // Sprint 1 Step 2: 풍부한 day 헤더 메타 (사용자 신고 "UI 개선 심각")
@@ -331,6 +338,8 @@ export function DayTimeline({ day, dayIndex, editMode, isRecalculating, onDelete
         </div>
       )}
 
+      {firstMealIndex < 0 && mealOptions}
+
       {/* 2026-05-08: 숙소 출발 카드 — RouteAgent 가 day.lodging_to_first 에 ODsay
           데이터를 채운 경우에만 노출. 첫 stop 의 transit_from_prev 와 동일 데이터를
           쓸 수도 있지만, day-level 에 별도로 두면 호텔 라벨 + 시각 강조 가능.
@@ -400,6 +409,7 @@ export function DayTimeline({ day, dayIndex, editMode, isRecalculating, onDelete
                       lodgingRole={computeLodgingRole(stop, si, stops, !!intercity, intercity)}
                       isOwner={isOwner}
                     />
+                    {si === firstMealIndex && mealOptions}
                   </div>
                 );
               })}
@@ -450,6 +460,7 @@ export function DayTimeline({ day, dayIndex, editMode, isRecalculating, onDelete
                   />
                 )}
                 <StopCard stop={stop} lodgingRole={computeLodgingRole(stop, si, stops, !!intercity, intercity)} isOwner={isOwner} />
+                {si === firstMealIndex && mealOptions}
               </div>
             );
           })}

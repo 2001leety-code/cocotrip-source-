@@ -58,6 +58,15 @@ describe('도착 가능 시각 계산', () => {
   it('모르는 공항은 보수적 기본값(70분)으로 떨어진다', () => {
     expect(arrivalReadyHHMM('14:00', 'ZZZ')).toBe('16:40'); // 90 + 70
   });
+
+  // 2026-11-01 (첫날 도착 PR3): 이미 한국에 있는 손님은 입국수속·공항 이동이 없다 — 도착 시각 그대로. 빈 공항은 종전(+160) 유지.
+  it.each(['ALREADY', 'already_in_korea', 'Already', ' already_in_korea '])('ALREADY 별칭 %j → 도착 시각 그대로', (airport) => {
+    expect(arrivalReadyHHMM('14:00', airport)).toBe('14:00');
+    expect(arrivalReadyMinutes('14:00', airport, 'busan')).toBe(14 * 60);
+  });
+  it('빈 공항은 종전 계산(90 + 기본 70) 그대로', () => {
+    expect(arrivalReadyHHMM('14:00', '')).toBe('16:40');
+  });
 });
 
 describe('두 경로가 같은 계산을 쓴다 (단일 원천)', () => {

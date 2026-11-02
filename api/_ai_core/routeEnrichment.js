@@ -1,3 +1,4 @@
+import { verifiedDepartureRoute, registerVerifiedDepartureRoute } from './verifiedDepartureRoute.js';
 /**
  * RouteAgent enrichment + merge (extracted from api/ai-planner-full.js).
  *
@@ -136,7 +137,7 @@ function validateLodgingBookend(itinerary, anchor, isMultiCity) {
   }
 }
 
-export async function enrichItineraryWithRoute(itinerary, { apiKey, body, language, hotel_address, arrival_airport, departure_airport, pax, zone_id }) {
+export async function enrichItineraryWithRoute(itinerary, { apiKey, body, language, hotel_address, arrival_airport, departure_airport, pax, zone_id, routeBudget }) {
   const routeStart = Date.now();
   // B-11 diag (2026-05-12): root cause 진단용 — 어느 환경 변수가 없는지, 입력 stop
   // 수가 얼마나 되는지, 출력에 transit 가 attach 됐는지 한 줄에 요약. 머지 후
@@ -156,6 +157,10 @@ export async function enrichItineraryWithRoute(itinerary, { apiKey, body, langua
   const originalStopsByDay = (itinerary.days || []).map((d) => (Array.isArray(d.stops) ? d.stops.slice() : []));
   try {
     const routeAgent = new RouteAgent(apiKey);
+    if (routeBudget) for (const method of ['_getTransitData', '_routeAirportHotel']) {
+      const original = routeAgent[method].bind(routeAgent);
+      routeAgent[method] = async (...args) => { routeBudget.consume(); return original(...args); };
+    }
     // Wrapped as an ITINERARY OBJECT (not just days array) so RouteAgent can
     // also enrich arrival_guide.route_to_hotel + departure_guide.route_to_airport
     // using the ODsay airport↔hotel routing added in this release.
@@ -223,10 +228,21 @@ export async function enrichItineraryWithRoute(itinerary, { apiKey, body, langua
         if (itinerary.days[i] && enrichedDay.intercity_transit) {
           itinerary.days[i].intercity_transit = enrichedDay.intercity_transit;
         }
+        if (itinerary.days[i] && enrichedDay._day1PlacementSolved === true) {
+          delete itinerary.days[i]._day1PlacementPending;
+          itinerary.days[i]._day1PlacementSolved = true;
+          itinerary.days[i]._day1Placement = enrichedDay._day1Placement;
+          const proof = enrichedDays.length === 1 ? verifiedDepartureRoute(enriched) : null;
+          if (proof) registerVerifiedDepartureRoute(itinerary.days[i], proof);
+        }
         const enrichedStops = enrichedDay.stops || enrichedDay.places || [];
         // PR2 r2: 배치가 stop 을 뺀 날은 결과가 0곳이어도 그대로 반영한다 — 건너뛰면 원본(자정 넘김 관광 등)이 되살아났다.
         const placementRemoved = Number(enrichedDay._routePlacementRemoved) > 0;
         if (itinerary.days[i] && enrichedDay._routeMealRemoved === true) itinerary.days[i]._routeMealRemoved = true; // 종단 게이트 필수 끼니 검사 표식
+        if (itinerary.days[i] && Array.isArray(enrichedDay.exempt_meals)) {
+          itinerary.days[i].exempt_meals = [...enrichedDay.exempt_meals];
+          itinerary.days[i].exempt_meal_basis = { ...(enrichedDay.exempt_meal_basis || {}) };
+        }
         if (itinerary.days[i] && (enrichedStops.length > 0 || placementRemoved)) {
           const odsayCount = enrichedStops.filter((p) => p.transit_from_prev?.source === 'odsay').length;
           const geoCount = enrichedStops.filter((p) => p.lat != null).length;
@@ -250,6 +266,7 @@ export async function enrichItineraryWithRoute(itinerary, { apiKey, body, langua
             };
             // RouteAgent 가 재배치하며 지운 end_time 은 원본 병합으로 되살리지 않는다.
             if (merged.start_time !== original.start_time && !/^(?:[01]?\d|2[0-3]):[0-5]\d$/.test(String(routed.end_time || ''))) delete merged.end_time;
+            delete merged._day1LegacyPriority;
             delete merged._blockMealRole; // blockMode 구제 표식(배치용) — 저장하지 않는다
             if (p.same_lodging_as_prev !== true) delete merged.same_lodging_as_prev; // r10: 이번 배치가 병합하지 않았으면 원본의 옛 표식을 되살리지 않는다
             return merged;
@@ -387,7 +404,7 @@ export async function enrichItineraryWithRoute(itinerary, { apiKey, body, langua
       }
     }
   } catch (routeErr) {
-    if (routeErr?.code === 'ROUTE_DAY_INFEASIBLE') throw routeErr; // PR2: 자정 안에 일정 불가 = 명시 실패(422) — 일반 경로 실패로 삼키지 않는다
+    if (['ROUTE_DAY_INFEASIBLE', 'ROUTE_VERIFICATION_FAILED', 'MEAL_ROUTE_BUDGET_EXHAUSTED'].includes(routeErr?.code)) throw routeErr; // PR2: 자정 안에 일정 불가 = 명시 실패(422) — 일반 경로 실패로 삼키지 않는다
     // B-11 (2026-05-12): TDZ ReferenceError 같은 회귀가 silent swallow 안 되도록
     // 명시적 에러 type + 한 줄 요약 로그.
     console.error('[planner] Route FAILED:', routeErr.name + ':', routeErr.message, '| stack:', routeErr.stack?.split('\n').slice(0, 3).join(' | '), '|', Date.now() - routeStart, 'ms');

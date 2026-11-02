@@ -66,7 +66,7 @@ describe('1 — generation → persisted input → modify keep the same one-day 
     expect(modifyWindows).toEqual(genWindows);
     const mod = validatePatternStructure(plan, { regions: input.regions, arrival_airport: input.arrival_airport, departure_airport: input.departure_airport, durationDays: 1, arrival_rest_day: false, meal_windows: modifyWindows });
     expect(mod).toEqual([]);
-    expect(read('api/ai-planner-modify.js')).toContain('meal_windows: mealWindowsFromRequest({ ...(planData.input || {}), durationDays: itinerary.days.length }),');
+    expect(read('api/ai-planner-modify.js')).toContain('meal_windows: mealWindowsForStoredPlan(planData.input || {}, itinerary.days.length),');
   });
 });
 

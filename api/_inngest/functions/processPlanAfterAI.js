@@ -399,6 +399,7 @@ export const processPlanAfterAI = inngest.createFunction(
         // 2026-10-26: input.arrival_rest_day / arrival_city 저장(sync 경로와 같은 판정 — 수정 API 가 저장 플래그 우선).
         arrivalRestDay,
         arrivalCity: String(ctx.body?.arrival_city || ctx.body?.arrivalCity || '').trim().toLowerCase() || null,
+        mealWindows, // PR3 r2: input.meal_windows — sync 경로와 같은 서버 계산값(수정 API 가 저장값 우선)
         plannerMode: ctx.plannerMode,
         abReason: ctx.abReason,
         abBucket: ctx.abBucket,
@@ -443,6 +444,7 @@ export const processPlanAfterAI = inngest.createFunction(
         departureTime: ctx.body?.departureTime || ctx.body?.departure_time,
         arrivalTime: ctx.body?.arrivalTime || ctx.body?.arrival_time,
         arrivalAirport: ctx.arrival_airport || ctx.body?.arrival_airport || ctx.body?.arrivalAirport,
+        departureAirport: ctx.departure_airport || ctx.body?.departure_airport || ctx.body?.departureAirport,
         area: ctx.area || ctx.body?.area,
         regions: ctx.regions,
         tourEndTime: resolveTourEndTime(ctx.body || {}), // 2026-10-26: 종료 시각 SSOT(camel 우선 + snake)

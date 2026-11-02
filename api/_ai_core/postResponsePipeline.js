@@ -1,3 +1,7 @@
+import { verifiedDepartureRoute } from './verifiedDepartureRoute.js';
+import { attachMealOptionState, mealRepeatGateItinerary } from './mealPlanIntegration.js';
+import { replaceViolatingFoodStops } from './dietaryStopReplacer.js';
+import { validateResponse, hasCriticalDietaryViolation } from './responseValidator.js';
 /**
  * Post-Gemini → Firestore 저장까지의 enrichment + price + persist 파이프라인.
  *
@@ -27,6 +31,7 @@ import {
   selfHealLodgingBookend,
   applyDepartureBreakfastNote,
   applyArrivalRestNote,
+  applyDepartureMealNote,
 } from './planPersister.js';
 import { pickRecommendedRestaurantsByStyle } from './recommendedRestaurants.js';
 import { loadFoodIndex } from './geminiPipeline.js';
@@ -34,9 +39,9 @@ import { enrichItineraryWithRoute } from './routeEnrichment.js';
 import { calcPrice } from './vehicleAndPrice.js';
 import { throttledTelegramAlert } from '../_shared/telegram-throttle.js';
 import { applyBlockModeDietaryWarnings, normalizeRegionKey, arrivalRestDayCityKey, departureCityKey, mealWindowsFromCtx } from './responseValidator.js';
-import { applyDepartureDayFlightCap, settleUnroutedRescuedMeals } from './blockMode.js';
+import { applyDepartureDayFlightCap, settleUnroutedRescuedMeals, matchFoodPlaceholder } from './blockMode.js';
 import { assertFinalItineraryValid, assertNoDuplicateStops, tripTimesFrom } from './finalItineraryGate.js';
-import { resolveTourEndTime, arrivalRestDayInfo } from './constants.js';
+import { resolveTourEndTime, resolveArrivalTime, resolveDepartureTime, arrivalRestDayInfo } from './constants.js';
 
 /**
  * 2026-10-26 운영자 승인: 도착 휴식일 여부 — **요청 입력**으로만 계산(모델이 쓴 Day1 city 무관).
@@ -49,7 +54,8 @@ export function arrivalRestDayFromCtx(ctx = {}) {
   // 1일 여행은 휴식일 없음 — handlerCore 플래그(`&& Number(durationDays) > 1`)와 같은 조건.
   if (!(Number(ctx.durationDays || b.durationDays) > 1)) return false;
   return arrivalRestDayInfo({
-    arrivalTime: String(ctx.arrivalTime || b.arrivalTime || b.arrival_time || '').slice(0, 5),
+    // PR3 r2: 같은 resolver(엄격 HH:MM) — ctx(shaped) 값 우선, 없으면 body.
+    arrivalTime: resolveArrivalTime({ arrivalTime: ctx.arrivalTime }) || resolveArrivalTime(b),
     arrivalAirport: ctx.arrival_airport || b.arrival_airport || b.arrivalAirport,
     cityKey: arrivalRestDayCityKey({
       arrivalCity: ctx.arrivalCity || b.arrival_city || b.arrivalCity,
@@ -126,6 +132,19 @@ export async function runRouteEnrichment(itinerary, ctx) {
     dietPrefs, avoidStopNames,
   } = ctx;
 
+  // Preserved named restaurants must pass the same trusted replacement path as placeholder meals before routing.
+  if ((itinerary.days || []).some((day) => day._day1PlacementPending === true) && Array.isArray(dietPrefs) && dietPrefs.length > 0) {
+    const foodIndex = await loadFoodIndex();
+    const issues = validateResponse(itinerary, { lang: language, dietary: dietPrefs, styles: ctx.styles }, foodIndex);
+    if (hasCriticalDietaryViolation(issues)) replaceViolatingFoodStops(itinerary, issues, foodIndex, dietPrefs, body.area, language);
+    const remaining = validateResponse(itinerary, { lang: language, dietary: dietPrefs, styles: ctx.styles }, foodIndex);
+    if (hasCriticalDietaryViolation(remaining)) {
+      const error = new Error('DIETARY_VIOLATION');
+      error.code = 'DIETARY_VIOLATION'; error.statusCode = 422; error.stage = 'routeEnrich';
+      throw error;
+    }
+  }
+
   // ── 2026-10-24 (재방문 정책 R2): 동선 계산 **전에** 반복 식당 정규화 ─────────────
   //   교체된 식당의 이동·시간·교통비가 옛 식당 기준으로 남지 않게 RouteAgent 보다 먼저. HTTP·Inngest 둘 다 이 함수를 지난다.
   //   미사용 적격(검증·요청 식이 전부) 행이 있으면 가장 가까운 행으로 교체, 소진이면 다른 날 revisit 표시(같은 날 금지).
@@ -137,6 +156,27 @@ export async function runRouteEnrichment(itinerary, ctx) {
     } catch (e) {
       // 정규화 실패는 판정 완화가 아니다 — 종단 게이트가 같은 판정기로 다시 막는다.
       console.warn('[planner] revisit normalize (pre-route) skipped:', e.message);
+    }
+  }
+
+  if ((itinerary.days || []).some((day) => day._day1PlacementPending === true)) {
+    const foodIndex = await loadFoodIndex();
+    for (const day of itinerary.days || []) {
+      if (day._day1PlacementPending !== true) continue;
+      const names = new Set((day.stops || []).map((stop) => String(stop.name || '').trim()).filter(Boolean));
+      for (const role of ['lunch', 'dinner']) {
+        const existing = day.stops.find((stop) => stop.category === 'food' && stop._blockMealRole === role);
+        const anchors = [existing || day.stops.find((stop) => stop.lat && stop.lng) || {},
+          day.stops.find((stop) => stop._departure_airport_stop) || [...day.stops].reverse().find((stop) => stop.category !== 'food' && stop.lat && stop.lng) || {}];
+        for (const anchor of anchors) {
+        const candidate = matchFoodPlaceholder({ placeholder: `verified_${role}`, lat: anchor.lat, lng: anchor.lng },
+          foodIndex, day.city, dietPrefs, names, null, names);
+        if (!candidate || names.has(String(candidate.name || '').trim())) continue;
+        names.add(String(candidate.name || '').trim());
+        day.stops.push({ ...candidate, category: 'food', _blockMealRole: role, stay_min: 60,
+          _mealAlternative: true, start_time: role === 'lunch' ? '11:00' : '17:00', order: day.stops.length + 1 });
+      }
+        }
     }
   }
 
@@ -247,7 +287,7 @@ export async function runRouteEnrichment(itinerary, ctx) {
   try {
     await Promise.race([
       enrichItineraryWithRoute(itinerary, {
-        apiKey, body, language, hotel_address, arrival_airport, departure_airport, pax,
+        apiKey, body, language, hotel_address, arrival_airport, departure_airport, pax, routeBudget: ctx.routeBudget,
         // P253: zone_id 전달 — RouteAgent 의 transitCache lookup 에 필요.
         zone_id,
       }),
@@ -346,16 +386,18 @@ export function applyBackfillsAndTmoney(itinerary, ctx) {
   if (_lastDay) {
     applyDepartureDayFlightCap(
       _lastDay.stops,
-      String(ctx.departureTime || ctx.body?.departureTime || ctx.body?.departure_time || '').slice(0, 5),
+      // PR3 r2: 출국 시각 = 같은 resolver(ctx 우선, 없으면 body camel → snake, 엄격 HH:MM).
+      resolveDepartureTime({ departureTime: ctx.departureTime }) || resolveDepartureTime(ctx.body),
       ctx.departure_airport || ctx.body?.departure_airport || '',
       ctx.language,
       // 🔴 plan area 가 아니라 **그날의 도시** — 다도시에서 area 를 쓰면 거리 보정이 무효.
       normalizeRegionKey(_lastDay.city || '') || normalizeRegionKey(ctx.body?.area || ''),
+      { deferActivityTrim: !!verifiedDepartureRoute(_lastDay) },
     );
   }
   // 2026-10-24: 출국 11:00 전 조식 면제 안내 — 항공 컷 뒤(컷으로 food 가 빠진 경우 포함), 블록·legacy 공용 지점.
   applyDepartureBreakfastNote(itinerary, {
-    departureTime: ctx.departureTime || ctx.body?.departureTime || ctx.body?.departure_time,
+    departureTime: resolveDepartureTime({ departureTime: ctx.departureTime }) || resolveDepartureTime(ctx.body),
     language: ctx.language,
   });
 
@@ -393,6 +435,8 @@ export function applyBackfillsAndTmoney(itinerary, ctx) {
     tourEndTime: resolveTourEndTime(ctx.body || {}),
     language: ctx.language,
   });
+  // 2026-11-02 (운영자 결정 ③ — PR3): 1일 출국일에 출국 활동 마감 때문에 못 넣은 끼니(day.exempt_meals, RouteAgent 기록) → 공항 식사 안내.
+  applyDepartureMealNote(itinerary, { language: ctx.language });
 
   // ── T-money 서버 계산 ─────────────────────────────────────────────────
   calculateTmoney(itinerary);
@@ -411,6 +455,7 @@ export async function applyRecommendedRestaurants(itinerary, ctx) {
     departureTime: ctx.departureTime || ctx.body?.departureTime || ctx.body?.departure_time,
     arrivalTime: ctx.arrivalTime || ctx.body?.arrivalTime || ctx.body?.arrival_time,
     arrivalAirport: ctx.arrival_airport || ctx.body?.arrival_airport || ctx.body?.arrivalAirport,
+    departureAirport: ctx.departure_airport || ctx.body?.departure_airport || ctx.body?.departureAirport,
     area: ctx.area || ctx.body?.area,
     regions: ctx.regions,
     tourEndTime: ctx.tourEndTime || resolveTourEndTime(ctx.body || {}),
@@ -475,7 +520,8 @@ export async function applyRecommendedRestaurants(itinerary, ctx) {
   const revisitCtx = { foodIndex: foodIndexForQuality, dietary: dietPrefs, avoidStopNames, language };
   normalizeRevisits(itinerary, revisitCtx, { mode: 'markOnly' });
   applyRevisitNotes(itinerary, { language }); // 정규화 결과 재방문에만 안내 1문장(기존 안내 제거 후 — R6)
-  assertNoDuplicateStops(itinerary, blockModeUsed ? 'block_mode' : 'post_response', revisitCtx);
+  assertNoDuplicateStops(ctx.verifiedMealDraft === true ? mealRepeatGateItinerary(itinerary, foodIndexForQuality, dietPrefs) : itinerary, blockModeUsed ? 'block_mode' : 'post_response', revisitCtx);
+  attachMealOptionState(itinerary, foodIndexForQuality, language);
   return foodIndexForQuality;
 }
 

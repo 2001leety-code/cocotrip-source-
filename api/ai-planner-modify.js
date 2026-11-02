@@ -33,8 +33,9 @@ import {
   markReturnToAirport,
 } from './_ai_core/blockMode.js';
 import { loadFoodIndex } from './_ai_core/geminiPipeline.js';
-import { backfillStopEndTimes, applyArrivalRestNote } from './_ai_core/planPersister.js';
-import { validatePatternStructure, arrivalRestDayCityKey, mealWindowsFromRequest } from './_ai_core/responseValidator.js';
+import { backfillStopEndTimes, applyArrivalRestNote, applyDepartureMealNote } from './_ai_core/planPersister.js';
+import { stripDepartureMealExemptionIfMealAdded } from '../src/lib/departureMealNote.js';
+import { validatePatternStructure, arrivalRestDayCityKey, mealWindowsForStoredPlan } from './_ai_core/responseValidator.js';
 import { arrivalRestDayInfo, resolveTourEndTime } from './_ai_core/constants.js';
 import { normalizeRevisits, applyRevisitNotes, clearReplacedLegs, applyFoodRowToStop, safetyDiets } from './_ai_core/revisitPolicy.js';
 import { runDuplicateStopGate } from './_ai_core/finalItineraryGate.js';
@@ -749,6 +750,8 @@ export default async function handler(req, res) {
         cityKey: arrivalRestDayCityKey({ arrivalCity: planData.input?.arrival_city, regions: planData.input?.regions, area: planData.input?.area }),
         tourEndTime: resolveTourEndTime({ tourEndTime: planData.input?.tour_end_time }),
       }).rest);
+    // PR3 r6 (운영자 결정 ③): 수정으로 면제한 끼니 시간대에 식당이 생긴 날은 면제를 푼다(그 끼니는 다시 필수 — 검증 전).
+    stripDepartureMealExemptionIfMealAdded(itinerary);
     const patternErrors = validatePatternStructure(itinerary, {
       regions: Array.isArray(planData.input?.regions) ? planData.input.regions : [city],
       arrival_airport: planData.input?.arrival_airport || '',
@@ -756,7 +759,11 @@ export default async function handler(req, res) {
       durationDays: itinerary.days.length,
       arrival_rest_day: arrivalRestDay,
       // 2026-10-26 (첫날 도착 PR1): 1일 끼니 창 — 저장된 input 으로 재계산(없으면 1일 3곳 플랜을 수정할 때마다 B-12/B-MEAL 422).
-      meal_windows: mealWindowsFromRequest({ ...(planData.input || {}), durationDays: itinerary.days.length }),
+      //   PR3 r2: 생성 때 저장한 input.meal_windows 우선, 필드 없는 옛 플랜만 계산(옛 ALREADY = PR3 이전 준비값).
+      meal_windows: mealWindowsForStoredPlan(planData.input || {}, itinerary.days.length),
+      // PR3 r7 (운영자 결정 ③): 1일 출국일 면제 끼니(day.exempt_meals) 재판정 전용 출국 시각 — departure_time 으로 넘기지 않는다
+      //   (그 키는 B-EARLY-DEPARTURE 등 다른 출국 규칙까지 켠다). 면제 재판정·B-12 차감만 이 값을 본다.
+      ...(itinerary.days.length === 1 && planData.input?.departure_time ? { exempt_meal_departure_time: planData.input.departure_time } : {}),
     });
     if (patternErrors.length > 0) {
       // rollback
@@ -812,6 +819,8 @@ export default async function handler(req, res) {
 
     // 2026-10-26 (D5①): 수정 후 휴식 안내 재판정 — 조건이 맞으면 붙이고(멱등), 안 맞으면(Day1 에 식당·관광이 생김) 옛 안내만 뗀다.
     applyArrivalRestNote(itinerary, { restDay: arrivalRestDay === true, language });
+    // PR3 r6 (운영자 결정 ③): 면제 끼니 안내 재판정 — 면제가 남아 있으면 붙이고(멱등), 없어졌으면 옛 안내만 뗀다.
+    applyDepartureMealNote(itinerary, { language });
 
     // ── persist
     await docRef.set({

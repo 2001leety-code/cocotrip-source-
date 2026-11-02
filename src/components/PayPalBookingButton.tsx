@@ -1,3 +1,4 @@
+import { mealDraftGuestHeaders } from '@/lib/mealDraftIdentity';
 import { useState, useEffect, useRef, lazy, Suspense } from 'react';
 import { Tag, Check, AlertCircle, Ticket, Sparkles, ChevronDown, ChevronUp, ArrowRight, Loader2, ShieldCheck } from 'lucide-react';
 import { Link } from 'react-router-dom';
@@ -674,7 +675,7 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
           //   Bearer 첨부, 게스트는 헤더 없이 진행). 백엔드가 토큰 uid===couponUserId 확인.
           const res = await authFetch('/api/capturePaypalOrder', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 'Content-Type': 'application/json', ...(await mealDraftGuestHeaders()) },
             body: JSON.stringify({
               orderID:         data.orderID,
               product:         productType,
@@ -800,7 +801,7 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
       // 2. 주문 생성 (authFetch: 로그인 시 owner uid 를 서버가 주문에 묶는다 — 같은 주문 복구 권한)
       const res = await authFetch('/api/createPaypalOrder', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...(await mealDraftGuestHeaders()) },
         body: JSON.stringify({
           productType, passengers, dateStart, dateEnd, language: lang,
           userEmail,
@@ -839,6 +840,7 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
           ...(estimateConsent ? { estimateConsent: { agreed: estimateConsent.agreed === true, policyVersion: estimateConsent.policyVersion } } : {}),
           // 🔴 B6-1: AI 플래너 결제 전 서버 식이 커버리지 확인 — 서버가 다시 정규화·검사(실패 시 주문 미생성).
           ...(plannerInput ? { plannerInput } : {}),
+          ...((() => { const draft = (itineraryData as { mealDraft?: { id?: string; draftId?: string; revision?: string | number; fingerprint?: string; openingNoticeVersion?: string } } | null)?.mealDraft; return draft ? { mealDraft: { draftId: draft.draftId || draft.id, revision: draft.revision, fingerprint: draft.fingerprint, ...(draft.openingNoticeVersion ? { openingNoticeVersion: draft.openingNoticeVersion } : {}) } } : {}; })()),
         }),
       });
       const json = await res.json();

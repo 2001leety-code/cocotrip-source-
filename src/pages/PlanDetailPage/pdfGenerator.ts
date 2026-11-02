@@ -1,3 +1,4 @@
+import { visitNotice } from '@/lib/visitNotice.js';
 // PDF download generator. LOCKED region — extracted verbatim from
 // src/pages/PlanDetailPage.tsx (L155-348) during P2 Lock release.
 //
@@ -562,6 +563,9 @@ export async function generatePDF(
     </p>
     <p style="color:${C.muted};font-size:10px;margin:4px 0 0;">${L.generatedBy} \u00B7 cocotripkr.com</p>
   </div>`;
+
+  const visit = visitNotice(lang, input);
+  html += `<div style="margin:0 0 16px;padding:10px;border:1px solid ${C.muted};page-break-inside:avoid;"><strong>${visit.title}</strong><p style="margin:4px 0 0;font-size:11px;">${visit.body}</p></div>`;
 
   // === Sprint 1 Step 4: QR header overlay ===
   // text-align:center인 header div 위에 우측 QR을 absolute 박스로 overlay.

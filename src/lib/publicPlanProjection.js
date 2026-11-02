@@ -1,8 +1,11 @@
+import { hasVisitDietaryRequest } from './visitNotice.js';
+import { applyMealSlotNotes } from './mealSlotNotes.js';
 /** Shared public-view contract. Unknown keys are omitted at every nesting level.
  * Pure/browser-safe: no database, environment, or network access.
  * Known private-string filtering supplements the schema; it cannot detect paraphrases.
  */
 import { departureBreakfastNote, hasBreakfastNote, stripBreakfastNoteText } from './departureBreakfastNote.js';
+import { departureMealNote, hasDepartureMealNote, stripDepartureMealNoteText } from './departureMealNote.js';
 import { arrivalRestNote, hasArrivalRestNote, stripArrivalRestText } from './arrivalRestNote.js';
 import { revisitNote, stripRevisitNote } from './revisitNote.js';
 import { strictHHMMToMin, REST_DAY_LATE_ARRIVAL_MIN } from './arrivalRestRules.js';
@@ -56,6 +59,7 @@ const inputSchema = {
 };
 const stopSchema = {
   order: N, start_time: S, end_time: S, stay_min: N, category: S,
+  meal_slot_id: S, restaurant_id: S, opening_status: S, opening_source_url: S, opening_checked_at: S, meal_selection_state: S, meal_selection_note: S,
   name: S, name_ko: S, name_en: S, display_name: S, address: S, address_en: S,
   lat: N, lng: N, naverMapUrl: S, googleMapsUrl: S,
   entry_fee_krw: N, entry_fee_note: S,
@@ -181,6 +185,12 @@ function projectStop(stop, privateEndpoint, language, terms) {
       result.breakfast_note = departureBreakfastNote(language);
       notes.push(result.breakfast_note);
     }
+    // 2026-11-02 (PR3 결정 ③): 1일 출국일 공항 식사 안내 — 같은 방식(보는 사람 언어 고정 문구).
+    if (hasDepartureMealNote(stop)) {
+      result.departure_meal_roles = (Array.isArray(stop.departure_meal_roles) ? stop.departure_meal_roles : []).filter((r) => r === 'lunch' || r === 'dinner');
+      result.departure_meal_note = departureMealNote(language, result.departure_meal_roles);
+      notes.push(result.departure_meal_note);
+    }
     if (notes.length) result.tip = notes.join(' ');
     return result;
   }
@@ -199,10 +209,13 @@ function projectStop(stop, privateEndpoint, language, terms) {
   {
     const rest = hasArrivalRestNote(stop);
     const breakfast = hasBreakfastNote(stop);
-    if (rest || breakfast) {
-      let body = stripBreakfastNoteText(stripArrivalRestText(typeof result.tip === 'string' ? result.tip : '', stop.arrival_rest_note), stop.breakfast_note);
+    const depMeal = hasDepartureMealNote(stop); // 2026-11-02 PR3 결정 ③ — 공항 stop 에 붙는 공항 식사 안내
+    if (rest || breakfast || depMeal) {
+      let body = stripDepartureMealNoteText(stripBreakfastNoteText(stripArrivalRestText(typeof result.tip === 'string' ? result.tip : '', stop.arrival_rest_note), stop.breakfast_note), stop.departure_meal_note);
       if (rest) { result.arrival_rest_note = arrivalRestNote(language); body = body ? `${body} ${result.arrival_rest_note}` : result.arrival_rest_note; }
       if (breakfast) { result.breakfast_note = departureBreakfastNote(language); body = body ? `${body} ${result.breakfast_note}` : result.breakfast_note; }
+      if (depMeal) { result.departure_meal_roles = (Array.isArray(stop.departure_meal_roles) ? stop.departure_meal_roles : []).filter((r) => r === 'lunch' || r === 'dinner');
+      result.departure_meal_note = departureMealNote(language, result.departure_meal_roles); body = body ? `${body} ${result.departure_meal_note}` : result.departure_meal_note; }
       result.tip = body;
     }
   }
@@ -252,6 +265,8 @@ export function projectPublicPlan(plan, options = {}) {
     _streaming_in_progress: B, _streaming_progress: N, __truncated: B,
     input: inputSchema,
   }, terms);
+  // Display-only notice flag; do not expose religious labels or medical fields.
+  if (hasVisitDietaryRequest(source.input || {})) result.input = { ...(result.input || {}), visitDietaryRequest: true };
   // 2026-10-26: 옛 플랜(arrival_rest_day 필드 자체가 없음)은 원본 도착 시각 엄격 HH:MM ≥ 18:00 이면 true 로 파생 —
   //   화면·PDF 의 isArrivalRestDay1 대체 판정과 같은 규칙. 시각 자체는 공개 결과에 넣지 않는다.
   if (isRecord(source.input) && source.input.arrival_rest_day === undefined) {
@@ -264,6 +279,9 @@ export function projectPublicPlan(plan, options = {}) {
   if (!isRecord(source.itinerary)) return result;
   const itinerary = project(source.itinerary, {
     tour_title: S, t_money_recommended_load: N, _truncated_days: N, _streaming_skeleton: B,
+    meal_options_version: N,
+    meal_options: [{ mealId: S, day: N, status: S, baselineId: S, selectedId: S,
+      options: [{ openingStatus: S, openingSourceUrl: S, openingCheckedAt: S, id: S, name: S, verificationStatus: S, startMin: N, endMin: N, inboundMin: N, outboundMin: N, sourceUrl: S, checkedAt: S, repeatReason: S }] }],
     daily_budget_summary: [{ day: N, transport_krw: N, entry_fees_krw: N, meals_krw: N,
       total_krw: N, food_krw: N, transit_krw: N, entry_krw: N, activities_krw: N, shopping_estimate_krw: N }],
     arrival_guide: { airport: S,
@@ -286,5 +304,6 @@ export function projectPublicPlan(plan, options = {}) {
   else if (isRecord(restaurants)) itinerary.recommended_restaurants = project(restaurants,
     { general: [restaurantSchema], vegan: [restaurantSchema], halal: [restaurantSchema] }, terms);
   result.itinerary = itinerary;
+  applyMealSlotNotes(itinerary, language);
   return result;
 }

@@ -138,7 +138,7 @@ describe('wiring', () => {
     expect(core).toMatch(/buildUserMessage\(\{[^}]*mealWindows, arrivalRestDay \}\)/);
     expect(core).toMatch(/triggerPass3BackgroundIfPending\(\{[^\n]*styles, mealWindows, tripTimes: tripTimesFrom\(/);
     expect(read('api/_ai_core/backgroundPipelines.js')).toContain('{ ...tripTimesIn, meal_windows: mealWindows }');
-    expect(read('api/ai-planner-modify.js')).toContain('meal_windows: mealWindowsFromRequest({ ...(planData.input || {}), durationDays: itinerary.days.length }),');
+    expect(read('api/ai-planner-modify.js')).toContain('meal_windows: mealWindowsForStoredPlan(planData.input || {}, itinerary.days.length),');
     expect(read('api/_ai_core/postResponsePipeline.js')).toContain('meal_windows: mealWindowsFromCtx(ctx),');
     const worker = read('api/_inngest/functions/processPlanAfterAI.js');
     expect(worker).toContain('const mealWindows = mealWindowsFromCtx(ctx);');
