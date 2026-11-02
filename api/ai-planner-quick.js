@@ -168,11 +168,13 @@ function buildPrompt(lang, intent, foodPrefs, cleanSpecialRequest, hasSafetyDiet
   // whether that dish is actually safe, and the server rebuilds the tip's
   // safety note deterministically afterward anyway (validateQuickPreviewResponse
   // callers do not trust model wording for the safety claim itself).
+  // 2026-11-02 (Claude quick r4): no tier words ("FRIENDLY(비인증)", "not-certified", "safe") in this diet-guest-only line — the
+  //   model echoed them into tips, which DIETARY_CLAIM_RE rejects. Same rule, plain reason.
   const noMenuClaim = {
-    ko: '\n특정 메뉴/음식을 추천하지 마세요 — 등급이 FRIENDLY(비인증)인 경우 특정 메뉴가 안전한지 알 수 없습니다.',
-    ja: '\n特定のメニュー・料理を勧めないでください — FRIENDLY（未認証）等級では特定メニューの安全性が分かりません。',
-    zh: '\n不要推荐具体菜品/菜单项 — 等级为FRIENDLY（未认证）时无法确认某道菜是否安全。',
-    en: '\nNever recommend a specific dish/menu item — for a FRIENDLY (not-certified) tier there is no way to know if a specific dish is safe.',
+    ko: '\n특정 요리·메뉴를 추천하지 마세요(단일 메뉴는 서버가 확인할 수 없습니다).',
+    ja: '\n特定の料理・メニューを勧めないでください（個々のメニューはサーバーが確認できません）。',
+    zh: '\n不要推荐具体菜品或菜单项（单个菜品服务器无法核实）。',
+    en: '\nNever recommend a specific dish or menu item (the server cannot check a single dish).',
   }[lang] || '';
   // 2026-08-24 (planner-trust-course, hardening #4): unconditional whenever
   // ANY dietary safety restriction is active — not just at food stops. A
@@ -191,21 +193,25 @@ function buildPrompt(lang, intent, foodPrefs, cleanSpecialRequest, hasSafetyDiet
   }[lang] || '';
   // 2026-11-02 (Claude quick r3b): what to write instead — diet guests' tips are replaced by the server anyway
   //   (enforceDietaryRowTips), but the claim check still reads them, so a model that only hears "don't" kept explaining diets.
+  //   r4: tips = practical info only (describing Seoul Central Mosque yields "Muslim"/"清真寺" → rejected), and the same
+  //   rule for marketingNarrative/themes (also replaced by the server for diet guests — buildDietaryServerOwnedContent).
   const dietTipGuide = {
-    ko: '\n"VERIFIED ... DIETARY-SAFE RESTAURANTS" 목록의 식당을 점심 또는 저녁 식사 장소로 최소 1곳 넣으세요(명소 칸에 목록 이름 그대로).\n팁 칸에는 그 장소 자체(볼거리·분위기·추천 시간대·동선)만 짧게 쓰세요 — 음식 재료·식이·인증·안전 이야기는 쓰지 마세요(식당 안내 문구는 서버가 넣습니다). 팁·서사·테마는 한국어로만 쓰고, 식당·장소 이름은 명소 칸에만 쓰세요(팁에 다른 문자로 된 이름을 넣지 마세요).',
-    ja: '\n「VERIFIED ... DIETARY-SAFE RESTAURANTS」リストの店を、昼食または夕食の場所として最低1か所入れてください（スポット欄にリストの名前のまま）。\nヒント欄にはその場所自体（見どころ・雰囲気・おすすめの時間帯・動線）だけを短く書いてください — 食材・食事制限・認証・安全の話は書かないでください（飲食店の案内文はサーバーが入れます）。ヒント・紹介文・テーマは日本語だけで書き、店名・スポット名はスポット欄だけに書いてください（ヒントに他の文字の名前を入れないこと）。',
-    zh: '\n请至少安排1家"VERIFIED ... DIETARY-SAFE RESTAURANTS"列表中的餐厅作为午餐或晚餐地点（在地点栏按列表名称书写）。\n贴士栏只简短写该地点本身（看点、氛围、推荐时段、动线）— 不要写食材、饮食限制、认证或安全相关内容（餐厅说明由服务器添加）。贴士、介绍和主题只用中文书写，餐厅和地点名称只写在地点栏（贴士里不要放其他文字的名称）。',
-    en: '\nInclude at least one restaurant from the "VERIFIED ... DIETARY-SAFE RESTAURANTS" list as the lunch or dinner stop (its name in the Spot column, exactly as listed).\nKeep each tip short and about the place itself (what to see, the atmosphere, the best time, how to move on) — never about ingredients, diets, certification or safety (the server adds the restaurant note). Write tips, the narrative and themes in English only, and put restaurant and place names only in the Spot column (no Korean or other non-English letters in any tip).',
+    ko: '\n"VERIFIED ... DIETARY-SAFE RESTAURANTS" 목록의 식당을 점심 또는 저녁 식사 장소로 최소 1곳 넣으세요(명소 칸에 목록 이름 그대로).\n팁 칸에는 실용 정보만 짧게 쓰세요(추천 시간대, 가는 법·다음 장소로 이동, 붐빔·줄 서기 팁) — 그 장소가 무엇인지·무엇을 파는지는 설명하지 말고, 음식 재료·식이·인증·안전 이야기도 쓰지 마세요(식당 안내 문구는 서버가 넣습니다).\n서사(marketingNarrative)와 테마(themes)에는 도시·볼거리·하루 흐름만 쓰세요 — 음식·식이·인증·안전 낱말은 쓰지 마세요(식이 안내는 서버가 넣습니다). 팁·서사·테마는 한국어로만 쓰고, 식당·장소 이름은 명소 칸에만 쓰세요(팁에 다른 문자로 된 이름을 넣지 마세요).',
+    ja: '\n「VERIFIED ... DIETARY-SAFE RESTAURANTS」リストの店を、昼食または夕食の場所として最低1か所入れてください（スポット欄にリストの名前のまま）。\nヒント欄には実用的な情報だけを短く書いてください（おすすめの時間帯、行き方・次の場所への移動、混雑・行列のコツ）— その場所が何か・何を売っているかは説明せず、食材・食事制限・認証・安全の話も書かないでください（飲食店の案内文はサーバーが入れます）。\n紹介文（marketingNarrative）とテーマ（themes）には街・見どころ・一日の流れだけを書いてください — 食べ物・食事制限・認証・安全の言葉は書かないでください（食事の案内はサーバーが入れます）。ヒント・紹介文・テーマは日本語だけで書き、店名・スポット名はスポット欄だけに書いてください（ヒントに他の文字の名前を入れないこと）。',
+    zh: '\n请至少安排1家"VERIFIED ... DIETARY-SAFE RESTAURANTS"列表中的餐厅作为午餐或晚餐地点（在地点栏按列表名称书写）。\n贴士栏只简短写实用信息（推荐时段、怎么去及前往下一站、人流和排队技巧）— 不要介绍该地点是什么或卖什么，也不要写食材、饮食限制、认证或安全相关内容（餐厅说明由服务器添加）。\n介绍（marketingNarrative）和主题（themes）只写城市、看点和一天的行程 — 不要用食物、饮食限制、认证或安全相关的词（饮食说明由服务器添加）。贴士、介绍和主题只用中文书写，餐厅和地点名称只写在地点栏（贴士里不要放其他文字的名称）。',
+    en: '\nInclude at least one restaurant from the "VERIFIED ... DIETARY-SAFE RESTAURANTS" list as the lunch or dinner stop (its name in the Spot column, exactly as listed).\nKeep each tip short and practical only (the best time to go, how to get there or on to the next stop, crowd and queue tips) — do not describe what the place is or what it sells, and never mention ingredients, diets, certification or safety (the server adds the restaurant note).\nKeep marketingNarrative and themes about the city, the sights and the flow of the day only — no food, diet, certification or safety words (the server adds the dietary note). Write tips, the narrative and themes in English only, and put restaurant and place names only in the Spot column (no Korean or other non-English letters in any tip).',
   }[lang] || '';
   // 2026-11-02 (Claude quick r3): diet guests got "pass along the tier (CERTIFIED/FRIENDLY) exactly as given" right next to
-  //   dietaryClaimBan — Claude obeyed the first and wrote "(FRIENDLY, 비인증)"/"certified" into names and tips, which the
-  //   server rejects (DIETARY_CLAIM_RE). Diet guests now get "do not write the tier" instead; the server attaches the verified
-  //   note. Guests without a safety diet keep the old sentence byte-for-byte.
+  //   dietaryClaimBan — Claude obeyed the first and wrote "(FRIENDLY, 비인증)"/"certified" into names and tips. In tips that
+  //   fails DIETARY_CLAIM_RE; in a Spot name it fails exact candidate matching ("… (FRIENDLY, 비인증)" is no listed name).
+  //   Diet guests now get "do not write the tier" instead; the server attaches the verified note. r4: keep a name's own
+  //   parentheses ("Cherry Garden Restaurant (Halal)") — only added tier labels are forbidden.
+  //   Guests without a safety diet keep the old sentence byte-for-byte.
   const tierRule = {
-    ko: hasSafetyDiet ? '. 등급(CERTIFIED/FRIENDLY)·인증 여부는 쓰지 마세요 — 서버가 확인된 근거 문구를 따로 붙입니다. 명소 칸의 식당 이름은 목록에 적힌 이름 그대로(괄호의 등급 표시 없이) 쓰세요.' : ' — 목록에 적힌 등급(CERTIFIED/FRIENDLY)을 그대로 전달하세요.',
-    ja: hasSafetyDiet ? '。等級（CERTIFIED/FRIENDLY）や認証の有無は書かないでください — サーバーが確認済みの根拠文を別途付けます。スポット欄の店名はリストに書かれた名前のまま（括弧の等級表示なし）で書いてください。' : ' — リストの等級（CERTIFIED/FRIENDLY）をそのまま伝えてください。',
-    zh: hasSafetyDiet ? '。不要写出等级（CERTIFIED/FRIENDLY）或认证情况 — 服务器会另行附上已核实的依据说明。地点栏的餐厅名称请严格按列表中的名称书写（不要加括号的等级标注）。' : ' — 如实转达列表中标注的等级（CERTIFIED/FRIENDLY）。',
-    en: hasSafetyDiet ? '. Never write the tier (CERTIFIED/FRIENDLY) or any certification status yourself — the server attaches the verified evidence note separately. In the Spot column, write each restaurant name exactly as it appears in the list (no tier label in parentheses); never copy a Korean name into a tip, theme or the narrative.' : ' — pass along the tier written there (CERTIFIED vs. FRIENDLY) exactly as given.',
+    ko: hasSafetyDiet ? '. 등급(CERTIFIED/FRIENDLY)·인증 여부는 쓰지 마세요 — 서버가 확인된 근거 문구를 따로 붙입니다. 명소 칸의 식당 이름은 목록에 적힌 이름 그대로 쓰세요 — 이름에 원래 있는 괄호는 그대로 두고, 등급·인증 표시만 덧붙이지 마세요.' : ' — 목록에 적힌 등급(CERTIFIED/FRIENDLY)을 그대로 전달하세요.',
+    ja: hasSafetyDiet ? '。等級（CERTIFIED/FRIENDLY）や認証の有無は書かないでください — サーバーが確認済みの根拠文を別途付けます。スポット欄の店名はリストに書かれた名前のまま書いてください — 名前に元からある括弧はそのまま残し、等級・認証の表示だけを付け足さないでください。' : ' — リストの等級（CERTIFIED/FRIENDLY）をそのまま伝えてください。',
+    zh: hasSafetyDiet ? '。不要写出等级（CERTIFIED/FRIENDLY）或认证情况 — 服务器会另行附上已核实的依据说明。地点栏的餐厅名称请严格按列表中的名称书写 — 名称里原有的括号保持不变，只是不要另加等级或认证标注。' : ' — 如实转达列表中标注的等级（CERTIFIED/FRIENDLY）。',
+    en: hasSafetyDiet ? '. Never write the tier (CERTIFIED/FRIENDLY) or any certification status yourself — the server attaches the verified evidence note separately. In the Spot column, write each restaurant name exactly as it appears in the list — keep any parentheses that are part of the name, and never add a tier or certification label; never copy a Korean name into a tip, theme or the narrative.' : ' — pass along the tier written there (CERTIFIED vs. FRIENDLY) exactly as given.',
   }[lang] || '';
   const dietaryRule = {
     ko: foodPrefs ? `
@@ -270,7 +276,7 @@ ${dietaryRule}
   "day1MarkdownTable": "| 時間 | スポット | 交通 | ヒント |\\n|---|---|---|---|\\n| 10:00 | スポット名 | 出発地 | 実用的なヒント |\\n| 12:00 | スポット名 | 地下鉄4号線12分 | 実用的なヒント |"
 }
 
-回答は必ず日本語で書いてください（marketingNarrative、day1MarkdownTableのスポット名・ヒントもすべて日本語）。
+紹介文（marketingNarrative）・テーマ・ヒントは必ず日本語で書いてください。スポット欄のスポット名・店名は下の「VERIFIED」リストの表記そのまま書いてください（翻訳・音訳しないこと）。
 
 「交通」列のルール:
 - 「交通」列には、前のスポットから現在のスポットまでの移動手段を書いてください（例:「地下鉄4号線12分」「徒歩8分」「バス02番15分」「タクシー10分」）。
@@ -297,7 +303,7 @@ ${dietaryRule}
   "day1MarkdownTable": "| 时间 | 地点 | 交通 | 贴士 |\\n|---|---|---|---|\\n| 10:00 | 地点名称 | 出发地 | 实用贴士 |\\n| 12:00 | 地点名称 | 地铁4号线12分钟 | 实用贴士 |"
 }
 
-回复必须使用中文（marketingNarrative、day1MarkdownTable中的地点名和贴士都必须是中文）。
+介绍（marketingNarrative）、主题和贴士必须使用中文。地点栏的地点名和餐厅名请严格按下方"VERIFIED"列表中的写法书写（不要翻译或音译）。
 
 "交通"列规则：
 - "交通"列填写从上一个地点到当前地点的交通方式（例如"地铁4号线12分钟"、"步行8分钟"、"公交02路15分钟"、"打车10分钟"）。
@@ -328,7 +334,7 @@ RULES:
 - ${STOP_COUNT_RULE}
 - The "Transit" column = how to get from the PREVIOUS spot to the CURRENT spot (e.g. "Subway Line 4, 12 min", "Walk 8 min", "Bus 02, 15 min", "Taxi 10 min"). For the first spot, write "Start point".
 - Fill ALL 4 columns (Time | Spot | Transit | Insider Tip) for every row — never leave Transit blank.
-- Each tip must be specific and useful (subway exit numbers${hasSafetyDiet ? '' : ', best menu items'}, photo angles)${hasSafetyDiet ? '\n- Do NOT recommend a specific dish or menu item at any food stop — dietary tiers below are FRIENDLY-not-certified unless marked CERTIFIED, so no specific menu claim is safe to make.' : ''}
+- Each tip must be specific and useful (subway exit numbers${hasSafetyDiet ? '' : ', best menu items'}, photo angles)${hasSafetyDiet ? '\n- Do NOT recommend a specific dish or menu item at any food stop — the server cannot check a single dish.' : ''}
 - If a list below starts with "VERIFIED", use ONLY the exact names from that list for named attractions — never invent a place not on it.
 - Respond in English.
 - Make the narrative exciting and personal
@@ -810,7 +816,7 @@ function validatesNoModelDietaryClaims(json, rows, hasSafetyDiet) {
     const m = DIETARY_CLAIM_RE.exec(f);
     if (m) {
       // 2026-11-02 (Claude quick r3b): one ops line per rejection — which fixed denylist word hit, never the model text or guest input.
-      console.warn(`[QUICK_CLAIM] field=${field} idx=${idx} token=${m[0].toLowerCase().slice(0, 20)}`);
+      console.warn(`[QUICK_CLAIM] field=${field} idx=${idx} token=${m[0].toLowerCase().replace(/\s+/g, ' ').slice(0, 20)}`);
       return { ok: false, reason: 'Model authored a dietary/certification/safety claim (narrative, theme, or a tip) — that claim is server-owned only' };
     }
   }
@@ -821,7 +827,8 @@ function validatesNoModelDietaryClaims(json, rows, hasSafetyDiet) {
 //   (Claude haiku: "halal"/"certified" in a tip) broke it again. A rejected attempt now adds ONE fixed correction line to the
 //   retry's user message. Picked by the server's own failure reason only — never echoes model text or traveler input (the
 //   reason string can quote a model-written Spot name), and never loosens a check. Timeouts/network errors add nothing.
-//   The first attempt's prompt is unchanged (Gemini first-call behaviour identical).
+//   The retry line never changes the first attempt's prompt (the diet-guest first prompt itself was reworded in r3/r4;
+//   for guests without a safety diet it is byte-identical, so Gemini's first call for them is unchanged).
 const RETRY_CORRECTIONS = [
   [/dietary\/certification\/safety claim/, 'Your previous answer was rejected: it contained dietary/certification/safety wording (e.g. halal, vegan, vegetarian, Muslim, pork, certified, guaranteed, safe). Remove every such word from marketingNarrative, themes and every tip, and do not repeat or explain the list\'s CERTIFIED/FRIENDLY tier — the server adds the verified note itself.'],
   [/matches no supplied exact-city candidate|is ambiguous across|is a Start-point token|resolve to the same candidate/, 'Your previous answer was rejected: a Spot name did not match the candidate lists. Copy each Spot name exactly as written in one candidate entry, use three different places, and do not add parentheses, translations or extra words.'],
@@ -1225,7 +1232,7 @@ export default async function handler(req, res) {
     let trustedFoodCandidates = [];
     let dietaryContext = '';
     if (hasSafetyDiet) {
-      const strict = getExactCityTrustedFoodContext({ cityKey: primaryCityKey, dietaryList: intent.dietaryRestrictions, language: lang, maxItems: 10, stylePrefs: cuisineStylePrefs });
+      const strict = getExactCityTrustedFoodContext({ cityKey: primaryCityKey, dietaryList: intent.dietaryRestrictions, maxItems: 10, stylePrefs: cuisineStylePrefs });
       trustedFoodCandidates = strict.candidates;
       dietaryContext = strict.contextString;
       if (trustedFoodCandidates.length === 0) {

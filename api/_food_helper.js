@@ -473,6 +473,17 @@ export function getExactCityGeneralFoodCandidates(cityKey, maxItems = 8, stylePr
  * satisfies which requested style without guessing.
  * @returns {{ contextString: string, candidates: Array<object> }}
  */
+// 2026-11-02 (Claude quick r4): model-facing list name. "이름 (영문명)" printed "나마스테 해운대점 ()" for an empty nameEn and
+//   "Cherry Garden Restaurant (Halal) (Cherry Garden Restaurant (Halal))" when both are the same — a model copying either
+//   misses the exact candidate match. Same for an English name stored already in parentheses ("(Nutcracker Bros)" →
+//   "호두까끼형제 방배점 ((Nutcracker Bros))" — no copy of it resolves). Those → the name alone; otherwise the old two-name form.
+function listedFoodName(r) {
+  const base = String(r.name || '').split('|')[0].trim();
+  const en = String(r.nameEn || '').trim();
+  const fold = (s) => s.normalize('NFKC').toLowerCase().replace(/\s+/g, '');
+  return !en || fold(en) === fold(base) || /^[(（].*[)）]$/.test(en) ? base : `${base} (${en})`;
+}
+
 export function getExactCityGeneralFoodContext({ cityKey, maxItems = 8, stylePrefs = [] } = {}) {
   const candidates = getExactCityGeneralFoodCandidates(cityKey, maxItems, stylePrefs);
   if (candidates.length === 0) return { contextString: '', candidates: [] };
@@ -481,7 +492,7 @@ export function getExactCityGeneralFoodContext({ cityKey, maxItems = 8, stylePre
   const lines = candidates.map((r) => {
     const matchedStyles = styles.filter((s) => matchesCuisinePrefs(r, [s]));
     const styleTag = matchedStyles.length > 0 ? ` [${matchedStyles.map((s) => s.toUpperCase()).join('/')}]` : '';
-    return `  • ${(r.name || '').split('|')[0].trim()} (${r.nameEn || ''})${styleTag}\n    📍 ${r.address}`;
+    return `  • ${listedFoodName(r)}${styleTag}\n    📍 ${r.address}`;
   });
   const contextString = `\n\n--- VERIFIED ${cityLabel.toUpperCase()} RESTAURANTS (exact-city only — identity/address only, no price/hours/menu claims) ---\n` +
     `Use ONLY restaurants from this list for meal stops. Do not invent others, do not claim exact prices, hours, Michelin status, or specific menu items.\n${lines.join('\n')}\n---`;
@@ -513,7 +524,7 @@ export function getExactCityTrustedFoodContext({ cityKey, dietaryList, maxItems 
       return `[${ev.diet.toUpperCase()} — ${tierLabel}]`;
     });
     return (
-      `  • ${(r.name || '').split('|')[0].trim()} (${r.nameEn || ''})\n` +
+      `  • ${listedFoodName(r)}\n` +
       `    📍 ${r.address}\n` +
       tierLines.map((l) => `    ${l}`).join('\n')
     );
