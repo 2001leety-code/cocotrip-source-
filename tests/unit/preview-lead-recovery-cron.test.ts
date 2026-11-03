@@ -11,7 +11,7 @@
  *   6. 배치 상한 20건/실행.
  *   7. 수신거부 URL 발급 불가(시크릿 미설정) → 발송 자체를 건너뛴다(fail closed).
  */
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 const sendEmailMock = vi.fn();
 vi.mock('../../api/_send-email.js', () => ({ sendEmail: (...a: any[]) => sendEmailMock(...a) }));
@@ -89,6 +89,7 @@ function leadFixture(id: string, ageMs: number, overrides: Record<string, any> =
 import handler, { isEligibleForRecovery, buildRecoveryEmail } from '../../api/_crons/preview-lead-recovery.js';
 
 beforeEach(() => {
+  vi.stubEnv('CRON_SECRET', 'offline-cron-secret');
   sendEmailMock.mockReset().mockResolvedValue({ messageId: 'x' });
   sendDiscordMock.mockReset();
   isOptedOutMock.mockReset().mockResolvedValue(false);
@@ -147,7 +148,7 @@ describe('preview-lead-recovery cron — 안전장치', () => {
     state.previewLeadsDocs.push(leadFixture('a', 3 * DAY_MS));
     currentDb = db;
     const res = mockRes();
-    await handler({ method: 'GET', query: {} } as any, res);
+    await handler({ headers: { authorization: 'Bearer offline-cron-secret' }, method: 'GET', query: {} } as any, res);
     expect(res.statusCode).toBe(200);
     expect(res.body.enabled).toBe(false);
     expect(res.body.dryRun).toBe(true);
@@ -161,7 +162,7 @@ describe('preview-lead-recovery cron — 안전장치', () => {
     const { db } = makeFakeDb();
     currentDb = db;
     const res = mockRes();
-    await handler({ method: 'GET', query: {} } as any, res);
+    await handler({ headers: { authorization: 'Bearer offline-cron-secret' }, method: 'GET', query: {} } as any, res);
     expect(res.body.dryRun).toBe(true);
   });
 
@@ -172,7 +173,7 @@ describe('preview-lead-recovery cron — 안전장치', () => {
     currentDb = db;
     isOptedOutMock.mockResolvedValueOnce(true);
     const res = mockRes();
-    await handler({ method: 'GET', query: {} } as any, res);
+    await handler({ headers: { authorization: 'Bearer offline-cron-secret' }, method: 'GET', query: {} } as any, res);
     expect(res.body.optOutSkipCount).toBe(1);
     expect(sendEmailMock).not.toHaveBeenCalled();
     expect(state.updates).toHaveLength(0);
@@ -185,7 +186,7 @@ describe('preview-lead-recovery cron — 안전장치', () => {
     state.bookingsUserEmpty = false; // userEmail 매칭 CONFIRMED 예약 존재
     currentDb = db;
     const res = mockRes();
-    await handler({ method: 'GET', query: {} } as any, res);
+    await handler({ headers: { authorization: 'Bearer offline-cron-secret' }, method: 'GET', query: {} } as any, res);
     expect(res.body.convertedCount).toBe(1);
     expect(sendEmailMock).not.toHaveBeenCalled();
     expect(state.previewLeadsDocs[0].data.convertedAtMs).toBe(state.updates[0].patch.convertedAtMs);
@@ -199,7 +200,7 @@ describe('preview-lead-recovery cron — 안전장치', () => {
     currentDb = db;
     buildUnsubUrlMock.mockReturnValueOnce('');
     const res = mockRes();
-    await handler({ method: 'GET', query: {} } as any, res);
+    await handler({ headers: { authorization: 'Bearer offline-cron-secret' }, method: 'GET', query: {} } as any, res);
     expect(sendEmailMock).not.toHaveBeenCalled();
     expect(res.body.errorCount).toBe(1);
     expect(state.updates).toHaveLength(0);
@@ -212,12 +213,12 @@ describe('preview-lead-recovery cron — 안전장치', () => {
     currentDb = db;
 
     const res1 = mockRes();
-    await handler({ method: 'GET', query: {} } as any, res1);
+    await handler({ headers: { authorization: 'Bearer offline-cron-secret' }, method: 'GET', query: {} } as any, res1);
     expect(res1.body.sentCount).toBe(1);
     expect(sendEmailMock).toHaveBeenCalledTimes(1);
 
     const res2 = mockRes();
-    await handler({ method: 'GET', query: {} } as any, res2);
+    await handler({ headers: { authorization: 'Bearer offline-cron-secret' }, method: 'GET', query: {} } as any, res2);
     expect(res2.body.sentCount).toBe(0); // 이미 recoveryEmailSentAtMs 세팅됨 → 쿼리에서 제외
     expect(sendEmailMock).toHaveBeenCalledTimes(1); // 총 1회 그대로
   });
@@ -228,7 +229,7 @@ describe('preview-lead-recovery cron — 안전장치', () => {
     for (let i = 0; i < 25; i++) state.previewLeadsDocs.push(leadFixture(`lead${i}`, 3 * DAY_MS));
     currentDb = db;
     const res = mockRes();
-    await handler({ method: 'GET', query: {} } as any, res);
+    await handler({ headers: { authorization: 'Bearer offline-cron-secret' }, method: 'GET', query: {} } as any, res);
     expect(res.body.sentCount).toBe(20);
     expect(sendEmailMock).toHaveBeenCalledTimes(20);
   });
@@ -236,8 +237,10 @@ describe('preview-lead-recovery cron — 안전장치', () => {
   it('no-db(Firestore 미설정) → 200 no-db, throw 없음', async () => {
     currentDb = null;
     const res = mockRes();
-    await handler({ method: 'GET', query: {} } as any, res);
+    await handler({ headers: { authorization: 'Bearer offline-cron-secret' }, method: 'GET', query: {} } as any, res);
     expect(res.statusCode).toBe(200);
     expect(res.body.error).toBe('no-db');
   });
 });
+
+afterEach(() => vi.unstubAllEnvs());

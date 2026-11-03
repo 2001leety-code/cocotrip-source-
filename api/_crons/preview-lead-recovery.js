@@ -193,6 +193,10 @@ const previewLeadRecoveryTask = async (dryRunArg = false) => {
 
 export default async function vercelHandler(req, res) {
   if (req.method === 'OPTIONS') return res.status(200).end();
+  const { verifyCronRequest } = await import('../_shared/cron-auth.js');
+  const auth = await verifyCronRequest(req);
+  if (!auth.ok) return res.status(auth.status).json({ ok: false, code: 'AUTH_REQUIRED', error: auth.error });
+
   try {
     const dryRun = req.query?.dryRun === '1' || req.query?.dryRun === 'true';
     const r = await previewLeadRecoveryTask(dryRun);

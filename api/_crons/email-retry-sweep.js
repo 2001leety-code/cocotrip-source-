@@ -23,6 +23,9 @@ const MAX_ATTEMPTS = 5;
 const MAX_BATCH = 10;
 
 export default async function handler(req, res) {
+  const { verifyCronRequest } = await import('../_shared/cron-auth.js');
+  const auth = await verifyCronRequest(req);
+  if (!auth.ok) return res.status(auth.status).json({ ok: false, code: 'AUTH_REQUIRED', error: auth.error });
   if (isPreviewEmailSuppressed()) return res.status(200).json({ ok: false, ...suppressedEmailReceipt(), swept: 0 });
   try {
     const db = initAdminDb('email-retry-sweep');

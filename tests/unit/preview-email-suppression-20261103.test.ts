@@ -8,6 +8,7 @@ const effects = vi.hoisted(() => ({
 vi.mock('nodemailer', () => ({ default: { createTransport: effects.transport } }));
 vi.mock('../../api/_shared/gmail-quota.js', () => ({ checkGmailQuota: effects.quota, incrementGmailSentCount: effects.increment, GMAIL_QUOTA_EXCEEDED: 'GMAIL_QUOTA_EXCEEDED' }));
 vi.mock('../../api/_shared/firebase-admin.js', () => ({ initAdminDb: effects.db }));
+vi.mock('../../api/_shared/admin-auth.js', () => ({ verifyAdminToken: vi.fn(async () => ({ ok: false, status: 401 })) }));
 vi.mock('firebase-admin/app', () => ({ getApps: effects.app, initializeApp: effects.app, cert: effects.app }));
 vi.mock('firebase-admin/firestore', () => ({ getFirestore: effects.firestore, FieldValue: { serverTimestamp: () => 'offline-timestamp' } }));
 vi.mock('../../api/_shared/notify.js', () => ({ notify: effects.notify, sendDiscord: effects.notify }));
@@ -27,6 +28,7 @@ const outbound = vi.fn(() => { throw new Error('Unmocked network forbidden'); })
 beforeEach(() => {
   vi.clearAllMocks();
   vi.stubEnv('VERCEL_ENV', 'preview'); vi.stubEnv('PREVIEW_EMAIL_SUPPRESS', 'true');
+  vi.stubEnv('CRON_SECRET', 'offline-cron-secret');
   vi.stubEnv('GMAIL_USER', 'sender@example.invalid'); vi.stubEnv('GMAIL_APP_PASSWORD', 'offline-placeholder');
   vi.stubGlobal('fetch', outbound);
   effects.transport.mockReturnValue({ sendMail: effects.send });
@@ -81,10 +83,35 @@ describe('server-only Preview mail policy', () => {
     const out = { code: 0, body: null };
     const res = { status(code) { out.code = code; return this; }, json(body) { out.body = body; return this; }, end() { return this; } };
     for (let i = 0; i < 2; i++) {
-      await handler({ method: 'GET', query: {}, body: { PREVIEW_EMAIL_SUPPRESS: 'false' } }, res);
+      await handler({ method: 'GET', headers: { authorization: 'Bearer offline-cron-secret' }, query: {}, body: { PREVIEW_EMAIL_SUPPRESS: 'false' } }, res);
       expect(out.code).toBe(200); suppressed(out.body); expect(out.body.status).not.toBe('done');
     }
     noMailEffects();
+  });
+  it.each(crons.map((module, index) => [index, module.default]))('rejects unauthenticated/spoofed cron calls before suppression or DB work: %i', async (_index, handler) => {
+    for (const headers of [{}, { 'x-vercel-cron': 'true' }, { authorization: 'Bearer wrong-local-token' }]) {
+      const out = { code: 0, body: null };
+      const res = { status(code) { out.code = code; return this; }, json(body) { out.body = body; return this; }, end() { return this; } };
+      await handler({ method: 'GET', headers, query: { token: 'offline-cron-secret' } }, res);
+      expect(out.code).toBe(401); expect(out.body).toMatchObject({ ok: false, code: 'AUTH_REQUIRED' });
+      expect(out.body).not.toHaveProperty('status', 'suppressed');
+    }
+    noMailEffects();
+  });
+  it('retains the authorized flag-off retry sweep success and genuine done marker under mocks', async () => {
+    vi.stubEnv('VERCEL_ENV', 'production');
+    const update = vi.fn(async () => {});
+    const doc = { data: () => ({ ...mail, attempts: 0 }), ref: { update } };
+    const get = vi.fn(async () => ({ empty: false, docs: [doc], size: 1 }));
+    const limit = vi.fn(() => ({ get })), where = vi.fn(() => ({ limit }));
+    effects.db.mockReturnValue({ collection: vi.fn(() => ({ where })) });
+    const out = { code: 0, body: null };
+    const res = { status(code) { out.code = code; return this; }, json(body) { out.body = body; return this; } };
+    await crons[0].default({ method: 'GET', headers: { authorization: 'Bearer offline-cron-secret' }, query: {} }, res);
+    expect(out.code).toBe(200); expect(out.body).toMatchObject({ succeeded: 1, retryAgain: 0 });
+    expect(effects.send).toHaveBeenCalledOnce(); expect(effects.increment).toHaveBeenCalledOnce();
+    expect(update).toHaveBeenCalledWith(expect.objectContaining({ status: 'done', attempts: 1 }));
+    expect(outbound).not.toHaveBeenCalled();
   });
   it.each([['production', 'true'], ['preview', 'false'], ['development', 'true']])('preserves normal SMTP/quota behavior in %s with flag=%s', async (deployment, flag) => {
     vi.stubEnv('VERCEL_ENV', deployment); vi.stubEnv('PREVIEW_EMAIL_SUPPRESS', flag);
