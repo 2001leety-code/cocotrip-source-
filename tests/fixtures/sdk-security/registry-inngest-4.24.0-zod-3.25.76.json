@@ -1,0 +1,1315 @@
+{
+  "sdkVersion": "4.24.0",
+  "zodVersion": "3.25.76",
+  "note": "Original SDK runtime and actual nested Zod; prototype bounds patch does not alter record parsing. Source SHA pinned per site.",
+  "sites": [
+    {
+      "id": "api/schema.js:9",
+      "expression": "z.object({\n\ttype: z.literal(\"data\").optional().default(\"data\"),\n\tdata: z.any().refine((v) => typeof v !== \"undefined\", { message: \"Data in steps must be defined\" })\n}).strict().or(z.object({\n\ttype: z.literal(\"error\").optional().default(\"error\"),\n\terror: jsonErrorSchema\n}).strict()).or(z.object({\n\ttype: z.literal(\"input\").optional().default(\"input\"),\n\tinput: z.any().refine((v) => typeof v !== \"undefined\", { message: \"If input is present it must not be `undefined`\" })\n}).strict()).or(z.any().transform((v) => ({\n\ttype: \"data\",\n\tdata: v\n})))",
+      "sourceSha256": "65632f25c7e34fc1f2070927a80d907204884c3403fc5ada719dfe089548794a",
+      "results": [
+        {
+          "success": false
+        },
+        {
+          "success": false
+        },
+        {
+          "success": false
+        },
+        {
+          "success": false
+        },
+        {
+          "success": true,
+          "data": "/w9vewA="
+        },
+        {
+          "success": true,
+          "data": "/w9vIgNrZXlvIgR0eXBlIgRkYXRhIgRkYXRhIgR0ZXh0ewJ7AQ=="
+        },
+        {
+          "success": true,
+          "data": "/w9vIgNrZXlvIgR0eXBlIgRkYXRhIgRkYXRhSQJ7AnsB"
+        },
+        {
+          "success": true,
+          "data": "/w9vIgNrZXlvIgR0eXBlIgRkYXRhIgRkYXRhRnsCewE="
+        },
+        {
+          "success": true,
+          "data": "/w9vIgNrZXlvIgR0eXBlIgRkYXRhIgRkYXRhMHsCewE="
+        },
+        {
+          "success": true,
+          "data": "/w9vIgNrZXlvIgR0eXBlIgRkYXRhIgRkYXRhX3sCewE="
+        },
+        {
+          "success": true,
+          "data": "/w9vSQBvIgR0eXBlIgRkYXRhIgRkYXRhIgR0ZXh0ewJ7AQ=="
+        },
+        {
+          "success": true,
+          "data": "/w9vIgNrZXlvIgR0eXBlIgRkYXRhIgRkYXRhbyIJYWJvcnRhYmxlVHsBewJ7AQ=="
+        },
+        {
+          "success": true,
+          "data": "/w9vIgNrZXlvIgR0eXBlIgRkYXRhIgRkYXRhbyIJYWJvcnRhYmxlIgNiYWR7AXsCewE="
+        },
+        {
+          "success": true,
+          "data": "/w9vIgNrZXlvIgR0eXBlIgRkYXRhIgRkYXRhSQB7AnsB"
+        },
+        {
+          "success": true,
+          "data": "/w9vIgNrZXlvIgR0eXBlIgVpbnB1dCIFaW5wdXRGewJ7AQ=="
+        },
+        {
+          "success": true,
+          "data": "/w9vIgNrZXlvIgR0eXBlIgVlcnJvciIFZXJyb3JvIgRuYW1lIgVFcnJvciIHbWVzc2FnZSIHZml4dHVyZSIFc3RhY2tfewN7AnsB"
+        },
+        {
+          "success": true,
+          "data": "/w9vIgNrZXlvIgR0eXBlIgRkYXRhIgRkYXRhbyICaWQiAXMiBG5hbWUiBHN0ZXAiB3J1bnRpbWVvIgR0eXBlIgRodHRwIgN1cmwiF2h0dHBzOi8vb2ZmbGluZS5pbnZhbGlkewJ7A3sCewE="
+        },
+        {
+          "success": true,
+          "data": "/w9vIgNrZXlvIgR0eXBlIgRkYXRhIgRkYXRhbyICaWQiAXMiBG5hbWVJAiIHcnVudGltZW8iBHR5cGUiB2ludmFsaWQiA3VybCIXaHR0cHM6Ly9vZmZsaW5lLmludmFsaWR7AnsDewJ7AQ=="
+        },
+        {
+          "success": true,
+          "data": "/w9vIgNrZXlvIgR0eXBlIgRkYXRhIgRkYXRhbyIHdW5rbm93blR7AXsCewE="
+        },
+        {
+          "success": true,
+          "data": "/w9vIgtjb25zdHJ1Y3Rvcm8iBHR5cGUiBGRhdGEiBGRhdGEiBXZhbHVlewJ7AQ=="
+        },
+        {
+          "success": true,
+          "data": "/w9vewA="
+        },
+        {
+          "success": true,
+          "data": "/w9vIgNrZXlvIgR0eXBlIgRkYXRhIgRkYXRhIgR0ZXh0ewJ7AQ=="
+        }
+      ]
+    },
+    {
+      "id": "api/schema.js:22",
+      "expression": "z.any()",
+      "sourceSha256": "65632f25c7e34fc1f2070927a80d907204884c3403fc5ada719dfe089548794a",
+      "results": [
+        {
+          "success": false
+        },
+        {
+          "success": false
+        },
+        {
+          "success": false
+        },
+        {
+          "success": false
+        },
+        {
+          "success": true,
+          "data": "/w9vewA="
+        },
+        {
+          "success": true,
+          "data": "/w9vIgNrZXkiBHRleHR7AQ=="
+        },
+        {
+          "success": true,
+          "data": "/w9vIgNrZXlJAnsB"
+        },
+        {
+          "success": true,
+          "data": "/w9vIgNrZXlGewE="
+        },
+        {
+          "success": true,
+          "data": "/w9vIgNrZXkwewE="
+        },
+        {
+          "success": true,
+          "data": "/w9vIgNrZXlfewE="
+        },
+        {
+          "success": true,
+          "data": "/w9vSQAiBHRleHR7AQ=="
+        },
+        {
+          "success": true,
+          "data": "/w9vIgNrZXlvIglhYm9ydGFibGVUewF7AQ=="
+        },
+        {
+          "success": true,
+          "data": "/w9vIgNrZXlvIglhYm9ydGFibGUiA2JhZHsBewE="
+        },
+        {
+          "success": true,
+          "data": "/w9vIgNrZXlvIgR0eXBlIgRkYXRhIgRkYXRhSQB7AnsB"
+        },
+        {
+          "success": true,
+          "data": "/w9vIgNrZXlvIgR0eXBlIgVpbnB1dCIFaW5wdXRGewJ7AQ=="
+        },
+        {
+          "success": true,
+          "data": "/w9vIgNrZXlvIgR0eXBlIgVlcnJvciIFZXJyb3JvIgRuYW1lIgVFcnJvciIHbWVzc2FnZSIHZml4dHVyZXsCewJ7AQ=="
+        },
+        {
+          "success": true,
+          "data": "/w9vIgNrZXlvIgJpZCIBcyIEbmFtZSIEc3RlcCIHcnVudGltZW8iBHR5cGUiBGh0dHAiA3VybCIXaHR0cHM6Ly9vZmZsaW5lLmludmFsaWR7AnsDewE="
+        },
+        {
+          "success": true,
+          "data": "/w9vIgNrZXlvIgJpZCIBcyIEbmFtZUkCIgdydW50aW1lbyIEdHlwZSIHaW52YWxpZCIDdXJsIhdodHRwczovL29mZmxpbmUuaW52YWxpZHsCewN7AQ=="
+        },
+        {
+          "success": true,
+          "data": "/w9vIgNrZXlvIgd1bmtub3duVHsBewE="
+        },
+        {
+          "success": true,
+          "data": "/w9vIgtjb25zdHJ1Y3RvciIFdmFsdWV7AQ=="
+        },
+        {
+          "success": true,
+          "data": "/w9vewA="
+        },
+        {
+          "success": true,
+          "data": "/w9vIgNrZXkiBHRleHR7AQ=="
+        }
+      ]
+    },
+    {
+      "id": "components/execution/streaming.js:28",
+      "expression": "z.string()",
+      "sourceSha256": "9aac476b373115e7ce38822cdfe6d0bb5faf5fa893460b8eb70442d937da9a14",
+      "results": [
+        {
+          "success": false
+        },
+        {
+          "success": false
+        },
+        {
+          "success": false
+        },
+        {
+          "success": false
+        },
+        {
+          "success": true,
+          "data": "/w9vewA="
+        },
+        {
+          "success": true,
+          "data": "/w9vIgNrZXkiBHRleHR7AQ=="
+        },
+        {
+          "success": false
+        },
+        {
+          "success": false
+        },
+        {
+          "success": false
+        },
+        {
+          "success": false
+        },
+        {
+          "success": true,
+          "data": "/w9vSQAiBHRleHR7AQ=="
+        },
+        {
+          "success": false
+        },
+        {
+          "success": false
+        },
+        {
+          "success": false
+        },
+        {
+          "success": false
+        },
+        {
+          "success": false
+        },
+        {
+          "success": false
+        },
+        {
+          "success": false
+        },
+        {
+          "success": false
+        },
+        {
+          "success": false
+        },
+        {
+          "success": true,
+          "data": "/w9vewA="
+        },
+        {
+          "success": true,
+          "data": "/w9vIgNrZXkiBHRleHR7AQ=="
+        }
+      ]
+    },
+    {
+      "id": "components/InngestStepTools.js:463",
+      "expression": "z.any()",
+      "sourceSha256": "257f254ed3750ebd007da9cb01d2e270653a95ce6f89651f924286a749bab04b",
+      "results": [
+        {
+          "success": false
+        },
+        {
+          "success": false
+        },
+        {
+          "success": false
+        },
+        {
+          "success": false
+        },
+        {
+          "success": true,
+          "data": "/w9vewA="
+        },
+        {
+          "success": true,
+          "data": "/w9vIgNrZXkiBHRleHR7AQ=="
+        },
+        {
+          "success": true,
+          "data": "/w9vIgNrZXlJAnsB"
+        },
+        {
+          "success": true,
+          "data": "/w9vIgNrZXlGewE="
+        },
+        {
+          "success": true,
+          "data": "/w9vIgNrZXkwewE="
+        },
+        {
+          "success": true,
+          "data": "/w9vIgNrZXlfewE="
+        },
+        {
+          "success": true,
+          "data": "/w9vSQAiBHRleHR7AQ=="
+        },
+        {
+          "success": true,
+          "data": "/w9vIgNrZXlvIglhYm9ydGFibGVUewF7AQ=="
+        },
+        {
+          "success": true,
+          "data": "/w9vIgNrZXlvIglhYm9ydGFibGUiA2JhZHsBewE="
+        },
+        {
+          "success": true,
+          "data": "/w9vIgNrZXlvIgR0eXBlIgRkYXRhIgRkYXRhSQB7AnsB"
+        },
+        {
+          "success": true,
+          "data": "/w9vIgNrZXlvIgR0eXBlIgVpbnB1dCIFaW5wdXRGewJ7AQ=="
+        },
+        {
+          "success": true,
+          "data": "/w9vIgNrZXlvIgR0eXBlIgVlcnJvciIFZXJyb3JvIgRuYW1lIgVFcnJvciIHbWVzc2FnZSIHZml4dHVyZXsCewJ7AQ=="
+        },
+        {
+          "success": true,
+          "data": "/w9vIgNrZXlvIgJpZCIBcyIEbmFtZSIEc3RlcCIHcnVudGltZW8iBHR5cGUiBGh0dHAiA3VybCIXaHR0cHM6Ly9vZmZsaW5lLmludmFsaWR7AnsDewE="
+        },
+        {
+          "success": true,
+          "data": "/w9vIgNrZXlvIgJpZCIBcyIEbmFtZUkCIgdydW50aW1lbyIEdHlwZSIHaW52YWxpZCIDdXJsIhdodHRwczovL29mZmxpbmUuaW52YWxpZHsCewN7AQ=="
+        },
+        {
+          "success": true,
+          "data": "/w9vIgNrZXlvIgd1bmtub3duVHsBewE="
+        },
+        {
+          "success": true,
+          "data": "/w9vIgtjb25zdHJ1Y3RvciIFdmFsdWV7AQ=="
+        },
+        {
+          "success": true,
+          "data": "/w9vewA="
+        },
+        {
+          "success": true,
+          "data": "/w9vIgNrZXkiBHRleHR7AQ=="
+        }
+      ]
+    },
+    {
+      "id": "components/InngestStepTools.js:466",
+      "expression": "z.any()",
+      "sourceSha256": "257f254ed3750ebd007da9cb01d2e270653a95ce6f89651f924286a749bab04b",
+      "results": [
+        {
+          "success": false
+        },
+        {
+          "success": false
+        },
+        {
+          "success": false
+        },
+        {
+          "success": false
+        },
+        {
+          "success": true,
+          "data": "/w9vewA="
+        },
+        {
+          "success": true,
+          "data": "/w9vIgNrZXkiBHRleHR7AQ=="
+        },
+        {
+          "success": true,
+          "data": "/w9vIgNrZXlJAnsB"
+        },
+        {
+          "success": true,
+          "data": "/w9vIgNrZXlGewE="
+        },
+        {
+          "success": true,
+          "data": "/w9vIgNrZXkwewE="
+        },
+        {
+          "success": true,
+          "data": "/w9vIgNrZXlfewE="
+        },
+        {
+          "success": true,
+          "data": "/w9vSQAiBHRleHR7AQ=="
+        },
+        {
+          "success": true,
+          "data": "/w9vIgNrZXlvIglhYm9ydGFibGVUewF7AQ=="
+        },
+        {
+          "success": true,
+          "data": "/w9vIgNrZXlvIglhYm9ydGFibGUiA2JhZHsBewE="
+        },
+        {
+          "success": true,
+          "data": "/w9vIgNrZXlvIgR0eXBlIgRkYXRhIgRkYXRhSQB7AnsB"
+        },
+        {
+          "success": true,
+          "data": "/w9vIgNrZXlvIgR0eXBlIgVpbnB1dCIFaW5wdXRGewJ7AQ=="
+        },
+        {
+          "success": true,
+          "data": "/w9vIgNrZXlvIgR0eXBlIgVlcnJvciIFZXJyb3JvIgRuYW1lIgVFcnJvciIHbWVzc2FnZSIHZml4dHVyZXsCewJ7AQ=="
+        },
+        {
+          "success": true,
+          "data": "/w9vIgNrZXlvIgJpZCIBcyIEbmFtZSIEc3RlcCIHcnVudGltZW8iBHR5cGUiBGh0dHAiA3VybCIXaHR0cHM6Ly9vZmZsaW5lLmludmFsaWR7AnsDewE="
+        },
+        {
+          "success": true,
+          "data": "/w9vIgNrZXlvIgJpZCIBcyIEbmFtZUkCIgdydW50aW1lbyIEdHlwZSIHaW52YWxpZCIDdXJsIhdodHRwczovL29mZmxpbmUuaW52YWxpZHsCewN7AQ=="
+        },
+        {
+          "success": true,
+          "data": "/w9vIgNrZXlvIgd1bmtub3duVHsBewE="
+        },
+        {
+          "success": true,
+          "data": "/w9vIgtjb25zdHJ1Y3RvciIFdmFsdWV7AQ=="
+        },
+        {
+          "success": true,
+          "data": "/w9vewA="
+        },
+        {
+          "success": true,
+          "data": "/w9vIgNrZXkiBHRleHR7AQ=="
+        }
+      ]
+    },
+    {
+      "id": "components/InngestStepTools.js:467",
+      "expression": "z.union([z.string(), z.number()])",
+      "sourceSha256": "257f254ed3750ebd007da9cb01d2e270653a95ce6f89651f924286a749bab04b",
+      "results": [
+        {
+          "success": false
+        },
+        {
+          "success": false
+        },
+        {
+          "success": false
+        },
+        {
+          "success": false
+        },
+        {
+          "success": true,
+          "data": "/w9vewA="
+        },
+        {
+          "success": true,
+          "data": "/w9vIgNrZXkiBHRleHR7AQ=="
+        },
+        {
+          "success": true,
+          "data": "/w9vIgNrZXlJAnsB"
+        },
+        {
+          "success": false
+        },
+        {
+          "success": false
+        },
+        {
+          "success": false
+        },
+        {
+          "success": true,
+          "data": "/w9vSQAiBHRleHR7AQ=="
+        },
+        {
+          "success": false
+        },
+        {
+          "success": false
+        },
+        {
+          "success": false
+        },
+        {
+          "success": false
+        },
+        {
+          "success": false
+        },
+        {
+          "success": false
+        },
+        {
+          "success": false
+        },
+        {
+          "success": false
+        },
+        {
+          "success": false
+        },
+        {
+          "success": true,
+          "data": "/w9vewA="
+        },
+        {
+          "success": true,
+          "data": "/w9vIgNrZXkiBHRleHR7AQ=="
+        }
+      ]
+    },
+    {
+      "id": "components/sandbox/protocol.js:20",
+      "expression": "z.string()",
+      "sourceSha256": "ba459663b8a59c2ccefcad1766bbab2847bc71849956ff5b63a124cd08536c79",
+      "results": [
+        {
+          "success": false
+        },
+        {
+          "success": false
+        },
+        {
+          "success": false
+        },
+        {
+          "success": false
+        },
+        {
+          "success": true,
+          "data": "/w9vewA="
+        },
+        {
+          "success": true,
+          "data": "/w9vIgNrZXkiBHRleHR7AQ=="
+        },
+        {
+          "success": false
+        },
+        {
+          "success": false
+        },
+        {
+          "success": false
+        },
+        {
+          "success": false
+        },
+        {
+          "success": true,
+          "data": "/w9vSQAiBHRleHR7AQ=="
+        },
+        {
+          "success": false
+        },
+        {
+          "success": false
+        },
+        {
+          "success": false
+        },
+        {
+          "success": false
+        },
+        {
+          "success": false
+        },
+        {
+          "success": false
+        },
+        {
+          "success": false
+        },
+        {
+          "success": false
+        },
+        {
+          "success": false
+        },
+        {
+          "success": true,
+          "data": "/w9vewA="
+        },
+        {
+          "success": true,
+          "data": "/w9vIgNrZXkiBHRleHR7AQ=="
+        }
+      ]
+    },
+    {
+      "id": "components/sandbox/protocol.js:49",
+      "expression": "z.string()",
+      "sourceSha256": "ba459663b8a59c2ccefcad1766bbab2847bc71849956ff5b63a124cd08536c79",
+      "results": [
+        {
+          "success": false
+        },
+        {
+          "success": false
+        },
+        {
+          "success": false
+        },
+        {
+          "success": false
+        },
+        {
+          "success": true,
+          "data": "/w9vewA="
+        },
+        {
+          "success": true,
+          "data": "/w9vIgNrZXkiBHRleHR7AQ=="
+        },
+        {
+          "success": false
+        },
+        {
+          "success": false
+        },
+        {
+          "success": false
+        },
+        {
+          "success": false
+        },
+        {
+          "success": true,
+          "data": "/w9vSQAiBHRleHR7AQ=="
+        },
+        {
+          "success": false
+        },
+        {
+          "success": false
+        },
+        {
+          "success": false
+        },
+        {
+          "success": false
+        },
+        {
+          "success": false
+        },
+        {
+          "success": false
+        },
+        {
+          "success": false
+        },
+        {
+          "success": false
+        },
+        {
+          "success": false
+        },
+        {
+          "success": true,
+          "data": "/w9vewA="
+        },
+        {
+          "success": true,
+          "data": "/w9vIgNrZXkiBHRleHR7AQ=="
+        }
+      ]
+    },
+    {
+      "id": "components/sandbox/protocol.js:400",
+      "expression": "z.unknown()",
+      "sourceSha256": "ba459663b8a59c2ccefcad1766bbab2847bc71849956ff5b63a124cd08536c79",
+      "results": [
+        {
+          "success": false
+        },
+        {
+          "success": false
+        },
+        {
+          "success": false
+        },
+        {
+          "success": false
+        },
+        {
+          "success": true,
+          "data": "/w9vewA="
+        },
+        {
+          "success": true,
+          "data": "/w9vIgNrZXkiBHRleHR7AQ=="
+        },
+        {
+          "success": true,
+          "data": "/w9vIgNrZXlJAnsB"
+        },
+        {
+          "success": true,
+          "data": "/w9vIgNrZXlGewE="
+        },
+        {
+          "success": true,
+          "data": "/w9vIgNrZXkwewE="
+        },
+        {
+          "success": true,
+          "data": "/w9vIgNrZXlfewE="
+        },
+        {
+          "success": true,
+          "data": "/w9vSQAiBHRleHR7AQ=="
+        },
+        {
+          "success": true,
+          "data": "/w9vIgNrZXlvIglhYm9ydGFibGVUewF7AQ=="
+        },
+        {
+          "success": true,
+          "data": "/w9vIgNrZXlvIglhYm9ydGFibGUiA2JhZHsBewE="
+        },
+        {
+          "success": true,
+          "data": "/w9vIgNrZXlvIgR0eXBlIgRkYXRhIgRkYXRhSQB7AnsB"
+        },
+        {
+          "success": true,
+          "data": "/w9vIgNrZXlvIgR0eXBlIgVpbnB1dCIFaW5wdXRGewJ7AQ=="
+        },
+        {
+          "success": true,
+          "data": "/w9vIgNrZXlvIgR0eXBlIgVlcnJvciIFZXJyb3JvIgRuYW1lIgVFcnJvciIHbWVzc2FnZSIHZml4dHVyZXsCewJ7AQ=="
+        },
+        {
+          "success": true,
+          "data": "/w9vIgNrZXlvIgJpZCIBcyIEbmFtZSIEc3RlcCIHcnVudGltZW8iBHR5cGUiBGh0dHAiA3VybCIXaHR0cHM6Ly9vZmZsaW5lLmludmFsaWR7AnsDewE="
+        },
+        {
+          "success": true,
+          "data": "/w9vIgNrZXlvIgJpZCIBcyIEbmFtZUkCIgdydW50aW1lbyIEdHlwZSIHaW52YWxpZCIDdXJsIhdodHRwczovL29mZmxpbmUuaW52YWxpZHsCewN7AQ=="
+        },
+        {
+          "success": true,
+          "data": "/w9vIgNrZXlvIgd1bmtub3duVHsBewE="
+        },
+        {
+          "success": true,
+          "data": "/w9vIgtjb25zdHJ1Y3RvciIFdmFsdWV7AQ=="
+        },
+        {
+          "success": true,
+          "data": "/w9vewA="
+        },
+        {
+          "success": true,
+          "data": "/w9vIgNrZXkiBHRleHR7AQ=="
+        }
+      ]
+    },
+    {
+      "id": "components/sandbox/validation.js:290",
+      "expression": "z.string()",
+      "sourceSha256": "78ba597515db59f5df44a813b7c5ff674b270301c924249fdaa68fe2908906ac",
+      "results": [
+        {
+          "success": false
+        },
+        {
+          "success": false
+        },
+        {
+          "success": false
+        },
+        {
+          "success": false
+        },
+        {
+          "success": true,
+          "data": "/w9vewA="
+        },
+        {
+          "success": true,
+          "data": "/w9vIgNrZXkiBHRleHR7AQ=="
+        },
+        {
+          "success": false
+        },
+        {
+          "success": false
+        },
+        {
+          "success": false
+        },
+        {
+          "success": false
+        },
+        {
+          "success": true,
+          "data": "/w9vSQAiBHRleHR7AQ=="
+        },
+        {
+          "success": false
+        },
+        {
+          "success": false
+        },
+        {
+          "success": false
+        },
+        {
+          "success": false
+        },
+        {
+          "success": false
+        },
+        {
+          "success": false
+        },
+        {
+          "success": false
+        },
+        {
+          "success": false
+        },
+        {
+          "success": false
+        },
+        {
+          "success": true,
+          "data": "/w9vewA="
+        },
+        {
+          "success": true,
+          "data": "/w9vIgNrZXkiBHRleHR7AQ=="
+        }
+      ]
+    },
+    {
+      "id": "components/sandbox/validation.js:348",
+      "expression": "z.string()",
+      "sourceSha256": "78ba597515db59f5df44a813b7c5ff674b270301c924249fdaa68fe2908906ac",
+      "results": [
+        {
+          "success": false
+        },
+        {
+          "success": false
+        },
+        {
+          "success": false
+        },
+        {
+          "success": false
+        },
+        {
+          "success": true,
+          "data": "/w9vewA="
+        },
+        {
+          "success": true,
+          "data": "/w9vIgNrZXkiBHRleHR7AQ=="
+        },
+        {
+          "success": false
+        },
+        {
+          "success": false
+        },
+        {
+          "success": false
+        },
+        {
+          "success": false
+        },
+        {
+          "success": true,
+          "data": "/w9vSQAiBHRleHR7AQ=="
+        },
+        {
+          "success": false
+        },
+        {
+          "success": false
+        },
+        {
+          "success": false
+        },
+        {
+          "success": false
+        },
+        {
+          "success": false
+        },
+        {
+          "success": false
+        },
+        {
+          "success": false
+        },
+        {
+          "success": false
+        },
+        {
+          "success": false
+        },
+        {
+          "success": true,
+          "data": "/w9vewA="
+        },
+        {
+          "success": true,
+          "data": "/w9vIgNrZXkiBHRleHR7AQ=="
+        }
+      ]
+    },
+    {
+      "id": "helpers/functions.js:58",
+      "expression": "z.any()",
+      "sourceSha256": "21976242587aa0a842df6a772f725955cf1ec42474c6bc7f13cbbdefc051a96f",
+      "results": [
+        {
+          "success": false
+        },
+        {
+          "success": false
+        },
+        {
+          "success": false
+        },
+        {
+          "success": false
+        },
+        {
+          "success": true,
+          "data": "/w9vewA="
+        },
+        {
+          "success": true,
+          "data": "/w9vIgNrZXkiBHRleHR7AQ=="
+        },
+        {
+          "success": true,
+          "data": "/w9vIgNrZXlJAnsB"
+        },
+        {
+          "success": true,
+          "data": "/w9vIgNrZXlGewE="
+        },
+        {
+          "success": true,
+          "data": "/w9vIgNrZXkwewE="
+        },
+        {
+          "success": true,
+          "data": "/w9vIgNrZXlfewE="
+        },
+        {
+          "success": true,
+          "data": "/w9vSQAiBHRleHR7AQ=="
+        },
+        {
+          "success": true,
+          "data": "/w9vIgNrZXlvIglhYm9ydGFibGVUewF7AQ=="
+        },
+        {
+          "success": true,
+          "data": "/w9vIgNrZXlvIglhYm9ydGFibGUiA2JhZHsBewE="
+        },
+        {
+          "success": true,
+          "data": "/w9vIgNrZXlvIgR0eXBlIgRkYXRhIgRkYXRhSQB7AnsB"
+        },
+        {
+          "success": true,
+          "data": "/w9vIgNrZXlvIgR0eXBlIgVpbnB1dCIFaW5wdXRGewJ7AQ=="
+        },
+        {
+          "success": true,
+          "data": "/w9vIgNrZXlvIgR0eXBlIgVlcnJvciIFZXJyb3JvIgRuYW1lIgVFcnJvciIHbWVzc2FnZSIHZml4dHVyZXsCewJ7AQ=="
+        },
+        {
+          "success": true,
+          "data": "/w9vIgNrZXlvIgJpZCIBcyIEbmFtZSIEc3RlcCIHcnVudGltZW8iBHR5cGUiBGh0dHAiA3VybCIXaHR0cHM6Ly9vZmZsaW5lLmludmFsaWR7AnsDewE="
+        },
+        {
+          "success": true,
+          "data": "/w9vIgNrZXlvIgJpZCIBcyIEbmFtZUkCIgdydW50aW1lbyIEdHlwZSIHaW52YWxpZCIDdXJsIhdodHRwczovL29mZmxpbmUuaW52YWxpZHsCewN7AQ=="
+        },
+        {
+          "success": true,
+          "data": "/w9vIgNrZXlvIgd1bmtub3duVHsBewE="
+        },
+        {
+          "success": true,
+          "data": "/w9vIgtjb25zdHJ1Y3RvciIFdmFsdWV7AQ=="
+        },
+        {
+          "success": true,
+          "data": "/w9vewA="
+        },
+        {
+          "success": true,
+          "data": "/w9vIgNrZXkiBHRleHR7AQ=="
+        }
+      ]
+    },
+    {
+      "id": "helpers/functions.js:59",
+      "expression": "z.any()",
+      "sourceSha256": "21976242587aa0a842df6a772f725955cf1ec42474c6bc7f13cbbdefc051a96f",
+      "results": [
+        {
+          "success": false
+        },
+        {
+          "success": false
+        },
+        {
+          "success": false
+        },
+        {
+          "success": false
+        },
+        {
+          "success": true,
+          "data": "/w9vewA="
+        },
+        {
+          "success": true,
+          "data": "/w9vIgNrZXkiBHRleHR7AQ=="
+        },
+        {
+          "success": true,
+          "data": "/w9vIgNrZXlJAnsB"
+        },
+        {
+          "success": true,
+          "data": "/w9vIgNrZXlGewE="
+        },
+        {
+          "success": true,
+          "data": "/w9vIgNrZXkwewE="
+        },
+        {
+          "success": true,
+          "data": "/w9vIgNrZXlfewE="
+        },
+        {
+          "success": true,
+          "data": "/w9vSQAiBHRleHR7AQ=="
+        },
+        {
+          "success": true,
+          "data": "/w9vIgNrZXlvIglhYm9ydGFibGVUewF7AQ=="
+        },
+        {
+          "success": true,
+          "data": "/w9vIgNrZXlvIglhYm9ydGFibGUiA2JhZHsBewE="
+        },
+        {
+          "success": true,
+          "data": "/w9vIgNrZXlvIgR0eXBlIgRkYXRhIgRkYXRhSQB7AnsB"
+        },
+        {
+          "success": true,
+          "data": "/w9vIgNrZXlvIgR0eXBlIgVpbnB1dCIFaW5wdXRGewJ7AQ=="
+        },
+        {
+          "success": true,
+          "data": "/w9vIgNrZXlvIgR0eXBlIgVlcnJvciIFZXJyb3JvIgRuYW1lIgVFcnJvciIHbWVzc2FnZSIHZml4dHVyZXsCewJ7AQ=="
+        },
+        {
+          "success": true,
+          "data": "/w9vIgNrZXlvIgJpZCIBcyIEbmFtZSIEc3RlcCIHcnVudGltZW8iBHR5cGUiBGh0dHAiA3VybCIXaHR0cHM6Ly9vZmZsaW5lLmludmFsaWR7AnsDewE="
+        },
+        {
+          "success": true,
+          "data": "/w9vIgNrZXlvIgJpZCIBcyIEbmFtZUkCIgdydW50aW1lbyIEdHlwZSIHaW52YWxpZCIDdXJsIhdodHRwczovL29mZmxpbmUuaW52YWxpZHsCewN7AQ=="
+        },
+        {
+          "success": true,
+          "data": "/w9vIgNrZXlvIgd1bmtub3duVHsBewE="
+        },
+        {
+          "success": true,
+          "data": "/w9vIgtjb25zdHJ1Y3RvciIFdmFsdWV7AQ=="
+        },
+        {
+          "success": true,
+          "data": "/w9vewA="
+        },
+        {
+          "success": true,
+          "data": "/w9vIgNrZXkiBHRleHR7AQ=="
+        }
+      ]
+    },
+    {
+      "id": "helpers/functions.js:61",
+      "expression": "z.object({ abortable: z.boolean().optional() })",
+      "sourceSha256": "21976242587aa0a842df6a772f725955cf1ec42474c6bc7f13cbbdefc051a96f",
+      "results": [
+        {
+          "success": false
+        },
+        {
+          "success": false
+        },
+        {
+          "success": false
+        },
+        {
+          "success": false
+        },
+        {
+          "success": true,
+          "data": "/w9vewA="
+        },
+        {
+          "success": false
+        },
+        {
+          "success": false
+        },
+        {
+          "success": false
+        },
+        {
+          "success": false
+        },
+        {
+          "success": false
+        },
+        {
+          "success": false
+        },
+        {
+          "success": true,
+          "data": "/w9vIgNrZXlvIglhYm9ydGFibGVUewF7AQ=="
+        },
+        {
+          "success": false
+        },
+        {
+          "success": true,
+          "data": "/w9vIgNrZXlvewB7AQ=="
+        },
+        {
+          "success": true,
+          "data": "/w9vIgNrZXlvewB7AQ=="
+        },
+        {
+          "success": true,
+          "data": "/w9vIgNrZXlvewB7AQ=="
+        },
+        {
+          "success": true,
+          "data": "/w9vIgNrZXlvewB7AQ=="
+        },
+        {
+          "success": true,
+          "data": "/w9vIgNrZXlvewB7AQ=="
+        },
+        {
+          "success": true,
+          "data": "/w9vIgNrZXlvewB7AQ=="
+        },
+        {
+          "success": false
+        },
+        {
+          "success": true,
+          "data": "/w9vewA="
+        },
+        {
+          "success": false
+        }
+      ]
+    },
+    {
+      "id": "types.js:198",
+      "expression": "z.strictObject({\n\t\tid: z.string(),\n\t\tname: z.string(),\n\t\truntime: z.strictObject({\n\t\t\ttype: z.union([z.literal(\"http\"), z.literal(\"ws\")]),\n\t\t\turl: z.string()\n\t\t}),\n\t\tretries: z.strictObject({ attempts: z.number().optional() }).optional()\n\t})",
+      "sourceSha256": "6534f5a32b0b086bd0301047e9bab2733e07151bb748a552dbb8e9af3c6673a5",
+      "results": [
+        {
+          "success": false
+        },
+        {
+          "success": false
+        },
+        {
+          "success": false
+        },
+        {
+          "success": false
+        },
+        {
+          "success": true,
+          "data": "/w9vewA="
+        },
+        {
+          "success": false
+        },
+        {
+          "success": false
+        },
+        {
+          "success": false
+        },
+        {
+          "success": false
+        },
+        {
+          "success": false
+        },
+        {
+          "success": false
+        },
+        {
+          "success": false
+        },
+        {
+          "success": false
+        },
+        {
+          "success": false
+        },
+        {
+          "success": false
+        },
+        {
+          "success": false
+        },
+        {
+          "success": true,
+          "data": "/w9vIgNrZXlvIgJpZCIBcyIEbmFtZSIEc3RlcCIHcnVudGltZW8iBHR5cGUiBGh0dHAiA3VybCIXaHR0cHM6Ly9vZmZsaW5lLmludmFsaWR7AnsDewE="
+        },
+        {
+          "success": false
+        },
+        {
+          "success": false
+        },
+        {
+          "success": false
+        },
+        {
+          "success": true,
+          "data": "/w9vewA="
+        },
+        {
+          "success": false
+        }
+      ]
+    }
+  ],
+  "corpus": {
+    "worker": {
+      "normal": "/w9vIgd2ZXJzaW9uSQQiCnNka0RlY2lkZWRGIgVldmVudG8iBG5hbWUiEHBsYW4vYWkuY29tcGxldGUiBGRhdGFvIgZwbGFuSWQiC3NlcnZlci1wbGFuewF7AiIGZXZlbnRzQQFvIgRuYW1lIhBwbGFuL2FpLmNvbXBsZXRlIgRkYXRhbyIGcGxhbklkIgtzZXJ2ZXItcGxhbnsBewIkAAEiBXN0ZXBzb3sAIgZkZWZlcnNvewAiA2N0eG8iBnJ1bl9pZCILb2ZmbGluZS1ydW4iB2F0dGVtcHRJACIbZGlzYWJsZV9pbW1lZGlhdGVfZXhlY3V0aW9uRiIHdXNlX2FwaUZ7BHsH",
+      "default events and steps": "/w9vIgd2ZXJzaW9uSQQiCnNka0RlY2lkZWRGIgVldmVudG8iBG5hbWUiEHBsYW4vYWkuY29tcGxldGUiBGRhdGFvIgZwbGFuSWQiC3NlcnZlci1wbGFuewF7AiIGZXZlbnRzQQAkAAAiBXN0ZXBzb3sAIgZkZWZlcnNvewB7Bg==",
+      "default version": "/w9vIgd2ZXJzaW9uSQQiCnNka0RlY2lkZWRUIgVldmVudG8iBG5hbWUiEHBsYW4vYWkuY29tcGxldGUiBGRhdGFvIgZwbGFuSWQiC3NlcnZlci1wbGFuewF7AiIGZXZlbnRzQQAkAAAiBXN0ZXBzb3sAIgZkZWZlcnNvewB7Bg==",
+      "version one": "/w9vIgd2ZXJzaW9uSQIiCnNka0RlY2lkZWRGIgVldmVudG8iBG5hbWUiEHBsYW4vYWkuY29tcGxldGUiBGRhdGFvIgZwbGFuSWQiC3NlcnZlci1wbGFuewF7AiIGZXZlbnRzQQFvIgRuYW1lIhBwbGFuL2FpLmNvbXBsZXRlIgRkYXRhbyIGcGxhbklkIgtzZXJ2ZXItcGxhbnsBewIkAAEiBXN0ZXBzb3sAIgZkZWZlcnNvewAiA2N0eG8iBnJ1bl9pZCILb2ZmbGluZS1ydW4iB2F0dGVtcHRJACIbZGlzYWJsZV9pbW1lZGlhdGVfZXhlY3V0aW9uRiIHdXNlX2FwaUZ7BHsH",
+      "null context": "/w9vIgd2ZXJzaW9uSQQiCnNka0RlY2lkZWRGIgVldmVudG8iBG5hbWUiEHBsYW4vYWkuY29tcGxldGUiBGRhdGFvIgZwbGFuSWQiC3NlcnZlci1wbGFuewF7AiIGZXZlbnRzQQFvIgRuYW1lIhBwbGFuL2FpLmNvbXBsZXRlIgRkYXRhbyIGcGxhbklkIgtzZXJ2ZXItcGxhbnsBewIkAAEiBXN0ZXBzb3sAIgZkZWZlcnNvewAiA2N0eDB7Bw==",
+      "empty valid records": "/w9vIgd2ZXJzaW9uSQQiCnNka0RlY2lkZWRGIgVldmVudG97ACIGZXZlbnRzQQFvewAkAAEiBXN0ZXBzb3sAIgZkZWZlcnNvewAiA2N0eG8iBnJ1bl9pZCIBciIHYXR0ZW1wdEkAIhtkaXNhYmxlX2ltbWVkaWF0ZV9leGVjdXRpb25GIgd1c2VfYXBpRiIFc3RhY2swewV7Bw==",
+      "context and step defaults": "/w9vIgd2ZXJzaW9uSQQiCnNka0RlY2lkZWRGIgVldmVudG8iBG5hbWUiEHBsYW4vYWkuY29tcGxldGUiBGRhdGFvIgZwbGFuSWQiC3NlcnZlci1wbGFuewF7AiIGZXZlbnRzQQFvIgRuYW1lIhBwbGFuL2FpLmNvbXBsZXRlIgRkYXRhbyIGcGxhbklkIgtzZXJ2ZXItcGxhbnsBewIkAAEiBXN0ZXBzbyIFZmlyc3RvIgR0eXBlIgRkYXRhIgRkYXRhSfYBewJ7ASIGZGVmZXJzb3sAIgNjdHhvIgZydW5faWQiAXIiB2F0dGVtcHRJACIbZGlzYWJsZV9pbW1lZGlhdGVfZXhlY3V0aW9uRiIHdXNlX2FwaUYiBXN0YWNrbyIFc3RhY2tBACQAACIHY3VycmVudEkAewJ7BXsH",
+      "record input and error variants": "/w9vIgd2ZXJzaW9uSQQiCnNka0RlY2lkZWRGIgVldmVudG8iBG5hbWUiEHBsYW4vYWkuY29tcGxldGUiBGRhdGFvIgZwbGFuSWQiC3NlcnZlci1wbGFuewF7AiIGZXZlbnRzQQFvIgRuYW1lIhBwbGFuL2FpLmNvbXBsZXRlIgRkYXRhbyIGcGxhbklkIgtzZXJ2ZXItcGxhbnsBewIkAAEiBXN0ZXBzbyIFZmlyc3RvIgR0eXBlIgVpbnB1dCIFaW5wdXQwewIiBnNlY29uZG8iBHR5cGUiBWVycm9yIgVlcnJvcm8iBG5hbWUiBUVycm9yIgdtZXNzYWdlIgdvZmZsaW5lIgRjb2RlIgFYIgVzdGFja197BHsCewIiBmRlZmVyc297ACIDY3R4byIGcnVuX2lkIgtvZmZsaW5lLXJ1biIHYXR0ZW1wdEkAIhtkaXNhYmxlX2ltbWVkaWF0ZV9leGVjdXRpb25GIgd1c2VfYXBpRnsEewc=",
+      "additional protocol fields": "/w9vIgd2ZXJzaW9uSQQiCnNka0RlY2lkZWRGIgVldmVudG8iBG5hbWUiEHBsYW4vYWkuY29tcGxldGUiBGRhdGFvIgZwbGFuSWQiC3NlcnZlci1wbGFuewF7AiIGZXZlbnRzQQFvIgRuYW1lIhBwbGFuL2FpLmNvbXBsZXRlIgRkYXRhbyIGcGxhbklkIgtzZXJ2ZXItcGxhbnsBewIkAAEiBXN0ZXBzb3sAIgZkZWZlcnNvewAiA2N0eG8iBnJ1bl9pZCILb2ZmbGluZS1ydW4iB2F0dGVtcHRJAiIMbWF4X2F0dGVtcHRzSQYiG2Rpc2FibGVfaW1tZWRpYXRlX2V4ZWN1dGlvbkYiB3VzZV9hcGlGIgVxaV9pZCIBcXsGewc=",
+      "defers": "/w9vIgd2ZXJzaW9uSQQiCnNka0RlY2lkZWRGIgVldmVudG8iBG5hbWUiEHBsYW4vYWkuY29tcGxldGUiBGRhdGFvIgZwbGFuSWQiC3NlcnZlci1wbGFuewF7AiIGZXZlbnRzQQFvIgRuYW1lIhBwbGFuL2FpLmNvbXBsZXRlIgRkYXRhbyIGcGxhbklkIgtzZXJ2ZXItcGxhbnsBewIkAAEiBXN0ZXBzb3sAIgZkZWZlcnNvIgNvcDFvIglhYm9ydGFibGVUewEiA29wMm97AHsCIgNjdHhvIgZydW5faWQiC29mZmxpbmUtcnVuIgdhdHRlbXB0SQAiG2Rpc2FibGVfaW1tZWRpYXRlX2V4ZWN1dGlvbkYiB3VzZV9hcGlGewR7Bw=="
+    },
+    "hydration": {
+      "empty batch": "/w9BACQAAA==",
+      "event batch": "/w9BAW8iBG5hbWUiAWEiBGRhdGFvIgNkYXlJAnsBewIkAAE=",
+      "step-data": "/w9vIgFhbyIEdHlwZSIEZGF0YSIEZGF0YTB7AnsB",
+      "step-input": "/w9vIgFhbyIEdHlwZSIFaW5wdXQiBWlucHV0RnsCewE=",
+      "step-error": "/w9vIgFhbyIEdHlwZSIFZXJyb3IiBWVycm9ybyIEbmFtZSIFRXJyb3IiB21lc3NhZ2UiBG5vcGUiBXN0YWNrX3sDewJ7AQ=="
+    },
+    "errors": [
+      "/w9vIgRuYW1lIgVFcnJvciIHbWVzc2FnZSIJdHJhbnNpZW50IgVzdGFjayIFZml4ZWQiBWNhdXNlbyIEbmFtZSIFRXJyb3IiB21lc3NhZ2UiBWNhdXNlewIiBGNvZGUiB09GRkxJTkV7BQ==",
+      "/w9vIgRuYW1lIhFOb25SZXRyaWFibGVFcnJvciIHbWVzc2FnZSIHcmVmdXNhbCIHZGV0YWlsc0EBIgdkYXkgb25lJAABIgpyZXRyeUFmdGVyIgIxbSIFc3RhY2tfewU=",
+      "/w9vIgVlcnJvciIMbGVnYWN5IGVycm9yIgdtZXNzYWdlIg5sZWdhY3kgbWVzc2FnZSIEbmFtZSIFRXJyb3IiBXN0YWNrX3sE"
+    ]
+  },
+  "realtime": [
+    {
+      "input": "/w9vIgRraW5kIgRwaW5newE=",
+      "output": "/w9vIgRraW5kIgRwaW5nIgRkYXRhX3sC"
+    },
+    {
+      "input": "/w9vIgRraW5kIgRwaW5nIgRkYXRhX3sC",
+      "output": "/w9vIgRraW5kIgRwaW5nIgRkYXRhX3sC"
+    },
+    {
+      "input": "/w9vIgRraW5kIgRwaW5nIgRkYXRhMHsC",
+      "output": "/w9vIgRraW5kIgRwaW5nIgRkYXRhX3sC"
+    },
+    {
+      "input": "/w9vIgRraW5kIgRwaW5nIgpjcmVhdGVkX2F0IhQyMDI2LTExLTAzVDAwOjAwOjAwWiIEZGF0YUkCewM=",
+      "output": "/w9vIgpjcmVhdGVkX2F0RAAAAErrGXpCIgRraW5kIgRwaW5nIgRkYXRhSQJ7Aw=="
+    }
+  ]
+}

@@ -1,0 +1,3967 @@
+{
+  "sdkVersion": "4.24.0",
+  "zodVersion": "4.6.7",
+  "advisory": "GHSA-mrhx-c7xc-m3w5",
+  "files": [
+    {
+      "file": "api/api.cjs",
+      "beforeSha256": "66a187882da75b24c642ecb91f87916f8c086dd156b95ea56c9435ae26a5c3c0",
+      "afterSha256": "e362c2b714de3847292590aeea89d1c930955b9b49419e377725543862a8d60d",
+      "edits": [
+        {
+          "start": 527,
+          "before": "",
+          "after": "../_cocotrip-"
+        },
+        {
+          "start": 530,
+          "before": "/",
+          "after": "-"
+        },
+        {
+          "start": 532,
+          "before": "3",
+          "after": "4.cjs"
+        }
+      ]
+    },
+    {
+      "file": "api/api.js",
+      "beforeSha256": "522d7d48d03afdb9c0b31ffc7080b7336fa6cb1049211c63ceac64b459aa4e6d",
+      "afterSha256": "c44668b6518d90697447d2806a76134141d471073c40ae5a2b425afc414a89a1",
+      "edits": [
+        {
+          "start": 439,
+          "before": "",
+          "after": "../_cocotrip-"
+        },
+        {
+          "start": 442,
+          "before": "/",
+          "after": "-"
+        },
+        {
+          "start": 444,
+          "before": "3",
+          "after": "4.js"
+        }
+      ]
+    },
+    {
+      "file": "api/schema.cjs",
+      "beforeSha256": "d860933106118cec4b992b4d9dde81907139a7000f6bc732ee3a57b474a979ec",
+      "afterSha256": "110e690a35a4fc9712b51c5f644542c862f8388518ab56ca7d96280774c88725",
+      "edits": [
+        {
+          "start": 147,
+          "before": "",
+          "after": "../_cocotrip-"
+        },
+        {
+          "start": 150,
+          "before": "/",
+          "after": "-"
+        },
+        {
+          "start": 152,
+          "before": "3",
+          "after": "4.cjs"
+        }
+      ]
+    },
+    {
+      "file": "api/schema.js",
+      "beforeSha256": "65632f25c7e34fc1f2070927a80d907204884c3403fc5ada719dfe089548794a",
+      "afterSha256": "fa7f6f267394d3ff8357ad8b4c7a5f3db62870e38a07315a0ae1027b678a2bcd",
+      "edits": [
+        {
+          "start": 66,
+          "before": "",
+          "after": "../_cocotrip-"
+        },
+        {
+          "start": 69,
+          "before": "/",
+          "after": "-"
+        },
+        {
+          "start": 71,
+          "before": "3",
+          "after": "4.js"
+        }
+      ]
+    },
+    {
+      "file": "components/execution/engine.cjs",
+      "beforeSha256": "c835a03a37a8c907ea7695357468f9eb70f471c6aee152048f0440fdb48106f1",
+      "afterSha256": "73a9e2312052e10d17ecc10bb15290c6d92a8c248e0c0f6aae4f3422af30e173",
+      "edits": [
+        {
+          "start": 1793,
+          "before": "",
+          "after": "../../_cocotrip-"
+        },
+        {
+          "start": 1796,
+          "before": "/",
+          "after": "-"
+        },
+        {
+          "start": 1798,
+          "before": "3",
+          "after": "4.cjs"
+        }
+      ]
+    },
+    {
+      "file": "components/execution/engine.js",
+      "beforeSha256": "1336c3bca3036ab8672cd0b54b19b3c71d7da5ee7cb4d5d5a359fdd9bbd949c1",
+      "afterSha256": "7f34a00fe4355c28b169352b5a77795c420e39ae1e8f7eb6392e9d98a538db76",
+      "edits": [
+        {
+          "start": 2200,
+          "before": "",
+          "after": "../../_cocotrip-"
+        },
+        {
+          "start": 2203,
+          "before": "/",
+          "after": "-"
+        },
+        {
+          "start": 2205,
+          "before": "3",
+          "after": "4.js"
+        }
+      ]
+    },
+    {
+      "file": "components/execution/streaming.cjs",
+      "beforeSha256": "e762af255f16064d2044df43b3582de569e3cff6b60ddc3740c335c13e0e9c61",
+      "afterSha256": "b0e12aeb3a670b35f488f004c2f51c7bbc429f7a72af950261be7188a0f79dd2",
+      "edits": [
+        {
+          "start": 219,
+          "before": "",
+          "after": "../../_cocotrip-"
+        },
+        {
+          "start": 222,
+          "before": "/",
+          "after": "-"
+        },
+        {
+          "start": 224,
+          "before": "3",
+          "after": "4.cjs"
+        },
+        {
+          "start": 505,
+          "before": "",
+          "after": "().optional"
+        }
+      ]
+    },
+    {
+      "file": "components/execution/streaming.d.cts",
+      "beforeSha256": "a268a9d9c5e972273d8171f6ab1de0d189a01eb67f6e7ff4be509cbc8c1695bc",
+      "afterSha256": "c67b0cb043187bbcdebe3c67e45ce57c4c57520d79be507a19f23872b30ea1e1",
+      "edits": [
+        {
+          "start": 0,
+          "before": "import { z } from \"zod/v3\";\n",
+          "after": ""
+        }
+      ]
+    },
+    {
+      "file": "components/execution/streaming.d.ts",
+      "beforeSha256": "bb3f3520f8954c342e633940daff4c64eacb64b5a9a99387566c43c7c77399dc",
+      "afterSha256": "dc02546ab71681b1924224783f38c7c686159686624a7f0b332722ae63dfceaa",
+      "edits": [
+        {
+          "start": 0,
+          "before": "import { z } from \"zod/v3\";\n",
+          "after": ""
+        }
+      ]
+    },
+    {
+      "file": "components/execution/streaming.js",
+      "beforeSha256": "9aac476b373115e7ce38822cdfe6d0bb5faf5fa893460b8eb70442d937da9a14",
+      "afterSha256": "5a13a8947f589babfad8ffba176186ea7585c8500e14ea52dcf4e0ecdaa89fe9",
+      "edits": [
+        {
+          "start": 129,
+          "before": "",
+          "after": "../../_cocotrip-"
+        },
+        {
+          "start": 132,
+          "before": "/",
+          "after": "-"
+        },
+        {
+          "start": 134,
+          "before": "3",
+          "after": "4.js"
+        },
+        {
+          "start": 371,
+          "before": "",
+          "after": "n().optio"
+        },
+        {
+          "start": 372,
+          "before": "",
+          "after": "al"
+        }
+      ]
+    },
+    {
+      "file": "components/InngestCommHandler.cjs",
+      "beforeSha256": "f980a954f8881e852f4e1b47cdc9c63686912bd6837187f0218b4715c6fdd5b7",
+      "afterSha256": "c0ec1bb3ed725a580469b8ba2a786a43df427ce19cea5de78c900132c39a78a8",
+      "edits": [
+        {
+          "start": 1382,
+          "before": "",
+          "after": "../_cocotrip-"
+        },
+        {
+          "start": 1385,
+          "before": "/",
+          "after": "-"
+        },
+        {
+          "start": 1387,
+          "before": "3",
+          "after": "4.cjs"
+        },
+        {
+          "start": 46903,
+          "before": "",
+          "after": "issu"
+        },
+        {
+          "start": 46904,
+          "before": "rror",
+          "after": ""
+        }
+      ]
+    },
+    {
+      "file": "components/InngestCommHandler.js",
+      "beforeSha256": "553a96295dd2380e5fab84a251913c0a48c48602d4ccbc8dd46de3ab2d10f567",
+      "afterSha256": "0556a0c47d1ce9884329c8b13f08114e61eb4971e5e15cc14ebbec5656ff040d",
+      "edits": [
+        {
+          "start": 1684,
+          "before": "",
+          "after": "../_cocotrip-"
+        },
+        {
+          "start": 1687,
+          "before": "/",
+          "after": "-"
+        },
+        {
+          "start": 1689,
+          "before": "3",
+          "after": "4.js"
+        },
+        {
+          "start": 44705,
+          "before": "",
+          "after": "issu"
+        },
+        {
+          "start": 44706,
+          "before": "rror",
+          "after": ""
+        }
+      ]
+    },
+    {
+      "file": "components/InngestStepTools.cjs",
+      "beforeSha256": "ae07dad6fed3d5f13c9b76e1f9acfe6e84d7929e8579a7f3251d5ad4f7a24ae0",
+      "afterSha256": "8461b0889c037acc8bc5a42048caae381197014032da2b06cbe911a1eb30ca2e",
+      "edits": [
+        {
+          "start": 822,
+          "before": "",
+          "after": "../_cocotrip-"
+        },
+        {
+          "start": 825,
+          "before": "/",
+          "after": "-"
+        },
+        {
+          "start": 827,
+          "before": "3",
+          "after": "4.cjs"
+        }
+      ]
+    },
+    {
+      "file": "components/InngestStepTools.d.cts",
+      "beforeSha256": "06bdb8875581e0dedaeb3d23115ea35e918fd912d69bd55bbc681c6768e8b5d9",
+      "afterSha256": "81fcdf926c11ac4ef23ed971d9464a7dbf3e2de0d9aa03696bbf58a8ee8926bd",
+      "edits": [
+        {
+          "start": 1145,
+          "before": "z } from \"zod/v3\";\nimport { ",
+          "after": ""
+        }
+      ]
+    },
+    {
+      "file": "components/InngestStepTools.d.ts",
+      "beforeSha256": "d68d387cd40f108f0215156b764ff22e05743c2d243869ce4e856d47deb4b62d",
+      "afterSha256": "cadebcd87c4f61430ce03e92aac35693e1b68fb1db0921fef03180d5062eabe0",
+      "edits": [
+        {
+          "start": 1074,
+          "before": "z } from \"zod/v3\";\nimport { ",
+          "after": ""
+        }
+      ]
+    },
+    {
+      "file": "components/InngestStepTools.js",
+      "beforeSha256": "257f254ed3750ebd007da9cb01d2e270653a95ce6f89651f924286a749bab04b",
+      "afterSha256": "b27cbf4721752dffdad9c5470b56b46afe7f51ea3c0bb298f1e3c35d347593a1",
+      "edits": [
+        {
+          "start": 884,
+          "before": "",
+          "after": "../_cocotrip-"
+        },
+        {
+          "start": 887,
+          "before": "/",
+          "after": "-"
+        },
+        {
+          "start": 889,
+          "before": "3",
+          "after": "4.js"
+        }
+      ]
+    },
+    {
+      "file": "components/realtime/types.cjs",
+      "beforeSha256": "82cc7381e82054c2477ed810c5af71124752f1160527c50669040d4b230b1788",
+      "afterSha256": "e221c5046b956b1ec81faaa23eab374f8321dfabdb92901e69387f88d4b51889",
+      "edits": [
+        {
+          "start": 103,
+          "before": "",
+          "after": "../../_cocotrip-"
+        },
+        {
+          "start": 106,
+          "before": "/",
+          "after": "-"
+        },
+        {
+          "start": 108,
+          "before": "3",
+          "after": "4.cjs"
+        },
+        {
+          "start": 341,
+          "before": "",
+          "after": ".optional()"
+        },
+        {
+          "start": 506,
+          "before": "",
+          "after": ").optional("
+        }
+      ]
+    },
+    {
+      "file": "components/realtime/types.d.cts",
+      "beforeSha256": "ccd463439ddc8a5252991800c7dcbdd5d19ca99b2e4cef82d276b78e43400396",
+      "afterSha256": "650425aef4277a21f6e08aee977110191213cfc993e46e608b649daab0fe06d0",
+      "edits": [
+        {
+          "start": 0,
+          "before": "import { StandardSchemaV1 } from \"@standard-schema/spec\";\nimport { z } from \"zod/v3\";\n\n",
+          "after": ""
+        },
+        {
+          "start": 89,
+          "before": "#region",
+          "after": ""
+        },
+        {
+          "start": 97,
+          "before": "src/compon",
+          "after": "G"
+        },
+        {
+          "start": 109,
+          "before": "ts/r",
+          "after": ""
+        },
+        {
+          "start": 114,
+          "before": "altime/types.d.ts\ndecla",
+          "after": ""
+        },
+        {
+          "start": 138,
+          "before": "e namesp",
+          "after": ""
+        },
+        {
+          "start": 147,
+          "before": "ce Realtime {\n  ",
+          "after": ""
+        },
+        {
+          "start": 164,
+          "before": "yp",
+          "after": ""
+        },
+        {
+          "start": 167,
+          "before": " ChannelInput =",
+          "after": "d"
+        },
+        {
+          "start": 183,
+          "before": "stri",
+          "after": ""
+        },
+        {
+          "start": 188,
+          "before": "g | Re",
+          "after": ""
+        },
+        {
+          "start": 195,
+          "before": "l",
+          "after": ""
+        },
+        {
+          "start": 198,
+          "before": "m",
+          "after": "v"
+        },
+        {
+          "start": 200,
+          "before": ".ChannelInstance;\n  namespace",
+          "after": "-v4"
+        },
+        {
+          "start": 230,
+          "before": "Sub",
+          "after": ""
+        },
+        {
+          "start": 234,
+          "before": "cribe {\n    interfa",
+          "after": ""
+        },
+        {
+          "start": 254,
+          "before": "e Token<TChannel extends Realtime.C",
+          "after": ""
+        },
+        {
+          "start": 290,
+          "before": "ann",
+          "after": ""
+        },
+        {
+          "start": 294,
+          "before": "lInput = Realti",
+          "after": ""
+        },
+        {
+          "start": 310,
+          "before": "e.Ch",
+          "after": ""
+        },
+        {
+          "start": 315,
+          "before": "nnelInput, TTopics extends string[] = string[]> {\n      key?: string |",
+          "after": ""
+        },
+        {
+          "start": 386,
+          "before": "undefine",
+          "after": ""
+        },
+        {
+          "start": 395,
+          "before": ";\n      channel: TChann",
+          "after": ""
+        },
+        {
+          "start": 419,
+          "before": "l;\n      topi",
+          "after": ""
+        },
+        {
+          "start": 433,
+          "before": "s: TTopics;\n      apiBaseUr",
+          "after": ""
+        },
+        {
+          "start": 461,
+          "before": "?: string;\n    }\n    interface ClientToken {\n      key: string;\n      ",
+          "after": ""
+        },
+        {
+          "start": 532,
+          "before": "piBaseUrl?: st",
+          "after": ""
+        },
+        {
+          "start": 547,
+          "before": "ing;\n    }\n    type InferTopicSubscribeD",
+          "after": ""
+        },
+        {
+          "start": 589,
+          "before": "a<TTop",
+          "after": ""
+        },
+        {
+          "start": 596,
+          "before": "c> = TT",
+          "after": ""
+        },
+        {
+          "start": 604,
+          "before": "pic exte",
+          "after": ""
+        },
+        {
+          "start": 613,
+          "before": "d",
+          "after": ""
+        },
+        {
+          "start": 615,
+          "before": " Realtime.TopicConfig ? Realtime.InferTopicData<TTopic> : any",
+          "after": ""
+        },
+        {
+          "start": 677,
+          "before": "\n    type",
+          "after": ""
+        },
+        {
+          "start": 687,
+          "before": "StreamSub",
+          "after": ""
+        },
+        {
+          "start": 697,
+          "before": "crip",
+          "after": ""
+        },
+        {
+          "start": 702,
+          "before": "ion<TSubsc",
+          "after": ""
+        },
+        {
+          "start": 713,
+          "before": "ibeToken extends Token = Token, TData extends Simplify<Token.InferMessage<TS",
+          "after": ""
+        },
+        {
+          "start": 790,
+          "before": "bs",
+          "after": ""
+        },
+        {
+          "start": 793,
+          "before": "ribeToken>> = Simplify<Token.InferMessage<TSubscribeToken>>> = ReadableStream<TData> & {\n      /**\n       * Get a new readable stream from the subscription tha",
+          "after": ""
+        },
+        {
+          "start": 953,
+          "before": " delivers JSON ch",
+          "after": ""
+        },
+        {
+          "start": 971,
+          "before": "nks.\n       *\n       * The st",
+          "after": ""
+        },
+        {
+          "start": 1001,
+          "before": "e",
+          "after": ""
+        },
+        {
+          "start": 1003,
+          "before": "m starts when this function is called and wi",
+          "after": ""
+        },
+        {
+          "start": 1048,
+          "before": "l not contain any\n    ",
+          "after": ""
+        },
+        {
+          "start": 1071,
+          "before": "  * messages that were sent before this function was called.\n       */\n      getJsonStream(): ",
+          "after": ""
+        },
+        {
+          "start": 1168,
+          "before": "dab",
+          "after": ""
+        },
+        {
+          "start": 1172,
+          "before": "eStream<TData>;\n      /**\n       * Ge",
+          "after": ""
+        },
+        {
+          "start": 1210,
+          "before": " a new readable stream from the subscription that delivers\n       * SSE-compatible chunks, wh",
+          "after": ""
+        },
+        {
+          "start": 1304,
+          "before": "ch are co",
+          "after": ""
+        },
+        {
+          "start": 1314,
+          "before": "patible with th",
+          "after": ""
+        },
+        {
+          "start": 1331,
+          "before": "`EventSource` ",
+          "after": ""
+        },
+        {
+          "start": 1348,
+          "before": "\n       * and generally used for streaming data from a server to the browser.\n       *\n       * The stream starts when this function is called and will not contain any\n       * messages",
+          "after": ""
+        },
+        {
+          "start": 1534,
+          "before": "that were sent before this function was called.\n       */\n      getEncodedStream(): ReadableStream<U",
+          "after": ""
+        },
+        {
+          "start": 1635,
+          "before": "nt8Array>;\n      /**\n       * Clo",
+          "after": ""
+        },
+        {
+          "start": 1669,
+          "before": "e the underlying",
+          "after": ""
+        },
+        {
+          "start": 1686,
+          "before": "subscri",
+          "after": ""
+        },
+        {
+          "start": 1694,
+          "before": "tion connection.\n       */\n      close(reason?: string): void;\n      /**\n       * Alias fo",
+          "after": ""
+        },
+        {
+          "start": 1785,
+          "before": " `clos",
+          "after": ""
+        },
+        {
+          "start": 1792,
+          "before": "()` to match callback-",
+          "after": ""
+        },
+        {
+          "start": 1815,
+          "before": "tyl",
+          "after": ""
+        },
+        {
+          "start": 1819,
+          "before": " subsc",
+          "after": ""
+        },
+        {
+          "start": 1826,
+          "before": "iption semantics.\n       */\n      unsubscribe(reason?: string): ",
+          "after": ""
+        },
+        {
+          "start": 1891,
+          "before": "oid;\n    };\n    typ",
+          "after": ""
+        },
+        {
+          "start": 1911,
+          "before": " Callback<TSubscribeToken exten",
+          "after": ""
+        },
+        {
+          "start": 1943,
+          "before": "s Subscribe.Token = Subscribe.Token> = (message: Token",
+          "after": ""
+        },
+        {
+          "start": 1998,
+          "before": "InferMessage<TSubscribeToken>) => MaybePromise<void>;",
+          "after": ""
+        },
+        {
+          "start": 2052,
+          "before": "    typ",
+          "after": ""
+        },
+        {
+          "start": 2060,
+          "before": " CallbackSubscription = {\n      close(reason?: string): void;\n      unsubscribe(reason?: string): void;\n    };\n    namespace Token {\n      type InferChannel<TToken extends Token> = TToken e",
+          "after": ""
+        },
+        {
+          "start": 2250,
+          "before": "tends Token<infer IChannel, any> ? IChannel : Realtime.ChannelInput;\n      type InferTopicData<TToken extends Token, TChannelTopics extends Record<string, unknown> = Channel.InferTo",
+          "after": ""
+        },
+        {
+          "start": 2432,
+          "before": "ics<T",
+          "after": ""
+        },
+        {
+          "start": 2438,
+          "before": "ken.Infe",
+          "after": ""
+        },
+        {
+          "start": 2447,
+          "before": "Channel<TToken>>> = TToken ex",
+          "after": ""
+        },
+        {
+          "start": 2477,
+          "before": "ends Token<any, infer ITopics>",
+          "after": ""
+        },
+        {
+          "start": 2508,
+          "before": "? ",
+          "after": ""
+        },
+        {
+          "start": 2511,
+          "before": " [K in ITopics[number]]: TChannelTopics[K] } : never;\n      type InferMessage<TToken",
+          "after": ""
+        },
+        {
+          "start": 2596,
+          "before": "extends Token> = Simplify<",
+          "after": ""
+        },
+        {
+          "start": 2629,
+          "before": "e.Message<Channel.InferId<Token.InferChannel<TToken>>, Token.InferTopicData<TTok",
+          "after": ""
+        },
+        {
+          "start": 2710,
+          "before": "n>>>;\n ",
+          "after": ""
+        },
+        {
+          "start": 2718,
+          "before": "  ",
+          "after": ""
+        },
+        {
+          "start": 2721,
+          "before": "\n  }\n",
+          "after": ""
+        },
+        {
+          "start": 2727,
+          "before": " const messageSchema: z.ZodEf",
+          "after": ""
+        },
+        {
+          "start": 2757,
+          "before": "ects<z.ZodObject<{\n    channel: z.ZodOptional<z.ZodString>;\n    topic: z.ZodOptional<z.ZodString>;\n    data: z.ZodAny;\n    ",
+          "after": ""
+        },
+        {
+          "start": 2881,
+          "before": "un_id: z.Z",
+          "after": ""
+        },
+        {
+          "start": 2892,
+          "before": "dOptional<z.ZodString>;\n    fn_id: z.ZodOptional<z.ZodString>;\n    created_at: z.ZodEffects<z.ZodOptional<z.ZodString>, Date | undefined, string | undefined>;\n    env_id: z.ZodOptional<z.ZodString>;\n    strea",
+          "after": ""
+        },
+        {
+          "start": 3101,
+          "before": "_id:",
+          "after": ""
+        },
+        {
+          "start": 3106,
+          "before": "z",
+          "after": "\""
+        },
+        {
+          "start": 3108,
+          "before": "ZodOptional<z",
+          "after": "/"
+        },
+        {
+          "start": 3122,
+          "before": "ZodString>;\n    kind: z",
+          "after": ""
+        },
+        {
+          "start": 3146,
+          "before": "ZodEnum<[\"step\", \"run\", \"data\", \"ping\", \"pong\", \"closing\", \"event\", \"sub\", \"unsub\", \"datastream-start\", \"datastream-end\", \"chunk\"]>;\n  }, \"strip\", z",
+          "after": "/"
+        },
+        {
+          "start": 3295,
+          "before": "ZodTypeAny, {\n    kind: \"data\" | \"event\" | \"run\" | \"step\" | \"ping\" | \"pong\" | \"closing\" | \"sub\" | \"unsub\" | \"datastream-start\" | \"datastream-end\" | \"chunk\";\n    channel?: string | undefined;\n    data?: any;\n    topic?: string | undefined;\n    run_id?: string | undefined;\n    fn_id?: string | undefined;\n    created_at?: Date | undefined;\n    env_id?: string | undefined;\n    stream",
+          "after": "./"
+        },
+        {
+          "start": 3678,
+          "before": "id?: string | undefined;\n  }, {\n    kind: \"data\" | \"event\" | \"run\" | \"step\" | \"ping\" | \"pong\" | \"",
+          "after": ""
+        },
+        {
+          "start": 3776,
+          "before": "l",
+          "after": ""
+        },
+        {
+          "start": 3778,
+          "before": "sing\" | \"sub\" | \"unsub\" | \"datastream-start\" | \"datastream-end\" | \"chunk\";\n    ",
+          "after": ""
+        },
+        {
+          "start": 3858,
+          "before": "hannel?: string | undefined;\n    data?: any;\n    t",
+          "after": ""
+        },
+        {
+          "start": 3909,
+          "before": "pic?: string | undefined;\n    run_id?: s",
+          "after": ""
+        },
+        {
+          "start": 3952,
+          "before": "ng | undefined;\n    fn_id?: string | undefined;\n    created_at?: string | undefined;\n    env_id?: string | undefined;\n    stream_id?: string | undefined;\n  }>, {\n    data: any;\n    kind: \"data\" | \"event\" | \"run\" | \"step\" | \"ping\" | \"",
+          "after": ""
+        },
+        {
+          "start": 4186,
+          "before": "ong\" | \"closing\" | \"sub\" | \"unsub\" | \"datastream-start\" | \"datastream",
+          "after": ""
+        },
+        {
+          "start": 4256,
+          "before": "end\" | \"chunk\";\n    channel?: string | undefined;\n    topic?: string | undefined;\n    run_id?: string | undefined;\n    fn_id?: string | undefi",
+          "after": ""
+        },
+        {
+          "start": 4399,
+          "before": "ed;\n    created_",
+          "after": ""
+        },
+        {
+          "start": 4417,
+          "before": "?: Date | undefined;\n    env_id?: string | undefined;\n    stream_id?: string | undefined;\n  }, {\n    k",
+          "after": ""
+        },
+        {
+          "start": 4520,
+          "before": "nd: \"data\" | \"e",
+          "after": ""
+        },
+        {
+          "start": 4536,
+          "before": "ent\" | \"run\" | \"step\" | \"ping\" | \"pong\" | \"closing\" | \"sub\" | \"unsub\" | \"datastr",
+          "after": ""
+        },
+        {
+          "start": 4617,
+          "before": "am",
+          "after": ""
+        },
+        {
+          "start": 4620,
+          "before": "start\" | \"datast",
+          "after": ""
+        },
+        {
+          "start": 4638,
+          "before": "am-end\" | \"chunk\";\n    ch",
+          "after": ""
+        },
+        {
+          "start": 4664,
+          "before": "nne",
+          "after": ""
+        },
+        {
+          "start": 4668,
+          "before": "?: string | undefined;\n    data?: any;\n    topic?: string | undefined;\n    run_id?: string | undefined;\n    fn_id?: string | undefined;\n    created_at?: s",
+          "after": ""
+        },
+        {
+          "start": 4823,
+          "before": "ring | undefined;\n    env_",
+          "after": ""
+        },
+        {
+          "start": 4850,
+          "before": "d?: string | undefined;\n    strea",
+          "after": ""
+        },
+        {
+          "start": 4884,
+          "before": "_id?: string | undefined;\n  }>;\n  type Message<TChannelId extends string = string, TTopics extends Record<string, unknown> = R",
+          "after": ""
+        },
+        {
+          "start": 5011,
+          "before": "cord<string, unknown>> = { [K in keyof TTopics]: {\n    topic: K;\n    channel: TChannelId;\n    data: Subscribe.InferTopicSubscribeData<TTopics[K]>;\n    runId?: string;\n    fnId?: string;\n    createdAt: Date;\n    envId?: string;\n    kind: \"data\";\n  } | {\n    topic: K;\n    channel: TChannelId;\n    data: Subscribe.InferTopicSubscribeData<TTopics[K]>;\n    runId?: string;\n    fnId?: string;\n    kind: \"datastream-start\" | \"datastream",
+          "after": ""
+        },
+        {
+          "start": 5442,
+          "before": "end\" | \"chunk\";\n    streamId: string;\n    stream: ReadableStream<Subscribe.InferTopicSubscribeData<TTopics[K]>>;\n  } }[keyof TTopics] | {\n    channel?: TChannelId;\n    topic?: string;\n    data: unknown;\n    runId?: string;\n    fnId?: string;\n    createdAt: Date;\n    envId?: string;\n    kind: \"run\";\n  };\n  namespace Message {\n    type Input<TChannelId extends string = string, TTopicId extends string = string, TData = any> = {\n      channel: TChannelId;\n      topic: TTopicId;\n      data: TData;\n    };\n    type Raw<TChannelId extends string = string, TTopics extends Record<string, unknown> = Record<s",
+          "after": ""
+        },
+        {
+          "start": 6047,
+          "before": "ring, unknown>> = { [K in ke",
+          "after": ""
+        },
+        {
+          "start": 6076,
+          "before": "of TTopics]: {\n      to",
+          "after": ""
+        },
+        {
+          "start": 6100,
+          "before": "ic?: K;\n      str",
+          "after": ""
+        },
+        {
+          "start": 6118,
+          "before": "am_id?: ",
+          "after": ""
+        },
+        {
+          "start": 6127,
+          "before": "tring;\n      data: Subscribe",
+          "after": ""
+        },
+        {
+          "start": 6156,
+          "before": "InferTopi",
+          "after": ""
+        },
+        {
+          "start": 6166,
+          "before": "SubscribeData<TTopics[K]>;\n      channel?: TChannelId;\n      run_id?: string;\n      fn_id?: string;\n      created_at?: Date;\n      env_id?: string;\n      kind: \"step\" | \"run\" | \"data\" | \"datastream-start\" | \"datastream-end\" | \"ping\" | \"pong\" | \"clo",
+          "after": "j"
+        },
+        {
+          "start": 6415,
+          "before": "ing",
+          "after": ""
+        },
+        {
+          "start": 6419,
+          "before": " | \"event\" | \"sub\" | \"unsub\" | \"chunk\";\n    } }[keyof TTopics];\n  }\n  namespace Channel {\n    type InferId<TChannel extends Realtime.ChannelInstance | Realtime.ChannelDef | string> = TChannel extends Realtime.ChannelInstance<infer IId, Realtime.TopicsConfig> ? IId : TChannel extends Realtime.ChannelDef<infer TNameFn, Realtime.TopicsConfig> ? ReturnType<TNameFn> : TChannel extends string ? TChannel : string;\n    type InferTopics<TChannel extends Realtime.ChannelInstance | Realtime.ChannelDef | string> = TChannel extends Realtime.ChannelDef<infer _NameFn, infer ITopics> ? ITopics : TChannel extends Realtime.ChannelInstance<infer _Name, infer ITopics> ? ITopics : TChannel extends string ? Record<string, unknown> : Record<string, unknown>;\n  }\n  type TopicConfig = {\n    schema: StandardSchemaV1;\n  };\n  type TopicsConfig = Record<string, TopicConfig>;\n  type InferTopicData<T extends TopicConfig> = T extends {\n    schema: infer S extends StandardSchemaV1;\n  } ? StandardSchemaV1.InferInput<S> : unknown;\n  interface TopicRef<_TData = unknown> {\n    channel: string;\n    topic: string;\n    config: TopicConfig;\n  }\n  type TopicAccessors<_TName extends string, TTopics extends TopicsConfig> = { [K in string & keyof TTopics]: TopicRef<InferTopicData<TTopics[K]>> }",
+          "after": ""
+        },
+        {
+          "start": 7691,
+          "before": "  type ChannelInstance<TName extends string = string, TTopics extends TopicsConfig = {}> = {\n    name: TName;\n    topics: TTopics;\n  } & TopicAccessors<TName, TTopics>;\n  type ChannelDef<TNameFn extends (...args: any[]) => string = (...args: any[]) => string, TTopics extends TopicsConfig = TopicsConfig> = ((...args: Parameters<TNameFn>) => ChannelInstance<ReturnType<TNameFn>, TTopics>) & {\n    topics: TTopics;\n    $params: Parameters<TNameFn>[0];\n  };\n  type TypedPublishFn = <TData>(topicRef: TopicRef<TData>, data: TData) => Promise<void>;\n}\n/**\n * Returns the given generic as either itself or a promise of itself.\n */\ntype MaybePromise<T> = T | Promise<T>;\ntype Simplify<T> = { [KeyType in keyof T]: T[KeyType] } & {};\n//#endregion\nexport { Realtime };\n//# sourceMappingURL=types.d.cts.map",
+          "after": ""
+        }
+      ]
+    },
+    {
+      "file": "components/realtime/types.d.ts",
+      "beforeSha256": "a07ead5d87335c55363bb0a1eaab89c3837a2625a8790a9ad8cbafcdb35e14c6",
+      "afterSha256": "b7999cd486f0cc5426b6abf4dae1cc233edfcb52ca588155d7c8c5e33e4c6bb1",
+      "edits": [
+        {
+          "start": 0,
+          "before": "import { z } from \"zod/v3\";\nimport { StandardSchemaV1 } from \"@standard-schema/spec\";\n\n",
+          "after": ""
+        },
+        {
+          "start": 89,
+          "before": "#region",
+          "after": ""
+        },
+        {
+          "start": 97,
+          "before": "src/compon",
+          "after": "G"
+        },
+        {
+          "start": 109,
+          "before": "ts/r",
+          "after": ""
+        },
+        {
+          "start": 114,
+          "before": "altime/types.d.ts\ndecla",
+          "after": ""
+        },
+        {
+          "start": 138,
+          "before": "e namesp",
+          "after": ""
+        },
+        {
+          "start": 147,
+          "before": "ce Realtime {\n  ",
+          "after": ""
+        },
+        {
+          "start": 164,
+          "before": "yp",
+          "after": ""
+        },
+        {
+          "start": 167,
+          "before": " ChannelInput =",
+          "after": "d"
+        },
+        {
+          "start": 183,
+          "before": "stri",
+          "after": ""
+        },
+        {
+          "start": 188,
+          "before": "g | Re",
+          "after": ""
+        },
+        {
+          "start": 195,
+          "before": "l",
+          "after": ""
+        },
+        {
+          "start": 198,
+          "before": "m",
+          "after": "v"
+        },
+        {
+          "start": 200,
+          "before": ".ChannelInstance;\n  namespace",
+          "after": "-v4"
+        },
+        {
+          "start": 230,
+          "before": "Sub",
+          "after": ""
+        },
+        {
+          "start": 234,
+          "before": "cribe {\n    interfa",
+          "after": ""
+        },
+        {
+          "start": 254,
+          "before": "e Token<TChannel extends Realtime.C",
+          "after": ""
+        },
+        {
+          "start": 290,
+          "before": "ann",
+          "after": ""
+        },
+        {
+          "start": 294,
+          "before": "lInput = Realti",
+          "after": ""
+        },
+        {
+          "start": 310,
+          "before": "e.Ch",
+          "after": ""
+        },
+        {
+          "start": 315,
+          "before": "nnelInput, TTopics extends string[] = string[]> {\n      key?: string |",
+          "after": ""
+        },
+        {
+          "start": 386,
+          "before": "undefine",
+          "after": ""
+        },
+        {
+          "start": 395,
+          "before": ";\n      channel: TChann",
+          "after": ""
+        },
+        {
+          "start": 419,
+          "before": "l;\n      topi",
+          "after": ""
+        },
+        {
+          "start": 433,
+          "before": "s: TTopics;\n      apiBaseUr",
+          "after": ""
+        },
+        {
+          "start": 461,
+          "before": "?: string;\n    }\n    interface ClientToken {\n      key: string;\n      ",
+          "after": ""
+        },
+        {
+          "start": 532,
+          "before": "piBaseUrl?: st",
+          "after": ""
+        },
+        {
+          "start": 547,
+          "before": "ing;\n    }\n    type InferTopicSubscribeD",
+          "after": ""
+        },
+        {
+          "start": 589,
+          "before": "a<TTop",
+          "after": ""
+        },
+        {
+          "start": 596,
+          "before": "c> = TT",
+          "after": ""
+        },
+        {
+          "start": 604,
+          "before": "pic exte",
+          "after": ""
+        },
+        {
+          "start": 613,
+          "before": "d",
+          "after": ""
+        },
+        {
+          "start": 615,
+          "before": " Realtime.TopicConfig ? Realtime.InferTopicData<TTopic> : any",
+          "after": ""
+        },
+        {
+          "start": 677,
+          "before": "\n    type",
+          "after": ""
+        },
+        {
+          "start": 687,
+          "before": "StreamSub",
+          "after": ""
+        },
+        {
+          "start": 697,
+          "before": "crip",
+          "after": ""
+        },
+        {
+          "start": 702,
+          "before": "ion<TSubsc",
+          "after": ""
+        },
+        {
+          "start": 713,
+          "before": "ibeToken extends Token = Token, TData extends Simplify<Token.InferMessage<TS",
+          "after": ""
+        },
+        {
+          "start": 790,
+          "before": "bs",
+          "after": ""
+        },
+        {
+          "start": 793,
+          "before": "ribeToken>> = Simplify<Token.InferMessage<TSubscribeToken>>> = ReadableStream<TData> & {\n      /**\n       * Get a new readable stream from the subscription tha",
+          "after": ""
+        },
+        {
+          "start": 953,
+          "before": " delivers JSON ch",
+          "after": ""
+        },
+        {
+          "start": 971,
+          "before": "nks.\n       *\n       * The st",
+          "after": ""
+        },
+        {
+          "start": 1001,
+          "before": "e",
+          "after": ""
+        },
+        {
+          "start": 1003,
+          "before": "m starts when this function is called and wi",
+          "after": ""
+        },
+        {
+          "start": 1048,
+          "before": "l not contain any\n    ",
+          "after": ""
+        },
+        {
+          "start": 1071,
+          "before": "  * messages that were sent before this function was called.\n       */\n      getJsonStream(): ",
+          "after": ""
+        },
+        {
+          "start": 1168,
+          "before": "dab",
+          "after": ""
+        },
+        {
+          "start": 1172,
+          "before": "eStream<TData>;\n      /**\n       * Ge",
+          "after": ""
+        },
+        {
+          "start": 1210,
+          "before": " a new readable stream from the subscription that delivers\n       * SSE-compatible chunks, wh",
+          "after": ""
+        },
+        {
+          "start": 1304,
+          "before": "ch are co",
+          "after": ""
+        },
+        {
+          "start": 1314,
+          "before": "patible with th",
+          "after": ""
+        },
+        {
+          "start": 1331,
+          "before": "`EventSource` ",
+          "after": ""
+        },
+        {
+          "start": 1348,
+          "before": "\n       * and generally used for streaming data from a server to the browser.\n       *\n       * The stream starts when this function is called and will not contain any\n       * messages",
+          "after": ""
+        },
+        {
+          "start": 1534,
+          "before": "that were sent before this function was called.\n       */\n      getEncodedStream(): ReadableStream<U",
+          "after": ""
+        },
+        {
+          "start": 1635,
+          "before": "nt8Array>;\n      /**\n       * Clo",
+          "after": ""
+        },
+        {
+          "start": 1669,
+          "before": "e the underlying",
+          "after": ""
+        },
+        {
+          "start": 1686,
+          "before": "subscri",
+          "after": ""
+        },
+        {
+          "start": 1694,
+          "before": "tion connection.\n       */\n      close(reason?: string): void;\n      /**\n       * Alias fo",
+          "after": ""
+        },
+        {
+          "start": 1785,
+          "before": " `clos",
+          "after": ""
+        },
+        {
+          "start": 1792,
+          "before": "()` to match callback-",
+          "after": ""
+        },
+        {
+          "start": 1815,
+          "before": "tyl",
+          "after": ""
+        },
+        {
+          "start": 1819,
+          "before": " subsc",
+          "after": ""
+        },
+        {
+          "start": 1826,
+          "before": "iption semantics.\n       */\n      unsubscribe(reason?: string): ",
+          "after": ""
+        },
+        {
+          "start": 1891,
+          "before": "oid;\n    };\n    typ",
+          "after": ""
+        },
+        {
+          "start": 1911,
+          "before": " Callback<TSubscribeToken exten",
+          "after": ""
+        },
+        {
+          "start": 1943,
+          "before": "s Subscribe.Token = Subscribe.Token> = (message: Token",
+          "after": ""
+        },
+        {
+          "start": 1998,
+          "before": "InferMessage<TSubscribeToken>) => MaybePromise<void>;",
+          "after": ""
+        },
+        {
+          "start": 2052,
+          "before": "    typ",
+          "after": ""
+        },
+        {
+          "start": 2060,
+          "before": " CallbackSubscription = {\n      close(reason?: string): void;\n      unsubscribe(reason?: string): void;\n    };\n    namespace Token {\n      type InferChannel<TToken extends Token> = TToken e",
+          "after": ""
+        },
+        {
+          "start": 2250,
+          "before": "tends Token<infer IChannel, any> ? IChannel : Realtime.ChannelInput;\n      type InferTopicData<TToken extends Token, TChannelTopics extends Record<string, unknown> = Channel.InferTo",
+          "after": ""
+        },
+        {
+          "start": 2432,
+          "before": "ics<T",
+          "after": ""
+        },
+        {
+          "start": 2438,
+          "before": "ken.Infe",
+          "after": ""
+        },
+        {
+          "start": 2447,
+          "before": "Channel<TToken>>> = TToken ex",
+          "after": ""
+        },
+        {
+          "start": 2477,
+          "before": "ends Token<any, infer ITopics>",
+          "after": ""
+        },
+        {
+          "start": 2508,
+          "before": "? ",
+          "after": ""
+        },
+        {
+          "start": 2511,
+          "before": " [K in ITopics[number]]: TChannelTopics[K] } : never;\n      type InferMessage<TToken",
+          "after": ""
+        },
+        {
+          "start": 2596,
+          "before": "extends Token> = Simplify<",
+          "after": ""
+        },
+        {
+          "start": 2629,
+          "before": "e.Message<Channel.InferId<Token.InferChannel<TToken>>, Token.InferTopicData<TTok",
+          "after": ""
+        },
+        {
+          "start": 2710,
+          "before": "n>>>;\n ",
+          "after": ""
+        },
+        {
+          "start": 2718,
+          "before": "  ",
+          "after": ""
+        },
+        {
+          "start": 2721,
+          "before": "\n  }\n",
+          "after": ""
+        },
+        {
+          "start": 2727,
+          "before": " const messageSchema: z.ZodEf",
+          "after": ""
+        },
+        {
+          "start": 2757,
+          "before": "ects<z.ZodObject<{\n    channel: z.ZodOptional<z.ZodString>;\n    topic: z.ZodOptional<z.ZodString>;\n    data: z.ZodAny;\n    ",
+          "after": ""
+        },
+        {
+          "start": 2881,
+          "before": "un_id: z.Z",
+          "after": ""
+        },
+        {
+          "start": 2892,
+          "before": "dOptional<z.ZodString>;\n    fn_id: z.ZodOptional<z.ZodString>;\n    created_at: z.ZodEffects<z.ZodOptional<z.ZodString>, Date | undefined, string | undefined>;\n    env_id: z.ZodOptional<z.ZodString>;\n    strea",
+          "after": ""
+        },
+        {
+          "start": 3101,
+          "before": "_id:",
+          "after": ""
+        },
+        {
+          "start": 3106,
+          "before": "z",
+          "after": "\""
+        },
+        {
+          "start": 3108,
+          "before": "ZodOptional<z",
+          "after": "/"
+        },
+        {
+          "start": 3122,
+          "before": "ZodString>;\n    kind: z",
+          "after": ""
+        },
+        {
+          "start": 3146,
+          "before": "ZodEnum<[\"step\", \"run\", \"data\", \"ping\", \"pong\", \"closing\", \"event\", \"sub\", \"unsub\", \"datastream-start\", \"datastream-end\", \"chunk\"]>;\n  }, \"strip\", z",
+          "after": "/"
+        },
+        {
+          "start": 3295,
+          "before": "ZodTypeAny, {\n    kind: \"data\" | \"event\" | \"run\" | \"step\" | \"ping\" | \"pong\" | \"closing\" | \"sub\" | \"unsub\" | \"datastream-start\" | \"datastream-end\" | \"chunk\";\n    channel?: string | undefined;\n    data?: any;\n    topic?: string | undefined;\n    run_id?: string | undefined;\n    fn_id?: string | undefined;\n    created_at?: Date | undefined;\n    env_id?: string | undefined;\n    stream",
+          "after": "./"
+        },
+        {
+          "start": 3678,
+          "before": "id?: string | undefined;\n  }, {\n    kind: \"data\" | \"event\" | \"run\" | \"step\" | \"ping\" | \"pong\" | \"",
+          "after": ""
+        },
+        {
+          "start": 3776,
+          "before": "l",
+          "after": ""
+        },
+        {
+          "start": 3778,
+          "before": "sing\" | \"sub\" | \"unsub\" | \"datastream-start\" | \"datastream-end\" | \"chunk\";\n    ",
+          "after": ""
+        },
+        {
+          "start": 3858,
+          "before": "hannel?: string | undefined;\n    data?: any;\n    t",
+          "after": ""
+        },
+        {
+          "start": 3909,
+          "before": "pic?: string | undefined;\n    run_id?: s",
+          "after": ""
+        },
+        {
+          "start": 3952,
+          "before": "ng | undefined;\n    fn_id?: string | undefined;\n    created_at?: string | undefined;\n    env_id?: string | undefined;\n    stream_id?: string | undefined;\n  }>, {\n    data: any;\n    kind: \"data\" | \"event\" | \"run\" | \"step\" | \"ping\" | \"",
+          "after": ""
+        },
+        {
+          "start": 4186,
+          "before": "ong\" | \"closing\" | \"sub\" | \"unsub\" | \"datastream-start\" | \"datastream",
+          "after": ""
+        },
+        {
+          "start": 4256,
+          "before": "end\" | \"chunk\";\n    channel?: string | undefined;\n    topic?: string | undefined;\n    run_id?: string | undefined;\n    fn_id?: string | undefi",
+          "after": ""
+        },
+        {
+          "start": 4399,
+          "before": "ed;\n    created_",
+          "after": ""
+        },
+        {
+          "start": 4417,
+          "before": "?: Date | undefined;\n    env_id?: string | undefined;\n    stream_id?: string | undefined;\n  }, {\n    k",
+          "after": ""
+        },
+        {
+          "start": 4520,
+          "before": "nd: \"data\" | \"e",
+          "after": ""
+        },
+        {
+          "start": 4536,
+          "before": "ent\" | \"run\" | \"step\" | \"ping\" | \"pong\" | \"closing\" | \"sub\" | \"unsub\" | \"datastr",
+          "after": ""
+        },
+        {
+          "start": 4617,
+          "before": "am",
+          "after": ""
+        },
+        {
+          "start": 4620,
+          "before": "start\" | \"datast",
+          "after": ""
+        },
+        {
+          "start": 4638,
+          "before": "am-end\" | \"chunk\";\n    ch",
+          "after": ""
+        },
+        {
+          "start": 4664,
+          "before": "nne",
+          "after": ""
+        },
+        {
+          "start": 4668,
+          "before": "?: string | undefined;\n    data?: any;\n    topic?: string | undefined;\n    run_id?: string | undefined;\n    fn_id?: string | undefined;\n    created_at?: s",
+          "after": ""
+        },
+        {
+          "start": 4823,
+          "before": "ring | undefined;\n    env_",
+          "after": ""
+        },
+        {
+          "start": 4850,
+          "before": "d?: string | undefined;\n    strea",
+          "after": ""
+        },
+        {
+          "start": 4884,
+          "before": "_id?: string | undefined;\n  }>;\n  type Message<TChannelId extends string = string, TTopics extends Record<string, unknown> = R",
+          "after": ""
+        },
+        {
+          "start": 5011,
+          "before": "cord<string, unknown>> = { [K in keyof TTopics]: {\n    topic: K;\n    channel: TChannelId;\n    data: Subscribe.InferTopicSubscribeData<TTopics[K]>;\n    runId?: string;\n    fnId?: string;\n    createdAt: Date;\n    envId?: string;\n    kind: \"data\";\n  } | {\n    topic: K;\n    channel: TChannelId;\n    data: Subscribe.InferTopicSubscribeData<TTopics[K]>;\n    runId?: string;\n    fnId?: string;\n    kind: \"datastream-start\" | \"datastream",
+          "after": ""
+        },
+        {
+          "start": 5442,
+          "before": "end\" | \"chunk\";\n    streamId: string;\n    stream: ReadableStream<Subscribe.InferTopicSubscribeData<TTopics[K]>>;\n  } }[keyof TTopics] | {\n    channel?: TChannelId;\n    topic?: string;\n    data: unknown;\n    runId?: string;\n    fnId?: string;\n    createdAt: Date;\n    envId?: string;\n    kind: \"run\";\n  };\n  namespace Message {\n    type Input<TChannelId extends string = string, TTopicId extends string = string, TData = any> = {\n      channel: TChannelId;\n      topic: TTopicId;\n      data: TData;\n    };\n    type Raw<TChannelId extends string = string, TTopics extends Record<string, unknown> = Record<s",
+          "after": ""
+        },
+        {
+          "start": 6047,
+          "before": "ring, unknown>> = { [K in ke",
+          "after": ""
+        },
+        {
+          "start": 6076,
+          "before": "of TTopics]: {\n      to",
+          "after": ""
+        },
+        {
+          "start": 6100,
+          "before": "ic?: K;\n      str",
+          "after": ""
+        },
+        {
+          "start": 6118,
+          "before": "am_id?: ",
+          "after": ""
+        },
+        {
+          "start": 6127,
+          "before": "tring;\n      data: Subscribe",
+          "after": ""
+        },
+        {
+          "start": 6156,
+          "before": "InferTopicSubscribeData<TTopics[K]>;\n      channel?: TChannelId;\n      run_id?: string;\n      fn_id?: string;\n      created_at?: Date;\n      env_id?: string;\n      kind: \"step\" | \"run\" | \"data\" | \"datastream-start\" | \"datastream-end\" | \"ping\" | \"pong\" | \"clo",
+          "after": "j"
+        },
+        {
+          "start": 6415,
+          "before": "ing\" | \"event",
+          "after": ""
+        },
+        {
+          "start": 6429,
+          "before": " | \"sub\" | \"unsub\" | \"chunk\";\n    } }[keyof TTopics];\n  }\n  namespace Channel {\n    type InferId<TChannel extends Realtime.ChannelInstance | Realtime.ChannelDef | string> = TChannel extends Realtime.ChannelInstance<infer IId, Realtime.TopicsConfig> ? IId : TChannel extends Realtime.ChannelDef<infer TNameFn, Realtime.TopicsConfig> ? ReturnType<TNameFn> : TChannel extends string ? TChannel : string;\n    type InferTopics<TChannel extends Realtime.ChannelInstance | Realtime.ChannelDef | string> = TChannel extends Realtime.ChannelDef<infer _NameFn, infer ITopics> ? ITopics : TChannel extends Realtime.ChannelInstance<infer _Name, infer ITopics> ? ITopics : TChannel extends string ? Record<string, unknown> : Record<string, unknown>;\n  }\n  type TopicConfig = {\n    schema: StandardSchemaV1;\n  };\n  type TopicsConfig = Record<string, TopicConfig>;\n  type InferTopicData<T extends TopicConfig> = T extends {\n    schema: infer S extends StandardSchemaV1;\n  } ? StandardSchemaV1.InferInput<S> : unknown;\n  interface TopicRef<_TData = unknown> {\n    channel: string;\n    topic: string;\n    config: TopicConfig;\n  }\n  type TopicAccessors<_TName extends string, TTopics extends TopicsConfig> = { [K in string & keyof TTopics]: TopicRef<InferTopicData<TTopics[K]>> }",
+          "after": ""
+        },
+        {
+          "start": 7691,
+          "before": "  type ChannelInstance<TName extends string = string, TTopics extends TopicsConfig = {}> = {\n    name: TName;\n    topics: TTopics;\n  } & TopicAccessors<TName, TTopics>;\n  type ChannelDef<TNameFn extends (...args: any[]) => string = (...args: any[]) => string, TTopics extends TopicsConfig = TopicsConfig> = ((...args: Parameters<TNameFn>) => ChannelInstance<ReturnType<TNameFn>, TTopics>) & {\n    topics: TTopics;\n    $params: Parameters<TNameFn>[0];\n  };\n  type TypedPublishFn = <TData>(topicRef: TopicRef<TData>, data: TData) => Promise<void>;\n}\n/**\n * Returns the given generic as either itself or a promise of itself.\n */\ntype MaybePromise<T> = T | Promise<T>;\ntype Simplify<T> = { [KeyType in keyof T]: T[KeyType] } & {};\n//#endregion\nexport { Realtime };\n//# sourceMappingURL=types.d.ts.map",
+          "after": ""
+        }
+      ]
+    },
+    {
+      "file": "components/realtime/types.js",
+      "beforeSha256": "cfcb284568a9a4959eaf7066f90f9525980c9aef100e9357ae4bd0e5dd82e1b6",
+      "afterSha256": "6fec48bd6848a60af5ee4b5e9a34a30b28063434f1fe432fd1f6570c7c4055fd",
+      "edits": [
+        {
+          "start": 19,
+          "before": "",
+          "after": "../../_cocotrip-"
+        },
+        {
+          "start": 22,
+          "before": "/",
+          "after": "-"
+        },
+        {
+          "start": 24,
+          "before": "3",
+          "after": "4.js"
+        },
+        {
+          "start": 228,
+          "before": "",
+          "after": ".optional()"
+        },
+        {
+          "start": 372,
+          "before": "",
+          "after": ").optional("
+        }
+      ]
+    },
+    {
+      "file": "components/sandbox/client.cjs",
+      "beforeSha256": "4b83f4d5a090830d09a76b6589623ebff24a35fbc69dfe8632801e56a1ca1560",
+      "afterSha256": "99d8edc7833a6520dae888b96cbc0c264d7e79edb3ff498539f370f20e835191",
+      "edits": [
+        {
+          "start": 205,
+          "before": "",
+          "after": "../../_cocotrip-"
+        },
+        {
+          "start": 208,
+          "before": "/",
+          "after": "-"
+        },
+        {
+          "start": 210,
+          "before": "3",
+          "after": "4.cjs"
+        },
+        {
+          "start": 790,
+          "before": "",
+          "after": "().optional"
+        }
+      ]
+    },
+    {
+      "file": "components/sandbox/client.js",
+      "beforeSha256": "8ac1100daece1636f089c13de29a57eba62427edeef0e7d3370a22ab30990c6e",
+      "afterSha256": "de845cc8ef160373c445ed76778f344dc8b3a58ee269bb968bccbd231df2f439",
+      "edits": [
+        {
+          "start": 834,
+          "before": "",
+          "after": "../../_cocotrip-"
+        },
+        {
+          "start": 837,
+          "before": "/",
+          "after": "-"
+        },
+        {
+          "start": 839,
+          "before": "3",
+          "after": "4.js"
+        },
+        {
+          "start": 1340,
+          "before": "",
+          "after": "n().optio"
+        },
+        {
+          "start": 1341,
+          "before": "",
+          "after": "al"
+        }
+      ]
+    },
+    {
+      "file": "components/sandbox/protocol.cjs",
+      "beforeSha256": "eeb58263db6a3d18dca1e03f6e106eb47e353604b698d1adad155dee237d9393",
+      "afterSha256": "fc1284e57a8a6f8019100e9cb61759f9cdc31362818b878a6a867a12661c1d69",
+      "edits": [
+        {
+          "start": 205,
+          "before": "",
+          "after": "../../_cocotrip-"
+        },
+        {
+          "start": 208,
+          "before": "/",
+          "after": "-"
+        },
+        {
+          "start": 210,
+          "before": "3",
+          "after": "4.cjs"
+        }
+      ]
+    },
+    {
+      "file": "components/sandbox/protocol.d.cts",
+      "beforeSha256": "368afe7cb981d9e8c8c52d06ee8a9f87589211f4d17222ccae8e213191922c3e",
+      "afterSha256": "3982c65a28a7e61f6798ab5fe6c03b8c890ae28505e15e4cc1c97b0335aa7af3",
+      "edits": [
+        {
+          "start": 44,
+          "before": "import { z } from \"zod/v3\";\n",
+          "after": ""
+        }
+      ]
+    },
+    {
+      "file": "components/sandbox/protocol.d.ts",
+      "beforeSha256": "fb01ef93ad598be50108921906d1b9e956b6eeb0e96cc648c93e6e754e1bdb1e",
+      "afterSha256": "36249d6303b4095e5cb58a4c152cd18be8cc2a1ba655567a647a9e06a861ff5f",
+      "edits": [
+        {
+          "start": 43,
+          "before": "import { z } from \"zod/v3\";\n",
+          "after": ""
+        }
+      ]
+    },
+    {
+      "file": "components/sandbox/protocol.js",
+      "beforeSha256": "ba459663b8a59c2ccefcad1766bbab2847bc71849956ff5b63a124cd08536c79",
+      "afterSha256": "0d5668527402d3ab95b6b30a22ab25328295c85642ddc2d22fc2a9d94c7b2121",
+      "edits": [
+        {
+          "start": 422,
+          "before": "",
+          "after": "../../_cocotrip-"
+        },
+        {
+          "start": 425,
+          "before": "/",
+          "after": "-"
+        },
+        {
+          "start": 427,
+          "before": "3",
+          "after": "4.js"
+        }
+      ]
+    },
+    {
+      "file": "components/sandbox/validation.cjs",
+      "beforeSha256": "b62eb80792fda738a52df187d24441915255ccb849770a19f22772e15179e5e0",
+      "afterSha256": "bd442a6ede0428bed223abee4065c82dd1f368c092fc22a90eaddb6aceb2844d",
+      "edits": [
+        {
+          "start": 213,
+          "before": "",
+          "after": "../../_cocotrip-"
+        },
+        {
+          "start": 216,
+          "before": "/",
+          "after": "-"
+        },
+        {
+          "start": 218,
+          "before": "3",
+          "after": "4.cjs"
+        },
+        {
+          "start": 14169,
+          "before": "",
+          "after": ".optional()"
+        },
+        {
+          "start": 15479,
+          "before": "",
+          "after": "n().optio"
+        },
+        {
+          "start": 15480,
+          "before": "",
+          "after": "al"
+        },
+        {
+          "start": 19523,
+          "before": "",
+          "after": "().optional"
+        }
+      ]
+    },
+    {
+      "file": "components/sandbox/validation.js",
+      "beforeSha256": "78ba597515db59f5df44a813b7c5ff674b270301c924249fdaa68fe2908906ac",
+      "afterSha256": "6bbd42d9439f4679bb737f0ef65182b44fdc81c85decb4d11f3db4d37746a67c",
+      "edits": [
+        {
+          "start": 130,
+          "before": "",
+          "after": "../../_cocotrip-"
+        },
+        {
+          "start": 133,
+          "before": "/",
+          "after": "-"
+        },
+        {
+          "start": 135,
+          "before": "3",
+          "after": "4.js"
+        },
+        {
+          "start": 13417,
+          "before": "",
+          "after": "n().optio"
+        },
+        {
+          "start": 13418,
+          "before": "",
+          "after": "al"
+        },
+        {
+          "start": 14691,
+          "before": "",
+          "after": ".optional()"
+        },
+        {
+          "start": 18498,
+          "before": "",
+          "after": "().optional"
+        }
+      ]
+    },
+    {
+      "file": "helpers/errors.cjs",
+      "beforeSha256": "55df57d3ba943957d88c3e6816a3367e4bb43d419ea9aa03dbd09963c406d8f5",
+      "afterSha256": "0cc3e53d61117256de2472ddd66fa24de34ca106aab029cee53953be842ca685",
+      "edits": [
+        {
+          "start": 182,
+          "before": "",
+          "after": "../_cocotrip-"
+        },
+        {
+          "start": 185,
+          "before": "/",
+          "after": "-"
+        },
+        {
+          "start": 187,
+          "before": "3",
+          "after": "4.cjs"
+        }
+      ]
+    },
+    {
+      "file": "helpers/errors.js",
+      "beforeSha256": "be38890676f4887decdd3110f53d1ba2db66e55e5e68dcaeb0b704110c11f925",
+      "afterSha256": "1f659e1ad02a504fefd86ced41b77e3dd9d89578700c492e9fe91d932d666a3b",
+      "edits": [
+        {
+          "start": 151,
+          "before": "",
+          "after": "../_cocotrip-"
+        },
+        {
+          "start": 154,
+          "before": "/",
+          "after": "-"
+        },
+        {
+          "start": 156,
+          "before": "3",
+          "after": "4.js"
+        }
+      ]
+    },
+    {
+      "file": "helpers/functions.cjs",
+      "beforeSha256": "f78375c38f1f9f7031207718784d664841f4f037a5ad298c8f7c602c33722b02",
+      "afterSha256": "13ab87e85f7e56b38c1ac6b5e567f971ec1d7eb26e0e64df37629a80b81c8780",
+      "edits": [
+        {
+          "start": 380,
+          "before": "",
+          "after": "../_cocotrip-"
+        },
+        {
+          "start": 383,
+          "before": "/",
+          "after": "-"
+        },
+        {
+          "start": 385,
+          "before": "3",
+          "after": "4.cjs"
+        }
+      ]
+    },
+    {
+      "file": "helpers/functions.js",
+      "beforeSha256": "21976242587aa0a842df6a772f725955cf1ec42474c6bc7f13cbbdefc051a96f",
+      "afterSha256": "cff9c472aa9bcf686f075fec69dfac83890c6c8eb5b445e4e0c353021793bd8f",
+      "edits": [
+        {
+          "start": 300,
+          "before": "",
+          "after": "../_cocotrip-"
+        },
+        {
+          "start": 303,
+          "before": "/",
+          "after": "-"
+        },
+        {
+          "start": 305,
+          "before": "3",
+          "after": "4.js"
+        }
+      ]
+    },
+    {
+      "file": "remix.cjs",
+      "beforeSha256": "3874e08f185daf7b93ef1e1139802a186593c5425562a3bec335f78f653176d6",
+      "afterSha256": "2b6f030da420785edc386e06e1ad8e72a6799d733798185b85bbb9deaf34144a",
+      "edits": [
+        {
+          "start": 182,
+          "before": "",
+          "after": "./_cocotrip-"
+        },
+        {
+          "start": 185,
+          "before": "/",
+          "after": "-"
+        },
+        {
+          "start": 187,
+          "before": "3",
+          "after": "4.cjs"
+        }
+      ]
+    },
+    {
+      "file": "remix.js",
+      "beforeSha256": "fe8b5808409be83c82ebce228034a5fefcc472b9a15cb19669a64ffbf84e56d4",
+      "afterSha256": "9a210ef2c3266145292488e565baaa95b1f54c7f5f14505d9f6c1fcada465bfa",
+      "edits": [
+        {
+          "start": 152,
+          "before": "",
+          "after": "./_cocotrip-"
+        },
+        {
+          "start": 155,
+          "before": "/",
+          "after": "-"
+        },
+        {
+          "start": 157,
+          "before": "3",
+          "after": "4.js"
+        }
+      ]
+    },
+    {
+      "file": "types.cjs",
+      "beforeSha256": "83d6e1112060c1fd4d12c9944f8f40236e69534e85608f9c34e1eec134c7d675",
+      "afterSha256": "e9b72dc4357126eeb5ac4b25e17b55b6a9a114069f9e5d58f86ba11efcc9b60e",
+      "edits": [
+        {
+          "start": 99,
+          "before": "",
+          "after": "./_cocotrip-"
+        },
+        {
+          "start": 102,
+          "before": "/",
+          "after": "-"
+        },
+        {
+          "start": 104,
+          "before": "3",
+          "after": "4.cjs"
+        }
+      ]
+    },
+    {
+      "file": "types.d.cts",
+      "beforeSha256": "a6a54bfa3b465baa7d91da31b8c28e2a0e92ab7c751c4c27a6c236010148a426",
+      "afterSha256": "c3a28cb4ed000b6dc90319633b32f8ece4a7b2774af1e5f67a90a65d19505444",
+      "edits": [
+        {
+          "start": 1222,
+          "before": "3",
+          "after": "4"
+        },
+        {
+          "start": 2881,
+          "before": "z.ZodObjec",
+          "after": ""
+        },
+        {
+          "start": 2892,
+          "before": "<{\n  name: z.ZodO",
+          "after": "y"
+        },
+        {
+          "start": 2910,
+          "before": "tional<z.ZodString>;\n  ",
+          "after": ""
+        },
+        {
+          "start": 2934,
+          "before": "rr",
+          "after": ""
+        },
+        {
+          "start": 2937,
+          "before": "r:",
+          "after": "f"
+        },
+        {
+          "start": 2940,
+          "before": "z.ZodOptional<z.ZodStr",
+          "after": ""
+        },
+        {
+          "start": 2963,
+          "before": "ng>;\n  ",
+          "after": ""
+        },
+        {
+          "start": 2971,
+          "before": "essage: z.ZodO",
+          "after": ""
+        },
+        {
+          "start": 2986,
+          "before": "tional<z.Z",
+          "after": ""
+        },
+        {
+          "start": 2997,
+          "before": "dSt",
+          "after": ""
+        },
+        {
+          "start": 3001,
+          "before": "ing>;\n  s",
+          "after": ""
+        },
+        {
+          "start": 3011,
+          "before": "a",
+          "after": "(\"./_"
+        },
+        {
+          "start": 3013,
+          "before": "k: z.ZodOpti",
+          "after": ""
+        },
+        {
+          "start": 3026,
+          "before": "nal<z.Z",
+          "after": "c"
+        },
+        {
+          "start": 3034,
+          "before": "dS",
+          "after": ""
+        },
+        {
+          "start": 3039,
+          "before": "",
+          "after": "p-"
+        },
+        {
+          "start": 3040,
+          "before": "g>;\n}, \"s",
+          "after": "a"
+        },
+        {
+          "start": 3050,
+          "before": "r",
+          "after": ""
+        },
+        {
+          "start": 3052,
+          "before": "p\", z.ZodTypeAny, {\n  ",
+          "after": "v"
+        },
+        {
+          "start": 3075,
+          "before": "rror?: ",
+          "after": "-"
+        },
+        {
+          "start": 3083,
+          "before": "tring | und",
+          "after": "ch"
+        },
+        {
+          "start": 3095,
+          "before": "fined;\n  n",
+          "after": "m"
+        },
+        {
+          "start": 3106,
+          "before": "me?: s",
+          "after": "-"
+        },
+        {
+          "start": 3113,
+          "before": "ring | und",
+          "after": "yp"
+        },
+        {
+          "start": 3124,
+          "before": "fined;\n  me",
+          "after": ""
+        },
+        {
+          "start": 3136,
+          "before": "",
+          "after": ".cj"
+        },
+        {
+          "start": 3137,
+          "before": "",
+          "after": "\").b"
+        },
+        {
+          "start": 3138,
+          "before": "ge?: ",
+          "after": ""
+        },
+        {
+          "start": 3144,
+          "before": "tring | undefin",
+          "after": ""
+        },
+        {
+          "start": 3160,
+          "before": "d;\n  ",
+          "after": "J"
+        },
+        {
+          "start": 3166,
+          "before": "tack?: string | undefi",
+          "after": "o"
+        },
+        {
+          "start": 3189,
+          "before": "ed;\n}, {\n  e",
+          "after": "E"
+        },
+        {
+          "start": 3205,
+          "before": "?: string | undefined;\n  name?: string | undefin",
+          "after": "Sch"
+        },
+        {
+          "start": 3254,
+          "before": "d;\n  ",
+          "after": ""
+        },
+        {
+          "start": 3260,
+          "before": "ess",
+          "after": ""
+        },
+        {
+          "start": 3264,
+          "before": "ge?: string | undefined;\n  stack?: string | undefined;\n}>",
+          "after": ""
+        },
+        {
+          "start": 3467,
+          "before": "",
+          "after": " typeof"
+        },
+        {
+          "start": 3468,
+          "before": "z",
+          "after": "import(\""
+        },
+        {
+          "start": 3470,
+          "before": "Z",
+          "after": "/_coc"
+        },
+        {
+          "start": 3472,
+          "before": "dT",
+          "after": "trip-native-schema-t"
+        },
+        {
+          "start": 3477,
+          "before": "<J",
+          "after": "s.cjs\").j"
+        },
+        {
+          "start": 3487,
+          "before": ">",
+          "after": "Schema"
+        },
+        {
+          "start": 11655,
+          "before": "z.ZodObjec",
+          "after": ""
+        },
+        {
+          "start": 11666,
+          "before": "<{\n  id: z.ZodString;\n  data: z.ZodO",
+          "after": "y"
+        },
+        {
+          "start": 11703,
+          "before": "tional<z.ZodAny>;\n  ",
+          "after": ""
+        },
+        {
+          "start": 11724,
+          "before": "rr",
+          "after": ""
+        },
+        {
+          "start": 11727,
+          "before": "r:",
+          "after": "f"
+        },
+        {
+          "start": 11730,
+          "before": "z.ZodOpt",
+          "after": ""
+        },
+        {
+          "start": 11739,
+          "before": "onal<z.ZodAny>;\n  in",
+          "after": "m"
+        },
+        {
+          "start": 11760,
+          "before": "ut: z.Z",
+          "after": ""
+        },
+        {
+          "start": 11768,
+          "before": "dOp",
+          "after": "r"
+        },
+        {
+          "start": 11772,
+          "before": "ional<z",
+          "after": "(\""
+        },
+        {
+          "start": 11780,
+          "before": "Z",
+          "after": "/_c"
+        },
+        {
+          "start": 11782,
+          "before": "dAny>;\n}, \"s",
+          "after": "co"
+        },
+        {
+          "start": 11798,
+          "before": "\", z.ZodTypeA",
+          "after": "-"
+        },
+        {
+          "start": 11812,
+          "before": "y, {\n  ",
+          "after": "at"
+        },
+        {
+          "start": 11820,
+          "before": "d: ",
+          "after": "ve-"
+        },
+        {
+          "start": 11824,
+          "before": "tring;\n  ",
+          "after": "ch"
+        },
+        {
+          "start": 11834,
+          "before": "rror?: any;\n  d",
+          "after": "m"
+        },
+        {
+          "start": 11850,
+          "before": "",
+          "after": "-"
+        },
+        {
+          "start": 11851,
+          "before": "a?: an",
+          "after": ""
+        },
+        {
+          "start": 11858,
+          "before": ";\n  in",
+          "after": ""
+        },
+        {
+          "start": 11865,
+          "before": "ut?: any;\n}, {\n  id: ",
+          "after": "e"
+        },
+        {
+          "start": 11887,
+          "before": "tr",
+          "after": ".cjs\")."
+        },
+        {
+          "start": 11891,
+          "before": "g;\n  err",
+          "after": "c"
+        },
+        {
+          "start": 11900,
+          "before": "r?: any;\n  data?: any;\n  ",
+          "after": "m"
+        },
+        {
+          "start": 11927,
+          "before": "",
+          "after": "gO"
+        },
+        {
+          "start": 11928,
+          "before": "ut?: ",
+          "after": "Schem"
+        },
+        {
+          "start": 11934,
+          "before": "ny;\n}>",
+          "after": ""
+        },
+        {
+          "start": 23173,
+          "before": "z.ZodObjec",
+          "after": ""
+        },
+        {
+          "start": 23184,
+          "before": "<{\n  /**\n   * Ev",
+          "after": "yp"
+        },
+        {
+          "start": 23201,
+          "before": "nt IDs\n   */\n ",
+          "after": "of"
+        },
+        {
+          "start": 23217,
+          "before": "ds: z.Z",
+          "after": "mp"
+        },
+        {
+          "start": 23225,
+          "before": "dDefaul",
+          "after": "r"
+        },
+        {
+          "start": 23233,
+          "before": "<z",
+          "after": "(\""
+        },
+        {
+          "start": 23236,
+          "before": "Z",
+          "after": "/_c"
+        },
+        {
+          "start": 23238,
+          "before": "dArray<z.Z",
+          "after": "c"
+        },
+        {
+          "start": 23249,
+          "before": "dS",
+          "after": ""
+        },
+        {
+          "start": 23254,
+          "before": "ng, \"ma",
+          "after": "p-"
+        },
+        {
+          "start": 23262,
+          "before": "y\">>;\n  /**\n   * HTTP St",
+          "after": ""
+        },
+        {
+          "start": 23288,
+          "before": "us Code. W",
+          "after": ""
+        },
+        {
+          "start": 23299,
+          "before": "ll be undefined if no request was s",
+          "after": "v"
+        },
+        {
+          "start": 23335,
+          "before": "nt.\n   */\n  ",
+          "after": "-"
+        },
+        {
+          "start": 23348,
+          "before": "tatus: z.ZodD",
+          "after": "ch"
+        },
+        {
+          "start": 23362,
+          "before": "f",
+          "after": "m"
+        },
+        {
+          "start": 23364,
+          "before": "ul",
+          "after": "-"
+        },
+        {
+          "start": 23367,
+          "before": "<z.ZodNumber>;\n  /**\n   * Error m",
+          "after": "yp"
+        },
+        {
+          "start": 23401,
+          "before": "s",
+          "after": ""
+        },
+        {
+          "start": 23403,
+          "before": "age",
+          "after": ""
+        },
+        {
+          "start": 23407,
+          "before": " Will be undefined if no error oc",
+          "after": ""
+        },
+        {
+          "start": 23441,
+          "before": "urred.\n   */\n  error: z.ZodOptional<z.ZodString>;\n}, \"",
+          "after": "j"
+        },
+        {
+          "start": 23496,
+          "before": "trip",
+          "after": ""
+        },
+        {
+          "start": 23501,
+          "before": ", z",
+          "after": ")"
+        },
+        {
+          "start": 23505,
+          "before": "ZodTypeAny, {\n  statu",
+          "after": ""
+        },
+        {
+          "start": 23527,
+          "before": ": numb",
+          "after": ""
+        },
+        {
+          "start": 23534,
+          "before": "r;\n  ids: string[];\n  error?: string | u",
+          "after": ""
+        },
+        {
+          "start": 23576,
+          "before": "",
+          "after": "Ev"
+        },
+        {
+          "start": 23577,
+          "before": "fi",
+          "after": ""
+        },
+        {
+          "start": 23580,
+          "before": "ed;\n}, {\n  s",
+          "after": ""
+        },
+        {
+          "start": 23593,
+          "before": "atu",
+          "after": "Re"
+        },
+        {
+          "start": 23597,
+          "before": "?: number | undefined;\n  err",
+          "after": "p"
+        },
+        {
+          "start": 23626,
+          "before": "r?: stri",
+          "after": ""
+        },
+        {
+          "start": 23635,
+          "before": "g | undefined;\n  id",
+          "after": ""
+        },
+        {
+          "start": 23655,
+          "before": "?: string[] | und",
+          "after": ""
+        },
+        {
+          "start": 23673,
+          "before": "fin",
+          "after": "Sch"
+        },
+        {
+          "start": 23677,
+          "before": "d;\n}>",
+          "after": "ma"
+        },
+        {
+          "start": 50412,
+          "before": "ma: z.ZodObject<{\n  na",
+          "after": ""
+        },
+        {
+          "start": 50435,
+          "before": "e: z.ZodOption",
+          "after": ""
+        },
+        {
+          "start": 50450,
+          "before": "l<z.ZodString>;\n  id: z.ZodString;\n  triggers: z.ZodArray<z.ZodUnion<[z.ZodObject<{\n    event: z.ZodString;\n    expression: z.ZodOptional<z.ZodString>;\n  }, \"strict\", z.ZodTypeAny, {\n    event: string;\n    expression?: string | undefined;\n  }, {\n    event: string;\n    expression?: string | undefined;\n  }>, z.ZodObject<{\n    cron: z.ZodString;\n    jitter: z.ZodOptional<z.ZodString>;\n  }, \"strict\", z.ZodTypeAny, {\n    cron: string;\n    jitter?: string | undefined;\n  }, {\n    cron: string;\n    jitter?: string | undefined;\n  }>]>, \"many\">;\n  steps: z.ZodRecord<z.ZodString, z.ZodObject<{\n    id: z.ZodString;\n    name: z.ZodString;\n    runtime: z.ZodObject<{\n      type: z.ZodUnion<[z.ZodLiteral<\"http\">, z.ZodLiteral<\"ws\">]>;\n      url: z.ZodString;\n    }, \"strict\", z.ZodTypeAny, {\n      url: string;\n      type: \"http\" | \"ws\";\n    }, {\n      url: string;\n      type: \"http\" | \"ws\";\n    }>;\n    retries: z.ZodOptional<z.ZodObject<{\n      attempts: z.ZodOptional<z.ZodNumber>;\n    }, \"strict\", z.ZodTypeAny, {\n      attempts?: number | undefined;\n    }, {\n      attempts?: number | undefined;\n    }>>;\n  }, \"strict\", z.ZodTypeAny, {\n    name: string;\n    id: string;\n    runtime: {\n      url: string;\n      type: \"http\" | \"ws\";\n    };\n    retries?: {\n      attempts?: number | undefined;\n    } | undefined;\n  }, {\n    name: string;\n    id: string;\n    runtime: {\n      url: string;\n      type: \"http\" | \"ws\";\n    };\n    retries?: {\n      attempts?: number | undefined;\n    } | undefined;\n  }>>;\n  idempotency: z.ZodOptional<z.ZodString>;\n  batchEvents: z.ZodOptional<z.ZodObject<{\n    maxSize: z.ZodNumber;\n    timeout: z.ZodString;\n    key: z.ZodOptional<z.ZodString>;\n    if: z.ZodOptional<z.ZodString>;\n  }, \"strict\", z.ZodTypeAny, {\n    maxSize: number;\n    timeout: string;\n    key?: string | undefined;\n    if?: string | undefined;\n  }, {\n    maxSize: number;\n    timeout: string;\n    key?: string | undefined;\n    if?: string | undefined;\n  }>>;\n  rateLimit: z.ZodOptional<z.ZodObject<{\n    key: z.ZodOptional<z.ZodString>;\n    limit: z.ZodNumber;\n    period",
+          "after": ""
+        },
+        {
+          "start": 52519,
+          "before": " z.ZodEffects<z.ZodString, \"\" | `${number}w` | `${number}d` | `${number}h` | `${number}m` | `${number}s` | `${number}m${number}s` | `${number}h${number}s` | `${number}h${number}m` | `${number}h${number}m${number}s` | `${number}d${number}s` | `${number}d${number}m` | `${number}d${number}m${number}s` | `${number}d${number}h` | `${number}d${number}h${number}s` | `${number}d${number}h${number}m` | `${number}d${number}h${number}m${number}s` | `${number}w${number}s` | `${number}w${number}m` | `${number}w${number}m${number}s` | `${number}w${number}h` | `${number}w${number}h${number}s` | `${number}w${number}h${number}m` | `${number}w${number}h${number}m${number}s` | `${number}w${number}d` | `${number}w${number}d${number}s` | `${number}w${number}d${number}m` | `${number}w${number}d${number}m${number}s` | `${number}w${number}d${number}h` | `${number}w${number}d${number}h${number}s` |",
+          "after": ""
+        },
+        {
+          "start": 53406,
+          "before": "`${number}w${number}d${number}h${number}m` | `${number}w${number}d${number}h${number}m${number}s`, s",
+          "after": ""
+        },
+        {
+          "start": 53507,
+          "before": "ring>;\n  }, \"strict\", z.ZodTypeAny, {\n    limit: number;\n    period: \"\" | `${number}w` | `${number}d` | `${number}h` | `${number}m` | `${number}s` | `${number}m${number}s` | `${number}h${number}s` | `${number}h${number}m` | `${number}h${number}m${number}s` | `${number}d${number}s` | `${number}d${number}m` | `${number}d${number}m${number}s` | `${number}d${number}h` | `${number}d${number}h${number}s` | `${number}d${number}h${number}m` | `${number}d${number}h${number}m${number}s` | `${number}w${number}s` | `${number}w${number}m` | `${number}w${number}m${number}s` | `${number}w${number}h` | `${number}w${number}h${number}s` | `${number}w${number}h${number}m` | `${number}w${number}h${number}m${number}s` | `${number}w${number}d` | `${number}w${number}d${number}s` | `${number}w${number}d${number}m` | `${number}w${number}d${number}m${number}s` | `${number}w${number}d${number}h` | `${number}w${number}d${number}h${number}s` | `${number}w${number}d${number}h${number}m` | `${number}w${number}d${number}h${number}m${number}s`;\n    ke",
+          "after": ""
+        },
+        {
+          "start": 54542,
+          "before": "?: string | undefined;\n  }, {\n    limit: number;\n    ",
+          "after": ""
+        },
+        {
+          "start": 54597,
+          "before": "ri",
+          "after": ""
+        },
+        {
+          "start": 54600,
+          "before": "d: string;\n    key?: string | unde",
+          "after": ""
+        },
+        {
+          "start": 54635,
+          "before": "ined;\n  }>>;\n  throttle:",
+          "after": ""
+        },
+        {
+          "start": 54660,
+          "before": "z.ZodOpt",
+          "after": ""
+        },
+        {
+          "start": 54669,
+          "before": "onal<z.ZodObject<{\n    key: z.ZodOptional<z.ZodString>;\n    li",
+          "after": ""
+        },
+        {
+          "start": 54732,
+          "before": "it: z.ZodNumber;\n    ",
+          "after": ""
+        },
+        {
+          "start": 54754,
+          "before": "eriod: z.Z",
+          "after": ""
+        },
+        {
+          "start": 54765,
+          "before": "dEffects<z.ZodSt",
+          "after": ""
+        },
+        {
+          "start": 54782,
+          "before": "ing, \"\" | `${number}w` | `${number}d` | `${number}h` | `${number}m` | `${number}s` | `${number}m${number}s` | `${number}h${number}s` | `${number}h${number}m` | `${number}h${number}m${number}s` | `${number}d${number}s` | `${number}d${number}m` | `${number}d${number}m${number}s` | `${number}d${number}h` | `${number}d${number}h${number}s` | `${number}d${number}h${number}m` | `${number}d${number}h${number}m${number}s` | `${number}w${number}s` | `${number}w${number}m` | `${number}w${number}m${number}s` | `${number}w${number}h` | `${number}w${number}h${number}s` | `${number}w${number}h${number}m` | `${number}w${number}h${number}m${number}s` | `${number}w${number}d` | `${number}w${number}d${number}s` | `${number}w${number}d${number}m` | `${number}w${number}d${number}m${number}s` | `${number}w${number}d${number}h` | `${number}w${number}d${number}h${number}s` | `${number}w${number}d${number}h${number}m` | `${number}w${number}d${number}h${number}m${number}s`, s",
+          "after": ""
+        },
+        {
+          "start": 55748,
+          "before": "ring>;\n    burst: z.ZodOptional<z.ZodNumber>;\n  }, \"strict\", z.ZodTypeAny, {\n    limit: number;\n    period: \"\" | `${number}w` | `${number}d` | `${number}h` | `${number}m` | `${number}s` | `${number}m${number}s` | `${number}h${number}s` | `${number}h${number}m` | `${number}h${number}m${number}s` | `${number}d${number}s` | `${number}d${number}m` | `${number}d${number}m${number}s` | `${number}d${number}h` | `${number}d${number}h${number}s` | `${number}d${number}h${number}m` | `${number}d${number}h${number}m${number}s` | `${number}w${number}s` | `${number}w${number}m` | `${number}w${number}m${number}s` | `${number}w${number}h` | `${number}w${number}h${number}s` | `${number}w${number}h${number}m` | `${number}w${number}h${number}m${number}s` | `${number}w${number}d` | `${number}w${number}d${number}s` | `${number}w${number}d${number}m` | `${number}w${number}d${number}m${number}s` | `${number}w${number}d${number}h` | `${number}w${number}d${number}h${number}s` | `${number}w${number}d${number}h${number}m` | `${number}w${number}d${number}h${number}m${number}s`;\n    key?: string | undefined;\n    burst?: number | undefined;\n  }, {\n    limit: number;\n    period: string;\n    key?: string | undefined;\n    burst?: number | undefined;\n  }>>;\n  singleton: z.ZodOptional<z.ZodObject<{\n    key: z.ZodOptional<z.ZodString>;\n    mode: z.ZodEnum<[",
+          "after": "("
+        },
+        {
+          "start": 57092,
+          "before": "skip\", \"cancel\"]>;\n  }, \"strict\", z",
+          "after": ""
+        },
+        {
+          "start": 57128,
+          "before": "ZodTypeAny, {\n    mode: \"skip\" | \"can",
+          "after": "/_"
+        },
+        {
+          "start": 57166,
+          "before": "el\";\n    key?: string | undefined;\n  }, {\n    m",
+          "after": ""
+        },
+        {
+          "start": 57214,
+          "before": "de: \"skip\" | \"",
+          "after": ""
+        },
+        {
+          "start": 57229,
+          "before": "ancel\";\n    key?: string | undefined;\n  }>>;\n  cancel: z.Z",
+          "after": ""
+        },
+        {
+          "start": 57288,
+          "before": "dOp",
+          "after": ""
+        },
+        {
+          "start": 57292,
+          "before": "ional<z.ZodA",
+          "after": ""
+        },
+        {
+          "start": 57305,
+          "before": "ray<z.ZodObject<{\n    event: z.ZodString;\n    ",
+          "after": ""
+        },
+        {
+          "start": 57352,
+          "before": "f: z.ZodO",
+          "after": ""
+        },
+        {
+          "start": 57362,
+          "before": "tional<z.ZodString>;\n    timeout: z.ZodOptio",
+          "after": "-"
+        },
+        {
+          "start": 57408,
+          "before": "l<z.ZodS",
+          "after": ""
+        },
+        {
+          "start": 57417,
+          "before": "r",
+          "after": ""
+        },
+        {
+          "start": 57419,
+          "before": "ng>;\n  }, \"strict\", z.ZodTypeAny, {\n    event: string;\n    timeout?: string | undefined;\n    if?: string | undefined;\n  }, {\n    e",
+          "after": ""
+        },
+        {
+          "start": 57550,
+          "before": "ent: string;\n    timeout?: string | undefined;\n    if?: string | undefined;\n  }>, \"many\">>;\n  debounce: z.ZodOptional<z.ZodObject<{\n    key: z.ZodOptional<z.ZodString>;\n    period: z.ZodEffects<z.ZodString, \"\" | `${number}w` | `${number}d` | `${number}h` | `${number}m` | `${number}s` | `${number}m${number}s` | `${number}h${number}s` | `${number}h${number}m` | `${number}h${number}m${number}s` | `${number}d${number}s` | `${number}d${number}m` | `${number}d${number}m${number}s` | `${number}d${number}h` | `${number}d${number}h${number}s` | `${number}d${number}h${number}m` | `${number}d${number}h${number}m${number}s` | `${number}w${number}s` | `${number}w${number}m` | `${number}w${number}m${number}s` | `${number}w${number}h` | `${number}w${number}h${number}s` | `${number}w${number}h${number}m` | `${number}w${number}h${number}m${number}s` | `${number}w${number}d` | `${number}w${number}d${number}s` | `${number}w${number}d${number}m` | `${number}w${number}d${number}m${number}s` | `${number}w${number}d${number}h` | `${number}w${number}d${number}h${number}s` | `${number}w${number}d${number}h${number}m` | `${number}w${number}d${number}h${number}m${number}s`, string>;\n    timeout: z.ZodOptional<z.ZodEffects<z.ZodString, \"\" | `${number}w` | `${number}d` | `${number}h` | `${number}m` | `${number}s` | `${number}m${number}s` | `${number}h${number}s` | `${number}h${number}m` | `${number}h${number}m${number}s` | `${number}d${number}s` | `${number}d${number}m` | `${number}d${number}m${number}s` | `${number}d${number}h` | `${number}d${number}h${number}s` | `${number}d${number}h${number}m` | `${number}d${number}h${number}m${number}s` | `${number}w${number}s` | `${number}w${number}m` | `${number}w${number}m${number}s` | `${number}w${number}h` | `${number}w${number}h${number}s` | `${number}w${number}h${number}m` | `${number}w${number}h${number}m${number}s` | `${number}w${number}d` | `${number}w${number}d${number}s` | `${number}w${number}d${number}m` | `${number}w${number}d${number}m${number}s` | `${number}w${number}d${number}h` | `${number}w${number}d${number}h${number}s` | `${number}w${number}d${number}h${number}m` | `${number}w${number}d${number}h${number}m${number}s`, string>>;\n  }, \"strict\", z.ZodTypeAny, {\n    period: \"\" | `${number}w` | `${number}d` | `${number}h` | `${number}m` | `${number}s` | `${number}m${number}s` | `${number}h${number}s` | `${number}h${number}m` | `${number}h${number}m${number}s` | `${number}d${number}s` | `${number}d${number}m` | `${number}d${number}m${number}s` | `${number}d${number}h` | `${number}d${number}h${number}s` | `${number}d${number}h${number}m` | `${number}d${number}h${number}m${number}s` | `${number}w${number}s` | `${number}w${number}m` | `${number}w${number}m${number}s` | `${number}w${number}h` | `${number}w${number}h${number}s` | `${number}w${number}h${number}m` | `${number}w${number}h${number}m${number}s` | `${number}w${number}d` | `${number}w${number}d${number}s` | `${number}w${number}d${number}m` | `${number}w${number}d${number}m${number}s` | `${number}w${number}d${number}h` | `${number}w${number}d${number}h${number}s` | `${number}w${number}d${number}h${number}m` | `${number}w${number}d${number}h${number}m${number}s`;\n    key?: string | undefined;\n    timeout?: \"\" | `${number}w` | `${number}d` | `${number}h` | `${number}m` | `${number}s` | `${number}m${number}s` | `${number}h${numb",
+          "after": ""
+        },
+        {
+          "start": 60916,
+          "before": "r}s` | `${number}h${number}m` | `${number}h${number}m${number}s` | `${number}d${number}s` | `${number}d${number}m` | `${number}d${number}m${number}s` | `${number}d${number}h` | `${number}d${number}h${number}s` | `${number}d${number}h${number}m` | `${number}d${number}h${number}m${number}s` | `${number}w${number}s` | `${number}w${number}m` | `${number}w${number}m${number}s` | `${number}w${number}h` | `${number}w${number}h${number}s` | `${number}w${number}h${number}m` | `${number}w${number}h${number}m${number}s` | `${number}w${number}d` | `${number}w${number}d${number}s` | `${number}w${number}d${number}m` | `${number}w${number}d${number}m${number}s` | `${number}w${number}d${number}h` | `${number}w${number}d${number}h${number}s` | `${number}w${number}d${number}h${number}m` | `${number}w${number}d${number}h${number}m${number}s` | undefined;\n  }, {\n    period: string;\n    key?: string | undefined;\n    timeout?: string | undefined;\n  }>>;\n  timeouts: z.ZodOptional<z.ZodObject<{\n    start: z.ZodOptional<z.ZodEffects<z.ZodString, \"\" | `${number}w` | `${number}d` | `${number}h` | `${number}m` | `${number}s` | `${number}m${number}s` | `${number}h${number}s` | `${number}h${number}m` | `${number}h${number}m${number}s` | `${number}d${number}s` | `${number}d${number}m` | `${number}d${number}m${number}s` | `${number}d${number}h` | `${number}d${number}h${number}s` | `${number}d${number}h${number}m` | `${number}d${number}h${number}m${number}s` | `${number}w${number}s` | `${number}w${number}m` | `${number}w${number}m${number}s` | `${number}w${number}h` | `${number}w${number}h${number}s` | `${number}w${number}h${number}m` | `${number}w${number}h${number}m${number}s` | `${number}w${number}d` | `${number}w${number}d${number}s` | `${number}w${number}d${number}m` | `${number}w${number}d${number}m${number}s` | `${number}w${number}d${number}h` | `${number}w${number}d${number}h${number}s` | `${number}w${number}d${number}h${number}m` | `${number}w${number}d${number}h${number}m${number}s`, string>>;\n    finish: z.ZodOptional<z.ZodEffects<z.ZodString, \"\" | `${number}w` | `${number}d` | `${number}h` | `${number}m` | `${number}s` | `${number}m${number}s` | `${number}h${number}s` | `${number}h${number}m` | `${number}h${number}m${number}s` | `${number}d${number}s` | `${number}d${number}m` | `${number}d${number}m${number}s` | `${number}d${number}h` | `${number}d${number}h${number}s` | `${number}d${number}h${number}m` | `${number}d${number}h${number}m${number}s` | `${number}w${number}s` | `${number}w${number}m` | `${number}w${number}m${number}s` | `${number}w${number}h` | `${number}w${number}h${number}",
+          "after": "-"
+        },
+        {
+          "start": 63530,
+          "before": "` | `${number}w${number}h${number}m` | `${number}w${number}h${number}m${number}s` | `${number}w${number}d` | `${number}w${number}d${number}s` | `${number}w${number}d${number}m` | `${number}w${number}d${number}m${number}s` | `${number}w${number}d${number}h` | `${number}w${number}d${number}h${number}s` | `${number}w${number}d${number}h${number}m` | `${number}w${number}d${number}h${number}m${number}s`, string>>;\n  }, \"stri",
+          "after": ""
+        },
+        {
+          "start": 63954,
+          "before": "t\", z.ZodTypeAny, {\n    finish?: \"\" | `${number}w` | `${number}d` | `${number}",
+          "after": ""
+        },
+        {
+          "start": 64033,
+          "before": "` | `${numb",
+          "after": ""
+        },
+        {
+          "start": 64045,
+          "before": "r}",
+          "after": ""
+        },
+        {
+          "start": 64048,
+          "before": "` | `${number}s` | `${number}m${number}s` | `${number}h${number}s` | `${number}h${number}m` | `${number}h${number}m${number}s` | `${number}d${number}s` | `${number}d${number}m` | `${number}d${number}m${number}s` | `${number}d${number}h` | `${number}d${number}h${number}s` | `${number}d${number}h${number}m` | `${number}d${number}h${number}m${number}s` | `${number}w${number}s` | `${number}w${number}m` | `${number}w${number}m${number}s` | `${number}w${number}h` | `${number}w${number}h${number}s` | `${number}w${number}h${number}m` | `${number}w${number}h${number}m${number}s` | `${number}w${number}d` | `${number}w${number}d${number}s` | `${number}w${number}d${number}m` | `${number}w${number}d${number}m${number}s` | `${number}w${number}d${number}h` | `${number}w${number}d${number}h${number}s` | `${number}w${number}d${number}h${number}m` | `${number}w${number}d${number}h${number}m${number}s` | undefined;\n    st",
+          "after": ""
+        },
+        {
+          "start": 64965,
+          "before": "rt?: \"\" | `${number}w` | `${number}d` | `${number}h` | `${number}m` | `${number}s` | `${number}m${number}s` | `${number}h${number}s` | `${number}h${number}m` | `${number}h${number}m${number}s` | `${number}d${number}s` | `${number}d${number}m` | `${number}d${number}m${number}s` | `${number}d${number}h` | `${number}d${number}h${number}s` | `${number}d${number}h${number}m` | `${number}d${number}h${number}m${number}s` | `${number}w${number}s` | `${number}w${number}m` | `${number}w${number}m${number}s` | `${number}w${number}h` | `${number}w${number}h${number}s` | `${number}w${number}h${number}m` | `${number}w${number}h${number}m${number}s` | `${number}w${number}d` | `${number}w${number}d${number}s` | `${number}w${number}d${number}m` | `${number}w${number}d${number}m${number}s` | `${number}w${number}d${number}h` | `${number}w${number}d${number}h${number}s` | `${number}w${number}d${number}h${number}m` | `${number}w${number}d${number}h${number}m${number}s` | undefined;\n  }, {\n    finish?: s",
+          "after": "-"
+        },
+        {
+          "start": 65963,
+          "before": "ring | undefined;\n    start?: string | undefined;\n  }>>;\n  priority: z.ZodOptional<z.ZodObject<{\n    run: z.ZodOptional<z.ZodString>;\n  }, \"strict\", z.ZodTypeAny, {\n    run?: string | undefined;\n  }, {\n    run?: string | undefined;\n  }>>;\n  concurrency: z.ZodOptional<z.ZodUnion<[z.ZodNumber, z.ZodEffects<z.ZodObject<{\n    limit: z.ZodNumber;\n    key: z.ZodOptional<z.ZodString>;\n    scope: z.ZodOptional<z.ZodEnum<[\"fn\", \"env\", \"account\"]>>;\n  }, \"strict\", z.ZodT",
+          "after": ""
+        },
+        {
+          "start": 66430,
+          "before": "eAny, {\n    limit: number;\n    k",
+          "after": ""
+        },
+        {
+          "start": 66463,
+          "before": "y?: string | undefined;\n    ",
+          "after": ""
+        },
+        {
+          "start": 66492,
+          "before": "cope?: \"env\" | \"fn\" | \"account\" | undefined;\n  }, {\n    limit: number;\n    key?: string | undefined;\n    scope?: \"env\" | \"fn\" | \"account\" | undefined;\n  }>, ConcurrencyOption, {\n    limit: number;\n    key?: string | undefined;\n    scope?: \"env\" | \"fn\" | \"account\" | undefined;\n  }>, z",
+          "after": ""
+        },
+        {
+          "start": 66777,
+          "before": "ZodArray<z.ZodEffe",
+          "after": ""
+        },
+        {
+          "start": 66796,
+          "before": "ts<z.ZodOb",
+          "after": ""
+        },
+        {
+          "start": 66807,
+          "before": "ect<{\n    limit: z.ZodNumber;\n    key: z.ZodOptional<z.ZodString>;\n    ",
+          "after": ""
+        },
+        {
+          "start": 66879,
+          "before": "cope: z.ZodOptional<z.ZodEnum<[\"fn\", ",
+          "after": ""
+        },
+        {
+          "start": 66917,
+          "before": "env\", \"account\"]>>;\n  }, \"strict\", z.ZodTypeAny, {\n    limit: number;\n    key?: string | undefined;\n    scope?: \"env\" | \"fn\" | \"account\" | undefined;\n  }, {\n    limit: number;\n    key?: string | undefined;\n    scope?: \"env\" | \"fn\" | \"account\" | undefined;\n  }>, ConcurrencyOption, {\n    limit: number;\n    key?: string | undefined;\n    scope?: \"env\" | \"fn\" | \"account\" | undefined;\n  }>, \"many\">]>>;\n}, \"strict\", z.ZodTypeAny, {\n  id: string;\n  triggers: ({\n    event: string;\n    expression?: string | undefined;\n  } | {\n    cron: string;\n    jitter?: string | undefined;\n  }",
+          "after": ""
+        },
+        {
+          "start": 67494,
+          "before": "[];\n  steps: Record<string, {\n    name: string;\n    id: string;\n    runtime: {\n      url: string;\n      type: \"http\" | \"ws\";\n    };\n    retries?: {\n      attempts?: number | undefined;\n    } | undefined;\n  }>;\n  name?: string | undefined;\n  idempotency?: string | undefined;\n  batchEvents?: {\n    maxSize: number;\n    timeout: string;\n    key?: string | undefined;\n    if?: string | undefined;\n  } | undefined;\n  rateLimit?: {\n    limit: number;\n    period: \"\" | `${number}w` | `${number}d` | `${number}h` | `${number}m` | `${number}s` | `${number}m${number}s` | `${number}h${number}s` | `${number}h${number}m` | `${number}h${number}m${number}s` | `${number}d${number}s` | `${number}d${number}m` | `${number}d${number}m${number}s` | `${number}d${number}h` | `${number}d${number}h${number}s` | `${number}d${number}h${number}m` | `${number}d${number}h${number}m${number}s` | `${number}w${number}s` | `${number}w${number}m` | `${number}w${number}m${number}s` | `${number}w${number}h` | `${number}w${number}h${number}s` | `${number}w${number}h${number}m` | `${number}w${number}h${number}m${number}s` | `${number}w${number}d` | `${number}w${number}d${number}s` | `${number}w${number}d${number}m` | `${number}w${number}d${number}m${number}s` | `${number}w${number}d${number}h` | `${number}w${number}d${number}h${number}s` | `${number}w${number}d${number}h${number}m` | `${number}w${number}d${number}h${number}m${number}s`;\n    key?: string | undefined;\n  } | undefined;\n  throttle?: {\n    limit: number;\n    period: \"\" | `${number}w` | `${number}d` | `${number}h` | `${number}m` | `${number}s` | `${number}m${number}s` | `${number}h${number}s` | `${number}h${number}m` | `${number}h${number}m${number}s` | `${number}d${number}s` | `${number}d${number}m` | `${number}d${number}m${number}s` | `${number}d${number}h` | `${number}d${number}h${number}s` | `${number}d${number}h${number}m` | `${number}d${number}h${number}m${number}s` | `${number}w${number}s` | `${number}w${number}m` | `${number}w${number}m${number}s` | `${number}w${number}h` | `${number}w${number}h${number}s` | `${number}w${number}h${number}m` | `${number}w${number}h${number}m${number}s` | `${number}w${number}d` | `${number}w${number}d${number}s` | `${number}w${number}d${number}m` | `${number}w${number}d${number}m${number}s` | `${number}w${number}d${number}h` | `${number}w${number}d${number}h${number}s` | `${number}w${number}d${number}h${number}m` | `${number}w${number}d${number}h${number}m${number}s`;\n    key?: string | undefined;\n    burst?: number | undefined;\n  } | undefined;\n  cancel?: {\n    event: string;\n    timeout?: string | undefined;\n    if?: string | undefined;\n  }[] | undefined;\n  singleton?: {\n    mode: \"skip\" | \"cancel\";\n    key?: string | undefined;\n  } | undefined;\n  debounce?: {\n    period: \"\" | `${number}w` | `${number}d` | `${number}h` | `${number}m` | `${number}s` | `${number}m${number}s` | `${number}h${number}s` | `${number}h${number}m` | `${number}h${number}m${number}s` | `${number}d${number}s` | `${number}d${number}m` | `${number}d${number}m${number}s` | `${number}d${number}h` | `${number}d${number}h${number}s` | `${number}d${number}h${number}m` | `${number}d${number}h${number}m${number}s` | `${number}w${number}s` | `${number}w${number}m` | `${number}w${number}m${number}s` | `${number}w${number}h` | `${number}w${number}h${number}s` | `${number}w${number}h${number}m` | `${number}w${number}h${number}m${number}s` | `${number}w${number}d` | `${number}w${number}d${number}s` | `${number}w${number}d${number}m` | `${number}w${number}d${number}m${number}s` | `${number}w${number}d${number}h` | `${number}w${number}d${number}h${number}s` | `${number}w${number}d${number}h${number}m` | `${number}w${number}d${number}h${number}m${number}s`;\n    key?: string | undefined;\n    timeout?: \"\" | `${number}w` | `${number}d` | `${number}h` | `${number}m` | `${number}s` | `${number}m${number}s` | `${number}h${number}s` | `${number}h${number}m` | `${number}h${number}m${number}s` | `${number}d${number}s` | `${number}d${number}m` | `${number}d${number}m${number}s` | `${number}d${number}h` | `${number}d${number}h${number}s` | `${number}d${number}h${number}m` | `${number}d${number}h${number}m${number}s` | `${number}w${number}s` | `${number}w${number}m` | `${number}w${number}m${number}s` | `${number}w${number}h` | `${number}w${number}h${number}s` | `${number}w${number}h${number}m` | `${number}w${number}h${number}m${number}s` | `${number}w${number}d` | `${number}w${number}d${number}s` | `${number}w${number}d${number}m` | `${number}w${number}d${number}m${number}s` | `${number}w${number}d${number}h` | `${number}w${number}d${number}h${number}s` | `${number}w${number}d${number}h${number}m` | `${number}w${number}d${number}h${number}m${number}s` | undefined;\n  } | undefined;\n  timeouts?: {\n    finish?: \"\" | `${number}w` | `${number}d` | `${number}h` | `${number}m` | `${number}s` | `${number}m${number}s` | `${number}h${number}s` | `${number}h${number}m` | `${number}h${number}m${number}s` | `${number}d${number}s` | `${number}d${number}m` | `${number}d${number}m${number}s` | `${number}d${number}h` | `${number}d${number}h${number}s` | `${number}d${number}h${number}m` | `${number}d${number}h${number}m${number}s` | `${number}w${number}s` | `${number}w${number}m` | `${number}w${number}m${number}s` | `${number}w${number}h` | `${number}w${number}h${number}s` | `${number}w${number}h${number}m` | `${number}w${number}h${number}m${number}s` | `${number}w${number}d` | `${number}w${number}d${number}s` | `${number}w${number}d${number}m` | `${number}w${number}d${number}m${number}s` | `${number}w${number}d${number}h` | `${number}w${number}d${number}h${number}s` | `${number}w${number}d${number}h${number}m` | `${number}w${number}d${number}h${number}m${number}s` | undefined;\n    start?: \"\" | `${number}w` | `${number}d` | `${number}h` | `${number}m` | `${number}s` | `${number}m${number}s` | `${number}h${number}s` | `${number}h${number}m` | `${number}h${number}m${number}s` | `${number}d${number}s` | `${number}d${number}m` | `${number}d${number}m${number}s` | `${number}d${number}h` | `${number}d${number}h${number}s` | `${number}d${number}h${number}m` | `${number}d${number}h${number}m${number}s` | `${number}w${number}s` | `${number}w${number}m` | `${number}w${number}m${number}s` | `${number}w${number}h` | `${number}w${number}h${number}s` | `${number}w${number}h${number}m` | `${number}w${number}h${number}m${number}s` | `${number}w${number}d` | `${number}w${number}d${number}s` | `${number}w${number}d${number}m` | `${number}w${number}d${number}m${number}s` | `${number}w${number}d${number}h` | `${number}w${number}d${number}h${number}s` | `${number}w${number}d${number}h${number}m` | `${number}w${number}d${number}h${number}m${number}s` | unde",
+          "after": "."
+        },
+        {
+          "start": 74242,
+          "before": "ined;\n  } | ",
+          "after": ""
+        },
+        {
+          "start": 74256,
+          "before": "defined;\n  priority?: {\n    run?: string | undefined;\n  } | undefined;\n  concurren",
+          "after": ""
+        },
+        {
+          "start": 74339,
+          "before": "y?: number | ConcurrencyOp",
+          "after": ""
+        },
+        {
+          "start": 74369,
+          "before": " | ",
+          "after": ""
+        },
+        {
+          "start": 74373,
+          "before": "oncurrencyOpti",
+          "after": ""
+        },
+        {
+          "start": 74389,
+          "before": "[] | unde",
+          "after": ""
+        },
+        {
+          "start": 74399,
+          "before": "ined;\n}, {\n  id: string;\n  triggers: ({\n    event: str",
+          "after": ""
+        },
+        {
+          "start": 74454,
+          "before": "n",
+          "after": ""
+        },
+        {
+          "start": 74456,
+          "before": ";\n    expression?: string | undefined;\n  } | {\n    cron: string;\n    jitter?: string | undefined;\n  })[];\n  steps: Record<string, {\n    name: string;\n    id: string;\n    runtime: {\n      url: string;\n      type: \"http\" | \"ws\";\n    };\n    retries?: {\n      attempts?: number | undefined;\n    } | undefined;\n  }>;\n  name?: string | undefined;\n  idempotency?: string | undefined;\n  batchEvents?: {\n    max",
+          "after": ""
+        },
+        {
+          "start": 74859,
+          "before": "ize: number;\n    timeout: string;\n    key?: string | undefined;\n    if?: string | undefined;\n  } | undefined;\n  rateLimit?: {\n    limit: number;\n    period: string;\n    key?: string | undefined;\n  } | undefined;\n  throttle?: {\n    limit: number;\n    period: string;\n    key?: string | undefined;\n    burst?: number | undefined;\n  } | undefined;\n  can",
+          "after": ""
+        },
+        {
+          "start": 75210,
+          "before": "el?: {\n    event: string;\n    timeout?: string | undefined;\n    if?: string | undefined;\n  }[] | undefined;\n  singleton?: {\n    mode: \"skip\" | \"cancel\";\n    key?: string | undefined;\n  } | undefined;\n  debounce?: {\n    period: string;\n    key?: string | undefined;\n    timeout?: string | undefined;\n  } | undefined;\n  timeouts?: {\n    finis",
+          "after": ""
+        },
+        {
+          "start": 75551,
+          "before": "?: string | undefined;\n    start?: string | undefin",
+          "after": ""
+        },
+        {
+          "start": 75603,
+          "before": "d;\n  } | undefined;\n  priority?: {\n    run?: string | undefined;\n  } | undefined;\n  concurrency?: number | {\n    li",
+          "after": ""
+        },
+        {
+          "start": 75719,
+          "before": "it: number;\n    key?: string | undefined;\n    scope?: \"env\" | \"fn\" | \"",
+          "after": ""
+        },
+        {
+          "start": 75790,
+          "before": "ccount\" | undefined;\n  } | {\n    limit: number",
+          "after": ""
+        },
+        {
+          "start": 75838,
+          "before": "    key?: string | undefined;\n    scope?: \"env\" | \"fn\" | \"account\" | undefined;\n  }[] | undefined;\n}>;\n",
+          "after": ""
+        },
+        {
+          "start": 84502,
+          "before": "z.ZodObj",
+          "after": "typ"
+        },
+        {
+          "start": 84511,
+          "before": "ct<{\n",
+          "after": "of"
+        },
+        {
+          "start": 84517,
+          "before": " u",
+          "after": "impo"
+        },
+        {
+          "start": 84520,
+          "before": "l: z",
+          "after": "t(\""
+        },
+        {
+          "start": 84525,
+          "before": "Z",
+          "after": "/_c"
+        },
+        {
+          "start": 84527,
+          "before": "dS",
+          "after": "co"
+        },
+        {
+          "start": 84532,
+          "before": "",
+          "after": "p-"
+        },
+        {
+          "start": 84533,
+          "before": "g;\n}, \"s",
+          "after": "a"
+        },
+        {
+          "start": 84542,
+          "before": "r",
+          "after": ""
+        },
+        {
+          "start": 84544,
+          "before": "",
+          "after": "ve-s"
+        },
+        {
+          "start": 84545,
+          "before": "",
+          "after": "hema-"
+        },
+        {
+          "start": 84546,
+          "before": "\", z.ZodT",
+          "after": ""
+        },
+        {
+          "start": 84558,
+          "before": "A",
+          "after": "s.cjs\").i"
+        },
+        {
+          "start": 84560,
+          "before": "",
+          "after": "BandS"
+        },
+        {
+          "start": 84561,
+          "before": ", {\n  url: stri",
+          "after": ""
+        },
+        {
+          "start": 84577,
+          "before": "g;\n}, {\n  ",
+          "after": "cReq"
+        },
+        {
+          "start": 84588,
+          "before": "rl: ",
+          "after": "e"
+        },
+        {
+          "start": 84594,
+          "before": "ring;\n}>",
+          "after": "BodySchema"
+        }
+      ]
+    },
+    {
+      "file": "types.d.ts",
+      "beforeSha256": "e5012094042f37a3efc42f72558c419a4ff25597c47344cabf4e0529c62fa6d1",
+      "afterSha256": "dcb2c94664deac8fc200e4914af80b2481df2af0e19ca7060b5d10b61a749a33",
+      "edits": [
+        {
+          "start": 1148,
+          "before": "3",
+          "after": "4"
+        },
+        {
+          "start": 2865,
+          "before": "z.ZodObjec",
+          "after": ""
+        },
+        {
+          "start": 2876,
+          "before": "<{\n  name: z.ZodO",
+          "after": "y"
+        },
+        {
+          "start": 2894,
+          "before": "tional<z.ZodString>;\n  ",
+          "after": ""
+        },
+        {
+          "start": 2918,
+          "before": "rr",
+          "after": ""
+        },
+        {
+          "start": 2921,
+          "before": "r:",
+          "after": "f"
+        },
+        {
+          "start": 2924,
+          "before": "z.ZodOptional<z.ZodStr",
+          "after": ""
+        },
+        {
+          "start": 2947,
+          "before": "ng>;\n  ",
+          "after": ""
+        },
+        {
+          "start": 2955,
+          "before": "essage: z.ZodO",
+          "after": ""
+        },
+        {
+          "start": 2970,
+          "before": "tional<z.Z",
+          "after": ""
+        },
+        {
+          "start": 2981,
+          "before": "dSt",
+          "after": ""
+        },
+        {
+          "start": 2985,
+          "before": "ing>;\n  s",
+          "after": ""
+        },
+        {
+          "start": 2995,
+          "before": "a",
+          "after": "(\"./_"
+        },
+        {
+          "start": 2997,
+          "before": "k: z.ZodOpti",
+          "after": ""
+        },
+        {
+          "start": 3010,
+          "before": "nal<z.Z",
+          "after": "c"
+        },
+        {
+          "start": 3018,
+          "before": "dS",
+          "after": ""
+        },
+        {
+          "start": 3023,
+          "before": "",
+          "after": "p-"
+        },
+        {
+          "start": 3024,
+          "before": "g>;\n}, \"s",
+          "after": "a"
+        },
+        {
+          "start": 3034,
+          "before": "r",
+          "after": ""
+        },
+        {
+          "start": 3036,
+          "before": "p\", z.ZodTypeAny, {\n  ",
+          "after": "v"
+        },
+        {
+          "start": 3059,
+          "before": "rror?: ",
+          "after": "-"
+        },
+        {
+          "start": 3067,
+          "before": "tring | und",
+          "after": "ch"
+        },
+        {
+          "start": 3079,
+          "before": "fined;\n  n",
+          "after": "m"
+        },
+        {
+          "start": 3090,
+          "before": "me?: s",
+          "after": "-"
+        },
+        {
+          "start": 3097,
+          "before": "ring | und",
+          "after": "yp"
+        },
+        {
+          "start": 3108,
+          "before": "fined;\n  me",
+          "after": ""
+        },
+        {
+          "start": 3120,
+          "before": "",
+          "after": ".j"
+        },
+        {
+          "start": 3121,
+          "before": "",
+          "after": "\").b"
+        },
+        {
+          "start": 3122,
+          "before": "ge?: ",
+          "after": ""
+        },
+        {
+          "start": 3128,
+          "before": "tring | und",
+          "after": ""
+        },
+        {
+          "start": 3140,
+          "before": "fined;\n  stack?: ",
+          "after": "J"
+        },
+        {
+          "start": 3158,
+          "before": "tring | undefi",
+          "after": "o"
+        },
+        {
+          "start": 3173,
+          "before": "ed;\n}, {\n  e",
+          "after": "E"
+        },
+        {
+          "start": 3189,
+          "before": "?: string | undefined;\n  name?: string | undefin",
+          "after": "Sch"
+        },
+        {
+          "start": 3238,
+          "before": "d;\n  ",
+          "after": ""
+        },
+        {
+          "start": 3244,
+          "before": "ess",
+          "after": ""
+        },
+        {
+          "start": 3248,
+          "before": "ge?: string | undefined;\n  stack?: string | undefined;\n}>",
+          "after": ""
+        },
+        {
+          "start": 3452,
+          "before": "z",
+          "after": "typeof import(\""
+        },
+        {
+          "start": 3454,
+          "before": "Z",
+          "after": "/_coc"
+        },
+        {
+          "start": 3456,
+          "before": "dT",
+          "after": "trip-native-schema-t"
+        },
+        {
+          "start": 3461,
+          "before": "<J",
+          "after": "s.j"
+        },
+        {
+          "start": 3464,
+          "before": "",
+          "after": "\").js"
+        },
+        {
+          "start": 3471,
+          "before": ">",
+          "after": "Schema"
+        },
+        {
+          "start": 11639,
+          "before": "z.ZodObjec",
+          "after": ""
+        },
+        {
+          "start": 11650,
+          "before": "<{\n  id: z.ZodString;\n  data: z.ZodO",
+          "after": "y"
+        },
+        {
+          "start": 11687,
+          "before": "tional<z.ZodAny>;\n  ",
+          "after": ""
+        },
+        {
+          "start": 11708,
+          "before": "rr",
+          "after": ""
+        },
+        {
+          "start": 11711,
+          "before": "r:",
+          "after": "f"
+        },
+        {
+          "start": 11714,
+          "before": "z.ZodOpt",
+          "after": ""
+        },
+        {
+          "start": 11723,
+          "before": "onal<z.ZodAny>;\n  in",
+          "after": "m"
+        },
+        {
+          "start": 11744,
+          "before": "ut: z.Z",
+          "after": ""
+        },
+        {
+          "start": 11752,
+          "before": "dOp",
+          "after": "r"
+        },
+        {
+          "start": 11756,
+          "before": "ional<z",
+          "after": "(\""
+        },
+        {
+          "start": 11764,
+          "before": "Z",
+          "after": "/_c"
+        },
+        {
+          "start": 11766,
+          "before": "dAny>;\n}, \"s",
+          "after": "co"
+        },
+        {
+          "start": 11782,
+          "before": "\", z.ZodTypeA",
+          "after": "-"
+        },
+        {
+          "start": 11796,
+          "before": "y, {\n  ",
+          "after": "at"
+        },
+        {
+          "start": 11804,
+          "before": "d: ",
+          "after": "ve-"
+        },
+        {
+          "start": 11808,
+          "before": "tring;\n  ",
+          "after": "ch"
+        },
+        {
+          "start": 11818,
+          "before": "rror?: ",
+          "after": "m"
+        },
+        {
+          "start": 11826,
+          "before": "ny;\n  da",
+          "after": "-"
+        },
+        {
+          "start": 11835,
+          "before": "a?: an",
+          "after": ""
+        },
+        {
+          "start": 11842,
+          "before": ";\n  in",
+          "after": ""
+        },
+        {
+          "start": 11849,
+          "before": "ut?: any;\n}, {\n  id: ",
+          "after": "e"
+        },
+        {
+          "start": 11871,
+          "before": "tr",
+          "after": ".js\")."
+        },
+        {
+          "start": 11875,
+          "before": "g;\n  err",
+          "after": "c"
+        },
+        {
+          "start": 11884,
+          "before": "r?: any;\n  data?: any;\n  ",
+          "after": "m"
+        },
+        {
+          "start": 11911,
+          "before": "",
+          "after": "gO"
+        },
+        {
+          "start": 11912,
+          "before": "ut?: ",
+          "after": "Schem"
+        },
+        {
+          "start": 11918,
+          "before": "ny;\n}>",
+          "after": ""
+        },
+        {
+          "start": 23157,
+          "before": "z.ZodObjec",
+          "after": ""
+        },
+        {
+          "start": 23168,
+          "before": "<{\n  /**\n   * Ev",
+          "after": "yp"
+        },
+        {
+          "start": 23185,
+          "before": "nt IDs\n   */\n ",
+          "after": "of"
+        },
+        {
+          "start": 23201,
+          "before": "ds: z.Z",
+          "after": "mp"
+        },
+        {
+          "start": 23209,
+          "before": "dDefaul",
+          "after": "r"
+        },
+        {
+          "start": 23217,
+          "before": "<z",
+          "after": "(\""
+        },
+        {
+          "start": 23220,
+          "before": "Z",
+          "after": "/_c"
+        },
+        {
+          "start": 23222,
+          "before": "dArray<z.Z",
+          "after": "c"
+        },
+        {
+          "start": 23233,
+          "before": "dS",
+          "after": ""
+        },
+        {
+          "start": 23238,
+          "before": "ng, \"ma",
+          "after": "p-"
+        },
+        {
+          "start": 23246,
+          "before": "y\">>;\n  /**\n   * HTTP St",
+          "after": ""
+        },
+        {
+          "start": 23272,
+          "before": "us Code. W",
+          "after": ""
+        },
+        {
+          "start": 23283,
+          "before": "ll be undefined if no request was sent.\n   */\n  status: z.ZodD",
+          "after": "v"
+        },
+        {
+          "start": 23346,
+          "before": "fault<z.ZodNumber>;\n  /**\n   * Error me",
+          "after": "-"
+        },
+        {
+          "start": 23386,
+          "before": "sage. Will be undefined if no error o",
+          "after": ""
+        },
+        {
+          "start": 23424,
+          "before": "curr",
+          "after": "h"
+        },
+        {
+          "start": 23429,
+          "before": "d.\n   */\n  error: z.ZodOption",
+          "after": "m"
+        },
+        {
+          "start": 23459,
+          "before": "l<z.ZodString>;\n}, \"s",
+          "after": "-"
+        },
+        {
+          "start": 23481,
+          "before": "rip\", z.ZodT",
+          "after": ""
+        },
+        {
+          "start": 23496,
+          "before": "Any, {\n  ",
+          "after": ""
+        },
+        {
+          "start": 23506,
+          "before": "tatus: number;\n  id",
+          "after": ".j"
+        },
+        {
+          "start": 23526,
+          "before": ": ",
+          "after": "\")."
+        },
+        {
+          "start": 23529,
+          "before": "tring[];\n  ",
+          "after": ""
+        },
+        {
+          "start": 23541,
+          "before": "rror?: string | u",
+          "after": ""
+        },
+        {
+          "start": 23560,
+          "before": "",
+          "after": "Ev"
+        },
+        {
+          "start": 23561,
+          "before": "fi",
+          "after": ""
+        },
+        {
+          "start": 23564,
+          "before": "ed;\n}, {\n  s",
+          "after": ""
+        },
+        {
+          "start": 23577,
+          "before": "atu",
+          "after": "Re"
+        },
+        {
+          "start": 23581,
+          "before": "?: number | undefined;\n  err",
+          "after": "p"
+        },
+        {
+          "start": 23610,
+          "before": "r?: string | u",
+          "after": ""
+        },
+        {
+          "start": 23625,
+          "before": "defined;\n  id",
+          "after": ""
+        },
+        {
+          "start": 23639,
+          "before": "?: string[] | und",
+          "after": ""
+        },
+        {
+          "start": 23657,
+          "before": "fin",
+          "after": "Sch"
+        },
+        {
+          "start": 23661,
+          "before": "d;\n}>",
+          "after": "ma"
+        },
+        {
+          "start": 50397,
+          "before": "a: z.ZodObject<{\n  name: z.ZodOption",
+          "after": ""
+        },
+        {
+          "start": 50434,
+          "before": "l<z.ZodString>;\n  id",
+          "after": ""
+        },
+        {
+          "start": 50456,
+          "before": "z.ZodS",
+          "after": ""
+        },
+        {
+          "start": 50463,
+          "before": "ring;\n  triggers: z.ZodArra",
+          "after": ""
+        },
+        {
+          "start": 50491,
+          "before": "<z.ZodUnion<[z.ZodObject<{\n    event: z.ZodString;\n    ex",
+          "after": ""
+        },
+        {
+          "start": 50549,
+          "before": "r",
+          "after": ""
+        },
+        {
+          "start": 50551,
+          "before": "ssi",
+          "after": ""
+        },
+        {
+          "start": 50555,
+          "before": "n: z.ZodOptional<z.ZodString>;\n  }, \"strict\", z.ZodTypeAny, {\n    event: string;\n    expression?: string | unde",
+          "after": ""
+        },
+        {
+          "start": 50667,
+          "before": "ined;\n ",
+          "after": ""
+        },
+        {
+          "start": 50675,
+          "before": "}, {\n    event: str",
+          "after": ""
+        },
+        {
+          "start": 50695,
+          "before": "ng;\n    expression?: string | undefined;\n  }>, z.ZodObject<{\n    cron: z.ZodString;\n    jitter: z.ZodOptional<z.ZodString>;\n  }, \"strict\", z.ZodTypeAny, {\n    cron: string;\n    jitter?: string | undefined;\n  }, {\n    cron: string;\n    jitter?: string | undefined;\n  }>]>, \"",
+          "after": ""
+        },
+        {
+          "start": 50969,
+          "before": "any\">;\n  ste",
+          "after": ""
+        },
+        {
+          "start": 50982,
+          "before": "s: z.ZodRec",
+          "after": ""
+        },
+        {
+          "start": 50995,
+          "before": "d<z.ZodS",
+          "after": ""
+        },
+        {
+          "start": 51004,
+          "before": "ring, z.ZodObject<{\n    id: z.ZodString;\n    name: z.ZodString;\n    runtime: z.ZodObject<{\n      type: z.ZodUnion<[z.ZodLiteral<\"http",
+          "after": "("
+        },
+        {
+          "start": 51138,
+          "before": ">, z",
+          "after": ""
+        },
+        {
+          "start": 51143,
+          "before": "ZodLiteral<\"ws\">]>;\n      url: z.ZodString;\n    }, \"strict\", z.ZodTypeAny, {\n      url: string;\n      type: \"http\" | \"ws\";\n    }, {\n      url: string;\n      type: \"http\" | \"ws\";\n    }>;\n    retries: z.ZodOptional<z.ZodObje",
+          "after": "/_"
+        },
+        {
+          "start": 51366,
+          "before": "t<{\n      attempts: z.ZodOpti",
+          "after": ""
+        },
+        {
+          "start": 51396,
+          "before": "nal<z.ZodNumber>;\n    }, \"stri",
+          "after": ""
+        },
+        {
+          "start": 51427,
+          "before": "t\", z.Z",
+          "after": ""
+        },
+        {
+          "start": 51435,
+          "before": "dTypeAny, {\n      attemp",
+          "after": ""
+        },
+        {
+          "start": 51460,
+          "before": "s?: numbe",
+          "after": ""
+        },
+        {
+          "start": 51470,
+          "before": " | undef",
+          "after": ""
+        },
+        {
+          "start": 51479,
+          "before": "ned;\n    }, {\n      attem",
+          "after": ""
+        },
+        {
+          "start": 51505,
+          "before": "ts?: number | undefined;\n    }>>;\n  }, \"strict\", z.ZodTypeAny, {\n    name: string;\n    id: string;\n    runtime: {\n      url: string;\n      type: \"http\" | \"ws\";\n    };\n    retries?: {\n      attempts?: number | undefined;\n    } | undefined;\n  }, {\n    name: string;\n    id: string;\n    runtime: {\n      url: string;\n      type: \"http\" | \"ws\";\n    };\n    retries?: {\n      attempts?: number | undefined;\n    } | undefined;\n  }>>;\n  idempotency: z.ZodOptional<z.ZodString>;\n  batchEvents: z.ZodOptional<z.ZodObject<{\n    maxSize: z.ZodNumber;\n    timeout: z.ZodString;\n    key: z.ZodOptional<z.ZodString>;\n    if: z.ZodOptional<z.ZodString>;\n  }, \"strict\", z.ZodTypeAny, {\n    maxSize: number;\n    timeout: string;\n    key?: string | undefined;\n    if?: string | undefined;\n  }, {\n    maxSize: number;\n    timeout: string;\n    key?: string | undefined;\n    if?: string | undefined;\n  }>>;\n  rateLimit: z.ZodOptional<z.ZodObject<{\n    key: z.ZodOptional<z.ZodString>;\n    limit: z.ZodNumber;\n    period: z.ZodEffects<z.ZodString, \"\" | `${number}w` | `${number}d` | `${number}h` | `${number}m` | `${number}s` | `${number}m${number}s` | `${number}h${number}s` | `${number}h${number}m` | `${number}h${number}m${number}s` | `${number}d${number}s` | `${number}d${number}m` | `${number}d${number}m${number}s` | `${number}d${number}h` | `${number}d${number}h${number}s` | `${number}d${number}h${number}m` | `${number}d${number}h${number}m${number}s` | `${number}w${number}s` | `${number}w${number}m` | `${number}w${number}m${number}s` | `${number}w${number}h` | `${number}w${number}h${number}s` | `${number}w${number}h${number}m` | `${number}w${number}h${number}m${number}s` | `${number}w${number}d` | `${number}w${number}d${number}s` | `${number}w${number}d${number}m` | `${number}w${number}d${number}m${number}s` | `${number}w${number}d${number}h` | `${number}w${number}d${number}h${number}s` | `${number}w${number}d${number}h${number}m` | `${number}w${number}d${number}h${number}m${number}s`, string>;\n  }, \"strict\", z.ZodTypeAny, {\n    limit: number;\n    period: \"\" | `${number}w` | `${number}d` | `${number}h` | `${number}m` | `${number}s` | `${number}m${number}s` | `${number}h${number}s` | `${number}h${number}m` | `${number}h${number}m${number}s` | `${number}d${number}s` | `${number}d${number}m` | `${number}d${number}m${number}s` | `${number}d${number}h` | `${number}d${number}h${number}s` | `${number}d${number}h${number}m` | `${number}d${number}h${number}m${number}s` | `${number}w${number}s` | `${number}w${number}m` | `${number}w${number}m${number}s` | `${number}w${number}h` | `${number}w${number}h${number}s` | `${number}w${number}h${number}m` | `${number}w${number}h${number}m${number}s` | `${number}w${number}d` | `${number}w${number}d${number}s` | `${number}w${number}d${number}m` | `${number}w${number}d${number}m${number}s` | `${number}w${number}d${number}h` | `${number}w${number}d${number}h${number}s` | `${number}w${number}d${number}h${number}m` | `${number}w${number}d${number}h${number}m${number}s`;\n    key?: string | undefined;\n  }, {\n    limit: number;\n    period: string;\n    key?: string | undefined;\n  }>>;\n  throttle: z.ZodOptional<z.ZodObject<{\n    key: z.ZodOptional<z.ZodString>;\n    limit: z.ZodNumber;\n    period: z.ZodEffects<z.ZodString, \"\" | `${number}w` | `${number}d` | `${number}h` | `${number}m` | `${number}s` | `${number}m${number}s` | `${number}h${number}s` | `${number}h${number}m` | `${number}h${number}m${number}s` | `${number}d${number}s` | `${number}d${number}m` | `${number}d${number}m${number}s` | `${number}d${number}h` | `${number}d${number}h${number}s` | `${number}d${number}h${number}m` | `${number}d${number}h${number}m${number}s` | `${number}w${number}s` | `${number}w${number}m` | `${number}w${number}m${number}s` | `${number}w${number}h` | `${number}w${number}h${number}s` | `${number}w${number}h${number}m` | `${number}w${number}h${number}m${number}s` | `${number}w${number}d` | `${number}w${number}d${number}s` | `${number}w${number}d${number}m` | `${number}w${number}d${number}m${number}s` | `${number}w${number}d${number}h` | `${number}w${number}d${number}h${number}s` | `${number}w${number}d${number}h${number}m` | `${number}w${number}d${number}h${number}m${number}s`, string>;\n    burst: z.ZodOptional<z.ZodNumber>;\n  }, \"strict\", z.ZodTypeAny, {\n    limit: number;\n    period: \"\" | `${number}w` | `${number}d` | `${number}h` | `${number}m` | `${number}s` | `${number}m${number}s` | `${number}h${number}s` | `${number}h${number}m` | `${number}h${number}m${number}s` | `${number}d${number}s` | `${number}d${number}m` | `${number}d${number}m${number}s` | `${number}d${number}h` | `${number}d${number}h${number}s` | `${number}d${number}h${number}m` | `${number}d${number}h${number}m${number}s` | `${number}w${number}s` | `${number}w${number}m` | `${number}w${number}m${number}s` | `${number}w${number}h` | `${number}w${number}h${number}s` | `${number}w${number}h${number}m` | `${number}w${number}h${number}m${number}s` | `${number}w${number}d` | `${number}w${number}d${number}s` | `${number}w${number}d${number}m` | `${number}w${number}d${number}m${number}s` | `${number}w${number}d${number}h` | `${number}w${number}d${number}h${number}s` | `${number}w${number}d${number}h${number}m` | `${number}w${number}d${number}h${number}m${number}s`;\n    key?: string | undefined;\n    burst?: number | undefined;\n  }, {\n    limit: number;\n    period: stri",
+          "after": "-"
+        },
+        {
+          "start": 56904,
+          "before": "g;\n    key?: string | undefined;\n    burst?: number | undefined;\n  }>>;\n  singleton: z.ZodOption",
+          "after": ""
+        },
+        {
+          "start": 57001,
+          "before": "l<z.ZodObject<{\n    key: z.ZodOptional<z.ZodString>;\n    mode: z.ZodEnum<[\"skip\", \"cancel\"]>;\n  }, \"s",
+          "after": ""
+        },
+        {
+          "start": 57103,
+          "before": "r",
+          "after": ""
+        },
+        {
+          "start": 57105,
+          "before": "ct\", z.ZodTypeAny, {\n    mode: \"skip\" | \"cancel\";\n    key?: string | undefined;\n  }, {\n    mode: \"skip\" | \"cancel\";\n    key?: string | undefined;\n  }>>;\n  cancel: z.ZodOptional<z.ZodArray<z.ZodObject<{\n    e",
+          "after": ""
+        },
+        {
+          "start": 57313,
+          "before": "ent: z.ZodString;\n    if: z.ZodOptional<z.ZodString>;\n    timeout: z.ZodOptional<z.ZodString>;\n  }, \"strict\", z.ZodTypeAny, {\n    event: string;\n    timeout?: string | undefined;\n    if?: string | undefined;\n  }, {\n    event: string;\n    timeout?: string | undefined;\n    if?: string | und",
+          "after": ""
+        },
+        {
+          "start": 57603,
+          "before": "fined;\n  }>, \"many\">>;\n  debounce: z.ZodOptional<z.ZodObject<{\n    key: z.ZodOptional<z.ZodString>;\n    period: z.ZodEffects<z.ZodString, \"\" | `${number}w` | `${number}d` | `${number}h` | `${number}m` | `${number}s` | `${number}m${number}s` | `${number}h${number}s` | `${number}h${number}m` | `${number}h${number}m${number}s` | `${number}d${number}s` | `${number}d${number}m` | `${number}d${number}m${number}s` | `${number}d${number}h` | `${number}d${number}h${number}s` | `${number}d${number}h${number}m` | `${number}d${number}h${number}m${number}s` | `${number}w${number}s` | `${number}w${number}m` | `${number}w${number}m${number}s` | `${number}w${number}h` | `${number}w${number}h${number}s` | `${number}w${number}h${number}m` | `${number}w${number}h${number}m${number}s` | `${number}w${number}d` | `${number}w${number}d${number}s` | `${number}w${number}d${number}m` | `${number}w${number}d${number}m${number}s` | `${number}w${number}d${number}h` | `${number}w${number}d${number}h${number}s` | `${number}w${number}d${number}h${number}m` | `${number}w${number}d${number}h${number}m${number}s`, string>;\n    timeout: z.ZodOptional<z.ZodEffects<z.ZodString, \"\" | `${number}w` | `${number}d` | `${number}h` | `${number}m` | `${number}s` | `${number}m${number}s` | `${number}h${number}s` | `${number}h${number}m` | `${number}h${number}m${number}s` | `${number}d${number}s` | `${number}d${number}m` | `${number}d${number}m${number}s` | `${number}d${number}h` | `${number}d${number}h${number}s` | `${number}d${number}h${number}m` | `${number}d${number}h${number}m${number}s` | `${number}w${number}s` | `${number}w${number}m` | `${number}w${number}m${number}s` | `${number}w${number}h` | `${number}w${number}h${number}s` | `${number}w${number}h${number}m` | `${number}w${number}h${number}m${number}s` | `${number}w${number}d` | `${number}w${number}d${number}s` | `${number}w${number}d${number}m` | `${number}w${number}d${number}m${number}s` | `${number}w${number}d${number}h` | `${number}w${number}d${number}h${number}s` | `${number}w${number}d${number}h${number}m` | `${number}w${number}d${number}h${number}m${number}s`, string>>;\n  }, \"strict\", z.ZodTypeAny, {\n    period: \"\" | `${number}w` | `${number}d` | `${number}h` | `${number}m` | `${number}s` | `${number}m${number}s` | `${number}h${number}s` | `${number}h${number}m` | `${number}h${number}m${number}s` | `${number}d${number}s` | `${number}d${number}m` | `${number}d${number}m${number}s` | `${number}d${number}h` | `${number}d${number}h${number}s` | `${number}d${number}h${number}m` | `${number}d${number}h${number}m${number}s` | `${number}w${number}s` | `${number}w${number}m` | `${number}w${number}m${number}s` | `${number}w${number}h` | `${number}w${number}h${number}s` | `${number}w${number}h${number}m` | `${number}w${number}h${number}m${number}s` | `${number}w${number}d` | `${number}w${number}d${number}s` | `${number}w${number}d${number}m` | `${number}w${number}d${number}m${number}s` | `${number}w${number}d${number}h` | `${number}w${number}d${number}h${number}s` | `${number}w${number}d${number}h${number}m` | `${number}w${number}d${number}h${number}m${number}s`;\n    key?: string | undefined;\n    timeout?: \"\" | `${number}w` | `${number}d` | `${number}h` | `${number}m` | `${number}s` | `${number}m${number}s` | `${number}h${number}s` | `${number}h${number}m` | `${number}h${number}m${number}s` | `${number}d${number}s` | `${number}d${number}m` | `${number}d${number}m${number}s` | `${number}d${number}h` | `${number}d${number}h${number}s` | `${number}d${number}h${number}m` | `${number}d${number}h${number}m${number}s` | `${number}w${number}s` | `${number}w${number}m` | `${number}w${number}m${number}s` | `${number}w${number}h` | `${number}w${number}h${number}s` | `${number}w${number}h${number}m` | `${number}w${number}h${number}m${number}s` | `${number}w${number}d` | `${number}w${number}d${number}s` | `${number}w${number}d${number}m` | `${number}w${number}d${number}m${number}s` | `${number}w${number}d${number}h` | `${number}w${number}d${number}h${number}s` | `${number}w${number}d${number}h${number}m` | `${number}w${number}d${number}h${number}m${number}s` | undefined;\n  }, {\n    period: string;\n    key?: string | undefined;\n    timeout?: string | undefined;\n  }>>;\n  timeouts: z.ZodOptional<z.ZodObject<{\n    start: z.ZodOptional<z.ZodEffects<z.ZodString, \"\" | `${number}w` | `${number}d` | `${number}h` | `${number}m` | `${number}s` | `${number}m${number}s` | `${number}h${number}s` | `${number}h${number}m` | `${number}h${number}m${number}s` | `${number}d${number}s` | `${number}d${number}m` | `${number}d${number}m${number}s` | `${number}d${number}h` | `${number}d${number}h${number}s` | `${number}d${number}h${number}m` | `${number}d${number}h${number}m${number}s` | `${number}w${number}s` | `${number}w${number}m` | `${number}w${number}m${number}s` | `${number}w${number}h` | `${number}w${number}h${number}s` | `${number}w${number}h${number}m` | `${number}w${number}h${number}m${number}s` | `${number}w${number}d` | `${number}w${number}d${number}s` | `${number}w${number}d${number}m` | `${number}w${number}d${number}m${number}s` | `${number}w${number}d${number}h` | `${number}w${number}d${number}h${number}s` | `${number}w${number}d${number}h${number}m` | `${number}w${number}d${number}h${number}m${number}s`, string>>;\n    finish: z.ZodOptional<z.ZodEffects<z.ZodString, \"\" | `${number}w` | `${number}d` | `${number}h` | `${number}m` | `${number}s` | `${number}m${number}s` | `${number}h${number}s` | `${number}h${number}m` | `${number}h${number}m${number}s` | `${number}d${number}s` | `${number}d${number}m` | `${number}d${number}m${number}s` | `${number}d${number}h` | `${number}d${number}h${number}s` | `${number}d${number}h${number}m` | `${number}d${number}h${number}m${number}s` | `${number}w${number}s` | `${number}w${number}m` | `${number}w${number}m${number}s` | `${number}w${number}h` | `${number}w${number}h${number}",
+          "after": "-"
+        },
+        {
+          "start": 63514,
+          "before": "` | `${number}w${number}h${number}m` | `${number}w${number}h${number}m${number}s` | `${number}w${number}d` | `${number}w${number}d${number}s` | `${number}w${number}d${number}m` | `${number}w${number}d${number}m${number}s` | `${number}w${number}d${number}h` | `${number}w${number}d${number}h${number}s` | `${number}w${number}d${number}h${number}m` | `${number}w${number}d${number}h${number}m${number}s`, string>>;\n  }, \"stri",
+          "after": ""
+        },
+        {
+          "start": 63938,
+          "before": "t\", z.ZodTypeAny, {\n    finish?: \"\" | `${number}w` | `${number}d` | `${number}",
+          "after": ""
+        },
+        {
+          "start": 64017,
+          "before": "` | `${numb",
+          "after": ""
+        },
+        {
+          "start": 64029,
+          "before": "r}m` | `${nu",
+          "after": ""
+        },
+        {
+          "start": 64042,
+          "before": "ber}s` | `${number}m${number}s` | `${number}h${number}s` | `${number}h${number}m` | `${number}h${number}m${number}s` | `${number}d${number}s` | `${number}d${number}m` | `${number}d${number}m${number}s` | `${number}d${number}h` | `${number}d${number}h${number}s` | `${number}d${number}h${number}m` | `${number}d${number}h${number}m${number}s` | `${number}w${number}s` | `${number}w${number}m` | `${number}w${number}m${number}s` | `${number}w${number}h` | `${number}w${number}h${number}s` | `${number}w${number}h${number}m` | `${number}w${number}h${number}m${number}s` | `${number}w${number}d` | `${number}w${number}d${number}s` | `${number}w${number}d${number}m` | `${number}w${number}d${number}m${number}s` | `${number}w${number}d${number}h` | `${number}w${number}d${number}h${number}s` | `${number}w${number}d${number}h${number}m` | `${number}w${number}d${number}h${number}m${number}s` | undefined;\n    st",
+          "after": ""
+        },
+        {
+          "start": 64949,
+          "before": "rt?: \"\" | `${number}w` | `${number}d` | `${number}h` | `${number}m` | `${number}s` | `${number}m${number}s` | `${number}h${number}s` | `${number}h${number}m` | `${number}h${number}m${number}s` | `${number}d${number}s` | `${number}d${number}m` | `${number}d${number}m${number}s` | `${number}d${number}h` | `${number}d${number}h${number}s` | `${number}d${number}h${number}m` | `${number}d${number}h${number}m${number}s` | `${number}w${number}s` | `${number}w${number}m` | `${number}w${number}m${number}s` | `${number}w${number}h` | `${number}w${number}h${number}s` | `${number}w${number}h${number}m` | `${number}w${number}h${number}m${number}s` | `${number}w${number}d` | `${number}w${number}d${number}s` | `${number}w${number}d${number}m` | `${number}w${number}d${number}m${number}s` | `${number}w${number}d${number}h` | `${number}w${number}d${number}h${number}s` | `${number}w${number}d${number}h${number}m` | `${number}w${number}d${number}h${number}m${number}s` | undefined;\n  }, {\n    finish?: string | undefined;\n    start?: string | undefined;\n  }>>;\n  priority: z.ZodOptional<z.ZodObject<{\n    run: z.ZodOptional<z.ZodString>;\n  }, \"strict\", z.ZodTypeAny, {\n    run?: string | undefined;\n  }, {\n    run?: s",
+          "after": "-"
+        },
+        {
+          "start": 66161,
+          "before": "ring | undefined;\n  }>>;\n  concurrenc",
+          "after": ""
+        },
+        {
+          "start": 66199,
+          "before": ": z.ZodO",
+          "after": ""
+        },
+        {
+          "start": 66208,
+          "before": "tional<z.ZodUnion<[z.ZodNumb",
+          "after": ""
+        },
+        {
+          "start": 66237,
+          "before": "r, z.ZodEffect",
+          "after": ""
+        },
+        {
+          "start": 66252,
+          "before": "<z",
+          "after": ""
+        },
+        {
+          "start": 66255,
+          "before": "ZodOb",
+          "after": ""
+        },
+        {
+          "start": 66261,
+          "before": "ect<{\n    limit: z.ZodNumber;\n    key: z.ZodOptional<z.ZodString>;\n    ",
+          "after": ""
+        },
+        {
+          "start": 66333,
+          "before": "cope: z.ZodOptional<z.ZodEnum<[",
+          "after": ""
+        },
+        {
+          "start": 66365,
+          "before": "fn\", \"env\", \"account\"]>>;\n  }, \"strict\", z.ZodTypeAny, {\n    limit: number;\n    key?: string | undefined;\n    scope?: \"env\" | \"fn\" | \"account\" | undefined;\n  }, {\n    limit: number;\n    key?: string | undefined;\n    scope?: \"env\" | \"fn\" | \"account\" | undefined;\n  }>, ConcurrencyOption, {\n    limit: number;\n    key?: string | undefined;\n    scope?: \"env\" | \"fn\" | \"account\" | undefined;\n  }>, z.ZodArray<z.ZodEffects<z.ZodObject<{\n    limit: z.ZodNumber;\n    key: z.ZodOptional<z.ZodString>;\n    scope: z",
+          "after": ")"
+        },
+        {
+          "start": 66871,
+          "before": "ZodOptional<z.ZodEnum<[\"fn\", \"env\", \"account\"]>>;\n  }, \"strict\", z.ZodTypeAny, {\n    limit: number;\n    key?: string | undefined;\n    scope?: \"env\" | \"fn\" | \"account\" | undefined;\n  }, {\n    limit: number;\n    key?: string | undefined;\n    scope?: \"env\" | \"fn\" | \"account\" | undefined;\n  }>, ConcurrencyOption, {\n    limit: number;\n    key?: string | undefined;\n    scope?: \"env\" | \"fn\" | \"account\" | undefined;\n  }>, \"many\">]>>;\n}, \"strict\", z.ZodTypeAny, {\n  id: string;\n  triggers: ({\n    event: string;\n    expression?: string | undefined;\n  } | {\n    cron: string;\n    jitter?: string | undefined;\n  })[];\n  steps: Record<string, {\n    name: string;\n    id: string;\n    runtime: {\n      url: string;\n      type: \"http\" | \"ws\";\n    };\n    retries?: {\n      attempts?: number | undefined;\n    } | undefined;\n  }>;\n  name?: string | undefined;\n  idempotency?: string | undefined;\n  batchEvents?: {\n    maxSize: number;\n    timeout: string;\n    key?: string | undefined;\n    if?: string | undefined;\n  } | undefined;\n  rateLimit?: {\n    limit: number;\n    period: \"\" | `${number}w` | `${number}d` | `${number}h` | `${number}m` | `${number}s` | `${number}m${number}s` | `${number}h${number}s` | `${number}h${number}m` | `${number}h${number}m${number}s` | `${number}d${number}s` | `${number}d${number}m` | `${number}d${number}m${number}s` | `${number}d${number}h` | `${number}d${number}h${number}s` | `${number}d${number}h${number}m` | `${number}d${number}h${number}m${number}s` | `${number}w${number}s` | `${number}w${number}m` | `${number}w${number}m${number}s` | `${number}w${number}h` | `${number}w${number}h${number}s` | `${number}w${number}h${number}m` | `${number}w${number}h${number}m${number}s` | `${number}w${number}d` | `${number}w${number}d${number}s` | `${number}w${number}d${number}m` | `${number}w${number}d${number}m${number}s` | `${number}w${number}d${number}h` | `${number}w${number}d${number}h${number}s` | `${number}w${number}d${number}h${number}m` | `${number}w${number}d${number}h${number}m${number}s`;\n    key?: string | undefined;\n  } | undefined;\n  throttle?: {\n    limit: number;\n    period: \"\" | `${number}w` | `${number}d` | `${number}h` | `${number}m` | `${number}s` | `${number}m${number}s` | `${number}h${number}s` | `${number}h${number}m` | `${number}h${number}m${number}s` | `${number}d${number}s` | `${number}d${number}m` | `${number}d${number}m${number}s` | `${number}d${number}h` | `${number}d${number}h${number}s` | `${number}d${number}h${number}m` | `${number}d${number}h${number}m${number}s` | `${number}w${number}s` | `${number}w${number}m` | `${number}w${number}m${number}s` | `${number}w${number}h` | `${number}w${number}h${number}s` | `${number}w${number}h${number}m` | `${number}w${number}h${number}m${number}s` | `${number}w${number}d` | `${number}w${number}d${number}s` | `${number}w${number}d${number}m` | `${number}w${number}d${number}m${number}s` | `${number}w${number}d${number}h` | `${number}w${number}d${number}h${number}s` | `${number}w${number}d${number}h${number}m` | `${number}w${number}d${number}h${number}m${number}s`;\n    key?: string | undefined;\n    burst?: number | undefined;\n  } | undefined;\n  cancel?: {\n    event: string;\n    timeout?: string | undefined;\n    if?: string | undefined;\n  }[] | undefined;\n  singleton?: {\n    mode: \"skip\" | \"cancel\";\n    key?: string | undefined;\n  } | unde",
+          "after": ""
+        },
+        {
+          "start": 70226,
+          "before": "ined;\n  debo",
+          "after": ""
+        },
+        {
+          "start": 70241,
+          "before": "e?: {\n    period: \"\" | `${number}w` | `${number}d` | `${number}h` | `${number}m` | `${number}s` | `${number}m${number}s` | `${number}h${number}s` | `${number}h${number}m` | `${number}h${number}m${number}s` | `${number}d${number}s` | `${number}d${number}m` | `${number}d${number}m${number}s` | `${number}d${number}h` | `${number}d${number}h${number}s` | `${number}d${number}h${number}m` | `${number}d${number}h${number}m${number}s` | `${number}w${number}s` | `${number}w${number}m` | `${number}w${number}m${number}s` | `${number}w${number}h` | `${number}w${number}h${number}s` | `${number}w${number}h${number}m` | `${number}w${number}h${number}m${number}s` | `${number}w${number}d` | `${number}w${number}d${number}s` | `${number}w${number}d${number}m` | `${number}w${number}d${number}m${number}s` | `${number}w${number}d${number}h` | `${number}w${number}d${number}h${number}s` | `${number}w${number}d${number}h${number}m` | `${number}w${number}d${number}h${number}m${number}s`;\n    key?: string | undefined;\n    ",
+          "after": ""
+        },
+        {
+          "start": 71254,
+          "before": "me",
+          "after": ""
+        },
+        {
+          "start": 71257,
+          "before": "ut?: \"\" | `${",
+          "after": ""
+        },
+        {
+          "start": 71271,
+          "before": "umber}w` | `${number}d` | `${number}h` | `${number}m` | `${number}s` | `${number}m${number}s` | `${number}h${number}s` | `${number}h${number}m` | `${number}h${number}m${number}s` | `${number}d${number}s` | `${number}d${number}m` | `${number}d${number}m${number}s` | `${number}d${number}h` | `${number}d${number}h${number}s` | `${number}d${number}h${number}m` | `${number}d${number}h${number}m${number}s` | `${number}w${number}s` | `${number}w${number}m` | `${number}w${number}m${number}s` | `${number}w${number}h` | `${number}w${number}h${number}s` | `${number}w${number}h${number}m` | `${number}w${number}h${number}m${number}s` | `${number}w${number}d` | `${number}w${number}d${number}s` | `${number}w${number}d${number}m` | `${number}w${number}d${number}m${number}s` | `${number}w${number}d${number}h` | `${number}w${number}d${number}h${number}s` | `${number}w${number}d${number}h${number}m` | `${number}w${number}d${number}h${number}m${number}s` | undefined;\n  } | undefined;\n  timeouts?: {\n    finish?: \"\" | `${number}w` | `${number}d` | `${number}h` | `${number}m` | `${number}s` | `${number}m${number}s` | `${number}h${number}s` | `${number}h${number}m` | `${number}h${number}m${number}s` | `${number}d${number}s` | `${number}d${number}m` | `${number}d${number}m${number}s` | `${number}d${number}h` | `${number}d${number}h${number}s` | `${number}d${number}h${number}m` | `${number}d${number}h${number}m${number}s` | `${number}w${number}s` | `${number}w${number}m` | `${number}w${number}m${number}s` | `${number}w${number}h` | `${number}w${number}h${number}s` | `${number}w${number}h${number}m` | `${number}w${number}h${number}m${number}s` | `${number}w${number}d` | `${number}w${number}d${number}s` | `${number}w${number}d${number}m` | `${number}w${number}d${number}m${number}s` | `${number}w${number}d${number}h` | `${number}w${number}d${number}h${number}s` | `${number}w${number}d${number}h${number}m` | `${number}w${number}d${number}h${number}m${number}s` | undefined;\n    start?: \"\" | `${number}w` | `${number}d` | `${number}h` | `${number}m` | `${number}s` | `${number}m${number}s` | `${number}h${number}s` | `${number}h${number}m` | `${number}h${number}m${number}s` | `${number}d${number}s` | `${number}d${number}m` | `${number}d${number}m${number}s` | `${number}d${number}h` | `${number}d${number}h${number}s` | `${number}d${number}h${number}m` | `${number}d${number}h${number}m${number}s` | `${number}w${number}s` | `${number}w${number}m` | `${number}w${number}m${number}s` | `${number}w${number}h` | `${number}w${number}h${number}s` | `${number}w${number}h${number}m` | `${number}w${number}h${number}m${number}s` | `${number}w${number}d` | `${number}w${number}d${number}s` | `${number}w${number}d${number}m` | `${number}w${number}d${number}m${number}s` | `${number}w${number}d${number}h` | `${number}w${number}d${number}h${number}s` | `${number}w${number}d${number}h${number}m` | `${number}w${number}d${number}h${number}m${number}s` | undefined;\n  } | undefined;\n  priority?: {\n    run?: string | undefined;\n  } | undefined;\n  concurrency?: number | ",
+          "after": ""
+        },
+        {
+          "start": 74337,
+          "before": "oncurrencyOption | ConcurrencyOpti",
+          "after": ""
+        },
+        {
+          "start": 74373,
+          "before": "[] | unde",
+          "after": ""
+        },
+        {
+          "start": 74383,
+          "before": "ined;\n}, {\n  id: string;\n  triggers: ({\n    event: str",
+          "after": ""
+        },
+        {
+          "start": 74438,
+          "before": "n",
+          "after": ""
+        },
+        {
+          "start": 74440,
+          "before": ";\n    expression?: string | undefined;\n  } | {\n    cron: string;\n    jitter?: string | undefined;\n  })[];\n  steps: Record<string, {\n    name: string;\n    id: string;\n    runtime: {\n      url: string;\n      type: \"http\" | \"ws\";\n    };\n    retries?: {\n      attempts?: number | undefined;\n    } | undefined;\n  }>;\n  name?: string | undefined;\n  idempotency?: string | undefined;\n  batchEvents?: {\n    max",
+          "after": ""
+        },
+        {
+          "start": 74843,
+          "before": "ize: number;\n    timeout: string;\n    key?: string | undefined;\n    if?: string | undefined;\n  } | undefined;\n  rateLimit?: {\n    limit: number;\n    period: string;\n    key?: string | undefined;\n  } | undefined;\n  throttle?: {\n    limit: number;\n    period: string;\n    key?: string | undefined;\n    burst?: number | undefined;\n  } | undefined;\n  can",
+          "after": ""
+        },
+        {
+          "start": 75194,
+          "before": "el?: {\n    event: string;\n    timeout?: string | undefined;\n    if?: string | undefined;\n  }[] | undefined;\n  singleton?: {\n    mode: \"skip\" | \"cancel\";\n    key?: string | undefined;\n  } | undefined;\n  debounce?: {\n    period: string;\n    key?: string | undefined;\n    timeout?: string | undefined;\n  } | undefined;\n  timeouts?: {\n    finis",
+          "after": ""
+        },
+        {
+          "start": 75535,
+          "before": "?: string | undefined;\n    start?: string | undefin",
+          "after": ""
+        },
+        {
+          "start": 75587,
+          "before": "d;\n  } | undefined;\n  priority?: {\n    run?: string | undefined;\n  } | undefined;\n  concurrency?: number | {\n    li",
+          "after": ""
+        },
+        {
+          "start": 75703,
+          "before": "it: number;\n    key?: string | undefined;\n    scope?: \"env\" | \"fn\" | \"",
+          "after": ""
+        },
+        {
+          "start": 75774,
+          "before": "ccount\" | undefined;\n  } | {\n    limit: number",
+          "after": ""
+        },
+        {
+          "start": 75822,
+          "before": "    key?: string | undefined;\n    scope?: \"env\" | \"fn\" | \"account\" | undefined;\n  }[] | undefined;\n}>;\n",
+          "after": ""
+        },
+        {
+          "start": 84486,
+          "before": "z.ZodObj",
+          "after": "typ"
+        },
+        {
+          "start": 84495,
+          "before": "ct<{\n ",
+          "after": "of"
+        },
+        {
+          "start": 84502,
+          "before": "u",
+          "after": "impo"
+        },
+        {
+          "start": 84504,
+          "before": "l: z",
+          "after": "t(\""
+        },
+        {
+          "start": 84509,
+          "before": "Z",
+          "after": "/_c"
+        },
+        {
+          "start": 84511,
+          "before": "dS",
+          "after": "co"
+        },
+        {
+          "start": 84516,
+          "before": "",
+          "after": "p-"
+        },
+        {
+          "start": 84517,
+          "before": "g;\n}, \"s",
+          "after": "a"
+        },
+        {
+          "start": 84526,
+          "before": "r",
+          "after": ""
+        },
+        {
+          "start": 84528,
+          "before": "",
+          "after": "ve-s"
+        },
+        {
+          "start": 84529,
+          "before": "",
+          "after": "hema-"
+        },
+        {
+          "start": 84530,
+          "before": "\", z.ZodT",
+          "after": ""
+        },
+        {
+          "start": 84542,
+          "before": "A",
+          "after": "s.js\").i"
+        },
+        {
+          "start": 84544,
+          "before": "",
+          "after": "BandS"
+        },
+        {
+          "start": 84545,
+          "before": ", {\n  url: stri",
+          "after": ""
+        },
+        {
+          "start": 84561,
+          "before": "g;\n}, {\n  ",
+          "after": "cReq"
+        },
+        {
+          "start": 84572,
+          "before": "rl: ",
+          "after": "e"
+        },
+        {
+          "start": 84578,
+          "before": "ring;\n}>",
+          "after": "BodySchema"
+        }
+      ]
+    },
+    {
+      "file": "types.js",
+      "beforeSha256": "6534f5a32b0b086bd0301047e9bab2733e07151bb748a552dbb8e9af3c6673a5",
+      "afterSha256": "f4addc43967b3ecdcec1d64332118945064a8e27d5087e1b555816eff2484dcb",
+      "edits": [
+        {
+          "start": 78,
+          "before": "",
+          "after": "./_cocotrip-"
+        },
+        {
+          "start": 81,
+          "before": "/",
+          "after": "-"
+        },
+        {
+          "start": 83,
+          "before": "3",
+          "after": "4.js"
+        }
+      ]
+    }
+  ],
+  "additions": [
+    {
+      "file": "_cocotrip-native-realtime-types.d.cts",
+      "sha256": "ae61135ac607147a75d2a279295c1fc7a822edb4fe555ce8c5936d93b265b8a9"
+    },
+    {
+      "file": "_cocotrip-native-realtime-types.d.ts",
+      "sha256": "ae61135ac607147a75d2a279295c1fc7a822edb4fe555ce8c5936d93b265b8a9"
+    },
+    {
+      "file": "_cocotrip-native-schema-types.d.cts",
+      "sha256": "2ef43959938f61ae923be5d17a526b645b5e3ac020fd2e63f535835eeb08c32b"
+    },
+    {
+      "file": "_cocotrip-native-schema-types.d.ts",
+      "sha256": "2ef43959938f61ae923be5d17a526b645b5e3ac020fd2e63f535835eeb08c32b"
+    },
+    {
+      "file": "_cocotrip-zod-v4.cjs",
+      "sha256": "6c5037a7807c09047e2e095473fe2c0b4de19599c498682746062186fff17894"
+    },
+    {
+      "file": "_cocotrip-zod-v4.d.cts",
+      "sha256": "f99780c4f6081d0c977f622114d428fe469c2d62ba274dec063064258044377f"
+    },
+    {
+      "file": "_cocotrip-zod-v4.d.ts",
+      "sha256": "f99780c4f6081d0c977f622114d428fe469c2d62ba274dec063064258044377f"
+    },
+    {
+      "file": "_cocotrip-zod-v4.js",
+      "sha256": "c204ce6585f3bb9cc0805f4d667ba4c6429bf63acec35b5a124baf086290172b"
+    }
+  ]
+}
