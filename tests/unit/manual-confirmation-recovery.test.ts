@@ -90,6 +90,38 @@ beforeEach(() => {
 });
 
 describe('manual confirmation durable recovery', () => {
+  it('does not relabel unknown legacy delivery history as suppressed', async () => {
+    vi.stubEnv('VERCEL_ENV', 'preview'); vi.stubEnv('PREVIEW_EMAIL_SUPPRESS', 'true');
+    try {
+      const { db, rows } = memoryStore('CONFIRMED');
+      await confirmBookingAsPaid({ db, ...args });
+      expect(rows.get('pending_bookings/OFFLINE-ONLY')?.confirmationEmailState).toBe('legacy_outcome_unknown');
+      expect(effects.email).not.toHaveBeenCalled();
+    } finally { vi.unstubAllEnvs(); }
+  });
+  it('confirms the booking while suppressed email creates no send, completed receipt or mail-failure alert', async () => {
+    vi.stubEnv('VERCEL_ENV', 'preview'); vi.stubEnv('PREVIEW_EMAIL_SUPPRESS', 'true');
+    try {
+      const { db, rows } = memoryStore('PENDING');
+      const result = await confirmBookingAsPaid({ db, ...args });
+      expect(result.ok).toBe(true);
+      expect(rows.get('pending_bookings/OFFLINE-ONLY')).toMatchObject({ status: 'CONFIRMED', confirmationEmailState: 'suppressed' });
+      expect(effects.processor).toHaveBeenCalledOnce(); expect(effects.email).not.toHaveBeenCalled();
+      expect(JSON.stringify(effects.notify.mock.calls)).not.toContain('안내메일 결과 미상');
+      await confirmBookingAsPaid({ db, ...args });
+      expect(effects.email).not.toHaveBeenCalled();
+    } finally { vi.unstubAllEnvs(); }
+  });
+  it.each(['completed', 'outcome_unknown'])('preserves recorded email history %s while suppression is active', async (state) => {
+    vi.stubEnv('VERCEL_ENV', 'preview'); vi.stubEnv('PREVIEW_EMAIL_SUPPRESS', 'true');
+    try {
+      const { db, rows } = memoryStore('PENDING');
+      rows.get('pending_bookings/OFFLINE-ONLY')!.confirmationEmailState = state;
+      await confirmBookingAsPaid({ db, ...args });
+      expect(rows.get('pending_bookings/OFFLINE-ONLY')?.confirmationEmailState).toBe(state);
+      expect(effects.email).not.toHaveBeenCalled();
+    } finally { vi.unstubAllEnvs(); }
+  });
   it.each(['bookings/', 'pending_processor_retries/'])('commits no state or effects when %s fails, then recovers once', async (path) => {
     const { db, rows } = memoryStore('PENDING', path);
     await expect(confirmBookingAsPaid({ db, ...args })).rejects.toThrow('OFFLINE_INJECTED_WRITE_FAILURE');

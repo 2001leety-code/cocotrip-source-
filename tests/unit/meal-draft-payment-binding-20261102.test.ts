@@ -168,6 +168,18 @@ describe('server meal draft payment binding', () => {
    expect(notify.mock.calls[0][0]).toMatchObject({ email: 'guest-contact@example.invalid', uid: 'owner' });
    expect(db.rows.get(`plans/${claim.planId}`)).toMatchObject({ uid: 'owner', guestEmail: 'guest-contact@example.invalid', mealDraftBinding: { openingNoticeVersion: 'meal-opening-unconfirmed-v1' } });
  });
+ it('keeps paid-plan issuance successful but never claims Preview email delivery', async () => {
+   vi.stubEnv('VERCEL_ENV', 'preview'); vi.stubEnv('PREVIEW_EMAIL_SUPPRESS', 'true');
+   try {
+     const d = { ...draft(), input: { ...input, email: 'fixture@example.invalid' } };
+     const claim = (await claimPlanIssuance(db.db, 'SUPPRESSED-ORDER', { uid: 'owner' })).claim;
+     const notify = vi.fn();
+     const result = await fulfillBoundMealDraft({ db: db.db, draft: d, claim, guest: true, authenticatedEmail: null, pricingFor: () => ({ priceKRW: 100, priceUSD: 1 }), notify });
+     expect(result).toMatchObject({ firestoreSaved: true, emailSent: false, emailDelivery: { status: 'suppressed', sent: false, retryable: false } });
+     expect(db.rows.get(`plans/${claim.planId}`)).toMatchObject({ status: 'ready', itinerary: d.itinerary });
+     expect(notify).toHaveBeenCalledOnce(); expect(provider.calls).toHaveLength(0);
+   } finally { vi.unstubAllEnvs(); }
+ });
  it('persists the exact itinerary using the reserved issuance plan ID', async () => {
    const result = await claimPlanIssuance(db.db, 'ORDER1', { uid: 'owner' });
    const saved = await persistBoundMealDraft(db.db, draft(), result.claim, { guest: true });

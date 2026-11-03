@@ -79,6 +79,25 @@ afterEach(() => {
 });
 
 describe('booking-processor telegram — per-channel idempotency', () => {
+  it('suppresses email before its claim and AI generation while retaining booking processing', async () => {
+    vi.stubEnv('PREVIEW_EMAIL_SUPPRESS', 'true');
+    try {
+      const { sendBookingConfirmation } = await import('../../api/_send-email.js');
+      const { generateConfirmationEmail, generateVoucherText } = await import('../../api/_ai-employees.js');
+      vi.mocked(sendBookingConfirmation).mockClear();
+      vi.mocked(generateConfirmationEmail).mockClear(); vi.mocked(generateVoucherText).mockClear();
+      const first = await run(); const second = await run();
+      for (const result of [first, second]) {
+        expect(result.body.data.steps.email).toBe('suppressed');
+        expect(result.body.data.stepStatus.email).toBe('skipped_not_applicable');
+        expect(result.body.data.emailDelivery).toMatchObject({ status: 'suppressed', sent: false, delivery: 'not_attempted' });
+      }
+      expect(sendBookingConfirmation).not.toHaveBeenCalled();
+      expect(generateConfirmationEmail).not.toHaveBeenCalled(); expect(generateVoucherText).not.toHaveBeenCalled();
+      for (const field of ['voucherSentAt', 'voucherSentAtState', 'voucherFailedAt', 'voucherError']) expect(db.__get(PATH)).not.toHaveProperty(field);
+      expect(dispatchAlert).toHaveBeenCalledOnce(); expect(paymentAlert).toHaveBeenCalledOnce();
+    } finally { vi.unstubAllEnvs(); }
+  });
   it('re-entry: completed channels are not sent again', async () => {
     const first = await run();
     expect(telegramStep(first)).toBe('ok');

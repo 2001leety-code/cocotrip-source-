@@ -27,6 +27,7 @@ import { sweepExpiredDispatches, computeExpiryDate } from './_shared/dispatch-sw
 import { productDisplayLabel } from './_shared/pricing.js';
 import { relayAdminReply } from './_shared/chat-relay.js';
 import { sendEmail } from './_send-email.js';
+import { isEmailSuppressed } from './_shared/email-delivery-policy.js';
 import { USD_TO_KRW } from './_shared/exchange-rate.js';
 import { translate } from './_shared/translator.js';
 import { sendDispatchToDriver, broadcastDispatchToDrivers } from './_shared/dispatch-helpers.js';
@@ -2269,21 +2270,21 @@ async function handleClaimCallback(botToken, p) {
   if (customerEmail) {
     try {
       if (isApprove) {
-        await sendEmail({
+        const receipt = await sendEmail({
           to: customerEmail,
           subject: '[CocoTrip] 무료 AI 플랜 신청이 승인되었습니다',
           html: buildApproveEmailHtml(),
           text: buildApproveEmailText(),
         });
-        emailNote = '✉️ 승인 이메일 발송 완료';
+        emailNote = isEmailSuppressed(receipt) ? '' : '✉️ 승인 이메일 발송 완료';
       } else {
-        await sendEmail({
+        const receipt = await sendEmail({
           to: customerEmail,
           subject: '[CocoTrip] 무료 AI 플랜 신청 검토 결과',
           html: buildRejectEmailHtml(rejectReason),
           text: buildRejectEmailText(rejectReason),
         });
-        emailNote = '✉️ 거부 안내 이메일 발송 완료';
+        emailNote = isEmailSuppressed(receipt) ? '' : '✉️ 거부 안내 이메일 발송 완료';
       }
     } catch (err) {
       console.error('[claim-callback] email send failed:', err);

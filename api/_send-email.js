@@ -17,6 +17,7 @@
  */
 
 import nodemailer from 'nodemailer';
+import { isPreviewEmailSuppressed, suppressedEmailReceipt } from './_shared/email-delivery-policy.js';
 import { escapeHtml, escapeAttr } from './_shared/escape.js';
 import { checkGmailQuota, incrementGmailSentCount, GMAIL_QUOTA_EXCEEDED } from './_shared/gmail-quota.js';
 
@@ -48,6 +49,7 @@ export function maskEmailForLog(value) {
  * @returns {object} Nodemailer 응답
  */
 export async function sendEmail({ to, subject, html, text, attachments = [] }) {
+  if (isPreviewEmailSuppressed()) return suppressedEmailReceipt();
   // PR #447 (Audit Z-H8): pre-check daily Gmail quota. If we're past 96%
   // throw GMAIL_QUOTA_EXCEEDED so the caller (customer-email-trigger /
   // PR #439) routes the message into pending_email_retries for next-day

@@ -1,3 +1,4 @@
+import { isPreviewEmailSuppressed, suppressedEmailReceipt } from '../_shared/email-delivery-policy.js';
 import { verifyMealActor } from './mealActor.js';
 import { fulfillBoundMealDraft } from '../_shared/meal-draft-binding.js';
 /**
@@ -465,7 +466,7 @@ export default async function handler(req, res) {
       const debug = buildAdminDebug({ gate, plannerMode: PLANNER_MODE, abDecision, identifierForBucketing, blockModeUsed, blocksUsed, useStreaming, itinerary });
       res.writeHead(200, { ...CORS, 'Content-Type': 'application/json' });
       res.end(JSON.stringify(_ok({
-        planId, planUrl, firestoreSaved: true, emailSent: !!email, itinerary,
+        planId, planUrl, firestoreSaved: true, emailSent: !!email && !isPreviewEmailSuppressed(), ...(isPreviewEmailSuppressed() ? { emailDelivery: suppressedEmailReceipt() } : {}), itinerary,
         pricing: { vehicle, vehicleLabel: VEHICLE_LABELS[vehicle] || VEHICLE_LABELS.staria_8, priceKRW, priceUSD, currency: 'KRW' },
         ...(debug ? { _debug: debug } : {}),
       })));

@@ -26,6 +26,7 @@ import { notifyOperator } from './_shared/operator-alerts.js';
 import { productDisplayLabel } from './_shared/pricing.js';
 import { buildManualPaymentEmail } from './_shared/manual-payment-emails.js';
 import { sendEmail } from './_send-email.js';
+import { isEmailSuppressed } from './_shared/email-delivery-policy.js';
 import { resolveBookingAccess, isGuestManagedBooking } from './_shared/booking-access.js';
 import { refundPaypalCapture } from './_shared/paypal-refund.js';
 import { resolveIsSandbox } from './_shared/paypal.js';
@@ -523,7 +524,8 @@ export default async function handler(req, res) {
           refundReason: reason || null,
           language: booking.language || 'en',
         });
-        await sendEmail({ to: userEmail, subject, html, text });
+        const receipt = await sendEmail({ to: userEmail, subject, html, text });
+        if (isEmailSuppressed(receipt)) return receipt;
         console.log('[cancelBooking] refund email sent:', userEmail);
       } catch (e) {
         console.error('[cancelBooking] refund email failed (non-fatal):', e.message);

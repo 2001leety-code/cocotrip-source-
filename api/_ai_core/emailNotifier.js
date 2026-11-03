@@ -3,7 +3,10 @@
  * Extracted verbatim from api/ai-planner-full.js L544-578, L1254-1271.
  */
 
+import { isPreviewEmailSuppressed, suppressedEmailReceipt } from '../_shared/email-delivery-policy.js';
+
 export async function sendNotificationEmail({ email, guestName, tourTitle, planId, planUrl }) {
+  if (isPreviewEmailSuppressed()) return suppressedEmailReceipt();
   const gmailUser = (process.env.GMAIL_USER || '').trim();
   const gmailPass = (process.env.GMAIL_APP_PASSWORD || '').trim();
   if (!gmailUser || !gmailPass || !email) return;

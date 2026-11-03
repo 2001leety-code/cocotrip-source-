@@ -1,3 +1,4 @@
+import { isPreviewEmailSuppressed, suppressedEmailReceipt, isEmailSuppressed } from '../_shared/email-delivery-policy.js';
 /**
  * CocoTripKR — 투어 후 리뷰 요청 (Vercel Cron). 자가운영 에이전시 💬 고객 직원 (배치 B).
  *
@@ -148,6 +149,7 @@ async function sendOperatorSummary({ targetDate, sentCount, skippedCount, errorC
 }
 
 const reviewRequestTask = async (dryRunArg = false) => {
+  if (isPreviewEmailSuppressed()) return { statusCode: 200, body: { ...suppressedEmailReceipt(), sentCount: 0 } };
   // 🔒 플래그 OFF = 강제 dryRun (깜짝 고객 메일 방지).
   const enabled = process.env.REVIEW_REQUEST_ENABLED === 'true';
   const dryRun = dryRunArg || !enabled;
@@ -170,7 +172,8 @@ const reviewRequestTask = async (dryRunArg = false) => {
     try {
       const lang = detectLanguage(b.payerEmail, b.payerName || '');
       const email = buildReviewEmail(b, lang);
-      await sendEmail({ to: b.payerEmail, subject: email.subject, html: email.html, text: email.text });
+      const receipt = await sendEmail({ to: b.payerEmail, subject: email.subject, html: email.html, text: email.text });
+      if (isEmailSuppressed(receipt)) continue;
       await doc.ref.update({ reviewRequestSent: FieldValue.serverTimestamp(), reviewRequestLang: lang });
       sentCount++;
     } catch (err) {

@@ -1,3 +1,4 @@
+import { isPreviewEmailSuppressed, suppressedEmailReceipt, isEmailSuppressed } from '../_shared/email-delivery-policy.js';
 /**
  * CocoTripKR — 무료 미리보기 이탈 회복 이메일 (Vercel Cron).
  *
@@ -138,6 +139,7 @@ async function hasConverted(db, emailLower) {
 }
 
 const previewLeadRecoveryTask = async (dryRunArg = false) => {
+  if (isPreviewEmailSuppressed()) return { statusCode: 200, body: { ...suppressedEmailReceipt(), sentCount: 0 } };
   const enabled = process.env.PREVIEW_RECOVERY_ENABLED === 'true';
   const dryRun = dryRunArg || !enabled;
   console.log(`[preview-lead-recovery] 시작 (enabled=${enabled}, dryRun=${dryRun})`);
@@ -173,7 +175,8 @@ const previewLeadRecoveryTask = async (dryRunArg = false) => {
         continue;
       }
       const email = buildRecoveryEmail(lead, unsubscribeUrl);
-      await sendEmail({ to: lead.emailLower, subject: email.subject, html: email.html, text: email.text });
+      const receipt = await sendEmail({ to: lead.emailLower, subject: email.subject, html: email.html, text: email.text });
+      if (isEmailSuppressed(receipt)) continue;
       await lead.ref.update({ recoveryEmailSentAtMs: now });
       sentCount++;
     } catch (err) {

@@ -1,3 +1,4 @@
+import { isPreviewEmailSuppressed, suppressedEmailReceipt, isEmailSuppressed } from '../_shared/email-delivery-policy.js';
 /**
  * CocoTripKR — Free Cancellation Deadline Reminder (Vercel Cron)
  *
@@ -288,6 +289,7 @@ async function sendOperatorSummary({ targetDate, sentCount, skippedCount, errorC
 
 // ── 메인 작업 ────────────────────────────────────────────────────────
 const refundReminderTask = async (dryRun = false) => {
+  if (isPreviewEmailSuppressed()) return { statusCode: 200, body: { ...suppressedEmailReceipt(), sentCount: 0 } };
   console.log('[refund-reminder] 시작 (dryRun=' + dryRun + ')');
   const target = addDaysISO(todayKST(), 4);
   console.log('[refund-reminder] 대상 tourDate:', target);
@@ -322,7 +324,8 @@ const refundReminderTask = async (dryRun = false) => {
     try {
       const lang = detectLanguage(b.payerEmail, b.payerName || '');
       const email = buildReminderEmail(b, lang);
-      await sendEmail({ to: b.payerEmail, subject: email.subject, html: email.html, text: email.text });
+      const receipt = await sendEmail({ to: b.payerEmail, subject: email.subject, html: email.html, text: email.text });
+      if (isEmailSuppressed(receipt)) continue;
       await doc.ref.update({
         freeCancelReminderSent: FieldValue.serverTimestamp(),
         freeCancelReminderLang: lang,

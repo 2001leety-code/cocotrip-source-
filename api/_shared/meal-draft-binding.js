@@ -1,3 +1,4 @@
+import { isPreviewEmailSuppressed, suppressedEmailReceipt } from './email-delivery-policy.js';
 import { paidPlanRevisionDefaults } from './plan-purchase-defaults.js';
 import { shapeRequest } from '../_ai_core/requestShaper.js';
 import { createHash, randomUUID } from 'node:crypto';
@@ -71,5 +72,5 @@ export async function fulfillBoundMealDraft({ db, draft, claim, guest, authentic
   const pricing = { vehicle, ...pricingFor(vehicle, durationDays) };
   const saved = await persistBoundMealDraft(db, draft, claim, { guest, pricing });
   notify({ adminDb: db, ...shaped, uid: draft.uid, itinerary: saved.itinerary, planId: saved.planId, planUrl: saved.planUrl, orderId: claim.orderId });
-  return { ...saved, firestoreSaved: true, emailSent: !!shaped.email, pricing };
+  return { ...saved, firestoreSaved: true, emailSent: !!shaped.email && !isPreviewEmailSuppressed(), ...(isPreviewEmailSuppressed() ? { emailDelivery: suppressedEmailReceipt() } : {}), pricing };
 }
