@@ -4,6 +4,7 @@
  */
 
 import { isPreviewEmailSuppressed, suppressedEmailReceipt } from '../_shared/email-delivery-policy.js';
+import { isPreviewSheetsSuppressed, suppressedSheetsReceipt } from '../_shared/preview-egress-policy.js';
 
 export async function sendNotificationEmail({ email, guestName, tourTitle, planId, planUrl }) {
   if (isPreviewEmailSuppressed()) return suppressedEmailReceipt();
@@ -42,6 +43,7 @@ export async function sendNotificationEmail({ email, guestName, tourTitle, planI
 }
 
 export async function recordLeadToSheets({ email, guestName, area, styles, pax, planId }) {
+  if (isPreviewSheetsSuppressed()) return suppressedSheetsReceipt();
   if (!email) return;
   try {
     const { google } = await import('googleapis');

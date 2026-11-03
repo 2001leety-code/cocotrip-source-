@@ -11,6 +11,8 @@
 // Google Sheets API - 서비스 계정 JWT 인증
 // googleapis 패키지 없이 fetch + JWT로 직접 구현 (Netlify Functions 경량화)
 
+import { isPreviewSheetsSuppressed, suppressedSheetsReceipt } from './_shared/preview-egress-policy.js';
+
 const SHEETS_BASE_URL = 'https://sheets.googleapis.com/v4/spreadsheets';
 const SHEET_NAME = '시트1';
 
@@ -162,6 +164,7 @@ export async function findBookingRowByKey(spreadsheetId, key) {
  * @returns {object} API 응답
  */
 export async function appendBooking(booking) {
+  if (isPreviewSheetsSuppressed()) return suppressedSheetsReceipt();
   const spreadsheetId = process.env.GOOGLE_SHEETS_SPREADSHEET_ID;
   if (!spreadsheetId) {
     if (!_envWarnedOnce) {
@@ -237,6 +240,7 @@ export async function appendBooking(booking) {
  * @returns {boolean}
  */
 export async function updateBookingStatus(transactionId, status) {
+  if (isPreviewSheetsSuppressed()) return suppressedSheetsReceipt();
   const spreadsheetId = process.env.GOOGLE_SHEETS_SPREADSHEET_ID;
   if (!spreadsheetId) {
     if (!_envWarnedOnce) {

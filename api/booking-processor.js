@@ -19,6 +19,7 @@
 
 import { captureError } from './_shared/sentry.js';
 import { isPreviewEmailSuppressed, suppressedEmailReceipt } from './_shared/email-delivery-policy.js';
+import { isPreviewSheetsSuppressed, suppressedSheetsReceipt } from './_shared/preview-egress-policy.js';
 import { initAdminDb } from './_shared/firebase-admin.js';
 import { appendBooking, updateBookingStatus } from './_google-sheets.js';
 // 2026-05-04: telegram 2-채널 분리 후 sendBookingAlert / generateBookingAlert / notify
@@ -432,10 +433,15 @@ const originalHandler = async (event) => {
   //   stepGuards.skipSheets = 빠른 경로(이미 기록된 게 명백) / claim 실패 = 동시 호출이
   //   먼저 선점함 → 둘 다 'skip'. 선점 성공한 인스턴스만 appendBooking 1회 실행.
   let sheetsRowHint = null;
-  const sheetsClaim = stepGuards.skipSheets
+  const sheetsSuppressed = isPreviewSheetsSuppressed();
+  const sheetsClaim = sheetsSuppressed ? { claimed: false, reason: 'preview_policy' } : stepGuards.skipSheets
     ? { claimed: false, reason: CLAIM.ALREADY_COMPLETED }
     : await claimBookingStep(orderID, BOOKING_STEP_MARKERS.sheets);
-  if (!sheetsClaim.claimed) {
+  if (sheetsSuppressed) {
+    results.steps.sheets = 'suppressed';
+    results.stepStatus.sheets = STEP.SKIPPED;
+    results.sheetsDelivery = suppressedSheetsReceipt();
+  } else if (!sheetsClaim.claimed) {
     results.steps.sheets = `skip: ${sheetsClaim.reason}`;
     results.stepStatus.sheets = stepFromClaimReason(sheetsClaim.reason);
     console.log('[booking-processor] Sheets 스킵:', sheetsClaim.reason, orderID);
@@ -714,8 +720,8 @@ const originalHandler = async (event) => {
 
   // ── Step 7: Google Sheets 상태 '확정'으로 업데이트 (이슈#3 fix: rowHint로 전체 스캔 회피) ──
   try {
-    await updateBookingStatus(orderID, '확정', sheetsRowHint);
-    results.steps.sheetsUpdate = 'ok';
+    if (!sheetsSuppressed) await updateBookingStatus(orderID, '확정', sheetsRowHint);
+    results.steps.sheetsUpdate = sheetsSuppressed ? 'suppressed' : 'ok';
   } catch (err) {
     // B9-31: env 미설정(SheetsEnvSkipped) 시 silent.
     if (err?.skipped || err?.name === 'SheetsEnvSkipped') {
@@ -878,6 +884,7 @@ const originalHandler = async (event) => {
       steps: results.steps,
       stepStatus: results.stepStatus,
       ...(results.emailDelivery ? { emailDelivery: results.emailDelivery } : {}),
+      ...(results.sheetsDelivery ? { sheetsDelivery: results.sheetsDelivery } : {}),
       loyalty: results.loyalty,
       aiBenefits: results.aiBenefits || null,
     },
