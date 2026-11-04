@@ -14,7 +14,7 @@
 //
 // "flight" / "flight_hotel" reveal a mini-form (airport + arrival HH:MM) so
 // real airport/time data is captured early. Hotel address still goes in step 3.
-import { useRef, useState } from 'react';
+import { useId, useRef, useState } from 'react';
 import { Check, ChevronRight } from 'lucide-react';
 import type { WizardDict } from './types';
 import { getAirportOptions } from './helpers';
@@ -57,6 +57,7 @@ export function WizardStep0Reservation({
   hotelAddress, setHotelAddress,
   mainCityKey, onNext,
 }: Step0ResProps) {
+  const fieldId = useId();
   const showAirportForm = status === 'flight' || status === 'flight_hotel';
   const showHotelForm = status === 'flight_hotel';
   const canContinue = status !== null && (
@@ -160,8 +161,8 @@ export function WizardStep0Reservation({
           </p>
           <div className="grid grid-cols-2 gap-2">
             <div ref={airportRef} tabIndex={-1} className="scroll-mt-4 outline-none">
-              <label className="block text-[11px] text-ec-ink-3 mb-1">{p.resAirport || 'Arrival airport'}</label>
-              <select value={arrivalAirport} onChange={e => setArrivalAirport(e.target.value)}
+              <label htmlFor={`${fieldId}-airport`} className="block text-[11px] text-ec-ink-3 mb-1">{p.resAirport || 'Arrival airport'}</label>
+              <select id={`${fieldId}-airport`} value={arrivalAirport} onChange={e => setArrivalAirport(e.target.value)}
                 className={`ec-field ${showErrors && !arrivalAirport ? 'border-ec-critical' : ''}`}>
                 <option value="">{p.resPickAirport || 'Pick…'}</option>
                 {airportOptions.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
@@ -171,8 +172,8 @@ export function WizardStep0Reservation({
               )}
             </div>
             <div ref={timeRef} tabIndex={-1} className="scroll-mt-4 outline-none">
-              <label className="block text-[11px] text-ec-ink-3 mb-1">{p.resArrivalTime || 'Arrival time'}</label>
-              <input type="time" value={arrivalTime} onChange={e => setArrivalTime(e.target.value)}
+              <label htmlFor={`${fieldId}-arrival-time`} className="block text-[11px] text-ec-ink-3 mb-1">{p.resArrivalTime || 'Arrival time'}</label>
+              <input id={`${fieldId}-arrival-time`} type="time" value={arrivalTime} onChange={e => setArrivalTime(e.target.value)}
                 className={`ec-field ${showErrors && !arrivalTime ? 'border-ec-critical' : ''}`} />
               {showErrors && !arrivalTime && (
                 <p className="ec-error-note mt-1.5" role="alert">{d.wizardMissingArrivalTime || 'Enter your arrival time'}</p>
@@ -183,11 +184,11 @@ export function WizardStep0Reservation({
               여기서 받으면 Step3에서 칩으로 보여 두 번 안 묻게 됨. */}
           {showHotelForm && (
             <div>
-              <label className="block text-[11px] text-ec-ink-3 mb-1">
+              <label htmlFor={`${fieldId}-hotel`} className="block text-[11px] text-ec-ink-3 mb-1">
                 {p.resHotelAddress || 'Hotel address'}
                 <span className="text-ec-ink-3 ml-1">({p.wizardOptional || 'optional'})</span>
               </label>
-              <input type="text" value={hotelAddress} onChange={e => setHotelAddress(e.target.value)}
+              <input id={`${fieldId}-hotel`} type="text" value={hotelAddress} onChange={e => setHotelAddress(e.target.value)}
                 placeholder={p.hotel_placeholder || 'e.g. Lotte Hotel Myeongdong...'}
                 className="ec-field" />
             </div>

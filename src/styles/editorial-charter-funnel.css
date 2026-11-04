@@ -416,3 +416,11 @@
   color: var(--ec-text-secondary);
 }
 
+
+/* Mobile booking labels: override the shared compact sheet within charter only. */
+@media (max-width: 767px) {
+  .ec-night .ec-charter .charter-funnel-step-panel .cocotrip-mobile-booking-form label {
+    font-size: 14px !important;
+    line-height: 1.45 !important;
+  }
+}

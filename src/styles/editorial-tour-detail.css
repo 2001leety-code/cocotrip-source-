@@ -955,3 +955,22 @@
     order: 1;
   }
 }
+
+/* Tour booking readability: keep the existing light mobile / dark desktop
+   surfaces and all booking behaviour. Scope these adjustments to this portal. */
+.cocotrip-mobile-booking-dialog[data-tour-step='1'] .customer-booking-body button[aria-label] {
+  min-width: 44px;
+  min-height: 44px;
+}
+
+@media (max-width: 768px) {
+  .cocotrip-mobile-booking-dialog[data-tour-step='2'] .cocotrip-mobile-booking-form label {
+    /* Override the shared mobile 11px label rule without affecting charter. */
+    font-size: 14px !important;
+    line-height: 1.45 !important;
+  }
+
+  .cocotrip-mobile-booking-dialog[data-tour-step='2'] .cocotrip-mobile-booking-form label:is([for$='-last-name'], [for$='-first-name']) {
+    min-height: 2.9em;
+  }
+}

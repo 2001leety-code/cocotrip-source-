@@ -35,7 +35,7 @@ export function WizardMissingSummary({
   if (missing.length === 0) return null;
   return (
     // role="alert" 은 켜지는 순간 읽어 준다. 화면으로도 목록으로도 같은 정보가 남는다.
-    <div className="ec-error-note" role="alert">
+    <div className="ec-error-note wizard-missing-summary" role="alert">
       <p className="flex items-center gap-1.5 font-semibold">
         <AlertCircle className="h-4 w-4 shrink-0" aria-hidden />
         {title}
@@ -46,7 +46,7 @@ export function WizardMissingSummary({
             <button
               type="button"
               onClick={() => focusAndReveal(field.ref.current)}
-              className="min-h-[32px] text-left underline underline-offset-2"
+              className="min-h-[44px] text-left underline underline-offset-2"
             >
               {field.label}
             </button>

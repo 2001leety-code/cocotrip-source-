@@ -150,8 +150,16 @@
   min-height: 220px;
 }
 
+.my-plans-editorial-loading-label {
+  margin: 0;
+  padding: 24px 24px 0;
+  color: var(--ec-text-secondary);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
 .my-plans-editorial-loading-copy {
-  padding: 28px 24px 20px;
+  padding: 14px 24px 20px;
 }
 
 .my-plans-editorial-skeleton-grid {
@@ -496,7 +504,7 @@
 
 @media (min-width: 768px) {
   .ec-night .my-plans-editorial .my-plans-editorial-main {
-    padding-top: calc(var(--ec-shell-height-md) + 40px);
+    padding-top: 40px;
     padding-bottom: 80px;
   }
 
@@ -534,6 +542,10 @@
 }
 
 @media (max-width: 767px) {
+  .ec-night .my-plans-editorial .my-plans-editorial-main {
+    padding-top: 36px;
+  }
+
   .ec-night .my-plans-editorial .my-plans-bookings-boundary {
     border-inline-width: 0;
   }

@@ -1869,3 +1869,47 @@
     transition-property: none;
   }
 }
+
+/* Guided input readability: keep validation and fields on the same readable
+   surface, with the existing tokens and unchanged validation/copy. */
+.ec-planner .wizard-missing-summary {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0;
+  background: var(--ec-surface-raised);
+}
+.ec-planner .wizard-missing-summary button {
+  width: 100%;
+  min-height: var(--ec-touch-min);
+  padding-block: 8px;
+}
+.ec-planner .wizard-res-ticket label {
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--ec-text-secondary);
+}
+
+/* Selected-city check belongs to the thumbnail, not over the city name.
+   This leaves the full text width available to long names in all languages. */
+@media (max-width: 767.98px) {
+  .ec-planner .wizard-stage.wizard-stage--dest .wizard-city-grid > .ec-option > span > svg {
+    left: 8px;
+    right: auto;
+  }
+}
+
+/* Desktop has room to name the current step beside its number. Other steps
+   keep their accessible names and existing navigation/unlock behavior. */
+@media (min-width: 1024px) {
+  .ec-planner .planner-workspace:is(:has(.wizard-res-ticket), :has(.ec-steprail[aria-valuenow])) .planner-question .w-full > .mb-5 .ec-steptick[aria-current='step'] > span:not(.ec-figure) {
+    position: static;
+    width: auto;
+    height: auto;
+    margin: 0;
+    overflow: visible;
+    clip: auto;
+    white-space: normal;
+    font-size: 13px;
+    line-height: 1.4;
+  }
+}
