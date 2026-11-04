@@ -31,3 +31,8 @@ chat ID, alternate chat ID, production behavior, driver dispatch bookkeeping,
 worker ingress/publishing/failure callbacks, and the existing email/Sheets/push
 policies. No actual provider notification or Sandbox purchase is needed to test
 these contracts. A fresh deployment is needed for a changed server flag.
+
+The daily-report HTTP endpoint now uses the existing shared cron authentication
+check before executing the job. Valid scheduled CRON_SECRET Bearer and existing
+admin-token callers remain supported; unauthenticated direct calls return401.
+No cron secret or schedule setting is changed.
