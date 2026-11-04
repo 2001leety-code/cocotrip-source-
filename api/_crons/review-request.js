@@ -1,3 +1,5 @@
+import { isPreviewOperatorSuppressed, suppressedOperatorReceipt } from '../_shared/preview-egress-policy.js';
+import { isPreviewEmailSuppressed, suppressedEmailReceipt, isEmailSuppressed } from '../_shared/email-delivery-policy.js';
 /**
  * CocoTripKR — 투어 후 리뷰 요청 (Vercel Cron). 자가운영 에이전시 💬 고객 직원 (배치 B).
  *
@@ -132,6 +134,7 @@ function buildReviewEmail(booking, lang) {
 }
 
 async function sendOperatorSummary({ targetDate, sentCount, skippedCount, errorCount, dryRun }) {
+  if (isPreviewOperatorSuppressed()) return suppressedOperatorReceipt();
   try {
     const token = process.env.TELEGRAM_BOT_TOKEN;
     const chatId = process.env.TELEGRAM_CHAT_ID;
@@ -148,6 +151,7 @@ async function sendOperatorSummary({ targetDate, sentCount, skippedCount, errorC
 }
 
 const reviewRequestTask = async (dryRunArg = false) => {
+  if (isPreviewEmailSuppressed()) return { statusCode: 200, body: { ...suppressedEmailReceipt(), sentCount: 0 } };
   // 🔒 플래그 OFF = 강제 dryRun (깜짝 고객 메일 방지).
   const enabled = process.env.REVIEW_REQUEST_ENABLED === 'true';
   const dryRun = dryRunArg || !enabled;
@@ -170,7 +174,8 @@ const reviewRequestTask = async (dryRunArg = false) => {
     try {
       const lang = detectLanguage(b.payerEmail, b.payerName || '');
       const email = buildReviewEmail(b, lang);
-      await sendEmail({ to: b.payerEmail, subject: email.subject, html: email.html, text: email.text });
+      const receipt = await sendEmail({ to: b.payerEmail, subject: email.subject, html: email.html, text: email.text });
+      if (isEmailSuppressed(receipt)) continue;
       await doc.ref.update({ reviewRequestSent: FieldValue.serverTimestamp(), reviewRequestLang: lang });
       sentCount++;
     } catch (err) {
@@ -187,6 +192,10 @@ const reviewRequestTask = async (dryRunArg = false) => {
 
 export default async function vercelHandler(req, res) {
   if (req.method === 'OPTIONS') return res.status(200).end();
+  const { verifyCronRequest } = await import('../_shared/cron-auth.js');
+  const auth = await verifyCronRequest(req);
+  if (!auth.ok) return res.status(auth.status).json({ ok: false, code: 'AUTH_REQUIRED', error: auth.error });
+
   try {
     const dryRun = req.query?.dryRun === '1' || req.query?.dryRun === 'true';
     const r = await reviewRequestTask(dryRun);

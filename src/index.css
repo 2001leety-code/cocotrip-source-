@@ -920,8 +920,8 @@ html[data-menu-open="true"] .early-bird-banner {
   .cocotrip-mobile-booking-form label,
   .cocotrip-mobile-inquiry-modal label,
   .cocotrip-mobile-phone-modal label {
-    font-size: 11px !important;
-    line-height: 1.25 !important;
+    font-size: var(--cocotrip-mobile-booking-label-size, 11px) !important;
+    line-height: var(--cocotrip-mobile-booking-label-line-height, 1.25) !important;
     margin-bottom: 5px !important;
   }
 
@@ -974,6 +974,11 @@ html[data-menu-open="true"] .early-bird-banner {
   .cocotrip-mobile-booking-form [style*="font-size: 13px"],
   .cocotrip-mobile-booking-form [style*="font-size: 14px"] {
     line-height: 1.35 !important;
+  }
+
+  .cocotrip-mobile-booking-form label[style*="font-size: 13px"],
+  .cocotrip-mobile-booking-form label[style*="font-size: 14px"] {
+    line-height: var(--cocotrip-mobile-booking-label-line-height, 1.35) !important;
   }
 
   .cocotrip-mobile-booking-form [style*="width: 32px"] {

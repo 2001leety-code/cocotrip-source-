@@ -65,6 +65,8 @@ const PLAN_FIXTURE = {
 };
 
 async function installDeterministicRoutes(page: Page, planStatus = 200) {
+  // The third-party Preview toolbar can overlap and pollute product pixel baselines.
+  await page.route('https://vercel.live/**', (route) => route.abort());
   await page.addInitScript(() => {
     window.localStorage.setItem('cocotrip_lang', 'en');
     window.localStorage.setItem('coco_promo_banner_dismissed_v1', 'true');

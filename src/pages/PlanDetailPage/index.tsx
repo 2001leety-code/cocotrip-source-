@@ -1,13 +1,18 @@
+import { VisitNotice } from './components/VisitNotice';
 // PlanDetailPage container: Firestore listener + swipe carousel + edit mode.
 // Split from src/pages/PlanDetailPage.tsx (1144L) during P2 Lock release.
 // LOCKED regions moved out:
 //   - auto-translate useEffect  -> ./useAutoTranslate.ts
 //   - handleDownloadPDF body    -> ./pdfGenerator.ts
 // PDF button keeps `disabled={isPdfGenerating || isTranslating}` exactly as before.
-import { useEffect, useState, useCallback, useMemo, useRef } from 'react';
+import { useEffect, useLayoutEffect, useState, useCallback, useMemo, useRef } from 'react';
 import { useParams, useSearchParams, Link } from 'react-router-dom';
 import { doc, onSnapshot } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
+import { db, getGuestAuth } from '@/lib/firebase';
+import { onAuthStateChanged } from 'firebase/auth';
+import { isGuestAnonEnabled } from '@/lib/guestReader';
+import { authFetch } from '@/lib/authFetch';
+import { mealDraftGuestHeaders } from '@/lib/mealDraftIdentity';
 import { useAuth } from '@/hooks/useAuth';
 import { clearPlannerWizardSnapshot } from '@/hooks/useWizardPersistence';
 import { useLanguage } from '@/hooks/useLanguage';
@@ -79,9 +84,45 @@ export default function PlanDetailPage() {
   // P225: streaming hang timeout — 스트리밍 시작 시각 + timed-out 플래그
   const streamingStartRef = useRef<number | null>(null);
   const [streamingTimedOut, setStreamingTimedOut] = useState(false);
+  const [guestUid, setGuestUid] = useState<string | null>(() => isGuestAnonEnabled() ? getGuestAuth().currentUser?.uid || null : null);
+  useEffect(() => {
+    if (!isGuestAnonEnabled()) return;
+    return onAuthStateChanged(getGuestAuth(), (guest) => setGuestUid(guest?.uid || null));
+  }, []);
+
+  // The same access scope gates asynchronous mutation responses as plan loading.
+  const uid = user?.uid || null;
+  const dataIdentity = `${planId || ''}\u0000${token || ''}\u0000${uid || ''}\u0000${guestUid || ''}\u0000${localScenario || ''}`;
+  const requestIdentity = `${dataIdentity}\u0000${authLoading}`;
 
   // Plan editor (optimistic Firestore updates + auto transit recalc)
-  const editor = usePlanEditor(planId || '', plan, setPlan);
+  const editor = usePlanEditor(planId || '', plan, setPlan, requestIdentity);
+
+  const activeMealScope = useRef<string | null>(requestIdentity);
+  const mealScopeEpoch = useRef(0);
+  useLayoutEffect(() => {
+    activeMealScope.current = requestIdentity;
+    mealScopeEpoch.current++;
+    return () => { if (activeMealScope.current === requestIdentity) activeMealScope.current = null; mealScopeEpoch.current++; };
+  }, [requestIdentity]);
+  const handleMealPlanSaved = useCallback(async (saved?: PlanDocument) => {
+    if (!planId) throw new Error('Missing plan ID');
+    const epoch = mealScopeEpoch.current;
+    const isCurrent = () => activeMealScope.current === requestIdentity && mealScopeEpoch.current === epoch;
+    if (!isCurrent()) return;
+    let next = saved;
+    if (!next) {
+      const guestHeaders = await mealDraftGuestHeaders();
+      if (!isCurrent()) return;
+      const response = await authFetch('/api/plan-meal-options', { method: 'POST', headers: { 'Content-Type': 'application/json', ...guestHeaders }, body: JSON.stringify({ action: 'snapshot', planId, token }) });
+      const data = await response.json() as { ok?: boolean; plan?: PlanDocument };
+      if (!response.ok || !data.ok || !data.plan) throw new Error('Snapshot unavailable');
+      next = data.plan;
+    }
+    if (next.planId !== planId || !next.itinerary || !Array.isArray(next.itinerary.days)) throw new Error('Invalid plan snapshot');
+    if (!isCurrent()) return;
+    setPlan(next);
+  }, [planId, token, requestIdentity]);
 
   // Drag sensors with distance constraint for mobile scroll compatibility
   const sensors = useSensors(
@@ -109,7 +150,6 @@ export default function PlanDetailPage() {
   // immediately re-subscribed → leaked listener handles + redundant
   // Firestore reads. Switched to `user?.uid` (stable string) so the
   // effect only re-runs when the actual identity changes.
-  const uid = user?.uid ?? null;
   // Language only localizes the public stay label; useAutoTranslate re-projects on
   // language changes. Reading it from a ref keeps a language switch from
   // resubscribing/refetching the plan and restarting translation.
@@ -117,8 +157,6 @@ export default function PlanDetailPage() {
   useEffect(() => {
     languageRef.current = language;
   }, [language]);
-  const dataIdentity = `${planId || ''}\u0000${token || ''}\u0000${uid || ''}\u0000${localScenario || ''}`;
-  const requestIdentity = `${dataIdentity}\u0000${authLoading}`;
   const [previousRequest, setPreviousRequest] = useState(() => ({ requestIdentity, dataIdentity }));
   // 경로/공유 토큰/사용자 전환은 새 읽기 상태를 즉시 보여 주되, 인증 복구 중에는
   // 기존 effect처럼 판단을 미룬다. 비동기 응답은 아래 listener 콜백만 상태를 쓴다.
@@ -246,7 +284,7 @@ export default function PlanDetailPage() {
       handleErrLegacy(err);
     });
     return () => { cancelled = true; unsub(); };
-  }, [planId, token, uid, authLoading, localScenario]);
+  }, [planId, token, uid, guestUid, authLoading, localScenario]);
 
   // share_visit tracking
   useEffect(() => {
@@ -507,10 +545,29 @@ export default function PlanDetailPage() {
                 }
               }}
             >
+              {editor.editRefreshError && (
+                <p role="alert" className="ec-error-note mb-3">
+                  {language === 'ko' ? '변경은 저장됐지만 최신 일정을 불러오지 못했습니다. 페이지를 다시 불러와 주세요.'
+                    : language === 'ja' ? '変更は保存されましたが、最新の旅程を取得できませんでした。ページを再読み込みしてください。'
+                    : language === 'zh' ? '变更已保存，但无法加载最新行程。请重新加载页面。'
+                    : 'Your changes were saved, but the latest itinerary could not be loaded. Please reload the page.'}
+                </p>
+              )}
+              {editor.editError && (
+                <p role="alert" className="ec-error-note mb-3">
+                  {language === 'ko' ? '이동·식사 시간을 검증하지 못해 변경을 저장하지 않았습니다. 일정을 다시 확인해 주세요.'
+                    : language === 'ja' ? '移動・食事時間を検証できなかったため、変更は保存されませんでした。旅程をもう一度ご確認ください。'
+                    : language === 'zh' ? '无法验证交通和用餐时间，变更未保存。请重新检查行程。'
+                    : 'The changes were not saved because travel and meal times could not be verified. Please review your itinerary.'}
+                </p>
+              )}
               <DayTimeline
                 day={dayData}
                 dayIndex={dayIdx}
                 routeScopeKey={`${planId || ''}:day:${dayIdx}`}
+                planId={planId}
+                accessToken={token}
+                onPlanSaved={handleMealPlanSaved}
                 editMode={editMode}
                 isRecalculating={editor.isRecalculating}
                 onDeleteStop={(di, si) => editor.deleteStop(di, si, token)}
@@ -556,6 +613,7 @@ export default function PlanDetailPage() {
         regionNames={((t as unknown as { planner?: { regionNames?: Record<string, string> } }).planner?.regionNames) || {}}
       />
       <main data-testid="plan-document-ready" className="ec-container-wide py-8 md:py-12">
+        <VisitNotice language={language} input={plan.input} />
         {/* P169: Streaming 진행 중 인디케이터 배너 (onSnapshot 자동 감지) */}
         {/* P225: streamingTimedOut 시 오류 배너 + 새로고침 버튼 */}
         {isStreamingInProgress && (

@@ -656,6 +656,7 @@ export default function MyPage() {
                     <button
                       key={key}
                       onClick={() => setWalletFilter(key)}
+                      aria-pressed={walletFilter === key}
                       className={`mypage-editorial-wallet-tab${walletFilter === key ? ' is-active' : ''}`}
                     >
                       {label}

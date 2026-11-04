@@ -16,12 +16,17 @@ import { initAdminDb } from '../_shared/firebase-admin.js';
 import { FieldValue } from 'firebase-admin/firestore';
 import { notify } from '../_shared/notify.js';
 import { sendEmail } from '../_send-email.js';
+import { isPreviewEmailSuppressed, suppressedEmailReceipt, isEmailSuppressed } from '../_shared/email-delivery-policy.js';
 import { PENDING_EMAIL_RETRIES_COLLECTION } from '../_shared/customer-email-trigger.js';
 
 const MAX_ATTEMPTS = 5;
 const MAX_BATCH = 10;
 
 export default async function handler(req, res) {
+  const { verifyCronRequest } = await import('../_shared/cron-auth.js');
+  const auth = await verifyCronRequest(req);
+  if (!auth.ok) return res.status(auth.status).json({ ok: false, code: 'AUTH_REQUIRED', error: auth.error });
+  if (isPreviewEmailSuppressed()) return res.status(200).json({ ok: false, ...suppressedEmailReceipt(), swept: 0 });
   try {
     const db = initAdminDb('email-retry-sweep');
     if (!db) {
@@ -59,12 +64,13 @@ export default async function handler(req, res) {
       }
 
       try {
-        await sendEmail({
+        const receipt = await sendEmail({
           to: data.to,
           subject: data.subject,
           html: data.html,
           text: data.text,
         });
+        if (isEmailSuppressed(receipt)) continue;
         await doc.ref.update({
           status: 'done',
           attempts: attempts + 1,

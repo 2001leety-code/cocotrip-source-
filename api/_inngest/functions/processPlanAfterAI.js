@@ -1,3 +1,4 @@
+import { isPreviewOperatorSuppressed, suppressedOperatorReceipt } from '../../_shared/preview-egress-policy.js';
 /**
  * Inngest worker — P220 (2026-05-26).
  *
@@ -122,6 +123,7 @@ export const processPlanAfterAI = inngest.createFunction(
     // 마킹 → 사용자 stuck 노출 단축 (P292 30분 sweep net 보완).
     // SAFETY (CLAUDE.md J): dietary validation 무관 — Firestore status mark 만.
     onFailure: async ({ event, error }) => {
+      if (isPreviewOperatorSuppressed()) return suppressedOperatorReceipt();
       const planId = event?.data?.event?.data?.planId || event?.data?.planId;
       if (!planId) {
         console.warn('[P307] onFailure: planId 없음 — skip');
@@ -193,6 +195,7 @@ export const processPlanAfterAI = inngest.createFunction(
     },
   },
   async ({ event, step, logger }) => {
+    if (isPreviewOperatorSuppressed()) return suppressedOperatorReceipt();
     const { planId: eventPlanId, itinerary, ctx } = event.data;
     const startMs = Date.now();
     logger.info(`[P220] worker start: planId=${eventPlanId || '(new)'}, days=${(itinerary?.days || []).length}`);
@@ -399,6 +402,7 @@ export const processPlanAfterAI = inngest.createFunction(
         // 2026-10-26: input.arrival_rest_day / arrival_city 저장(sync 경로와 같은 판정 — 수정 API 가 저장 플래그 우선).
         arrivalRestDay,
         arrivalCity: String(ctx.body?.arrival_city || ctx.body?.arrivalCity || '').trim().toLowerCase() || null,
+        mealWindows, // PR3 r2: input.meal_windows — sync 경로와 같은 서버 계산값(수정 API 가 저장값 우선)
         plannerMode: ctx.plannerMode,
         abReason: ctx.abReason,
         abBucket: ctx.abBucket,
@@ -443,6 +447,7 @@ export const processPlanAfterAI = inngest.createFunction(
         departureTime: ctx.body?.departureTime || ctx.body?.departure_time,
         arrivalTime: ctx.body?.arrivalTime || ctx.body?.arrival_time,
         arrivalAirport: ctx.arrival_airport || ctx.body?.arrival_airport || ctx.body?.arrivalAirport,
+        departureAirport: ctx.departure_airport || ctx.body?.departure_airport || ctx.body?.departureAirport,
         area: ctx.area || ctx.body?.area,
         regions: ctx.regions,
         tourEndTime: resolveTourEndTime(ctx.body || {}), // 2026-10-26: 종료 시각 SSOT(camel 우선 + snake)

@@ -1,3 +1,4 @@
+import { isPreviewOperatorSuppressed, suppressedOperatorReceipt } from '../_shared/preview-egress-policy.js';
 /**
  * CocoTripKR — 일일 모닝 리포트 (Vercel Cron)
  *
@@ -138,6 +139,7 @@ function aggregateByProduct(rows) {
 
 // ── 메인 ─────────────────────────────────────────────────────────────
 const dailyReportTask = async () => {
+  if (isPreviewOperatorSuppressed()) return { statusCode: 200, body: suppressedOperatorReceipt() };
   console.log('[daily-report] 모닝 리포트 시작');
   const kst = new Date(Date.now() + 9 * 60 * 60 * 1000);
   const dateStr = kst.toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric' });
@@ -270,6 +272,9 @@ const dailyReportTask = async () => {
 
 export default async function vercelHandler(req, res) {
   if (req.method === 'OPTIONS') return res.status(200).end();
+  const { verifyCronRequest } = await import('../_shared/cron-auth.js');
+  const auth = await verifyCronRequest(req);
+  if (!auth.ok) return res.status(auth.status).json({ ok: false, code: 'AUTH_REQUIRED', error: auth.error });
   try {
     const r = await dailyReportTask();
     return res.status(r.statusCode || 200).json(r);

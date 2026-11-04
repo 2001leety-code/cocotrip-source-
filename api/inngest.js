@@ -1,3 +1,4 @@
+import { isPreviewOperatorSuppressed } from './_shared/preview-egress-policy.js';
 /**
  * Vercel API route: /api/inngest — Inngest serve handler (P220, 2026-05-26).
  *
@@ -56,6 +57,11 @@ const baseHandler = serve({ client: inngest, functions: [processPlanAfterAI] });
  * serve() 자체가 long-running 하면 4분30초 시점에 admin telegram alert.
  */
 export default async function handler(req, res) {
+  if (isPreviewOperatorSuppressed()) {
+    res.statusCode = 403;
+    res.setHeader('Content-Type', 'application/json');
+    return res.end(JSON.stringify({ ok: false, code: 'PREVIEW_WORKER_DISABLED', status: 'suppressed' }));
+  }
   const hangWarnTimer = setTimeout(() => {
     throttledTelegramAlert({
       key: 'inngest-serve-hang',

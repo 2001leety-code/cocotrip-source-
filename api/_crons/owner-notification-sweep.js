@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { isPreviewPushSuppressed, suppressedPushReceipt } from '../_shared/preview-egress-policy.js';
 import { logger } from '../_shared/log.js';
 import { ownerSweepDiagnostic } from '../_shared/owner-notification-diagnostics.js';
 import { inspectVapidPair } from '../_shared/owner-vapid-diagnostics.js';
@@ -139,6 +140,7 @@ async function advanceCursor(db, control, config, device, spec, cursor, event, n
 
 /** Metadata-only polling; never modifies booking, inquiry, payment or subscription documents. */
 export async function ownerNotificationSweepTask(options = {}) {
+  if (isPreviewPushSuppressed()) return { ok: false, code: 'PREVIEW_SUPPRESSED', ...suppressedPushReceipt() };
   const config = readOwnerNotificationConfig(options.env || process.env);
   if (!config.enabled) return { ok: config.ok, code: config.code, enabled: false,
     ...(config.ok ? {} : ownerSweepDiagnostic({ code: config.code, phase: 'CONFIGURATION', issues: config.issues })) };
@@ -271,6 +273,7 @@ export default async function handler(req, res) {
   const { verifyCronRequest } = await import('../_shared/cron-auth.js');
   const authorized = await verifyCronRequest(req);
   if (!authorized.ok) return res.status(401).json({ ok: false, code: 'AUTH_REQUIRED' });
+  if (isPreviewPushSuppressed()) return res.status(200).json({ ok: false, code: 'PREVIEW_SUPPRESSED', ...suppressedPushReceipt() });
   const config = readOwnerNotificationConfig(process.env);
   if (config.enabled) logger.info('[owner-push-auth]', inspectVapidPair(config.publicKey, config.privateKey));
   const result = await ownerNotificationSweepTask();

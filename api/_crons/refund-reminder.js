@@ -1,3 +1,5 @@
+import { isPreviewOperatorSuppressed, suppressedOperatorReceipt } from '../_shared/preview-egress-policy.js';
+import { isPreviewEmailSuppressed, suppressedEmailReceipt, isEmailSuppressed } from '../_shared/email-delivery-policy.js';
 /**
  * CocoTripKR — Free Cancellation Deadline Reminder (Vercel Cron)
  *
@@ -265,6 +267,7 @@ function buildReminderEmail(booking, lang) {
 
 // ── Telegram 운영자 알림 (best-effort) ────────────────────────────────
 async function sendOperatorSummary({ targetDate, sentCount, skippedCount, errorCount }) {
+  if (isPreviewOperatorSuppressed()) return suppressedOperatorReceipt();
   try {
     const token = process.env.TELEGRAM_BOT_TOKEN;
     const chatId = process.env.TELEGRAM_CHAT_ID;
@@ -288,6 +291,7 @@ async function sendOperatorSummary({ targetDate, sentCount, skippedCount, errorC
 
 // ── 메인 작업 ────────────────────────────────────────────────────────
 const refundReminderTask = async (dryRun = false) => {
+  if (isPreviewEmailSuppressed()) return { statusCode: 200, body: { ...suppressedEmailReceipt(), sentCount: 0 } };
   console.log('[refund-reminder] 시작 (dryRun=' + dryRun + ')');
   const target = addDaysISO(todayKST(), 4);
   console.log('[refund-reminder] 대상 tourDate:', target);
@@ -322,7 +326,8 @@ const refundReminderTask = async (dryRun = false) => {
     try {
       const lang = detectLanguage(b.payerEmail, b.payerName || '');
       const email = buildReminderEmail(b, lang);
-      await sendEmail({ to: b.payerEmail, subject: email.subject, html: email.html, text: email.text });
+      const receipt = await sendEmail({ to: b.payerEmail, subject: email.subject, html: email.html, text: email.text });
+      if (isEmailSuppressed(receipt)) continue;
       await doc.ref.update({
         freeCancelReminderSent: FieldValue.serverTimestamp(),
         freeCancelReminderLang: lang,
@@ -347,6 +352,10 @@ const refundReminderTask = async (dryRun = false) => {
 
 export default async function vercelHandler(req, res) {
   if (req.method === 'OPTIONS') return res.status(200).end();
+  const { verifyCronRequest } = await import('../_shared/cron-auth.js');
+  const auth = await verifyCronRequest(req);
+  if (!auth.ok) return res.status(auth.status).json({ ok: false, code: 'AUTH_REQUIRED', error: auth.error });
+
   try {
     const dryRun = req.query?.dryRun === '1' || req.query?.dryRun === 'true';
     const r = await refundReminderTask(dryRun);

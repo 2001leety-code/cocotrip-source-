@@ -19,6 +19,7 @@ import type { WizardState, LodgingLocation, VehicleType, QuoteBreakdown } from '
 import { EXTRA_CHARGES } from '@/data/charterPricing';
 import { charterUsdFromKrw } from '@/lib/charterUsd';
 import { getWizardI18n } from './wizard-i18n';
+import { originCodeLabel, resolveDestinationKeyLabel } from './destinationDisplayLabels';
 import { calcVehicleCount } from '@/lib/luggageVehicle';
 import { BookingInfoForm, type BookingFormData } from '@/components/booking/BookingInfoForm';
 import { resolveProductType } from './resolveProductType';
@@ -431,7 +432,7 @@ export function Step5DateOptions({ state, patch, language = 'en', quote, footerS
       <div className="rounded-[24px] border border-white/10 bg-white/[0.025] p-3 sm:p-4">
         <BookingInfoForm
           eyebrow={i18n.step5}
-          title={state.destinationKey ?? state.destinationCustom ?? (state.origin ?? '')}
+          title={state.destName || state.destAddress || state.destinationCustom || (state.destinationKey ? resolveDestinationKeyLabel(state.destinationKey, language) : originCodeLabel(state.origin, language))}
           dateText={`${state.startDate ?? '-'}${pickup ? ` ${pickup}` : ''}`}
           paxText={`${state.paxCount ?? '-'}${i18n.maxUnit}`}
           isAirport={isAirport}

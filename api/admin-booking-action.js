@@ -40,6 +40,7 @@ import { FieldValue } from 'firebase-admin/firestore';
 import { notify } from './_shared/notify.js';
 import { buildManualPaymentEmail } from './_shared/manual-payment-emails.js';
 import { sendEmail, maskEmailForLog } from './_send-email.js';
+import { isPreviewEmailSuppressed, suppressedEmailReceipt, isEmailSuppressed } from './_shared/email-delivery-policy.js';
 import { confirmBookingAsPaid } from './_shared/booking-confirm.js';
 import { refundPaypalCapture } from './_shared/paypal-refund.js';
 import { releaseSlotForCanceledOrder } from './_shared/slot-capacity.js';
@@ -123,7 +124,8 @@ async function sendCustomerNotification(kind, booking) {
       return;
     }
     const { subject, html, text } = buildManualPaymentEmail(kind, booking);
-    await sendEmail({ to: booking.customerEmail, subject, html, text });
+    const receipt = await sendEmail({ to: booking.customerEmail, subject, html, text });
+    if (isEmailSuppressed(receipt)) return receipt;
     console.log(`[admin-booking-action] customer email sent (${kind}):`, booking.customerEmail);
   } catch (e) {
     console.error(`[admin-booking-action] customer email (${kind}) failed:`, e.message);
@@ -448,6 +450,7 @@ function resendCoolingDown(b, nowMs) {
  */
 async function handleResendManageLink({ res, JSON_HEADERS, adminDb, adminUid, adminEmail, bookingRef }) {
   const send = (status, payload) => { res.writeHead(status, JSON_HEADERS); return res.end(JSON.stringify(payload)); };
+  if (isPreviewEmailSuppressed()) return send(200, { ok: false, code: 'EMAIL_SUPPRESSED', ...suppressedEmailReceipt() });
   const action = 'resend-manage-link';
   try {
     const ref = adminDb.collection('bookings').doc(bookingRef);

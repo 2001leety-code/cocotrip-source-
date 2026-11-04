@@ -21,6 +21,10 @@ const leaflet = vi.hoisted(() => ({ map: vi.fn(), polyline: vi.fn(), marker: vi.
 
 vi.mock('firebase/firestore', () => firestore);
 vi.mock('../../src/lib/firebase', () => ({ db: {} }));
+vi.mock('@/lib/guestReader', () => ({ isGuestAnonEnabled: () => false }));
+vi.mock('@/lib/mealDraftIdentity', () => ({ mealDraftGuestHeaders: async () => ({}) }));
+vi.mock('@/lib/authFetch', () => ({ authFetch: vi.fn() }));
+vi.mock('@/lib/firebase-auth.js', () => ({ auth: { currentUser: null } }));
 vi.mock('../../src/hooks/useAuth', () => ({ useAuth: () => session.auth }));
 vi.mock('../../src/hooks/useLanguage', () => ({ useLanguage: () => session.language }));
 vi.mock('../../src/hooks/usePageMeta', () => ({ usePageMeta: () => {} }));

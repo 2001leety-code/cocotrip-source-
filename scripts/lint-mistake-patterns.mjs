@@ -6040,7 +6040,7 @@ function P74_planDetailListenerStableDep({ changed }) {
   const violations = [];
 
   // const uid = user?.uid ?? null; 필수
-  if (!/const\s+uid\s*=\s*user\?\.uid\s*\?\?\s*null/.test(content)) {
+  if (!/const\s+uid\s*=\s*user\?\.uid\s*(?:\?\?|\|\|)\s*null/.test(content)) {
     violations.push(`${FILE}: \`const uid = user?.uid ?? null\` hoist 누락 — onSnapshot effect 가 user 객체 ref dep 사용 시 listener leak (W-H16)`);
   }
 
@@ -7450,11 +7450,20 @@ function runAll(base) {
 // ----------------------------------------------------------------------------
 
 function gitInSandbox(dir, args) {
-  return safeExec(`git -C "${dir}" ${args}`);
+  try {
+    return execSync(`git -C "${dir}" ${args}`, {
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
+  } catch (err) {
+    const stderr = err && err.stderr ? err.stderr.toString().trim() : '';
+    throw new Error(`Self-test git ${args} failed (exit ${err.status}): ${stderr}`, { cause: err });
+  }
 }
 
 function setupSandbox() {
-  const dir = mkdtempSync(path.join(tmpdir(), 'cocotrip-lint-self-'));
+  const tempRoot = process.env.COCOTRIP_LINT_SELF_TEST_TMPDIR || tmpdir();
+  const dir = mkdtempSync(path.join(tempRoot, 'cocotrip-lint-self-'));
   gitInSandbox(dir, 'init -q -b main');
   gitInSandbox(dir, 'config user.email lint@self.test');
   gitInSandbox(dir, 'config user.name "Lint Self Test"');
@@ -8211,6 +8220,18 @@ function runSelfTest() {
       },
       expectRule: 'PDF_KOREAN_FONT',
       expectClean: true, // api/ 경로 — 본 룰 검사 대상 X
+    },
+    {
+      label: 'P74: logical-or UID fallback follows AGENTS and retains stable listener dependencies',
+      base: { 'src/pages/PlanDetailPage/index.tsx': '// before\n' },
+      head: { 'src/pages/PlanDetailPage/index.tsx': 'function Page() {\nconst uid = user?.uid || null;\nuseEffect(() => {\nconst unsub = onSnapshot(ref, () => {});\nreturn () => unsub();\n}, [uid]);\n}\n' },
+      expectRule: 'P74_planDetailListenerStableDep', expectClean: true,
+    },
+    {
+      label: 'P74: logical-or fallback does not allow object reference listener dependencies',
+      base: { 'src/pages/PlanDetailPage/index.tsx': '// before\n' },
+      head: { 'src/pages/PlanDetailPage/index.tsx': 'function Page() {\nconst uid = user?.uid || null;\nuseEffect(() => {\nconst unsub = onSnapshot(ref, () => {});\nreturn () => unsub();\n}, [user]);\n}\n' },
+      expectRule: 'P74_planDetailListenerStableDep',
     },
     {
       label: 'P96 (true positive): maxDuration=300 endpoint 신규 withStep + hangWarn 부재',
@@ -11221,7 +11242,8 @@ function P239_tourStartTimeFallback({ changed }) {
     issues.push("'09:00' default 폴백 누락 — 옛 client 호환성 손상 (architectural fix 회귀)");
   }
   // HH:MM 정규식 검증 의무 (잘못된 입력 silent fail 방지).
-  if (!/\/\^\\d\{2\}:\\d\{2\}\$\//.test(src)) {
+  //   2026-11-01 (PR3): constants.resolveTourStartTime(body) — 엄격 HH:MM 검증 + 기본 '09:00' 을 그 resolver 가 소유 — 도 인정.
+  if (!/\/\^\\d\{2\}:\\d\{2\}\$\//.test(src) && !/const\s+tourStartTime\s*=\s*resolveTourStartTime\(body\)/.test(src)) {
     issues.push("HH:MM 정규식 검증 누락 — 잘못된 입력 silent pass 위험");
   }
   // return 객체에 tourStartTime 노출 확인 (handlerCore destructure).
@@ -11287,14 +11309,16 @@ function P245_blockModeTourStartTime({ changed }) {
     if (/arrivalPlus60/.test(blockSrc)) {
       issues.push("blockMode.js 옛 +60분 룰(arrivalPlus60) 잔존 — #arrival-realtime 미반영 (회귀)");
     }
-    // tour_start_time pickup default '09:00' 누락 시 FAIL
-    if (!/tour_start_time\s*\|\|\s*userInput\?\.tourStartTime\s*\|\|\s*['"]09:00['"]/.test(blockSrc)) {
+    // tour_start_time pickup default '09:00' 누락 시 FAIL.
+    //   2026-11-01 (PR3): constants.resolveTourStartTime(userInput) 도 인정 — 그 resolver 가 camel·snake 를 읽고 기본 '09:00' 을 소유한다.
+    const startPickups = (blockSrc.match(/userInput\?\.tour_start_time\s*\|\|\s*userInput\?\.tourStartTime/g) || []).length
+      + (blockSrc.match(/resolveTourStartTime\(userInput\)/g) || []).length;
+    if (!/tour_start_time\s*\|\|\s*userInput\?\.tourStartTime\s*\|\|\s*['"]09:00['"]/.test(blockSrc) && !/resolveTourStartTime\(userInput\)/.test(blockSrc)) {
       issues.push("blockMode.js tour_start_time default '09:00' pickup 누락");
     }
     // 양쪽 (단도시 + 다도시) 모두 적용됐는지 — pickup 2회 이상
-    const matches = blockSrc.match(/userInput\?\.tour_start_time\s*\|\|\s*userInput\?\.tourStartTime/g) || [];
-    if (matches.length < 2) {
-      issues.push(`blockMode.js tour_start_time pickup ${matches.length}회 (단도시 + 다도시 둘 다 필요, 2회 이상)`);
+    if (startPickups < 2) {
+      issues.push(`blockMode.js tour_start_time pickup ${startPickups}회 (단도시 + 다도시 둘 다 필요, 2회 이상)`);
     }
     // #tour-end (2026-06-05): 종료 cap 이 하드코딩 22:00 대신 tour_end_time 사용 (단도시 + 다도시).
     if (/toMin\(\s*['"]22:00['"]\s*\)/.test(blockSrc)) {
@@ -11305,15 +11329,17 @@ function P245_blockModeTourStartTime({ changed }) {
       issues.push(`blockMode.js tour_end_time cap ${capMatches.length}회 (단도시 + 다도시 둘 다 필요, 2회 이상)`);
     }
     // tour_end_time pickup default 누락 시 FAIL (DEFAULT_TOUR_END_HHMM = '21:00')
-    if (!/tour_end_time\s*\|\|\s*userInput\?\.tourEndTime\s*\|\|\s*DEFAULT_TOUR_END_HHMM/.test(blockSrc)) {
+    //   PR3: resolveTourEndTime(userInput) 단도시·다도시 2회도 인정(기본 '21:00' 은 그 resolver 가 소유).
+    if (!/tour_end_time\s*\|\|\s*userInput\?\.tourEndTime\s*\|\|\s*DEFAULT_TOUR_END_HHMM/.test(blockSrc)
+      && (blockSrc.match(/resolveTourEndTime\(userInput\)/g) || []).length < 2) {
       issues.push("blockMode.js tour_end_time default pickup 누락");
     }
   }
 
   const persistSrc = readFileExists(PERSIST_FILE);
   if (persistSrc) {
-    // planPersister.js 가 Firestore input 에 tour_start_time 저장 의무
-    if (!/tour_start_time:\s*body\.tourStartTime/.test(persistSrc)) {
+    // planPersister.js 가 Firestore input 에 tour_start_time 저장 의무 (PR3: resolveTourStartTime(body) 정규화 저장도 인정)
+    if (!/tour_start_time:\s*(?:body\.tourStartTime|\(body\.tourStartTime\s*\|\|\s*body\.tour_start_time\)\s*\?\s*resolveTourStartTime\(body\))/.test(persistSrc)) {
       issues.push("planPersister.js Firestore input.tour_start_time 저장 누락 — admin debug + 추적 불가");
     }
     // #tour-end (2026-06-05): tour_end_time 도 Firestore 저장 의무 (PDF/UI/admin debug + 추적).

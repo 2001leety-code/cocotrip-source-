@@ -81,6 +81,21 @@ afterEach(() => {
 const loggedText = () => JSON.stringify(logSpies.flatMap((s) => s.mock.calls));
 
 describe('resend-manage-link — auth and refusals (no mail, booking untouched)', () => {
+  it('Preview suppression retains auth and returns before booking queries, token claims or mail', async () => {
+    vi.stubEnv('VERCEL_ENV', 'preview'); vi.stubEnv('PREVIEW_EMAIL_SUPPRESS', 'true');
+    try {
+      const before = JSON.stringify(db.__get(PATH));
+      const collection = vi.spyOn(db, 'collection');
+      const result = await call();
+      expect(result.statusCode).toBe(200);
+      expect(result.json).toMatchObject({ ok: false, code: 'EMAIL_SUPPRESSED', status: 'suppressed', sent: false });
+      expect(collection).not.toHaveBeenCalled(); expect(sendEmailSpy).not.toHaveBeenCalled();
+      expect(JSON.stringify(db.__get(PATH))).toBe(before);
+      authHolder.result = { ok: false, status: 401, error: 'no token' };
+      expect((await call()).statusCode).toBe(401);
+      collection.mockRestore();
+    } finally { vi.unstubAllEnvs(); }
+  });
   it('401 / 403 from the admin token gate', async () => {
     authHolder.result = { ok: false, status: 401, error: 'no token' };
     expect((await call()).statusCode).toBe(401);

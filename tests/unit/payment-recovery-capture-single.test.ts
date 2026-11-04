@@ -137,16 +137,20 @@ describe('capturePaypalOrder — capture once, persist atomically, replay from s
     const state = await call(baseBody);
     expect(state.status).toBe(409);
     expect(state.body).toMatchObject({ ok: false, code: 'PAYMENT_NOT_CAPTURED', paymentStatus: 'NOT_CAPTURED', finalized: false, retryable: true, orderID: ORDER });
-    expect(db.rows.has(LOCK)).toBe(false);
+    expect(db.rows.get(LOCK)).toMatchObject({ status: 'void_not_captured', reason: 'INSTRUMENT_DECLINED' }); // r19: tombstone, not deleted
     expect(db.rows.has(`bookings/${ORDER}`)).toBe(false);
   });
 
-  it('same-order reconcile without any attempt record is durable evidence of no provider call => NOT_CAPTURED, nothing created', async () => {
+  // r19: an absent record is no longer proof by itself — PayPal is read (GET only) and the order is voided in a
+  //   transaction only while still absent; the answer is the final order_voided evidence.
+  it('same-order reconcile without any attempt record → PayPal GET (no POST) → tombstone → order_voided, no booking', async () => {
+    provider.push({ method: 'GET', reply: { status: 200, body: { id: ORDER, status: 'APPROVED' } } });
     const state = await call({ orderID: ORDER, reconcile: true });
     expect(state.status).toBe(409);
-    expect(state.body).toMatchObject({ code: 'PAYMENT_NOT_CAPTURED', evidence: 'no_attempt_record', paymentStatus: 'NOT_CAPTURED' });
-    expect(provider.calls).toHaveLength(0);
-    expect(db.rows.has(LOCK)).toBe(false);
+    expect(state.body).toMatchObject({ code: 'PAYMENT_NOT_CAPTURED', evidence: 'order_voided', paymentStatus: 'NOT_CAPTURED', retryable: false });
+    expect(provider.calls.map((c) => c.method)).toEqual(['GET']);
+    expect(db.rows.get(LOCK)).toMatchObject({ status: 'void_not_captured', reason: 'no_attempt_record' });
+    expect(db.rows.has(`bookings/${ORDER}`)).toBe(false);
   });
 
   it('ORDER_ALREADY_CAPTURED is not nonpayment: the order is looked up and the verified capture is used', async () => {

@@ -1,4 +1,5 @@
 import { ownerHash } from './owner-notification-policy.js';
+import { isPreviewPushSuppressed, suppressedPushReceipt } from './preview-egress-policy.js';
 import { readSelectedOwnerDevice, sendSingleOwnerPush } from './owner-notification-delivery.js';
 import { logger } from './log.js';
 
@@ -77,6 +78,7 @@ function blockedCode(attempts, at) {
 }
 
 export async function ownerNotificationTestTask({ db, auth, config, input, now = Date.now, send = sendSingleOwnerPush, timeoutMs = 6500 }) {
+  if (isPreviewPushSuppressed()) return { ok: false, code: 'PREVIEW_SUPPRESSED', ...suppressedPushReceipt() };
   if (!config?.enabled) return result('SEND_REJECTED');
   if (!input || !['check', 'send'].includes(input.action)) return { ok: false, code: 'INVALID_REQUEST' };
   if (input.subscriptionId !== config.subscriptionId) return { ok: false, code: 'DEVICE_NOT_SELECTED' };

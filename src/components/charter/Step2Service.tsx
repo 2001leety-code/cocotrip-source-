@@ -45,7 +45,7 @@ export function Step2Service({ state, patch, language = 'en' }: Props) {
             </span>
             <span className="min-w-0 pt-0.5">
               <span className={`charter-funnel-option-title block text-xs font-bold leading-tight sm:text-[15px] ${selected ? 'text-white' : 'text-white/82'}`}>{opt.title}</span>
-              <span className="mt-0.5 block truncate text-[9px] leading-relaxed text-white/55 sm:mt-2 sm:line-clamp-2 sm:text-xs">{opt.desc}</span>
+              <span className="charter-funnel-option-sub mt-0.5 block text-[9px] leading-relaxed text-white/55 sm:mt-2 sm:text-xs">{opt.desc}</span>
             </span>
           </button>
         );

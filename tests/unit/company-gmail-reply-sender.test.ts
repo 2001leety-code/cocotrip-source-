@@ -24,6 +24,11 @@ const decodeBase64Subject = (raw: string) => {
 };
 
 describe('company Gmail reply sender', () => {
+  it('retains the existing production-only boundary before any OAuth request in a suppressed Preview', async () => {
+    const fetchImpl = baseFetch();
+    const result = await createCompanyGmailSender({ env: { ...env, VERCEL_ENV: 'preview', PREVIEW_EMAIL_SUPPRESS: 'true' }, fetchImpl, now: () => NOW })({ envelope, text: 'Offline fixture', attemptId, authorizationExpiresAtMs: NOW + 300_000, signal: new AbortController().signal });
+    expect(result.status).toBe('failed_pre_send'); expect(fetchImpl).not.toHaveBeenCalled();
+  });
   it.each([
     [{ ...env, VERCEL_ENV: 'preview' }, 'REPLY_DISABLED'],
     [{ ...env, COMPANY_GMAIL_REPLY_EMAIL: 'other@example.com' }, 'COMPANY_ACCOUNT_REQUIRED'],

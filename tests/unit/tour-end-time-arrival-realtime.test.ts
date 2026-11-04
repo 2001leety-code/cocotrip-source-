@@ -66,7 +66,9 @@ const baseInput = { language: 'en', area: 'seoul', dietPrefs: [], foodIndex: [],
 describe('#tour-end source markers — 흐름 전체 박제', () => {
   it('blockMode.js — DEFAULT_TOUR_END_HHMM + 도착 현실 계산을 constants 에서 가져온다', () => {
     const src = read('api/_ai_core/blockMode.js');
-    expect(/DEFAULT_TOUR_END_HHMM\s*=\s*['"]21:00['"]/.test(src), 'DEFAULT_TOUR_END_HHMM 누락').toBe(true);
+    // 2026-11-01 (PR3): 기본 종료 21:00 은 constants.resolveTourEndTime 이 소유 — blockMode 는 단도시·다도시 모두 그 resolver 를 쓴다(사본 상수 삭제).
+    expect((src.match(/const tourEndTime = resolveTourEndTime\(userInput\)/g) || []).length, 'resolveTourEndTime 연결 누락').toBeGreaterThanOrEqual(2);
+    expect(/DEFAULT_TOUR_END_HHMM\s*=/.test(src), 'blockMode 가 기본값 사본을 되만들었다').toBe(false);
     // 🔴 2026-08-03: 도착 계산 helper 를 constants.js 로 옮겼다.
     //   buildPrompt(Gemini 경로)·RouteAgent·responseValidator 가 같은 값을 써야 하는데
     //   blockMode 안에만 있어서 나머지가 옛 '+60분' 을 쓰고 있었다(한쪽만 고친 상태).

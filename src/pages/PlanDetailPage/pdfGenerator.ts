@@ -1,3 +1,5 @@
+import { visitNotice } from '@/lib/visitNotice.js';
+import { intercityEvidenceNotices } from '@/lib/intercityEvidence.js';
 // PDF download generator. LOCKED region — extracted verbatim from
 // src/pages/PlanDetailPage.tsx (L155-348) during P2 Lock release.
 //
@@ -563,6 +565,9 @@ export async function generatePDF(
     <p style="color:${C.muted};font-size:10px;margin:4px 0 0;">${L.generatedBy} \u00B7 cocotripkr.com</p>
   </div>`;
 
+  const visit = visitNotice(lang, input);
+  html += `<div style="margin:0 0 16px;padding:10px;border:1px solid ${C.muted};page-break-inside:avoid;"><strong>${visit.title}</strong><p style="margin:4px 0 0;font-size:11px;">${visit.body}</p></div>`;
+
   // === Sprint 1 Step 4: QR header overlay ===
   // text-align:center인 header div 위에 우측 QR을 absolute 박스로 overlay.
   if (headerQrDataUrl) {
@@ -729,6 +734,8 @@ export async function generatePDF(
       const fareTpl = icLabels.fare || 'KRW {{krw}} / pax';
       const bookTpl = icLabels.book || 'Book';
       const titleText = titleTpl.replace('{{mode}}', modeStr);
+      const evidenceHtml = intercityEvidenceNotices(ic, lang)
+        .map((notice) => `<p style="font-size:10.5px;color:${C.muted};margin:6px 0 0;line-height:1.4;">${notice}</p>`).join('');
       const fromCity = String(ic.from_city_display || ic.from_city || '');
       const toCity = String(ic.to_city_display || ic.to_city || '');
       const departText = ic.recommended_depart ? departTpl.replace('{{time}}', String(ic.recommended_depart)) : '';
@@ -746,6 +753,7 @@ export async function generatePDF(
           ${[departText, arriveText, durationText, fareText].filter(Boolean).join('  ·  ')}
         </p>
         ${instruction}
+        ${evidenceHtml}
         ${bookLink}
       </div>`;
     }

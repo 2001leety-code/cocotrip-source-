@@ -389,6 +389,17 @@ describe('memo / airport — transactional re-verification', () => {
 });
 
 describe('date change — tour seat transfer', () => {
+  it('a suppressed mail receipt retains the valid date change without sent markers or a mail-failure alert', async () => {
+    const { suppressedEmailReceipt } = await import('../../api/_shared/email-delivery-policy.js');
+    mailSpy.mockResolvedValue({ ...suppressedEmailReceipt(), voucherAttached: false });
+    const result = await call(guestChange());
+    expect(result.statusCode).toBe(200);
+    expect(result.json.data).toMatchObject({ status: 'CONFIRMED', tourDate: TO, emailSent: false, emailDelivery: { status: 'suppressed', retryable: false } });
+    const doc = db.__get(PATH)!;
+    expect(doc).toMatchObject({ tourDate: TO, manageTokenVersion: 1, manageLinkPending: { version: 1 } });
+    expect(doc).not.toHaveProperty('manageLinkSentAt'); expect(alertSpy).not.toHaveBeenCalled();
+    expect(db.__get(AV(TO))!.slot_bookings[SLOT]).toBe(2);
+  });
   it('guest success: seats moved, absolute version, pending cleared after mail, lastChangeRequest, new token in no-store response', async () => {
     const r = await call(guestChange({ changes: { tourDate: TO, paxCount: 5 } }));
     expect(r.statusCode).toBe(200);

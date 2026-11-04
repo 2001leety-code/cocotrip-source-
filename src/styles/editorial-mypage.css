@@ -235,7 +235,8 @@
   background: var(--ec-brand);
 }
 
-.mypage-editorial-panel {
+.mypage-editorial-panel,
+.mypage-editorial-main > [role='tabpanel']:not(:has(> .mypage-editorial-panel)) {
   padding-top: 28px;
 }
 
@@ -883,6 +884,7 @@
 }
 
 .mypage-editorial-review-delete {
+  min-width: 44px;
   min-height: 44px;
   padding-inline: 10px;
   color: var(--ec-text-muted);
@@ -1116,7 +1118,8 @@
     margin-top: 24px;
   }
 
-  .ec-night .mypage-editorial .mypage-editorial-panel {
+  .ec-night .mypage-editorial .mypage-editorial-panel,
+  .ec-night .mypage-editorial .mypage-editorial-main > [role='tabpanel']:not(:has(> .mypage-editorial-panel)) {
     padding-top: 22px;
   }
 
@@ -1135,4 +1138,9 @@
   .ec-night .mypage-editorial .mypage-editorial-name {
     font-size: clamp(32px, 3vw, 40px);
   }
+}
+
+/* Keep tier names readable on the customer night surface; medal colours stay. */
+.ec-night .mypage-editorial .mypage-editorial-tier {
+  color: var(--ec-text-primary);
 }

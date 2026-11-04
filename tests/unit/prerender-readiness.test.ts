@@ -330,7 +330,7 @@ describe('빌드 배선', () => {
     expect(pkg.scripts['seo:audit-prerender']).toContain('audit-prerender-artifacts');
     expect(pkg.scripts['build:prerender']).toContain('build-prerender');
     // 배포가 쓰는 명령은 이것이다. 셸 의존 문법(`PRERENDER=1 ...`)을 끼워 넣지 않는다.
-    expect(pkg.scripts.build).toBe('tsc -b && vite build');
+    expect(pkg.scripts.build).toBe('node scripts/security/inngest-native-v4.mjs --check && tsc -b && vite build');
   });
 });
 

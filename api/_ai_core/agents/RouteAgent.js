@@ -1,3 +1,7 @@
+import { canServeMeal } from '../../_shared/meal-venue.js';
+import { registerVerifiedDepartureRoute, verifiedDepartureRoute } from '../verifiedDepartureRoute.js';
+import { placeDay1Block } from '../day1BlockPlacement.js';
+import { departureMealContext, proveDepartureMealExemption, recordDepartureMealExemption } from '../departureMealExemption.js';
 import axios from "axios";
 import { BaseAgent } from "./BaseAgent.js";
 import { formatTransitSummary, getSubwayStationInfo, getSubwayTimetable } from "../../_odsay_helper.js";
@@ -810,7 +814,7 @@ export function stitchStartMins(places, { firstMin, legMins = [], buffer = SCHED
                 // 구제 식당(_blockMealRole)의 원래 시각(자정 넘김 01:30 등)은 선호값으로 쓰지 않는다 — 창 안 가장 이른 자리.
                 const pref = Number.isFinite(origin) && !blockRole ? origin : lo;
                 starts.push(Math.max(lo, Math.min(pref, w.to)));
-                meals.push({ i, infeasible: lo > w.to, noWindow: false });
+                meals.push({ i, infeasible: lo > w.to, noWindow: false, role });
                 continue;
             }
             starts.push(applyMealFloor(base, origin));
@@ -1583,7 +1587,9 @@ export class RouteAgent extends BaseAgent {
                     ...(daysList.length === 1 ? { departureTime: data.departure_time, departureAirport: data.departure_airport } : {}),
                 }) || {};
                 const range = (x) => (x ? { from: this._parseTime(x.from), to: this._parseTime(x.to) } : null);
-                day1 = { R, pref: Math.max(R, modelFirst), tourEndMin: this._parseTime(tourEndTime), meal: { lunch: range(w.lunch), dinner: range(w.dinner) } };
+                const departureProofContext = departureMealContext({ ...data, tourStartTime: resolveTourStartTime(data), tourEndTime }, day1CityKey, daysList.length);
+                const departureContext = departureProofContext ? { ...departureProofContext, windows: w } : null;
+                day1 = { R, pref: Math.max(R, modelFirst), tourEndMin: this._parseTime(tourEndTime), meal: { lunch: range(w.lunch), dinner: range(w.dinner) } , departureContext };
                 dayPlan._p239TourStartMin = day1.pref; // 진단용 표식(옛 P239 이름 유지)
                 console.log(`  [Route] Day 1: P239 first-activity floor = ${this._formatTime(day1.pref)} (R=${this._formatTime(R)}, tour start=${this._formatTime(safeTourStartMin)}, arrival_ready=${this._formatTime(arrivalReady)}, meal windows=${JSON.stringify(w)})`);
             }
@@ -1841,11 +1847,8 @@ export class RouteAgent extends BaseAgent {
                         const formattedDepart = this._formatTime(newDepartMin);
                         if (formattedDepart) {
                             it.recommended_depart = formattedDepart;
-                            // P-fix #8 (2026-06-20): stitching 성공 = day stop1 기준 실제
-                            //   출발시각 도출 → 더 이상 추정값 아님. depart_estimated 해제
-                            //   (있었다면). _enrichMultiCityDays 의 표준 fallback 이 셋했던
-                            //   추정 마킹을 여기서 신뢰 가능한 값으로 승격.
-                            if ('depart_estimated' in it) it.depart_estimated = false;
+                            // A calculated connection is not a verified train/bus/flight timetable.
+                            it.depart_estimated = true;
                             // arrival_at = depart + KTX/Air/Bus duration (intercity_transit.est_min)
                             if (Number.isFinite(it.est_min)) {
                                 const newArrivalMin = newDepartMin + Number(it.est_min);
@@ -1858,6 +1861,8 @@ export class RouteAgent extends BaseAgent {
                 }
             }
             let hotelTransit = null;
+            const hotelToMemo = new WeakMap();
+            const hotelFromMemo = new WeakMap();
             // PR2: 클로저 — B단계가 0번 stop 을 빼면 새 첫 stop 으로 다시 계산한다(rerun 이면 옛 값을 지운다).
             const runHotelToFirst = async (rerun = false) => {
             hotelTransit = null;
@@ -1871,7 +1876,8 @@ export class RouteAgent extends BaseAgent {
                 } else {
                     try {
                         const hotelPlace = { lat: dayHotel.lat, lng: dayHotel.lng, name: dayHotel.label || 'Hotel', display_name: dayHotel.label || 'Hotel' };
-                        const transitData = await this._getTransitData(hotelPlace, places[0], clientId, clientSecret, 0, dayOfWeek);
+                        if (!hotelToMemo.has(places[0])) hotelToMemo.set(places[0], await this._getTransitData(hotelPlace, places[0], clientId, clientSecret, 0, dayOfWeek));
+                        const transitData = hotelToMemo.get(places[0]);
                         const pt = transitData.publicTransit;
                         hotelTransit = {
                             method: pt?.method || 'subway',
@@ -1935,7 +1941,8 @@ export class RouteAgent extends BaseAgent {
                     if (!sameAsHotel) {
                         try {
                             const hotelPlace = { lat: dayHotel.lat, lng: dayHotel.lng, name: dayHotel.label || 'Hotel', display_name: dayHotel.label || 'Hotel' };
-                            const lastTransit = await this._getTransitData(lastPlace, hotelPlace, clientId, clientSecret, 999, dayOfWeek);
+                            if (!hotelFromMemo.has(lastPlace)) hotelFromMemo.set(lastPlace, await this._getTransitData(lastPlace, hotelPlace, clientId, clientSecret, 999, dayOfWeek));
+                            const lastTransit = hotelFromMemo.get(lastPlace);
                             const pt = lastTransit.publicTransit;
                             const returnTransit = {
                                 method: pt?.method || 'subway',
@@ -1999,9 +2006,21 @@ export class RouteAgent extends BaseAgent {
             //   식사 체류를 줄이거나 식당을 만들지 않는다. 예전 P150 wrap(모델 시각으로 되돌림)·_sanitizeTime(22:30 고정)은 삭제 —
             //   시각 역전(LateBar 23:20 → Hotel 23:00)을 만들었다. C 시점엔 모든 시각이 1440 미만이 보장된다.
             // ════════════════════════════════════════════════════════
-            const legBetween = async (prev, next, k) => ((prev?.lat && prev?.lng && next?.lat && next?.lng)
-                ? this._getTransitData(prev, next, clientId, clientSecret, k, dayOfWeek)
-                : { index: k, durationMin: 25, distanceKm: 5.0, publicTransit: null, drivingMin: null });
+            const legMemo = new WeakMap();
+            const rememberLeg = (prev, next, result) => {
+                if (!legMemo.has(prev)) legMemo.set(prev, new WeakMap());
+                legMemo.get(prev).set(next, result);
+                return result;
+            };
+            places.forEach((stop, i) => { if (places[i + 1] && transitResults[i]) rememberLeg(stop, places[i + 1], transitResults[i]); });
+            const legBetween = async (prev, next, k) => {
+                const cached = legMemo.get(prev)?.get(next);
+                if (cached) return { ...cached, index: k };
+                const result = prev?.lat && prev?.lng && next?.lat && next?.lng
+                    ? await this._getTransitData(prev, next, clientId, clientSecret, k, dayOfWeek)
+                    : { index: k, durationMin: DEFAULT_LEG_MIN, distanceKm: 5, publicTransit: null, drivingMin: null };
+                return rememberLeg(prev, next, result);
+            };
             const removedStops = [];
             const removeStop = async (k, why) => {
                 const [gone] = places.splice(k, 1);
@@ -2022,7 +2041,96 @@ export class RouteAgent extends BaseAgent {
             const lastSightseeingBefore = (end) => { for (let k = end - 1; k >= 0; k--) if (isSightseeingStop(places[k]) || extraMealIdx.has(k)) return k; return -1; };
             const placementPassLimit = 2 * places.length + 2; // 삭제 전 개수로 고정해 연속 삭제 중 상한이 줄지 않게 한다.
             let stitched = null;
-            for (let guard = 0; guard <= placementPassLimit; guard++) {
+            const runConstraintPlacement = async (optional = false, placementContext = day1, preserveAllStops = false) => {
+                const originalOrder = [...places];
+                const protectedStops = places.filter((p) => NOT_END_CHECKED.has(stopCat(p)));
+                const terminalStop = protectedStops.find((p) => p._departure_airport_stop === true);
+                if (protectedStops.some((p) => p !== terminalStop)) {
+                    if (optional) return false;
+                    throw routeDayInfeasibleError(['Day 1: unsupported protected anchor in matched block']);
+                }
+                const activities = places.filter((p) => !NOT_END_CHECKED.has(stopCat(p))).sort((a, b) => a._ri - b._ri);
+                const exactAirport = !!terminalStop;
+                const airportMin = terminalStop ? hhmmToMin(terminalStop.start_time) : null;
+                const exactWindows = exactAirport ? Object.fromEntries([['lunch', 660, 1019], ['dinner', 1020, 1319]].map(([role, from, to]) => {
+                    const low = Math.max(placementContext.R, from), high = Math.min(to, placementContext.tourEndMin - 1, airportMin - BUFFER_MIN - 60);
+                    return [role, low <= high ? { from: low, to: high } : null];
+                })) : placementContext.meal;
+                const knownLeg = (prev, next) => {
+                    const result = legMemo.get(prev)?.get(next);
+                    return result ? (exactAirport ? (Number.isFinite(result.verifiedRouteDurationMin) ? result.verifiedRouteDurationMin : undefined) : legTransitMin(result, null)) : undefined;
+                };
+                const result = await placeDay1Block(activities, {
+                    readyMin: placementContext.R, tourEndMin: placementContext.tourEndMin, buffer: BUFFER_MIN,
+                    deadlineMin: exactAirport ? airportMin - BUFFER_MIN : placementContext.departureContext?.deadline,
+                    mealWindows: exactWindows, oneDay: daysList.length === 1, exemptionContext: exactAirport ? null : placementContext.departureContext,
+                    terminal: terminalStop ? { stop: terminalStop, time: hhmmToMin(terminalStop.start_time) } : null,
+                    stayOf, knownLeg, lookupLeg: async (prev, next) => {
+                        const leg = await legBetween(prev, next, 0);
+                        if (exactAirport && !Number.isFinite(leg.verifiedRouteDurationMin)) {
+                            const error = routeDayInfeasibleError(['Day 1: verified airport path unavailable']);
+                            error.code = 'ROUTE_VERIFICATION_FAILED'; error.scheduleStatus = 'information_unknown'; throw error;
+                        }
+                        return leg;
+                    },
+                    lookupReturn: async (last) => {
+                        if (!(last.lat && last.lng && dayHotel.lat && dayHotel.lng)) return 0;
+                        const distance = this._haversineKm(last.lat, last.lng, dayHotel.lat, dayHotel.lng);
+                        if (distance > 50 || distance < 0.05) return 0;
+                        if (!hotelFromMemo.has(last)) hotelFromMemo.set(last, await this._getTransitData(last,
+                            { lat: dayHotel.lat, lng: dayHotel.lng, name: dayHotel.label || 'Hotel', display_name: dayHotel.label || 'Hotel' }, clientId, clientSecret, 999, dayOfWeek));
+                        return legTransitMin(hotelFromMemo.get(last), null);
+                    },
+                });
+                if (result.status !== 'feasible') {
+                    if (optional) return false;
+                    const err = routeDayInfeasibleError([`Day 1 scheduling: ${result.status}; ${result.reason || 'required meals and visits cannot fit'}`]);
+                    err.scheduleStatus = result.status;
+                    throw err;
+                }
+                if (preserveAllStops && result.indices.length !== activities.length) return false;
+                const selected = result.indices.map((index) => activities[index]);
+                if (exactAirport && selected.length) {
+                    const last = selected[selected.length - 1], leg = legMemo.get(last)?.get(terminalStop);
+                    registerVerifiedDepartureRoute(dayPlan, { departureMin: airportMin + 180, airportMin,
+                        travelMin: leg.verifiedRouteDurationMin, lastEndMin: result.starts[result.starts.length - 1] + stayOf(last), bufferMin: BUFFER_MIN,
+                        windows: Object.fromEntries(Object.entries(exactWindows).map(([role, w]) => [role, w ? {
+                            from: this._formatTime(w.from), to: this._formatTime(w.to),
+                        } : null])) });
+                }
+                const finalStarts = [...result.starts];
+                result.roles.forEach((role, i) => { if (role) selected[i]._blockMealRole = role; });
+                if (terminalStop) { selected.push(terminalStop); finalStarts.push(hhmmToMin(terminalStop.start_time)); }
+                for (const gone of originalOrder.filter((p) => !selected.includes(p))) {
+                    removedStops.push(`${gone.name || '?'}(constraint-placement)`);
+                    if (stopCat(gone) === 'food') dayPlan._routeMealRemoved = true;
+                }
+                Object.assign(dayPlan, result.exemption);
+                selected.forEach((p, i) => {
+                    if (originalOrder.indexOf(p) === i && (i === 0 || originalOrder[i - 1] === selected[i - 1])) return;
+                    delete p.transit_from_prev; delete p.travelFromPrev; p._transitReset = true;
+                });
+                places.splice(0, places.length, ...selected);
+                _mealOriginMins.splice(0, _mealOriginMins.length, ...places.map((p) => parseMealOriginMin(p)));
+                transitResults.splice(0, transitResults.length, ...places.slice(0, -1).map((p, i) => {
+                    const leg = legMemo.get(p).get(places[i + 1]);
+                    return exactAirport ? { ...leg, durationMin: leg.verifiedRouteDurationMin, drivingMin: null,
+                        publicTransit: { ...(leg.verifiedRouteSegment || {}), duration: leg.verifiedRouteDurationMin }, index: i + 1 }
+                        : { ...leg, index: i + 1 };
+                }));
+                await runHotelToFirst(true);
+                await runLastToLodging(true);
+                stitched = { starts: finalStarts, meals: [], merged: [] };
+                delete dayPlan._day1PlacementPending;
+                if (day1) {
+                    dayPlan._day1PlacementSolved = true;
+                    dayPlan._day1Placement = { explored: result.explored, passes: result.passes, resolvedLegs: result.resolvedLegs };
+                } else {
+                    dayPlan._routeConstraintPlacement = { explored: result.explored, passes: result.passes, resolvedLegs: result.resolvedLegs };
+                }
+            };
+            if (dayPlan._day1PlacementPending === true && day1) await runConstraintPlacement();
+            for (let guard = 0; !stitched && guard <= placementPassLimit; guard++) {
                 // r3: 바닥은 첫 관광·식당 stop 에(공항 이동·travel·숙소 표식은 앞 사슬 그대로).
                 const floorIdx = day1 ? places.findIndex((p) => isDay1FloorStop(p)) : -1;
                 const candidate = stitchStartMins(places, {
@@ -2032,7 +2140,36 @@ export class RouteAgent extends BaseAgent {
                     bookedAddress: effectiveBookedAddress(data), // r7/r12: 예약 숙소(또는 권역) 주소 — 재계산·품질 집계와 같은 함수
                 });
                 extraMealIdx = new Set(candidate.meals.filter((m) => m.extra).map((m) => m.i));
+                // Preserve main placement. Only remove a meal proven impossible even without any travel or visits.
+                const impossibleMeal = day1?.departureContext && candidate.meals.find((m) => !m.extra
+                    && !places[m.i]?.source_block_id && places[m.i]?.cafe_not_meal !== true && places[m.i]?._blockMealRole !== 'cafe'
+                    && proveDepartureMealExemption(m.role, stayOf(places[m.i]), day1.departureContext));
+                if (impossibleMeal) {
+                    const stop = places[impossibleMeal.i];
+                    const basis = proveDepartureMealExemption(impossibleMeal.role, stayOf(stop), day1.departureContext);
+                    recordDepartureMealExemption(dayPlan, impossibleMeal.role, basis, stop);
+                    await removeStop(impossibleMeal.i, 'meal-exempt');
+                    continue;
+                }
                 const v = findStitchViolation(places, candidate, { day1TourEndMin: day1 ? day1.tourEndMin : null, lastReturnMin: dayPlan.last_to_lodging?.est_min });
+                // Before removing a sourced visit at the existing tour-end cap, try a verified rearrangement
+                // with the same restaurants and stays. Preserve existing placement when it fits.
+                const laterDayRescue = !isDay1 && !isCityChangeDay
+                    && !(dayIdx === daysList.length - 1 && data.departure_time);
+                const overEnd = candidate.starts.some((start, index) => !NOT_END_CHECKED.has(stopCat(places[index])) && start >= this._parseTime(resolveTourEndTime(data)));
+                if (((v && day1 && !day1.departureContext && daysList.length === 1 && day1.pref <= day1.R)
+                    || (laterDayRescue && (v || overEnd))) && places.length > 0
+                    && places.every((p) => !NOT_END_CHECKED.has(stopCat(p)) && p.source_block_id && !p.reservation_required)
+                    && places.filter((p) => stopCat(p) === 'food').length >= 2
+                    && places.filter((p) => stopCat(p) === 'food').every((p) => canServeMeal(p) && parseMealOriginMin(p) >= 660)) {
+                    const ready = Math.max(currentTime, this._parseTime(resolveTourStartTime(data)));
+                    const end = this._parseTime(resolveTourEndTime(data));
+                    const context = day1 || { R: ready, tourEndMin: end, departureContext: null,
+                        meal: { lunch: { from: Math.max(ready, 660), to: Math.min(1019, end - 1) },
+                            dinner: { from: Math.max(ready, 1020), to: Math.min(1319, end - 1) } } };
+                    await runConstraintPlacement(true, context, laterDayRescue);
+                    if (stitched) break;
+                }
                 if (!v) { stitched = candidate; break; }
                 if (v.kind === 'order') throw routeDayInfeasibleError([`Day ${dayPlan.day || dayIdx + 1}: stop times would run backwards`]);
                 if (v.kind === 'meal' && v.noWindow) { await removeStop(v.index, 'meal-no-window'); continue; }
@@ -2267,7 +2404,7 @@ export class RouteAgent extends BaseAgent {
         const cacheStats = getTransitCacheStats();
         console.log(`  [P228 TRANSIT_CACHE] zoneId=${zoneId || 'null'} enabled=${cacheStats.enabled} zones_loaded=${cacheStats.zoneCount}`);
         console.log("  [Route] enrichment complete (Naver + ODsay + Time Stitch + Completeness Gate + TransitCache)");
-        return {
+        const response = {
             agentName: this.agentKey,
             systemPrompt: this.systemPrompt,
             userPrompt: userPrompt,
@@ -2276,6 +2413,11 @@ export class RouteAgent extends BaseAgent {
             inputTokens: 0,
             outputTokens: 0,
         };
+        if (daysList.length === 1) {
+            const proof = verifiedDepartureRoute(daysList[0]);
+            if (proof) registerVerifiedDepartureRoute(response, proof);
+        }
+        return response;
     }
 
     /**
@@ -2297,6 +2439,8 @@ export class RouteAgent extends BaseAgent {
         let distanceKm = havKm != null ? Math.round(havKm * 10) / 10 : 5.0;
         let drivingMin = null;
         let publicTransit = null;
+        let verifiedRouteDurationMin = null;
+        let verifiedRouteSegment = null;
         const name = curr.display_name || curr.name || curr.name_en || curr.name_ko || `stop-${index}`;
         const fromName = prev?.display_name || prev?.name || prev?.name_en || prev?.name_ko || 'previous stop';
 
@@ -2325,6 +2469,8 @@ export class RouteAgent extends BaseAgent {
             durationMin = Math.floor(summary.duration / 60000);
             distanceKm = Math.round((summary.distance / 1000) * 10) / 10;
             drivingMin = durationMin;
+            verifiedRouteDurationMin = Math.ceil(summary.duration / 60000);
+            verifiedRouteSegment = { method: 'car', mode: 'car', est_min: verifiedRouteDurationMin };
         }
 
         // ODsay 결과 처리
@@ -2334,6 +2480,10 @@ export class RouteAgent extends BaseAgent {
         // warn 으로 유지.
         if (odsayResult.status === 'fulfilled' && odsayResult.value) {
             publicTransit = formatTransitSummary(odsayResult.value);
+            if (Number.isFinite(publicTransit?.duration) && publicTransit.duration >= 0) {
+                verifiedRouteDurationMin = Math.ceil(publicTransit.duration);
+                verifiedRouteSegment = structuredClone(publicTransit);
+            }
             console.log(`  ✓ [${name}] ODsay: ${odsayResult.value.type} ${odsayResult.value.totalTime}min ₩${odsayResult.value.fare}`);
 
             // Enrich each subway step with station metadata (transfer lines,
@@ -2403,7 +2553,7 @@ export class RouteAgent extends BaseAgent {
             }
         }
 
-        return { index, durationMin, distanceKm, drivingMin, publicTransit };
+        return { index, durationMin, distanceKm, drivingMin, publicTransit, verifiedRouteDurationMin, verifiedRouteSegment };
     }
 
     /**
@@ -2540,8 +2690,7 @@ export class RouteAgent extends BaseAgent {
                     recommended_depart: std.recommended_depart,
                     arrival_at: stdArrival,
                     // P-fix #8: 표준 depart/arrival 은 추정값(실제 열차 시간표 아님).
-                    //   P113 stitching 이 day stop1 기준으로 덮어쓰면 false 로 내려간다.
-                    //   stitching 실패 시 UI/PDF 가 "추정" 표시 → KTX 놓침 risk 차단.
+                    // Table-based and calculated departures both remain estimates.
                     depart_estimated: true,
                     instruction: `${prevCity} → ${dCity} via ${std.mode} (~${Math.round(std.est_min/60*10)/10}h, ₩${std.est_fare_krw.toLocaleString()})`,
                     booking_url: std.booking_url,

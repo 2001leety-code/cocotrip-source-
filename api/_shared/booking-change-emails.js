@@ -1,3 +1,4 @@
+import { isPreviewEmailSuppressed, suppressedEmailReceipt, isEmailSuppressed } from './email-delivery-policy.js';
 /**
  * 예약 날짜 변경 확인 메일 (2026-10-23, 후속 ②b) — 4개 언어, 새 바우처 PDF 첨부.
  *
@@ -138,6 +139,7 @@ export function buildChangeVoucherInput(booking, bookingID, newDate) {
 export async function sendBookingChangeEmail({
   booking, bookingID, label, oldDate, newDate, manageUrl = null, myPageUrl = null, language,
 }) {
+  if (isPreviewEmailSuppressed()) return { ...suppressedEmailReceipt(), voucherAttached: false };
   const b = booking || {};
   const to = b.userEmail || b.payerEmail;
   if (!to) return { sent: false, voucherAttached: false, error: 'NO_RECIPIENT' };
@@ -166,13 +168,14 @@ export async function sendBookingChangeEmail({
     voucherAttached,
   });
   try {
-    await sendEmail({
+    const receipt = await sendEmail({
       to,
       subject,
       html,
       text,
       attachments: voucherAttached ? [{ filename: 'CocoTripKR_Voucher.pdf', content: pdf, contentType: 'application/pdf' }] : [],
     });
+    if (isEmailSuppressed(receipt)) return { ...receipt, voucherAttached: false };
     return { sent: true, voucherAttached };
   } catch (err) {
     return { sent: false, voucherAttached, error: (err && err.message) || 'SEND_FAILED' };

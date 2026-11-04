@@ -18,6 +18,8 @@
  */
 
 import { captureError } from './_shared/sentry.js';
+import { isPreviewEmailSuppressed, suppressedEmailReceipt } from './_shared/email-delivery-policy.js';
+import { isPreviewOperatorSuppressed, isPreviewSheetsSuppressed, suppressedSheetsReceipt } from './_shared/preview-egress-policy.js';
 import { initAdminDb } from './_shared/firebase-admin.js';
 import { appendBooking, updateBookingStatus } from './_google-sheets.js';
 // 2026-05-04: telegram 2-채널 분리 후 sendBookingAlert / generateBookingAlert / notify
@@ -431,10 +433,15 @@ const originalHandler = async (event) => {
   //   stepGuards.skipSheets = 빠른 경로(이미 기록된 게 명백) / claim 실패 = 동시 호출이
   //   먼저 선점함 → 둘 다 'skip'. 선점 성공한 인스턴스만 appendBooking 1회 실행.
   let sheetsRowHint = null;
-  const sheetsClaim = stepGuards.skipSheets
+  const sheetsSuppressed = isPreviewSheetsSuppressed();
+  const sheetsClaim = sheetsSuppressed ? { claimed: false, reason: 'preview_policy' } : stepGuards.skipSheets
     ? { claimed: false, reason: CLAIM.ALREADY_COMPLETED }
     : await claimBookingStep(orderID, BOOKING_STEP_MARKERS.sheets);
-  if (!sheetsClaim.claimed) {
+  if (sheetsSuppressed) {
+    results.steps.sheets = 'suppressed';
+    results.stepStatus.sheets = STEP.SKIPPED;
+    results.sheetsDelivery = suppressedSheetsReceipt();
+  } else if (!sheetsClaim.claimed) {
     results.steps.sheets = `skip: ${sheetsClaim.reason}`;
     results.stepStatus.sheets = stepFromClaimReason(sheetsClaim.reason);
     console.log('[booking-processor] Sheets 스킵:', sheetsClaim.reason, orderID);
@@ -482,6 +489,7 @@ const originalHandler = async (event) => {
   //   선점 결과가 already_completed / in_flight / outcome_unknown / store_unavailable 이면 전송하지 않는다.
   //   알림 결과는 처리기 응답·예약 상태를 바꾸지 않는다.
   async function sendTelegramChannel(field, send) {
+    if (isPreviewOperatorSuppressed()) return 'suppressed';
     const claim = await claimBookingStep(orderID, field);
     if (!claim.claimed) return `skip:${claim.reason}`;
     let result;
@@ -513,7 +521,9 @@ const originalHandler = async (event) => {
       sendTelegramChannel(BOOKING_STEP_MARKERS.telegramDispatch, sendDispatchAlert),
       sendTelegramChannel(BOOKING_STEP_MARKERS.telegramPayment, sendBookingPaymentAlert),
     ]);
-    if (dispatchState === 'sent' && paymentState === 'sent') {
+    if (dispatchState === 'suppressed' && paymentState === 'suppressed') {
+      results.steps.telegram = 'suppressed';
+    } else if (dispatchState === 'sent' && paymentState === 'sent') {
       results.steps.telegram = 'ok';
     } else if (dispatchState.startsWith('skip:') && paymentState.startsWith('skip:')) {
       results.steps.telegram = `skip: dispatch=${dispatchState} payment=${paymentState}`;
@@ -533,7 +543,9 @@ const originalHandler = async (event) => {
   //
   // ENV 게이트: AUTO_DISPATCH_BROADCAST=1 일 때만 활성. prod 도입 전 단계적 롤아웃.
   // booking.bookingRef 가 곧 bookings 도큐먼트 ID (booking-processor 호출처 보장).
-  if (process.env.AUTO_DISPATCH_BROADCAST === '1') {
+  if (isPreviewOperatorSuppressed()) {
+    results.steps.dispatchBroadcast = 'suppressed';
+  } else if (process.env.AUTO_DISPATCH_BROADCAST === '1') {
     try {
       const orderID = booking.bookingRef;
       if (!orderID) {
@@ -585,10 +597,16 @@ const originalHandler = async (event) => {
   //   확인메일 발송 (중복 메일 방지). 선점 실패(stepGuards 빠른 경로 포함) = 이미 발송/선점됨.
   //   원래 voucherSentAt 은 Step 6.5 성공 시에만 set 됐으나, 이제 선점이 미리 박는다.
   //   발송 실패 시 releaseBookingStep 으로 마커를 풀어 retry 재발송 보장(기존 의미 유지).
-  const voucherClaim = stepGuards.skipVoucher
+  const emailSuppressed = isPreviewEmailSuppressed();
+  const voucherClaim = emailSuppressed ? { claimed: false, reason: 'preview_policy' } : stepGuards.skipVoucher
     ? { claimed: false, reason: CLAIM.ALREADY_COMPLETED }
     : await claimBookingStep(orderID, BOOKING_STEP_MARKERS.voucher);
-  if (!voucherClaim.claimed) {
+  if (emailSuppressed) {
+    voucherSkipped = true;
+    results.steps.email = 'suppressed';
+    results.stepStatus.email = STEP.SKIPPED;
+    results.emailDelivery = suppressedEmailReceipt();
+  } else if (!voucherClaim.claimed) {
     // 🔴 여기서 재발송하지 않는다. 이유는 reason 별로 다르다:
     //   already_completed = 확실히 보냈다 / in_flight = 다른 실행이 보내는 중
     //   outcome_unknown   = 보냈는지 알 수 없다 → 운영자 검토(자동 재발송 금지)
@@ -675,7 +693,9 @@ const originalHandler = async (event) => {
   // PR-L: operator-todo-reminder 가 voucherSentAt 빈 booking 검출용. 부분 실패도
   // 포함 (voucherFailedAt + voucherError) — 어드민이 명시적으로 인지 가능.
   // 비치명적 — Firestore unavailable 이어도 전체 처리는 계속.
-  if (voucherSkipped) {
+  if (emailSuppressed) {
+    results.steps.voucherStatus = 'suppressed';
+  } else if (voucherSkipped) {
     // 발송을 하지 않은 경우 — 왜 안 했는지가 운영자에게 중요하다(이미 보냄 / 결과 미상 / 저장소 불능).
     results.steps.voucherStatus = `skip: ${voucherClaim.reason}`;
   } else if (voucherEmailOk) {
@@ -705,8 +725,8 @@ const originalHandler = async (event) => {
 
   // ── Step 7: Google Sheets 상태 '확정'으로 업데이트 (이슈#3 fix: rowHint로 전체 스캔 회피) ──
   try {
-    await updateBookingStatus(orderID, '확정', sheetsRowHint);
-    results.steps.sheetsUpdate = 'ok';
+    if (!sheetsSuppressed) await updateBookingStatus(orderID, '확정', sheetsRowHint);
+    results.steps.sheetsUpdate = sheetsSuppressed ? 'suppressed' : 'ok';
   } catch (err) {
     // B9-31: env 미설정(SheetsEnvSkipped) 시 silent.
     if (err?.skipped || err?.name === 'SheetsEnvSkipped') {
@@ -868,6 +888,8 @@ const originalHandler = async (event) => {
       outcome,
       steps: results.steps,
       stepStatus: results.stepStatus,
+      ...(results.emailDelivery ? { emailDelivery: results.emailDelivery } : {}),
+      ...(results.sheetsDelivery ? { sheetsDelivery: results.sheetsDelivery } : {}),
       loyalty: results.loyalty,
       aiBenefits: results.aiBenefits || null,
     },

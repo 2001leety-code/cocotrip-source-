@@ -234,9 +234,9 @@ export function CharterWizard({ initialState, onComplete, language = 'en' }: Cha
     if (!initialSnap) return '';
     const s = initialSnap.state;
     const parts: string[] = [];
-    if (s.origin) parts.push(s.origin === 'CUSTOM' ? (s.originAddress || 'Custom') : s.origin);
-    if (s.service) parts.push(s.service.replace(/_/g, ' '));
-    if (s.destinationKey) parts.push(s.destinationKey);
+    if (s.origin) parts.push(s.origin === 'CUSTOM' ? (s.originAddress || 'Custom') : originCodeLabel(s.origin, language));
+    if (s.service) parts.push(serviceModeLabel(s.service, language) || s.service.replace(/_/g, ' '));
+    if (s.destinationKey) parts.push(resolveDestinationKeyLabel(s.destinationKey, language));
     if (s.paxCount && s.paxCount > 0) {
       const paxUnit = language === 'ko' ? '명' : language === 'ja' ? '名' : language === 'zh' ? '人' : 'pax';
       parts.push(`${s.paxCount} ${paxUnit}`);

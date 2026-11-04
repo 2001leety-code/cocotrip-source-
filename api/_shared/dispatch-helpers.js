@@ -1,3 +1,4 @@
+import { isPreviewOperatorSuppressed, suppressedOperatorReceipt } from './preview-egress-policy.js';
 /**
  * Dispatch helpers — driver bot 배차 메시지 발송 공통 로직.
  *
@@ -52,6 +53,7 @@ function buildDispatchText(orderID, booking) {
  * @returns {Promise<{ ok: boolean, messageId?: number, error?: string }>}
  */
 export async function sendDispatchToDriver(opts) {
+  if (isPreviewOperatorSuppressed()) return suppressedOperatorReceipt();
   const {
     orderID,
     booking,
@@ -134,6 +136,7 @@ export async function sendDispatchToDriver(opts) {
  * @returns {Promise<{ ok: boolean, sent: number, failed: number, errors: string[] }>}
  */
 export async function broadcastDispatchToDrivers(opts) {
+  if (isPreviewOperatorSuppressed()) return { ...suppressedOperatorReceipt(), sent: 0, failed: 0, errors: [] };
   const { orderID, booking, driverBotToken } = opts;
   const db = initAdminDb('dispatch-helpers');
   if (!db) return { ok: false, sent: 0, failed: 0, errors: ['firestore unavailable'] };

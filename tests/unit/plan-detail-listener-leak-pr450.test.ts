@@ -31,8 +31,8 @@ const src = readFileSync(
 );
 
 describe('PR #450 W-H16 — onSnapshot effect deps use uid (stable string), not user (object ref)', () => {
-  it('hoists `const uid = user?.uid ?? null` once', () => {
-    expect(src).toMatch(/const\s+uid\s*=\s*user\?\.uid\s*\?\?\s*null/);
+  it('hoists the stable user uid once', () => {
+    expect(src).toMatch(/const\s+uid\s*=\s*user\?\.uid\s*\|\|\s*null/);
   });
 
   it('onSnapshot effect deps array uses uid, NOT user', () => {

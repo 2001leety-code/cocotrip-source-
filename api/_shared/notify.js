@@ -1,3 +1,4 @@
+import { isPreviewOperatorSuppressed, suppressedOperatorReceipt } from './preview-egress-policy.js';
 /**
  * CocoTripKR — 채널 기반 텔레그램 알림 라우터
  *
@@ -54,6 +55,7 @@ function htmlToDiscord(html) {
 }
 
 export async function sendDiscord(text) {
+  if (isPreviewOperatorSuppressed()) return suppressedOperatorReceipt();
   const url = process.env.DISCORD_WEBHOOK_URL;
   if (!url) return; // 미설정 = no-op (기존 동작 무변화)
   const content = htmlToDiscord(text);
@@ -144,6 +146,7 @@ function resolveToken(channel) {
  *     unknown  = HTTP 5xx·fetch 예외·JSON 파싱 실패 등 — 전달됐는지 모른다(재발송 금지)
  */
 export async function notify(channel, text, options = {}) {
+  if (isPreviewOperatorSuppressed()) return suppressedOperatorReceipt();
   // 디스코드 미러: DISCORD_WEBHOOK_URL 설정 시 텔레그램과 "병렬"로 디스코드에도 전송(미설정=no-op).
   // 병렬 시작(await 안 함) → 텔레그램이 디스코드를 기다리지 않음(지연 0) → finally 에서 완료 보장(서버리스 drop 방지).
   const discordText = discordMirrorText(channel, text);

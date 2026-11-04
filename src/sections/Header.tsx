@@ -75,8 +75,9 @@ const ICON_BTN_CLS =
 const MENU_TABBABLE =
   'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
 
-/** Home-only compact header band: the inline nav no longer fits beside the rail. */
+/** Home needs a wider compact band; other routes match the inline nav's lg breakpoint. */
 const COMPACT_HEADER_QUERY = '(min-width: 768px) and (max-width: 1279px)';
+const TABLET_HEADER_QUERY = '(min-width: 768px) and (max-width: 1023px)';
 
 function subscribeCompactViewport(onChange: () => void) {
   const mql = window.matchMedia(COMPACT_HEADER_QUERY);
@@ -84,10 +85,16 @@ function subscribeCompactViewport(onChange: () => void) {
   return () => mql.removeEventListener('change', onChange);
 }
 
-function useIsCompactViewport() {
+function subscribeTabletViewport(onChange: () => void) {
+  const mql = window.matchMedia(TABLET_HEADER_QUERY);
+  mql.addEventListener('change', onChange);
+  return () => mql.removeEventListener('change', onChange);
+}
+
+function useIsCompactViewport(homeChrome: boolean) {
   return useSyncExternalStore(
-    subscribeCompactViewport,
-    () => window.matchMedia(COMPACT_HEADER_QUERY).matches,
+    homeChrome ? subscribeCompactViewport : subscribeTabletViewport,
+    () => window.matchMedia(homeChrome ? COMPACT_HEADER_QUERY : TABLET_HEADER_QUERY).matches,
     () => false,
   );
 }
@@ -145,7 +152,6 @@ export function Header({ language, t, onLanguageChange }: HeaderProps) {
   const [isScrolled, setIsScrolled] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const isMobile = useIsMobile();
-  const isCompactViewport = useIsCompactViewport();
   const { user } = useAuth();
   const isAdmin = !!(user?.email && ADMIN_EMAIL && user.email.toLowerCase() === ADMIN_EMAIL);
   const location = useLocation();
@@ -153,12 +159,12 @@ export function Header({ language, t, onLanguageChange }: HeaderProps) {
   // Home and the exact /planner entry wear Home's chrome (home-dope.css).
   // Every other route keeps the shared night shell.
   const isHomeChrome = isHomeChromePath(location.pathname);
+  const compactHeader = useIsCompactViewport(isHomeChrome);
   const homeChrome = isHomeChrome ? ' home-dope-chrome' : '';
   // Radix menus portal to <body>, outside App's `.ec-night` scope — carry it on the content.
   const nightPortal = isCustomerNightPath(location.pathname) ? ' ec-night' : '';
-  // Presentation only: home between 768–1279 collapses the nav into the full-screen
-  // menu. `isMobile` still drives every control, handler and permission below.
-  const compactHeader = isCompactViewport && isHomeChrome;
+  // Every route exposes the menu below its inline navigation breakpoint.
+  // `isMobile` still drives every control, handler and permission below.
   const menuAvailable = isMobile || compactHeader;
   // Inline nav + rail share one row from 1024px; at 1024–1279 the sign-in and inquiry
   // labels collapse to icons (name kept via aria-label). Home's compact band hides

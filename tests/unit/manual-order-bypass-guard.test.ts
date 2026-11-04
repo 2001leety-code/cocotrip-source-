@@ -52,6 +52,9 @@ function mockDb(pending: Record<string, unknown> | null, opts: { alreadyUsed?: b
         add: async () => {},
       };
     },
+    // 2026-10-26 B6-1 r4: MANUAL 사용 표시가 트랜잭션 create 로 바뀜 — 실제 Firestore 처럼 tx.get/create 를 doc get/set 에 잇는다.
+    runTransaction: async (fn: (tx: { get: (r: { get: () => Promise<unknown> }) => Promise<unknown>; create: (r: { set: () => Promise<void> }) => Promise<void> }) => Promise<unknown>) =>
+      fn({ get: (r) => r.get(), create: (r) => r.set() }),
   };
 }
 

@@ -1,3 +1,4 @@
+import { applyMealSlotNotes, stripMealSlotNote } from './mealSlotNotes.js';
 /**
  * 2026-10-26: tip 에 붙는 고정 안내(재방문·도착 휴식·출국 조식)의 번역 처리 — 순수·브라우저 안전.
  * 번역은 본문만 하고(고정 문장을 의역하면 정확 일치 제거가 안 되어 본문에 남는다), 번역 후 대상 언어 고정 문구를 다시 붙인다.
@@ -6,6 +7,7 @@
 import { stripRevisitNote } from './revisitNote.js';
 import { arrivalRestNote, hasArrivalRestNote, stripArrivalRestText } from './arrivalRestNote.js';
 import { departureBreakfastNote, hasBreakfastNote, stripBreakfastNoteText } from './departureBreakfastNote.js';
+import { departureMealNote, hasDepartureMealNote, stripDepartureMealNoteText } from './departureMealNote.js';
 
 /**
  * 번역 입력용 tip — 고정 안내를 뗀 본문. 원본 무변. 재방문 문장은 종전대로 항상 떼고(번역 후 applyRevisitNotes 가 판정),
@@ -17,6 +19,8 @@ export function stripFixedTipNotes(tip, stop = {}) {
   let out = stripRevisitNote(tip, stop.revisit_note);
   if (hasArrivalRestNote(stop)) out = stripArrivalRestText(out, stop.arrival_rest_note);
   if (hasBreakfastNote(stop)) out = stripBreakfastNoteText(out, stop.breakfast_note);
+  if (hasDepartureMealNote(stop)) out = stripDepartureMealNoteText(out, stop.departure_meal_note); // 2026-11-02 PR3 결정 ③
+  if (stop.meal_selection_note) out = stripMealSlotNote(out, stop.meal_selection_note);
   return out;
 }
 
@@ -25,14 +29,17 @@ export function stripFixedTipNotes(tip, stop = {}) {
  * (휴식 → 조식 순, 공개 투영과 같은 순서). 표식 필드도 대상 언어로. 표식 없는 stop 은 무변. 재방문 안내는 applyRevisitNotes 몫.
  */
 export function reattachFixedTipNotes(itinerary, language) {
+  applyMealSlotNotes(itinerary, language);
   for (const day of Array.isArray(itinerary?.days) ? itinerary.days : []) {
     for (const stop of Array.isArray(day?.stops) ? day.stops : []) {
       const rest = hasArrivalRestNote(stop);
       const breakfast = hasBreakfastNote(stop);
-      if (!rest && !breakfast) continue;
-      let tip = stripBreakfastNoteText(stripArrivalRestText(typeof stop.tip === 'string' ? stop.tip : '', stop.arrival_rest_note), stop.breakfast_note);
+      const depMeal = hasDepartureMealNote(stop);
+      if (!rest && !breakfast && !depMeal) continue;
+      let tip = stripDepartureMealNoteText(stripBreakfastNoteText(stripArrivalRestText(typeof stop.tip === 'string' ? stop.tip : '', stop.arrival_rest_note), stop.breakfast_note), stop.departure_meal_note);
       if (rest) { const n = arrivalRestNote(language); tip = tip ? `${tip} ${n}` : n; stop.arrival_rest_note = n; stop._arrival_rest_note = true; }
       if (breakfast) { const n = departureBreakfastNote(language); tip = tip ? `${tip} ${n}` : n; stop.breakfast_note = n; stop._breakfast_note = true; }
+      if (depMeal) { const n = departureMealNote(language, stop.departure_meal_roles); tip = tip ? `${tip} ${n}` : n; stop.departure_meal_note = n; stop._departure_meal_note = true; }
       stop.tip = tip;
     }
   }

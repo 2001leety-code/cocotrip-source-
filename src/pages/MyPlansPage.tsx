@@ -396,6 +396,7 @@ export default function MyPlansPage() {
           >
             {pageLoading ? (
               <div className="my-plans-editorial-state" data-testid="my-plans-list-loading" aria-busy="true">
+                <p className="my-plans-editorial-loading-label" aria-hidden="true">{copy.loading}</p>
                 <EcLoading label={copy.loading} lines={2} className="my-plans-editorial-loading-copy" />
                 <div className="my-plans-editorial-skeleton-grid" aria-hidden>
                   {[1, 2].map((item) => (
@@ -451,7 +452,7 @@ export default function MyPlansPage() {
                 )}
 
                 {visiblePlans.length === 0 ? (
-                  <div className="my-plans-editorial-state is-compact" data-testid="my-plans-list-no-match">
+                  <div className="my-plans-editorial-state is-compact" role="status" aria-live="polite" data-testid="my-plans-list-no-match">
                     <EcEmpty
                       title={mp.myPlansNoMatch || 'No matching plans'}
                       action={(

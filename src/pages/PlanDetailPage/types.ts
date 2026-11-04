@@ -4,6 +4,7 @@ import type { ActivityMeta } from '@/types/plan';
 /** Firestore plan document — minimal typed shape for type-safe component props.
  *  Fields are optional because the document structure varies (legacy vs enriched plans). */
 export interface PlanDocument {
+  mealOptionsRevision?: string;
   planId?: string;
   uid?: string;
   guestEmail?: string;

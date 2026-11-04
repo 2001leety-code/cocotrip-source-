@@ -130,6 +130,28 @@ export function isCompletedPlanForClaim(planSnap, claim) {
 }
 
 /**
+ * 2026-10-26 B6-1 r16: **읽기 전용** 완료 확인 — 발급권 선점(claimPlanIssuance) 전에, 입력 대조·식이 검사보다 먼저 부른다.
+ *   이미 발급된 주문(ISSUED · status 없는 옛 완료 기록 · ISSUING/COMMITTING 인데 예약 planId 의 완성 플랜이 이 주문 것)이면 true.
+ *   단순 기록 존재(ISSUING/COMMITTING/NEEDS_REVIEW)는 완료가 아니다. 상태를 바꾸지 않는다(ISSUED 복구는 claimPlanIssuance 몫).
+ *   이유: 손님이 상세를 안 본 채 서버 발급이 끝나고 검증 식당 후보가 사라진 뒤 재방문하면, 식이 검사가 먼저 422 로 막아
+ *   DUPLICATE_ORDER(포인터 정리) 에 도달하지 못했다.
+ * @returns {Promise<boolean>}
+ */
+export async function isPlanIssuanceComplete(adminDb, orderId) {
+  if (!adminDb || !orderId) return false;
+  const snap = await issuanceRef(adminDb, orderId).get();
+  if (!snap.exists) return false;
+  const d = snap.data() || {};
+  if (!d.status) return true; // 옛 완료 기록(markPlanIssued 산출물)
+  if (d.status === PLAN_ISSUANCE_STATUS.ISSUED) return true;
+  if ((d.status === PLAN_ISSUANCE_STATUS.ISSUING || d.status === PLAN_ISSUANCE_STATUS.COMMITTING) && d.planId) {
+    const planSnap = await adminDb.collection('plans').doc(d.planId).get();
+    return isCompletedPlanForClaim(planSnap, { orderId, planId: d.planId });
+  }
+  return false;
+}
+
+/**
  * 발급권 원자 선점. **모든 결제 검증(capture 무결성·provenance·payment_reviews) 통과 후,
  * AI 생성 시작 전**에 호출한다. 검증 전에 부르면 실패한 주문이 발급권을 선점한 채 reject 되어
  * 정당한 재시도를 DUPLICATE 로 막는 self-DoS 가 된다.

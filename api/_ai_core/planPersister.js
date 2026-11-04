@@ -1,3 +1,5 @@
+import { paidPlanRevisionDefaults } from '../_shared/plan-purchase-defaults.js';
+import { verifiedDepartureMealWindows } from './verifiedDepartureRoute.js';
 /**
  * T-money calculation + Firestore plan persistence.
  * Extracted verbatim from api/ai-planner-full.js L1074-1172.
@@ -7,11 +9,12 @@ import { FieldValue } from 'firebase-admin/firestore';
 import { randomUUID } from 'crypto';
 import { computeQualityScore, detectDepartureFlightOverrun } from './qualityMetrics.js';
 import { effectiveBookedAddress } from './mergedLodging.js'; // PR2 r12: 품질 집계 예약 숙소 주소(생성·재계산과 같은 함수)
-import { SCHEDULE_BUFFER_MIN, arrivalRestDayInfo, resolveTourEndTime } from './constants.js';
+import { SCHEDULE_BUFFER_MIN, arrivalRestDayInfo, resolveTourEndTime, resolveTourStartTime, resolveArrivalTime, resolveDepartureTime } from './constants.js';
 import { throttledTelegramAlert } from '../_shared/telegram-throttle.js';
 import { detectPaymentSource, isAdminBypassOrderId, isOperatorTestEmail } from '../_shared/admin-bypass-detector.js';
 import { beginPlanCommit, finalizePlanIssuance } from '../_shared/plan-issuance.js';
 import { departureBreakfastNote } from '../../src/lib/departureBreakfastNote.js';
+import { departureMealNote, stripDepartureMealNote, stripDepartureMealExemptionIfMealAdded } from '../../src/lib/departureMealNote.js';
 import { arrivalRestNote, stripArrivalRestNote, hasArrivalRestNote } from '../../src/lib/arrivalRestNote.js';
 
 /**
@@ -286,6 +289,46 @@ export function applyDepartureBreakfastNote(itinerary, { departureTime, language
   target.breakfast_note = note;
   target._breakfast_note = true;
   return true;
+}
+
+/**
+ * 2026-11-02 (운영자 결정 ③ — PR3): 1일 출국일에 남은 시간 안에 못 들어간 필수 끼니(day.exempt_meals — RouteAgent·blockMode 가
+ *   출국 활동 마감 때문에 못 넣은 끼니만 기록)가 있으면 그날 출국 stop(공항·블록 출국 이동 travel, 없으면 마지막 stop) tip 끝에
+ *   그 끼니를 밝힌 공항 식사 안내 1문장 + departure_meal_note·departure_meal_roles. 출국 조식 안내(applyDepartureBreakfastNote)와
+ *   같은 방식. 면제 근거에 기록된 식당 자체가 일정에 남아 있으면 안내하지 않는다.
+ *   매번 떼고 다시 판정 — 면제가 바뀌거나 없어지면 안내도 따라간다(멱등).
+ * @returns {boolean} 붙였으면 true
+ */
+export function applyDepartureMealNote(itinerary, { language } = {}) {
+  // 면제한 끼니 시간대에 식당이 실제로 남았으면(종전 경로가 넣은 경우 등) 면제를 푼다 — "일정에 넣지 않았습니다" 안내가 틀리지 않게.
+  stripDepartureMealExemptionIfMealAdded(itinerary);
+  let added = false;
+  for (const day of Array.isArray(itinerary?.days) ? itinerary.days : []) {
+    const stops = Array.isArray(day?.stops) ? day.stops : [];
+    for (const s of stops) stripDepartureMealNote(s);
+    const roles = Array.isArray(day?.exempt_meals) ? day.exempt_meals.filter((r) => r === 'lunch' || r === 'dinner') : [];
+    if (!roles.length) continue;
+    const absentRoles = roles.filter((role) => {
+      const source = day.exempt_meal_basis?.[role];
+      // Match the removed restaurant itself, not an unrelated count of restaurants.
+      return !source?.name || !stops.some((s) => s.category === 'food' && s.name === source.name
+        && (!source.source_block_id || s.source_block_id === source.source_block_id));
+    });
+    if (!absentRoles.length) continue;
+    const reversed = [...stops].reverse();
+    const target = reversed.find((s) => s?._departure_airport_stop === true)
+      || reversed.find((s) => s?.category === 'airport')
+      || stops[stops.length - 1];
+    if (!target || typeof target !== 'object') continue;
+    const note = departureMealNote(language, absentRoles);
+    const tip = typeof target.tip === 'string' ? target.tip.trim() : '';
+    target.tip = tip ? `${tip} ${note}` : note;
+    target.departure_meal_note = note;
+    target.departure_meal_roles = absentRoles;
+    target._departure_meal_note = true;
+    added = true;
+  }
+  return added;
 }
 
 // 2026-10-24 검증 식당 재방문 정책 — 재방문 stop 안내(R6). 구현은 revisitPolicy(순수 모듈 — 이 파일을 모킹하는
@@ -1288,8 +1331,7 @@ export async function savePlanSkeleton(adminDb, {
       ...(plannerIntent ? { planner_intent_v1: plannerIntent } : {}),
     },
     pricing: { vehicle, priceKRW: priceKRW || 0, priceUSD: priceUSD || 0 },
-    revisionCredits: 2,
-    revisionCount: 0,
+    ...paidPlanRevisionDefaults(),
     // 빈 itinerary — streaming 완료 전 PlanDetailPage 가 로딩 인디케이터 표시용
     itinerary: {
       tour_title: null,
@@ -1513,6 +1555,9 @@ export async function persistPlan(adminDb, {
   arrivalRestDay = null,
   // shaped arrivalCity(소문자 정규화) — body.arrival_city 가 없을 때(camel 입력) input.arrival_city 보강.
   arrivalCity = null,
+  // PR3 r2: 생성 때 서버가 계산한 1일 끼니 창(handlerCore·worker 의 mealWindows — 다일 = null, 1일 = {lunch, dinner}).
+  //   input.meal_windows 로 저장 → 수정 API 가 재계산 없이 같은 창을 쓴다. undefined(옛 호출부) = 저장 안 함.
+  mealWindows,
 }) {
   if (!adminDb) {
     throw new Error('Firebase not configured — cannot save plan');
@@ -1584,6 +1629,7 @@ export async function persistPlan(adminDb, {
   // AirportToLodgingGuide luggage 분기 (heavyLoad 자동 추천) + revision prefill
   // (PR #323) 모두 input.* 필드 의존. 누락 시 silent UX 저하 (audit P1).
   const docToSave = {
+    ...(itinerary.meal_options_version === 1 ? { mealOptionsRevision: randomUUID() } : {}),
     planId,
     status: 'ready',
     isPublic: false,
@@ -1631,13 +1677,11 @@ export async function persistPlan(adminDb, {
       // orderId / ADMIN-BYPASS-/TEST-/MANUAL- prefix 모두 보존 (audit 용도).
       paypalOrderId: body.paypalOrderId || null,
       // 2026-05-10 (P1): 도착/출발 시각 — PlanDetailPage 시각 분기 + revision prefill.
-      arrival_time: body.arrivalTime || body.arrival_time || null,
-      // 2026-10-26 (PR1 r2): 생성 판정(requestShaper)과 같은 camel 우선 + snake — 빠지면 수정 검증이 1일 끼니 창을 다르게 잡는다.
-      departure_time: body.departureTime || body.departure_time || null,
-      // P245 (2026-05-27): tour_start_time persist — P239 architectural fix 가 prod 에서
-      // 효과 미완료였던 근본 원인 = 본 필드 미저장 + block_mode 가 arrival+9h 룰 그대로 사용.
-      // PDF/UI/admin debug 분기 + 회귀 검증 (R-P245 lint regex) 용도.
-      tour_start_time: body.tourStartTime || null,
+      // 2026-05-10 (P1) · PR1 r2 · PR3(2026-11-01): 도착·출국·투어 시작 = 생성 판정과 같은 constants resolver(camel 우선 + snake,
+      //   엄격 HH:MM) — 저장 → 수정·worker 가 같은 준비 시각·휴식일·끼니 창을 계산. 없으면 null. tour_start_time = P245 persist.
+      arrival_time: resolveArrivalTime(body) || null,
+      departure_time: resolveDepartureTime(body) || null,
+      tour_start_time: (body.tourStartTime || body.tour_start_time) ? resolveTourStartTime(body) : null,
       // #tour-end (2026-06-05): tour_end_time persist — 매일 관광 종료 cap. PDF/UI/admin debug + 회귀 검증용.
       //   2026-10-26: 정규화값(constants.resolveTourEndTime — camel 우선 + snake, 엄격 HH:MM, 기본 21:00) — 생성 판정과 같은 값.
       tour_end_time: resolveTourEndTime(body),
@@ -1664,6 +1708,9 @@ export async function persistPlan(adminDb, {
       arrival_city: body.arrival_city || arrivalCity || null,
       // 2026-10-26: 생성 시 계산한 도착 휴식일 여부(수정 API 가 이 값을 우선).
       ...(typeof arrivalRestDay === 'boolean' ? { arrival_rest_day: arrivalRestDay } : {}),
+      // PR3 r2: 서버 계산 끼니 창 — null(다일)과 {lunch:null, dinner:null}(1일, 끼니 불가)을 구분해 그대로 저장. 사용자 입력값은 쓰지 않는다.
+      ...(verifiedDepartureMealWindows(itinerary) ? { meal_windows: verifiedDepartureMealWindows(itinerary) }
+        : mealWindows === null || (mealWindows && typeof mealWindows === 'object') ? { meal_windows: mealWindows } : {}),
       departure_city: body.departure_city || null,
       entry_city: body.entry_city || null,
       price_range: body.priceRange || null,
@@ -1672,8 +1719,7 @@ export async function persistPlan(adminDb, {
     },
     itinerary,
     pricing: { vehicle, priceKRW, priceUSD },
-    revisionCredits: 2,  // 무료 재생성 2회 (결제 시 포함)
-    revisionCount: 0,    // 현재까지 재생성 횟수
+    ...paidPlanRevisionDefaults(),
     ...(qualityScore ? { qualityScore } : {}),
     // Phase 4 A/B test (2026-05-13): per-plan mode trace. Used by admin
     // quality-summary endpoint (Tier 2-D) to bucket scores by pipeline.

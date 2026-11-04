@@ -23,6 +23,7 @@
  */
 
 import { sendEmail } from '../_send-email.js';
+import { isPreviewEmailSuppressed, suppressedEmailReceipt, isEmailSuppressed } from './email-delivery-policy.js';
 import { notify } from './notify.js';
 
 const RETRY_COLLECTION = 'pending_email_retries';
@@ -39,6 +40,7 @@ const MAX_BODY_LOG = 200;
  * @returns {Promise<{ok: true} | {ok: false, reason: string}>}
  */
 export async function sendCustomerEmailWithAlert({ db, to, subject, html, text, context = {} }) {
+  if (isPreviewEmailSuppressed()) return { ok: false, ...suppressedEmailReceipt() };
   if (!to || !subject) {
     console.warn('[customer-email] invalid args:', { to, hasSubject: !!subject });
     return { ok: false, reason: 'invalid-args' };
@@ -47,7 +49,8 @@ export async function sendCustomerEmailWithAlert({ db, to, subject, html, text, 
   const ctxStr = JSON.stringify(context).slice(0, MAX_BODY_LOG);
 
   try {
-    await sendEmail({ to, subject, html, text });
+    const receipt = await sendEmail({ to, subject, html, text });
+    if (isEmailSuppressed(receipt)) return { ok: false, ...receipt };
     console.log(`[customer-email] ok to=${to} ${ctxStr}`);
     return { ok: true };
   } catch (e) {

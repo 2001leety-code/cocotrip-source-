@@ -10,6 +10,7 @@
 //   - 5회 연속 auth-failed → subscription 삭제 (mass-cleanup 회피)
 //   - throttled operator alert (1시간당 1회) — VAPID 회전 misconfig 감지
 import webpush from 'web-push';
+import { isPreviewPushSuppressed, suppressedPushReceipt } from './_shared/preview-egress-policy.js';
 import { throttledTelegramAlert } from './_shared/telegram-throttle.js';
 
 const VAPID_PUBLIC = process.env.VAPID_PUBLIC_KEY;
@@ -37,6 +38,7 @@ function ensureConfigured() {
  * @returns {Promise<{ok: boolean, statusCode?: number, expired?: boolean, authFailed?: boolean}>}
  */
 export async function sendPush(subscription, payload) {
+  if (isPreviewPushSuppressed()) return { ...suppressedPushReceipt(), ok: false };
   ensureConfigured();
   try {
     await webpush.sendNotification(subscription, JSON.stringify(payload));
@@ -67,6 +69,7 @@ export async function sendPush(subscription, payload) {
  * @param {{title: string, body: string, url?: string, tag?: string}} payload
  */
 export async function sendPushToUser(firestore, uid, payload) {
+  if (isPreviewPushSuppressed()) return suppressedPushReceipt();
   const snap = await firestore.collection('push_subscriptions').where('uid', '==', uid).get();
   const results = [];
   const expiredDocs = [];      // 410/404 — 즉시 삭제

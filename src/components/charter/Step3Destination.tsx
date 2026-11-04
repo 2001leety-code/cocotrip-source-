@@ -158,7 +158,7 @@ export function Step3Destination({ state, patch, language = 'en' }: Props) {
                   : 'border-white/10 bg-white/[0.035] hover:border-[#B668FC]/40 hover:bg-white/[0.055]'
               }`}
             >
-              <p className="line-clamp-2 min-h-[2lh] break-words text-xs font-bold leading-snug text-white/90 sm:text-[15px]">{opt.title}</p>
+              <p className="charter-funnel-option-title line-clamp-2 min-h-[2lh] break-words text-xs font-bold leading-snug text-white/90 sm:text-[15px]">{opt.title}</p>
               {opt.sub && <p className="charter-funnel-option-sub mt-0.5 text-[9px] leading-relaxed text-white/55 sm:mt-2 sm:text-xs">{opt.sub}</p>}
             </button>
           );

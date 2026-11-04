@@ -1,3 +1,5 @@
+import { isPreviewOperatorSuppressed, suppressedOperatorReceipt } from '../_shared/preview-egress-policy.js';
+import { isPreviewEmailSuppressed, suppressedEmailReceipt, isEmailSuppressed } from '../_shared/email-delivery-policy.js';
 /**
  * CocoTripKR — 무료 미리보기 이탈 회복 이메일 (Vercel Cron).
  *
@@ -113,6 +115,7 @@ export function buildRecoveryEmail(lead, unsubscribeUrl) {
 }
 
 async function sendOperatorSummary({ matchedCount, sentCount, optOutSkipCount, convertedCount, errorCount, dryRun }) {
+  if (isPreviewOperatorSuppressed()) return suppressedOperatorReceipt();
   try {
     const token = process.env.TELEGRAM_BOT_TOKEN;
     const chatId = process.env.TELEGRAM_CHAT_ID;
@@ -138,6 +141,7 @@ async function hasConverted(db, emailLower) {
 }
 
 const previewLeadRecoveryTask = async (dryRunArg = false) => {
+  if (isPreviewEmailSuppressed()) return { statusCode: 200, body: { ...suppressedEmailReceipt(), sentCount: 0 } };
   const enabled = process.env.PREVIEW_RECOVERY_ENABLED === 'true';
   const dryRun = dryRunArg || !enabled;
   console.log(`[preview-lead-recovery] 시작 (enabled=${enabled}, dryRun=${dryRun})`);
@@ -173,7 +177,8 @@ const previewLeadRecoveryTask = async (dryRunArg = false) => {
         continue;
       }
       const email = buildRecoveryEmail(lead, unsubscribeUrl);
-      await sendEmail({ to: lead.emailLower, subject: email.subject, html: email.html, text: email.text });
+      const receipt = await sendEmail({ to: lead.emailLower, subject: email.subject, html: email.html, text: email.text });
+      if (isEmailSuppressed(receipt)) continue;
       await lead.ref.update({ recoveryEmailSentAtMs: now });
       sentCount++;
     } catch (err) {
@@ -190,6 +195,10 @@ const previewLeadRecoveryTask = async (dryRunArg = false) => {
 
 export default async function vercelHandler(req, res) {
   if (req.method === 'OPTIONS') return res.status(200).end();
+  const { verifyCronRequest } = await import('../_shared/cron-auth.js');
+  const auth = await verifyCronRequest(req);
+  if (!auth.ok) return res.status(auth.status).json({ ok: false, code: 'AUTH_REQUIRED', error: auth.error });
+
   try {
     const dryRun = req.query?.dryRun === '1' || req.query?.dryRun === 'true';
     const r = await previewLeadRecoveryTask(dryRun);

@@ -19,6 +19,7 @@ import {
 // ── 외부 의존성 전부 목 ────────────────────────────────────────────────
 const appendBooking = vi.fn(async () => ({ appendedRow: '시트1!A2' }));
 const sendBookingConfirmation = vi.fn(async () => undefined);
+const updateBookingStatus = vi.fn(async () => true);
 const generateConfirmationEmail = vi.fn(async () => ({ subject: 's', html: 'h', text: 't' }));
 let db: ReturnType<typeof createFakeFirestore>;
 
@@ -32,7 +33,7 @@ vi.mock('../../api/_telegram.js', () => ({
 vi.mock('../../api/_shared/telegram-throttle.js', () => ({ throttledTelegramAlert: vi.fn(async () => ({ ok: true })) }));
 vi.mock('../../api/_google-sheets.js', () => ({
   appendBooking: (...a: any[]) => appendBooking(...a),
-  updateBookingStatus: vi.fn(async () => true),
+  updateBookingStatus: (...a: any[]) => updateBookingStatus(...a),
 }));
 vi.mock('../../api/_send-email.js', () => ({
   sendBookingConfirmation: (...a: any[]) => sendBookingConfirmation(...a),
@@ -76,6 +77,24 @@ async function run(extra: Record<string, unknown> = {}) {
   return res.out;
 }
 
+it('Preview Sheets suppression skips claims and completion markers without retrying on replay', async () => {
+  vi.stubEnv('PREVIEW_SHEETS_SUPPRESS', 'true');
+  vi.stubEnv('PREVIEW_EMAIL_SUPPRESS', 'true');
+  try {
+    for (let attempt = 0; attempt < 2; attempt++) {
+      const response = await run();
+      expect(response.body.data.stepStatus.sheets).toBe(STEP.SKIPPED);
+      expect(response.body.data.sheetsDelivery).toMatchObject({ status: 'suppressed', appended: false, retryable: false });
+      expect(appendBooking).not.toHaveBeenCalled();
+      expect(updateBookingStatus).not.toHaveBeenCalled();
+      expect(response.body.data.steps.sheetsUpdate).toBe('suppressed');
+      const booking = db.__get(`bookings/${ORDER}`);
+      expect(booking).not.toHaveProperty('sheetsAppendedAt');
+      expect(booking).not.toHaveProperty('sheetsAppendedAtState');
+    }
+  } finally { vi.unstubAllEnvs(); }
+});
+
 /** 적립 API 응답만 흉내낸다 (다른 fetch 는 이 테스트에서 쓰지 않는다). */
 function mockLoyalty(status: number) {
   global.fetch = vi.fn(async () => ({
@@ -92,6 +111,7 @@ beforeEach(() => {
   process.env.VERCEL_URL = 'preview-host.vercel.app';
   process.env.GOOGLE_SHEETS_SPREADSHEET_ID = 'S';
   appendBooking.mockClear();
+  updateBookingStatus.mockClear();
   appendBooking.mockImplementation(async () => ({ appendedRow: '시트1!A2' }));
   sendBookingConfirmation.mockClear();
   sendBookingConfirmation.mockImplementation(async () => undefined);

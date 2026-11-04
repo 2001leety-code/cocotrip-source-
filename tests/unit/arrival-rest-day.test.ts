@@ -50,8 +50,18 @@ describe('arrivalRestDayInfo (pure)', () => {
     expect(r.rest).toBe(true);
     expect(r.readyMin as number).toBeGreaterThanOrEqual(1440);
   });
-  it.each(['', 'ALREADY', 'already_in_korea', 'Already'])('airport %j → (ii) is not inferred', (arrivalAirport) => {
-    expect(arrivalRestDayInfo({ arrivalTime: '14:00', arrivalAirport, cityKey: 'busan' })).toMatchObject({ rest: false, readyMin: null });
+  // PR3: 빈 공항만 (ii) 를 추론하지 않는다(readyMin null). ALREADY·별칭(대소문자·공백 정리)은 준비 = 도착 분 그대로로 종료−60 판정에 참여.
+  it('empty airport → (ii) is not inferred', () => {
+    expect(arrivalRestDayInfo({ arrivalTime: '14:00', arrivalAirport: '', cityKey: 'busan' })).toMatchObject({ rest: false, readyMin: null });
+  });
+  it.each(['ALREADY', 'already_in_korea', 'Already', ' already_in_korea '])('airport %j → ready = arrival minute (no +160), joins the end−60 rule', (arrivalAirport) => {
+    expect(arrivalRestDayInfo({ arrivalTime: '14:00', arrivalAirport, cityKey: 'busan' })).toMatchObject({ rest: false, readyMin: 14 * 60 });
+    // 종료 18:00 경계: 준비 16:59 = 종료−61 → 휴식일 아님 / 17:00 = 종료−60 → ready_near_tour_end.
+    expect(arrivalRestDayInfo({ arrivalTime: '16:59', arrivalAirport, cityKey: 'busan', tourEndTime: '18:00' })).toMatchObject({ rest: false, readyMin: 16 * 60 + 59 });
+    expect(arrivalRestDayInfo({ arrivalTime: '17:00', arrivalAirport, cityKey: 'busan', tourEndTime: '18:00' })).toMatchObject({ rest: true, reason: 'ready_near_tour_end' });
+    // 도착 18:00 이상 = 종전 late_arrival 규칙 그대로.
+    expect(arrivalRestDayInfo({ arrivalTime: '17:59', arrivalAirport, cityKey: 'busan' })).toMatchObject({ rest: false });
+    expect(arrivalRestDayInfo({ arrivalTime: '18:00', arrivalAirport, cityKey: 'busan' })).toMatchObject({ rest: true, reason: 'late_arrival' });
   });
   it.each(['7pm', '25:00', '', '18:60', undefined])('invalid arrival time %j → not a rest day', (arrivalTime) => {
     expect(arrivalRestDayInfo({ arrivalTime: arrivalTime as string, arrivalAirport: 'ICN_T1', cityKey: 'busan' })).toMatchObject({ rest: false, reason: null, readyMin: null });
@@ -408,9 +418,10 @@ describe('wiring (source)', () => {
   it('all execution paths pass airport / area / tour end to the gate', () => {
     const post = read('api/_ai_core/postResponsePipeline.js');
     expect(post).toMatch(/arrivalAirport: ctx\.arrival_airport \|\| ctx\.body\?\.arrival_airport \|\| ctx\.body\?\.arrivalAirport,/);
-    expect(post).toMatch(/area: ctx\.area \|\| ctx\.body\?\.area,\s*regions: ctx\.regions,\s*tourEndTime: ctx\.tourEndTime \|\| resolveTourEndTime\(ctx\.body \|\| \{\}\),/);
-    expect(read('api/_ai_core/handlerCore.js')).toContain('tripTimes: tripTimesFrom({ departureTime, arrivalTime, arrivalAirport: arrival_airport, area, regions, tourEndTime, arrival_rest_day: arrivalRestDay })');
-    expect(read('api/_inngest/functions/processPlanAfterAI.js')).toMatch(/tripTimes: tripTimesFrom\(\{\s*departureTime: ctx\.body\?\.departureTime \|\| ctx\.body\?\.departure_time,\s*arrivalTime: ctx\.body\?\.arrivalTime \|\| ctx\.body\?\.arrival_time,\s*arrivalAirport: ctx\.arrival_airport \|\| ctx\.body\?\.arrival_airport \|\| ctx\.body\?\.arrivalAirport,\s*area: ctx\.area \|\| ctx\.body\?\.area,\s*regions: ctx\.regions,\s*tourEndTime: resolveTourEndTime\(ctx\.body \|\| \{\}\),[^\n]*\n\s*arrival_rest_day: arrivalRestDayFromCtx\(ctx\),/);
+    // PR3 r7: 출국 공항도 같이(1일 출국일 면제 끼니 마감 재판정 — RouteAgent 와 같은 공항).
+    expect(post).toMatch(/departureAirport: ctx\.departure_airport \|\| ctx\.body\?\.departure_airport \|\| ctx\.body\?\.departureAirport,\s*area: ctx\.area \|\| ctx\.body\?\.area,\s*regions: ctx\.regions,\s*tourEndTime: ctx\.tourEndTime \|\| resolveTourEndTime\(ctx\.body \|\| \{\}\),/);
+    expect(read('api/_ai_core/handlerCore.js')).toContain('tripTimes: tripTimesFrom({ departureTime, arrivalTime, arrivalAirport: arrival_airport, departureAirport: departure_airport, area, regions, tourEndTime, arrival_rest_day: arrivalRestDay })');
+    expect(read('api/_inngest/functions/processPlanAfterAI.js')).toMatch(/tripTimes: tripTimesFrom\(\{\s*departureTime: ctx\.body\?\.departureTime \|\| ctx\.body\?\.departure_time,\s*arrivalTime: ctx\.body\?\.arrivalTime \|\| ctx\.body\?\.arrival_time,\s*arrivalAirport: ctx\.arrival_airport \|\| ctx\.body\?\.arrival_airport \|\| ctx\.body\?\.arrivalAirport,\s*departureAirport: ctx\.departure_airport \|\| ctx\.body\?\.departure_airport \|\| ctx\.body\?\.departureAirport,\s*area: ctx\.area \|\| ctx\.body\?\.area,\s*regions: ctx\.regions,\s*tourEndTime: resolveTourEndTime\(ctx\.body \|\| \{\}\),[^\n]*\n\s*arrival_rest_day: arrivalRestDayFromCtx\(ctx\),/);
   });
   it('applyArrivalRestNote runs right after applyTourEndCap', () => {
     const post = read('api/_ai_core/postResponsePipeline.js');
@@ -436,7 +447,8 @@ describe('wiring (source)', () => {
     const persist = read('api/_ai_core/planPersister.js');
     expect(persist).toContain("...(typeof arrivalRestDay === 'boolean' ? { arrival_rest_day: arrivalRestDay } : {}),");
     expect(persist).toContain('tour_end_time: resolveTourEndTime(body),');
-    expect(persist).toContain('arrival_time: body.arrivalTime || body.arrival_time || null,');
+    // PR3: 저장 도착 시각 = 생성 판정과 같은 resolver(camel 우선 + snake, 엄격 HH:MM).
+    expect(persist).toContain('arrival_time: resolveArrivalTime(body) || null,');
     expect(persist).toContain('arrival_city: body.arrival_city || arrivalCity || null,');
     expect(read('api/_ai_core/handlerCore.js')).toContain('arrivalRestDay, arrivalCity,');
     expect(read('api/_inngest/functions/processPlanAfterAI.js')).toMatch(/savePlan\(adminDb, \{[\s\S]*?arrivalRestDay,\s*arrivalCity:/);

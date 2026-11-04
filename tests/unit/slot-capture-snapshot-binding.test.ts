@@ -48,6 +48,12 @@ const alertGate: { defer: boolean; rejectWith: Error | null; pending: Array<() =
 };
 function releaseAlerts() { for (const resolve of alertGate.pending.splice(0)) resolve(); }
 
+// Isolate the independent draft gate: these tests exercise pricing/coverage/slot/snapshot behavior.
+vi.mock('../../api/_ai_core/mealActor.js', () => ({ verifyMealActor: async () => ({ ok: true, uid: 'fixture-owner' }) }));
+vi.mock('../../api/_shared/meal-draft-binding.js', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../../api/_shared/meal-draft-binding.js')>()),
+  loadBoundMealDraft: async () => ({ uid: 'fixture-owner', draftId: 'isolated-draft', status: 'verified', revision: 'fixture', fingerprint: 'fixture' }),
+}));
 vi.mock('../../api/_shared/firebase-admin.js', () => ({ initAdminDb: () => dbHolder.db }));
 vi.mock('../../api/_shared/paypal.js', () => ({
   getPaypalAccessToken: async () => ({ accessToken: 'tok', baseUrl: 'https://api.mock' }),
@@ -295,7 +301,9 @@ describe('createPaypalOrder — 슬롯 바인딩을 주문 스냅샷에 영속�
     dbHolder.db = createDb(writes);
     global.fetch = vi.fn(async () => ({ ok: true, status: 201, json: async () => ({ id: ORDER_ID }) })) as never;
     const res = mockRes();
-    await createHandler({ method: 'POST', headers: {}, body: { productType: 'ai_planner_full', passengers: 1 } }, res);
+    // 2026-10-26 B6-1: AI 플래너 주문은 결제 전 검사용 플래너 입력이 필수(식이 제한 없음 = 커버리지 검사 통과).
+    await createHandler({ method: 'POST', headers: {}, body: { productType: 'ai_planner_full', passengers: 1,
+      plannerInput: { regions: ['Seoul'], dietaryRestrictions: [], dietPrefs: [], startDate: '2026-12-01', durationDays: 3 } } }, res);
 
     expect(res._out.status).toBe(200);
     const snap = writes.find((w) => w.path === `paypal_order_snapshots/${ORDER_ID}`);
@@ -400,7 +408,9 @@ describe('🔴 capturePaypalOrder — 스냅샷 슬롯 바인딩 없음 = 슬롯
   });
 
   it('바인딩 없음 + body 도 슬롯 아님(비슬롯 상품) → confirm 없음 **+ 알림도 없음** (회귀·노이즈 0)', async () => {
-    const out = await runCapture({ paxCount: 2 }, snapshotDoc({ productType: 'ai-planner-full', expectedUSD: '236.00' }));
+    // 2026-10-26 B6-1: AI 플래너 주문 snapshot 은 결제 전 검사를 통과한 정규 입력을 갖는다(없으면 capture 전 거부).
+    const out = await runCapture({ paxCount: 2 }, snapshotDoc({ productType: 'ai-planner-full', expectedUSD: '236.00',
+      prepayInputVersion: 1, prepayInput: { version: 1, cities: ['seoul'], diets: [], startDate: '2026-12-01', durationDays: 3 } }));
     expect(confirmCalls).toHaveLength(0);
     expect(alerts.some((a) => JSON.stringify(a).includes('SLOT_SNAPSHOT_MISSING'))).toBe(false);
     expect(out.status).toBe(200);

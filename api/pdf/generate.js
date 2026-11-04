@@ -1,3 +1,4 @@
+import { visitNotice } from '../../src/lib/visitNotice.js';
 // Vercel serverless function — server-side PDF generation via Puppeteer + Chromium.
 // Replaces client html2canvas pipeline 5대 root cause:
 //   1. CJK 폰트 timing: 서버 컨테이너에 Noto Sans 사전 로드 → 100% 보장
@@ -18,6 +19,7 @@ import { throttledTelegramAlert } from '../_shared/telegram-throttle.js';
 // PR #421 (CZ2): consolidate escapeHtml — same impl as the inline one below,
 // now sourced from api/_shared/escape.js to share with _send-email.js etc.
 import { escapeHtml } from '../_shared/escape.js';
+import { intercityEvidenceNotices } from '../../src/lib/intercityEvidence.js';
 // 2026-07-28: 손님이 실제로 받는 PDF 가 서버판인데 식당(할랄/비건)·예산표·번역이 없었다.
 //   섹션 빌더는 _shared/pdf-sections.js 로 분리(프론트 정본 pdfGenerator.ts 의 미러).
 import {
@@ -275,6 +277,9 @@ export function buildPlanHtml(plan) {
   </div>`;
 
   // ── P209: Arrival Guide 섹션 ─────────────────────────────────────────────────
+  const visit = visitNotice(lang, input);
+  body += `<div class="guide-card" style="page-break-inside:avoid;"><strong>${escapeHtml(visit.title)}</strong><p>${escapeHtml(visit.body)}</p></div>`;
+
   // client pdfGenerator.ts L484-573 의 Pure HTML Port.
   // charter cross-sell 카드 (cocotrip_charter) 제외 — server PDF 핵심만.
   // 위치: header 와 days loop 사이 (입국 가이드가 일정 전에 나와야 함).
@@ -364,6 +369,11 @@ export function buildPlanHtml(plan) {
     const day = days[di];
     body += `<div class="day"><div class="day-title">${escapeHtml(L.day)} ${day.day || di + 1}: ${escapeHtml(day.theme || '')}</div>`;
     const stops = day.stops || [];
+    if (day.intercity_transit && (day.intercity_transit.mode || day.intercity_transit.method)) {
+      for (const notice of intercityEvidenceNotices(day.intercity_transit, lang)) {
+        body += `<p class="stop-tip">${escapeHtml(notice)}</p>`;
+      }
+    }
     for (const stop of stops) {
       const name = stop.display_name || stop.name || stop.name_ko || stop.name_en || '';
       // 카테고리 색 바 — 웹/클라 PDF 와 같은 팔레트라 한눈에 종류가 구분된다.

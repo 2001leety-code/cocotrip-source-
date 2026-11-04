@@ -93,6 +93,10 @@ export default async function handler(req, res) {
       return res.status(403).json({ error: 'Unauthorized' });
     }
 
+    if (plan.itinerary?.meal_options_version === 1) {
+      return res.status(409).json({ error: 'Use the validated meal-plan edit endpoint', code: 'VALIDATED_EDIT_REQUIRED' });
+    }
+
     // 2. Get the specific day
     const days = (plan.itinerary && plan.itinerary.days) || [];
     if (dayIndex < 0 || dayIndex >= days.length) {

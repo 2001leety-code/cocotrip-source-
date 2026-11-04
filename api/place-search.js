@@ -192,7 +192,7 @@ export default async function handler(req, res) {
 
   const queryRaw = (req.query?.query ?? req.query?.q ?? '').toString().trim();
   const limitRaw = parseInt((req.query?.limit ?? '10').toString(), 10);
-  const limit = Math.min(15, Math.max(1, isNaN(limitRaw) ? 10 : limitRaw));
+  const limit = Math.min(5, Math.max(1, isNaN(limitRaw) ? 10 : limitRaw));
 
   // PR-S: 사용자 언어 — 한국어 사용자 (운영자 본인 포함) 는 한글 그대로.
   const langRaw = (req.query?.lang ?? '').toString().trim().toLowerCase();
@@ -212,7 +212,7 @@ export default async function handler(req, res) {
 
   // ── Naver Local Search API ──────────────────────────────────────────────
   // https://openapi.naver.com/v1/search/local.json
-  // 파라미터: query (필수), display (1-30, 기본 5), sort=random|comment
+  // 지역 검색 display 최대 5: https://developers.naver.com/docs/serviceapi/search/local/local.md
   const url = 'https://openapi.naver.com/v1/search/local.json';
   try {
     const doRequest = (creds) => axios.get(url, {

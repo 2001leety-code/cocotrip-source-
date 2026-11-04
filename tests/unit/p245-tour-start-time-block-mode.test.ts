@@ -28,6 +28,8 @@ import { readFileSync } from 'node:fs';
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, it, expect } from 'vitest';
+import { expandBlocksToItinerary } from '../../api/_ai_core/blockMode.js';
+import { resolveTourStartTime } from '../../api/_ai_core/constants.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(__dirname, '../../');
@@ -36,16 +38,28 @@ function readFile(rel: string): string {
   return readFileSync(resolve(ROOT, rel), 'utf-8');
 }
 
+// PR3: 동작 검사용 최소 블록 — 관광 1곳(offset 0), 1일 선택.
+const SIGHT_BLOCK = {
+  id: 'P245-SIGHT', city: 'seoul', zone: 'Test', theme: 'Test', intensity: 'standard', block_type: 'city_day',
+  stops: [{ order: 1, category: 'culture', name: '경복궁', address: 'Seoul', stay_min: 60, start_time_offset_min: 0 }],
+};
+const ONE_DAY_SEL = { day_selections: [{ day: 2, block_id: 'P245-SIGHT' }] };
+
 // ────────────────────────────────────────────────────────────────────────────
 // 1. blockMode.js — tour_start_time 변수 + max(tour_start_time, arrival+60min) 룰
 // ────────────────────────────────────────────────────────────────────────────
 describe('P245 architectural: blockMode tour_start_time', () => {
+  // 2026-11-01 (PR3): 코드 모양 대신 resolver 연결 + 동작 — blockMode 는 constants.resolveTourStartTime(camel 우선 + snake,
+  //   엄격 HH:MM, 기본 09:00)을 단도시·다도시 둘 다 쓴다(요청·worker·저장과 같은 값).
   it('tourStartTime 변수가 단도시 + 다도시 모두 정의되어 있음', () => {
     const src = readFile('api/_ai_core/blockMode.js');
-    // expandBlocksToItinerary (단도시) + expandBlocksToItineraryMultiCity (다도시)
-    // 양쪽 모두 tour_start_time 픽업해야 함
-    const matches = src.match(/userInput\?\.tour_start_time\s*\|\|\s*userInput\?\.tourStartTime/g) || [];
+    const matches = src.match(/const tourStartTime = resolveTourStartTime\(userInput\)/g) || [];
     expect(matches.length, 'tour_start_time pickup이 양쪽 모두 (단도시 + 다도시) 있어야 함').toBeGreaterThanOrEqual(2);
+    // 동작: snake·camel 모두 같은 시작 시각(첫 관광 stop)
+    for (const input of [{ tour_start_time: '10:00' }, { tourStartTime: '10:00' }]) {
+      const out = expandBlocksToItinerary(ONE_DAY_SEL, [SIGHT_BLOCK], { durationDays: 2, area: 'seoul', language: 'en', ...input });
+      expect(out.days[0].stops[0].start_time).toBe('10:00');
+    }
   });
 
   it("옛 룰 '+ 9 * 60' 제거됨 (단도시 + 다도시)", () => {
@@ -70,10 +84,12 @@ describe('P245 architectural: blockMode tour_start_time', () => {
   });
 
   it('default tour_start_time = 09:00 (옛 client 호환)', () => {
-    const src = readFile('api/_ai_core/blockMode.js');
-    // 새 ENV: tour_start_time 미입력 시 09:00 폴백
-    expect(/tour_start_time\s*\|\|\s*userInput\?\.tourStartTime\s*\|\|\s*['"]09:00['"]/.test(src),
-      "tour_start_time default '09:00' 폴백 누락").toBe(true);
+    // PR3: 동작 검사 — 미입력·잘못된 값('7am'·'25:00')이면 09:00.
+    for (const input of [{}, { tour_start_time: '7am' }, { tourStartTime: '25:00' }]) {
+      const out = expandBlocksToItinerary(ONE_DAY_SEL, [SIGHT_BLOCK], { durationDays: 2, area: 'seoul', language: 'en', ...input });
+      expect(out.days[0].stops[0].start_time, JSON.stringify(input)).toBe('09:00');
+    }
+    expect(resolveTourStartTime({})).toBe('09:00');
   });
 
   it('P245 주석 marker 존재 (회귀 감지용)', () => {
@@ -87,17 +103,20 @@ describe('P245 architectural: blockMode tour_start_time', () => {
 // 2. planPersister.js — tour_start_time Firestore 저장
 // ────────────────────────────────────────────────────────────────────────────
 describe('P245 architectural: planPersister tour_start_time persist', () => {
+  // PR3: 저장값 = 생성 판정과 같은 resolver(입력이 있을 때만 — 없으면 null, 읽는 쪽 기본 09:00). snake '17:00' 도 그대로 저장돼
+  //   생성(예전엔 09:00 로 버림)·worker(17:00)·저장 → 수정이 같은 값을 쓴다.
   it('Firestore input.tour_start_time 저장 라인 존재', () => {
     const src = readFile('api/_ai_core/planPersister.js');
-    expect(/tour_start_time:\s*body\.tourStartTime/.test(src),
-      'Firestore input.tour_start_time persist 누락 — P239 효과 미완료 원인').toBe(true);
+    expect(src).toContain('tour_start_time: (body.tourStartTime || body.tour_start_time) ? resolveTourStartTime(body) : null,');
+    expect(resolveTourStartTime({ tour_start_time: '17:00' })).toBe('17:00');
+    expect(resolveTourStartTime({ tourStartTime: '9:30' })).toBe('09:30');
   });
 
   it('arrival_time 옆에 tour_start_time 인접 배치 (코드 일관성)', () => {
     const src = readFile('api/_ai_core/planPersister.js');
     // arrival_time과 같은 블록에 tour_start_time이 있어야 함
-    const arrivalIdx = src.indexOf('arrival_time: body.arrivalTime');
-    const tourStartIdx = src.indexOf('tour_start_time: body.tourStartTime');
+    const arrivalIdx = src.indexOf('arrival_time: resolveArrivalTime(body)');
+    const tourStartIdx = src.indexOf('tour_start_time: (body.tourStartTime');
     expect(arrivalIdx >= 0, 'arrival_time 저장 누락').toBe(true);
     expect(tourStartIdx >= 0, 'tour_start_time 저장 누락').toBe(true);
     // 인접성 — 300자 이내

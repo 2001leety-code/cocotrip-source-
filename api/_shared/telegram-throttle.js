@@ -1,3 +1,4 @@
+import { isPreviewOperatorSuppressed, suppressedOperatorReceipt } from './preview-egress-policy.js';
 /**
  * CocoTripKR — Telegram 에러 알림 5분 단위 집계 + dedup (K Tier 2-E)
  *
@@ -102,6 +103,7 @@ export async function throttledTelegramAlert({
   severity = 'medium',
   context = {},
 }) {
+  if (isPreviewOperatorSuppressed()) return suppressedOperatorReceipt();
   // 2026-10-24: 비교 하네스의 무료 채점(--judge-plan/--dump-prompts)은 검증기(repairAndParseJSON 등)를 그대로 돌린다 —
   //   운영 키가 있는 셸에서도 외부 알림이 나가면 안 된다. LLM_COMPARE_OFFLINE=1 이면 로그만 남기고 끝.
   if (process.env.LLM_COMPARE_OFFLINE === '1') {

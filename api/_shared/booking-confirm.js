@@ -1,5 +1,6 @@
 /** Shared admin/webhook confirmation: booking and retry intent commit together. */
 import { randomUUID } from 'node:crypto';
+import { isPreviewEmailSuppressed, suppressedEmailReceipt, isEmailSuppressed } from './email-delivery-policy.js';
 import { FieldValue } from 'firebase-admin/firestore';
 import { notify } from './notify.js';
 import { buildManualPaymentEmail } from './manual-payment-emails.js';
@@ -65,11 +66,13 @@ function processorPayload(booking, bookingId) {
 }
 
 async function sendCustomerConfirmEmail(pendingRef, pending, bookingRef) {
+  if (isPreviewEmailSuppressed()) return suppressedEmailReceipt();
   if (!pending.customerEmail) return;
   try {
     const content = buildManualPaymentEmail('confirmed', pending);
     // db:null — no automatic pending_email_retries entry: an ambiguous send must not be auto-resent.
     const sent = await sendCustomerEmailWithAlert({ db: null, to: pending.customerEmail, ...content, context: { bookingRef, emailType: 'manual-payment-confirmed' } });
+    if (isEmailSuppressed(sent)) return sent;
     if (!sent || sent.ok !== true) throw new Error((sent && sent.reason) || 'send-failed');
     await pendingRef.update({ confirmationEmailState: 'completed' });
   } catch (error) {
@@ -219,7 +222,7 @@ export async function confirmBookingAsPaid({ db, bookingRef, paypalTransactionId
     tx.update(pendingRef, {
       ...confirmationPatch,
       updatedAt: FieldValue.serverTimestamp(),
-      confirmationEmailState: pending.confirmationEmailState || (!pending.customerEmail ? 'skipped_not_applicable' : legacy ? 'legacy_outcome_unknown' : 'outcome_unknown'),
+      confirmationEmailState: pending.confirmationEmailState || (!pending.customerEmail ? 'skipped_not_applicable' : legacy ? 'legacy_outcome_unknown' : isPreviewEmailSuppressed() ? 'suppressed' : 'outcome_unknown'),
       confirmationFulfillment: dispatch
         ? { bookingId, claimToken, phase: 'in_progress', leaseUntilMs: nowMs + 5 * 60 * 1000 }
         : priorClaim || { bookingId, claimToken: null, phase: queueStatus, leaseUntilMs: 0 },

@@ -20,6 +20,12 @@ const dbHolder: { db: unknown } = { db: null };
 const snapshotWrites: Array<{ path: string; data: Record<string, unknown> }> = [];
 let slotLockCalls = 0;
 
+// Isolate the independent draft gate: these tests exercise pricing/coverage/slot/snapshot behavior.
+vi.mock('../../api/_ai_core/mealActor.js', () => ({ verifyMealActor: async () => ({ ok: true, uid: 'fixture-owner' }) }));
+vi.mock('../../api/_shared/meal-draft-binding.js', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../../api/_shared/meal-draft-binding.js')>()),
+  loadBoundMealDraft: async () => ({ uid: 'fixture-owner', draftId: 'isolated-draft', status: 'verified', revision: 'fixture', fingerprint: 'fixture' }),
+}));
 vi.mock('../../api/_shared/firebase-admin.js', () => ({ initAdminDb: () => dbHolder.db }));
 vi.mock('../../api/_shared/paypal.js', () => ({
   getPaypalAccessToken: async () => ({ accessToken: 'tok', baseUrl: 'https://api.sandbox.paypal.com' }),
@@ -70,7 +76,9 @@ function aiPlannerReq() {
   return {
     method: 'POST',
     headers: {},
-    body: { productType: 'ai_planner_full', passengers: 1 },
+    // 2026-10-26 B6-1: AI 플래너 주문은 결제 전 검사용 플래너 입력이 필수(식이 제한 없음 = 커버리지 검사 통과).
+    body: { productType: 'ai_planner_full', passengers: 1,
+      plannerInput: { regions: ['Seoul'], dietaryRestrictions: [], dietPrefs: [], startDate: '2026-12-01', durationDays: 3 } },
   };
 }
 

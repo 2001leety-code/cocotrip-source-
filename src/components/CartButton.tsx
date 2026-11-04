@@ -13,6 +13,7 @@ import { useCart } from '@/hooks/useCart';
 import { useAuth } from '@/hooks/useAuth';
 import { useLanguage } from '@/hooks/useLanguage';
 import { isCartEnabled, type CartItemBooking } from '@/lib/cart-types';
+import { usePaymentRecovery } from '@/lib/paymentRecovery';
 // CartCheckout 는 결제 진입(showCheckout) 시에만 필요 → lazy split (main 번들 환원, size-limit 130KB).
 const CartCheckout = lazy(() => import('./CartCheckout').then((m) => ({ default: m.CartCheckout })));
 
@@ -96,12 +97,19 @@ function CartPanelInner() {
   const c = (t as { cart?: Record<string, string> }).cart || {};
   const [isOpen, setIsOpen] = useState(false);
   const [showCheckout, setShowCheckout] = useState(false);
+  // B6-1 r17: 미해결 장바구니 결제 주문 — 장바구니가 비어도(앞 주문 성공 뒤 비움) 같은 주문 확인 화면으로 들어갈 수 있어야 한다.
+  const { recovery: pendingCartOrder } = usePaymentRecovery({ flow: 'cart' });
   const panelRef = useRef<HTMLDivElement>(null);
+  // r18: 빈 장바구니 + 미해결 주문으로 들어온 확인 화면은 고정 — 확정되며 주문 기록이 지워져도 결과 화면을 닫을 때까지 유지.
+  if (isOpen && !showCheckout && !loading && items.length === 0 && pendingCartOrder) setShowCheckout(true);
+  // r19: 모든 닫기에서 고정 해제.
+  const closePanel = () => { setIsOpen(false); setShowCheckout(false); };
 
   useEffect(() => {
     function handleOutside(e: MouseEvent) {
       if (panelRef.current && !panelRef.current.contains(e.target as Node)) {
         setIsOpen(false);
+        setShowCheckout(false);
       }
     }
     if (isOpen) document.addEventListener('mousedown', handleOutside);
@@ -138,7 +146,7 @@ function CartPanelInner() {
                 <h2 className="text-white font-semibold text-lg customer-cart-title">{c.title || 'Cart'}</h2>
                 <span className="text-white/55 text-sm">({items.length})</span>
               </div>
-              <button onClick={() => setIsOpen(false)} className="p-1.5 rounded-lg hover:bg-white/10">
+              <button onClick={closePanel} className="p-1.5 rounded-lg hover:bg-white/10">
                 <X size={18} className="text-white/50" />
               </button>
             </div>
@@ -155,8 +163,9 @@ function CartPanelInner() {
                 결제 완료/PAYMENT_REVIEW 후 CartCheckout 이 장바구니를 비우는데(중복결제 방지),
                 empty 분기가 앞서면 그 순간 CartCheckout 이 언마운트되어 결과 화면(성공 안내,
                 그리고 "다시 결제하지 마세요" 경고)이 아예 렌더되지 않는다.
-                showCheckout 은 아래 item 목록 분기에서만 true 가 되므로(= items 존재가 전제)
-                빈 장바구니로 체크아웃 화면에 갇힐 일은 없다. */}
+                showCheckout 은 item 목록 분기, 또는 빈 장바구니 + 미해결 주문(r18 고정)일 때만 true —
+                r19: 모든 닫기(Done·X·바깥 클릭)로 풀리고, 확인할 주문이 사라지면 CartCheckout 이 onBack 으로 푼다
+                (이 탭의 성공·검토 결과 화면은 닫을 때까지 유지). */}
             {loading ? (
               <div className="flex items-center justify-center py-20">
                 <div className="w-6 h-6 border-2 border-[#7C5CFC] border-t-transparent animate-spin rounded-full" />

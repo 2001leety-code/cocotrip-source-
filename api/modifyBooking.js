@@ -1,3 +1,4 @@
+import { isPreviewOperatorSuppressed, suppressedOperatorReceipt } from './_shared/preview-egress-policy.js';
 /**
  * Vercel API Route: Modify Booking
  * POST /api/modifyBooking
@@ -35,6 +36,7 @@ import { createBookingManageToken } from './_shared/booking-manage-token.js';
 import { isCalendarDate, kstDatePlusDays } from './_shared/calendar-date.js';
 import { fetchOrderSlotBindingState, transferConfirmedSlot } from './_shared/slot-capacity.js';
 import { sendBookingChangeEmail } from './_shared/booking-change-emails.js';
+import { isEmailSuppressed } from './_shared/email-delivery-policy.js';
 import { throttledTelegramAlert } from './_shared/telegram-throttle.js';
 import { publicSiteOrigin } from './_shared/internal-base-url.js';
 import { productDisplayLabel } from './_shared/pricing.js';
@@ -90,6 +92,7 @@ function getDb() {
 }
 
 async function notifyTelegram(msg) {
+  if (isPreviewOperatorSuppressed()) return suppressedOperatorReceipt();
   const discordMirror = sendDiscord(msg); // 디스코드 미러 (병렬 — 텔레그램/예약수정 응답 지연 0)
   try {
     const token  = process.env.TELEGRAM_BOT_TOKEN;
@@ -491,7 +494,7 @@ export default async function handler(req, res) {
         } catch (markErr) {
           console.warn('[modifyBooking] manageLinkPending clear failed (non-fatal):', markErr.message);
         }
-      } else {
+      } else if (!isEmailSuppressed(mail)) {
         throttledTelegramAlert({
           key: `manage-link-mail-failed-${bookingID}-${nextVersion}`,
           channel: 'admin',
@@ -500,7 +503,7 @@ export default async function handler(req, res) {
           context: { bookingID, version: nextVersion, error: mail.error || null },
         }).catch(() => {});
       }
-    } else if (!mail.sent) {
+    } else if (!mail.sent && !isEmailSuppressed(mail)) {
       console.warn('[modifyBooking] change email failed (member):', mail.error);
     }
 
@@ -514,6 +517,7 @@ export default async function handler(req, res) {
       slotTransferred,
       ...(isGuest ? { manageToken: newToken } : {}),
       emailSent: mail.sent,
+      ...(isEmailSuppressed(mail) ? { emailDelivery: mail } : {}),
     }), JSON_NO_STORE);
   } catch (err) {
     console.error('[modifyBooking] Error:', err && err.message);

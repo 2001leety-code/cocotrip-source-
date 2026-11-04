@@ -92,7 +92,7 @@ describe('D5① — stale arrival rest note is removed', () => {
   });
   it('modify API: one rest-day flag (stored boolean first) for validation and a re-judge right before saving', () => {
     const src = read('api/ai-planner-modify.js');
-    expect(src).toContain("import { backfillStopEndTimes, applyArrivalRestNote } from './_ai_core/planPersister.js';");
+    expect(src).toContain("import { backfillStopEndTimes, applyArrivalRestNote, applyDepartureMealNote } from './_ai_core/planPersister.js';");
     expect(src).toMatch(/const arrivalRestDay = typeof planData\.input\?\.arrival_rest_day === 'boolean'\s*\? planData\.input\.arrival_rest_day/);
     expect(src).toContain('arrival_rest_day: arrivalRestDay,');
     const dup = src.indexOf('runDuplicateStopGate(itinerary, revisitCtx)');
@@ -172,7 +172,19 @@ describe('r1-1 — screen edit save path re-judges the rest note', () => {
     expect(read('api/_ai_core/planPersister.js')).not.toMatch(/export function stripArrivalRestNote/);
     const editor = read('src/pages/PlanDetailPage/hooks/usePlanEditor.ts');
     expect((editor.match(/stripArrivalRestNoteIfDay1Active\(\{ days: nextDays \}\);/g) || []).length).toBe(4);
-    expect((editor.match(/await commitDays\(nextDays, snapshot\);/g) || []).length).toBe(4);
+    for (const method of ['deleteStop', 'addStop', 'reorderStops', 'applyStopOrder']) {
+      const start = editor.indexOf(`async function ${method}(`);
+      expect(start, method).toBeGreaterThan(-1);
+      const rest = editor.slice(start);
+      const end = rest.search(/\n {2}(?:async function|\/\*\*|return \{)/);
+      const body = end < 0 ? rest : rest.slice(0, end);
+      const strip = body.indexOf('stripArrivalRestNoteIfDay1Active({ days: nextDays });');
+      const optimistic = body.indexOf('setPlan((prev)');
+      const commit = body.indexOf('if (await commitDays(nextDays, snapshot)) scheduleRecalc(dayIdx, token || null);');
+      expect(strip, method).toBeGreaterThan(-1);
+      expect(optimistic, method).toBeGreaterThan(strip);
+      expect(commit, method).toBeGreaterThan(optimistic);
+    }
   });
 });
 

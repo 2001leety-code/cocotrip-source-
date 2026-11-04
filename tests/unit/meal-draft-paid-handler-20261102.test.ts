@@ -1,0 +1,31 @@
+import { describe, it, expect, vi } from 'vitest';
+import { memoryDb, fakeRes } from './helpers/payment-recovery-fixture';
+const state = vi.hoisted(() => ({ db: null, draft: null, claim: null, ai: vi.fn(), route: vi.fn(), worker: vi.fn(), notify: vi.fn(), cleanup: vi.fn(), pass3: vi.fn() }));
+vi.mock('../../api/_ai_core/firestoreAdmin.js', () => ({ initAdminDb: () => ({ collection: (...args) => state.db.collection(...args), runTransaction: (...args) => state.db.runTransaction(...args) }) }));
+vi.mock('../../api/_shared/firebase-admin.js', () => ({ initAdminDb: () => ({ collection: (...args) => state.db.collection(...args), runTransaction: (...args) => state.db.runTransaction(...args) }) }));
+vi.mock('../../api/_shared/user-auth.js', () => ({ verifyUserToken: async () => ({ ok: true, uid: 'owner', email: 'owner@example.invalid' }), verifyFirebaseIdentityToken: async () => ({ uid: 'owner' }), resolveGuestAnonOwner: async () => ({ planOwnerUid: 'owner', forceGuestToken: false }), isGuestCheckoutAllowed: () => false }));
+vi.mock('../../api/_ai_core/mealActor.js', () => ({ verifyMealActor: async () => ({ ok: true, uid: 'owner' }) }));
+vi.mock('../../api/_ai_core/paymentGate.js', () => ({ enforcePaymentAndRevision: async () => ({ boundMealDraft: state.draft, planClaim: state.claim }) }));
+vi.mock('../../api/_ai_core/geminiPipeline.js', () => ({ loadFoodIndex: vi.fn(), runGeminiPipeline: state.ai }));
+vi.mock('../../api/_ai_core/postResponsePipeline.js', () => ({ computePricing: () => ({ priceKRW: 123000, priceUSD: 90 }), runRouteEnrichment: state.route, applyBackfillsAndTmoney: vi.fn(), applyRecommendedRestaurants: vi.fn(), savePlan: vi.fn() }));
+vi.mock('../../api/_ai_core/inngestDispatch.js', () => ({ dispatchOrInlineForHandlerCore: state.worker, shouldDispatchToInngest: () => true }));
+vi.mock('../../api/_ai_core/backgroundPipelines.js', () => ({ sendPlanReadyNotifications: state.notify, triggerPass3BackgroundIfPending: state.pass3, shouldUseStreaming: vi.fn(), tryInitStreamingSkeleton: vi.fn(), tryBlockModeInngestPath: state.worker, sendStreamingEarlyResponse: vi.fn() }));
+vi.mock('../../api/_ai_core/planCloseout.js', () => ({ runHandlerFailureCleanup: state.cleanup }));
+vi.mock('../../api/_shared/llm/index.js', () => ({ enterLlmMockContext: vi.fn(), adoptLlmMock: vi.fn(), resolveLlmApiKey: vi.fn() }));
+import { claimPlanIssuance } from '../../api/_shared/plan-issuance.js';
+import handler from '../../api/_ai_core/handlerCore.js';
+describe('actual paid handler bound draft branch', () => {
+ it('preserves credits/pricing/notices and runs AI, route and worker zero times', async () => {
+  const db = memoryDb(); state.db = db.db;
+  state.draft = { status: 'opening_unconfirmed', openingNoticeVersion: 'meal-opening-unconfirmed-v1', openingNoticeRecordedAt: '2026-11-02T00:00:00Z', uid: 'owner', draftId: 'd1', revision: 'r1', fingerprint: 'fp1', input: { area: 'seoul', regions: ['seoul'], startDate: '2026-12-01', durationDays: 1, dietaryRestrictions: [], vehicle: 'staria_8' }, itinerary: { tour_title: 'Server draft', days: [{ day: 1, stops: [] }] } };
+  state.claim = (await claimPlanIssuance(db.db, 'ORDER123456789', { uid: 'owner' })).claim;
+  vi.stubGlobal('fetch', vi.fn(async () => { throw new Error('External call forbidden'); }));
+  const res = fakeRes();
+  await handler({ method: 'POST', body: { paypalOrderId: 'ORDER123456789', area: 'tampered' }, headers: {} }, res);
+  expect(res.state.status).toBe(200); expect(state.cleanup).not.toHaveBeenCalled();
+  const doc = db.rows.get(`plans/${state.claim.planId}`);
+  expect(doc).toMatchObject({ revisionCredits: 2, revisionCount: 0, mealDraftBinding: { openingNoticeVersion: 'meal-opening-unconfirmed-v1' }, pricing: { priceKRW: 123000, priceUSD: 90 }, input: { area: 'seoul' }, itinerary: state.draft.itinerary });
+  expect(state.notify).toHaveBeenCalledOnce(); expect(state.notify.mock.calls[0][0]).toMatchObject({ planId: state.claim.planId, itinerary: state.draft.itinerary, email: 'owner@example.invalid' });
+  expect(state.ai).not.toHaveBeenCalled(); expect(state.route).not.toHaveBeenCalled(); expect(state.worker).not.toHaveBeenCalled(); expect(state.pass3).not.toHaveBeenCalled(); expect(fetch).not.toHaveBeenCalled();
+ });
+});

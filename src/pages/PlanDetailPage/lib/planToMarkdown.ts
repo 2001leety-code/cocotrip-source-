@@ -22,6 +22,7 @@
 // 사진 없음 (텍스트 only). URL 만 옵션으로 포함 (사용자 mobile share 가능).
 // ─────────────────────────────────────────────────────────────────────────────
 import { getLocaleSync, type Language } from '@/i18n';
+import { intercityEvidenceNotices } from '@/lib/intercityEvidence.js';
 import { getPlanDetailDict } from '../types';
 import type { PlanDocument, RecommendedRestaurant } from '../types';
 import { formatBudgetDay } from './budgetDayLabel';
@@ -227,6 +228,7 @@ export function planToMarkdown(
         ict.instruction ? `- ${escapeMd(ict.instruction)}` : null,
       ]);
       out.push(...intercityLines);
+      out.push(...intercityEvidenceNotices(ict, lang).map((notice) => `- ${escapeMd(notice)}`));
       // lodging_to_station / station_to_lodging bookend (P111 enrichment 결과)
       // 역명·숙소 라벨 모두 사전에서 온다 — 예전엔 '역'·'호텔' 이 하드코딩이라
       // 전 언어 손님에게 한글이 노출됐다.
