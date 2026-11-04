@@ -2,6 +2,7 @@
 // Extracted verbatim from src/pages/PlanDetailPage.tsx (L830-852) during P2 Lock release.
 // B8: Added SortableContext for drag-reorder, conditional edit UI, and + Add Stop button.
 import { useState } from 'react';
+import { intercityEvidenceNotices } from '@/lib/intercityEvidence.js';
 import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { Plus, Calendar, Clock, MapPin, TrainFront, Plane } from 'lucide-react';
 import { TransitArrow } from './TransitArrow';
@@ -587,6 +588,7 @@ function IntercityTransitCard({
   const fromCity = intercity.from_city_display || intercity.from_city || '';
   const toCity = intercity.to_city_display || intercity.to_city || '';
   const Icon = /air|flight|plane/i.test(mode) ? Plane : TrainFront;
+  const evidenceNotices = intercityEvidenceNotices(intercity, language);
 
   const title = titleTpl.replace('{{mode}}', mode);
   const departText = intercity.recommended_depart
@@ -626,6 +628,11 @@ function IntercityTransitCard({
               {fareText && <span className="font-semibold text-ec-ink">· {fareText}</span>}
             </div>
             {/* instruction (사용자 언어) — backend 가 채움 */}
+            {evidenceNotices.length > 0 && (
+              <div className="mt-2 space-y-1 text-[12px] leading-relaxed text-ec-ink-2" role="note">
+                {evidenceNotices.map((notice) => <p key={notice}>{notice}</p>)}
+              </div>
+            )}
             {intercity.instruction && (
               <p className="mt-1.5 text-[13px] leading-snug text-ec-ink-2">
                 {intercity.instruction}

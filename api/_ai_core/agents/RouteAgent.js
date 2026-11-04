@@ -1847,11 +1847,8 @@ export class RouteAgent extends BaseAgent {
                         const formattedDepart = this._formatTime(newDepartMin);
                         if (formattedDepart) {
                             it.recommended_depart = formattedDepart;
-                            // P-fix #8 (2026-06-20): stitching 성공 = day stop1 기준 실제
-                            //   출발시각 도출 → 더 이상 추정값 아님. depart_estimated 해제
-                            //   (있었다면). _enrichMultiCityDays 의 표준 fallback 이 셋했던
-                            //   추정 마킹을 여기서 신뢰 가능한 값으로 승격.
-                            if ('depart_estimated' in it) it.depart_estimated = false;
+                            // A calculated connection is not a verified train/bus/flight timetable.
+                            it.depart_estimated = true;
                             // arrival_at = depart + KTX/Air/Bus duration (intercity_transit.est_min)
                             if (Number.isFinite(it.est_min)) {
                                 const newArrivalMin = newDepartMin + Number(it.est_min);
@@ -2693,8 +2690,7 @@ export class RouteAgent extends BaseAgent {
                     recommended_depart: std.recommended_depart,
                     arrival_at: stdArrival,
                     // P-fix #8: 표준 depart/arrival 은 추정값(실제 열차 시간표 아님).
-                    //   P113 stitching 이 day stop1 기준으로 덮어쓰면 false 로 내려간다.
-                    //   stitching 실패 시 UI/PDF 가 "추정" 표시 → KTX 놓침 risk 차단.
+                    // Table-based and calculated departures both remain estimates.
                     depart_estimated: true,
                     instruction: `${prevCity} → ${dCity} via ${std.mode} (~${Math.round(std.est_min/60*10)/10}h, ₩${std.est_fare_krw.toLocaleString()})`,
                     booking_url: std.booking_url,

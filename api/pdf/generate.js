@@ -19,6 +19,7 @@ import { throttledTelegramAlert } from '../_shared/telegram-throttle.js';
 // PR #421 (CZ2): consolidate escapeHtml — same impl as the inline one below,
 // now sourced from api/_shared/escape.js to share with _send-email.js etc.
 import { escapeHtml } from '../_shared/escape.js';
+import { intercityEvidenceNotices } from '../../src/lib/intercityEvidence.js';
 // 2026-07-28: 손님이 실제로 받는 PDF 가 서버판인데 식당(할랄/비건)·예산표·번역이 없었다.
 //   섹션 빌더는 _shared/pdf-sections.js 로 분리(프론트 정본 pdfGenerator.ts 의 미러).
 import {
@@ -368,6 +369,11 @@ export function buildPlanHtml(plan) {
     const day = days[di];
     body += `<div class="day"><div class="day-title">${escapeHtml(L.day)} ${day.day || di + 1}: ${escapeHtml(day.theme || '')}</div>`;
     const stops = day.stops || [];
+    if (day.intercity_transit && (day.intercity_transit.mode || day.intercity_transit.method)) {
+      for (const notice of intercityEvidenceNotices(day.intercity_transit, lang)) {
+        body += `<p class="stop-tip">${escapeHtml(notice)}</p>`;
+      }
+    }
     for (const stop of stops) {
       const name = stop.display_name || stop.name || stop.name_ko || stop.name_en || '';
       // 카테고리 색 바 — 웹/클라 PDF 와 같은 팔레트라 한눈에 종류가 구분된다.

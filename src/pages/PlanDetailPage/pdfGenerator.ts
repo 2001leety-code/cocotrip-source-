@@ -1,4 +1,5 @@
 import { visitNotice } from '@/lib/visitNotice.js';
+import { intercityEvidenceNotices } from '@/lib/intercityEvidence.js';
 // PDF download generator. LOCKED region — extracted verbatim from
 // src/pages/PlanDetailPage.tsx (L155-348) during P2 Lock release.
 //
@@ -733,6 +734,8 @@ export async function generatePDF(
       const fareTpl = icLabels.fare || 'KRW {{krw}} / pax';
       const bookTpl = icLabels.book || 'Book';
       const titleText = titleTpl.replace('{{mode}}', modeStr);
+      const evidenceHtml = intercityEvidenceNotices(ic, lang)
+        .map((notice) => `<p style="font-size:10.5px;color:${C.muted};margin:6px 0 0;line-height:1.4;">${notice}</p>`).join('');
       const fromCity = String(ic.from_city_display || ic.from_city || '');
       const toCity = String(ic.to_city_display || ic.to_city || '');
       const departText = ic.recommended_depart ? departTpl.replace('{{time}}', String(ic.recommended_depart)) : '';
@@ -750,6 +753,7 @@ export async function generatePDF(
           ${[departText, arriveText, durationText, fareText].filter(Boolean).join('  ·  ')}
         </p>
         ${instruction}
+        ${evidenceHtml}
         ${bookLink}
       </div>`;
     }
