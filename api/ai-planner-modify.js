@@ -394,6 +394,11 @@ export function applyStopSwap({ itinerary, classified, dietPrefs, foodIndex, are
   //   order·start_time·stay_min·category 등 일정 값은 그대로.
   const swapped = { ...oldStop };
   applyFoodRowToStop(swapped, matched, { diets: safetyDiets(dietPrefs), language });
+  // verified_lunch matching has already required canServeMeal on the new row.
+  // A former cafe's role belongs to the replaced venue, not this restaurant.
+  delete swapped.cafe_not_meal;
+  delete swapped._blockMealRole;
+  delete swapped._blockMealPreferredMin;
   swapped.dietary_tags = matchedTags; // tag·dietary_tags 둘 다 정규화(프로덕션 r.tag 단일 문자열) — 옛 식당 태그 폴백 금지
   if (matched.tag) swapped.tag = matched.tag; else delete swapped.tag; // 프로덕션 원본 필드(downstream 일관성) — 새 행 기준
   swapped.personalization_reasoning = `Swap (user-requested): ${classified.raw_text.slice(0, 60)}`;

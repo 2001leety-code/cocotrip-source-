@@ -63,12 +63,12 @@ function exemptDay(extra: AnyRec = {}): AnyRec {
   };
 }
 
-async function callModify(day: AnyRec, text: string) {
+async function callModify(day: AnyRec, text: string, followingDays: AnyRec[] = []) {
   store.plan = {
     uid: 'u1',
-    itinerary: { days: [day], departure_guide: { airport: 'PUS' } },
+    itinerary: { days: [day, ...followingDays], departure_guide: { airport: 'PUS' } },
     input: { language: 'en', area: 'busan', regions: ['busan'], dietary: [], arrival_airport: 'ALREADY', departure_airport: 'PUS', arrival_time: '09:00',
-      departure_time: DEP, tour_start_time: '09:00', tour_end_time: '21:00', durationDays: 1, arrival_rest_day: false, meal_windows: MW },
+      departure_time: DEP, tour_start_time: '09:00', tour_end_time: '21:00', durationDays: 1 + followingDays.length, arrival_rest_day: false, meal_windows: MW },
   };
   store.saved = null;
   let status = 0; let out = '';
@@ -265,4 +265,23 @@ it('empty-airport block proof uses the earlier route bound, not immigration esti
   const c = departureMealContext({ durationDays: 1, arrival_time: '15:20', arrival_airport: '', departure_time: '23:00', departure_airport: 'PUS' }, 'busan');
   expect(proveDepartureMealExemption('dinner', 90, c)).toBeNull();
   expect(proveDepartureMealExemption('dinner', 150, c)).toEqual({ from: '17:00', stay: 150 });
+});
+
+it('two-day saved plan: changing day one restaurant preserves day two and its departure proof', async () => {
+  const day1 = { day: 1, city: 'busan', stops: [
+    { order: 1, category: 'lodging', name: 'Hotel', start_time: '10:00' },
+    { order: 2, category: 'food', name: 'Old Lunch', start_time: '12:00', stay_min: 60 },
+    { order: 3, category: 'culture', name: 'Museum', start_time: '14:00', stay_min: 60 },
+    { order: 4, category: 'food', name: 'Dinner', start_time: '18:00', stay_min: 60 },
+    { order: 5, category: 'lodging', name: 'Hotel', start_time: '20:00' },
+  ] };
+  const day2 = exemptDay({ day: 2 });
+  const result = await callModify(day1, 'Day 1 change restaurant', [structuredClone(day2)]);
+  expect(result.status, JSON.stringify(result.body)).toBe(200);
+  expect(result.saved.itinerary.days).toHaveLength(2);
+  expect(result.saved.itinerary.days[0].stops[1].name).not.toBe('Old Lunch');
+  const savedDay2 = result.saved.itinerary.days[1];
+  expect(savedDay2.stops.map((s: AnyRec) => [s.name, s.start_time])).toEqual(day2.stops.map((s: AnyRec) => [s.name, s.start_time]));
+  expect(savedDay2.exempt_meals).toEqual(day2.exempt_meals);
+  expect(savedDay2.exempt_meal_basis).toEqual(day2.exempt_meal_basis);
 });
