@@ -135,13 +135,20 @@ const CITY_KEY_TO_KO: Record<string, string> = {
 
 /* ── Hotels ──────────────────────────────────────────── */
 export function buildAccommodationLinks(hotelName: string, region: string) {
-  const cityId = CITY_IDS[region] != null ? CITY_IDS[region] : CITY_IDS.Seoul;
-  const keyword = encodeURIComponent(hotelName);
+  const regionName = String(region || '').trim();
+  const cityKey = Object.keys(CITY_KEY_TO_KO).find((key) =>
+    key === regionName.toLowerCase() || CITY_KEY_TO_KO[key] === regionName);
+  const canonicalRegion = cityKey ? CITY_KEY_TO_REGION[cityKey] : undefined;
+  const cityId = canonicalRegion ? CITY_IDS[canonicalRegion] : undefined;
+  // An unknown district/city is a keyword, never evidence for a Seoul filter.
+  const query = cityId != null ? hotelName : [regionName, hotelName].filter(Boolean).join(' ');
+  const keyword = encodeURIComponent(query);
+  const cityFilter = cityId != null ? `city=${cityId}&` : '';
   return [
     {
       provider: 'tripcom',
       label: 'Trip.com Hotels',
-      url: `${AFFILIATE_CONFIG.tripcom.hotel}?city=${cityId}&keyword=${keyword}&${TRIP_AFF}`,
+      url: `${AFFILIATE_CONFIG.tripcom.hotel}?${cityFilter}keyword=${keyword}&${TRIP_AFF}`,
       color: '#0073E6',
     },
   ];
