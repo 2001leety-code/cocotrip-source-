@@ -1,5 +1,4 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { writeFileSync } from 'node:fs';
 vi.mock('axios', () => ({ default: { get: vi.fn(async () => { throw new Error('offline'); }), post: vi.fn(async () => { throw new Error('offline'); }) } }));
 vi.mock('../../api/_shared/llm/index.js', () => ({ createLlmModel: () => { throw new Error('no paid LLM'); }, resolveLlmModel: () => 'mock' }));
 vi.mock('../../api/_transit_provider.js', () => ({ searchTransit: vi.fn(async () => null), getTransitProvider: () => 'odsay' }));
@@ -21,7 +20,6 @@ describe('offline ten-day three-city transport probe (no live timetable evidence
   const local = vi.spyOn(RouteAgent.prototype as AnyRec,'_getTransitData').mockImplementation(async()=>({durationMin:20,verifiedRouteDurationMin:20,verifiedRouteSegment:{method:'bus'},distanceKm:2,drivingMin:15,publicTransit:available?{method:'bus',duration:20,fare:1500,summary:'MOCK local connection',steps:[]}:null}));
   vi.spyOn(RouteAgent.prototype as AnyRec,'_routeAirportHotel').mockResolvedValue(null);
   const input:AnyRec=fixture(); if(available){ input.itinerary.days[4].intercity_transit={mode:'KTX',from_city:'Seoul',to_city:'Busan',est_min:165,recommended_depart:'09:00',arrival_at:'11:45',depart_estimated:false}; input.itinerary.days[7].intercity_transit={mode:'Bus',from_city:'Busan',to_city:'Gyeongju',est_min:60,recommended_depart:'09:00',arrival_at:'10:00'}; } const result=await new RouteAgent('mock').call(JSON.stringify(input)); const out=JSON.parse(result.rawOutput);
-  writeFileSync(`E:/ai에이젼시만들기/handoff-local/r53-ten-day-${available?'available':'unavailable'}.json`,JSON.stringify(out,null,2));
   expect(out.itinerary.days).toHaveLength(10); expect(out.itinerary.days.map((d:AnyRec)=>d.city)).toEqual(cities);
   expect(out.itinerary.days.filter((d:AnyRec)=>d.intercity_transit)).toHaveLength(2);
   for(const index of [4,7]){ const day=out.itinerary.days[index], t=day.intercity_transit;
@@ -46,7 +44,6 @@ it('missing station coordinates do not fabricate lodging-to-station links', asyn
  vi.spyOn(RouteAgent.prototype as AnyRec,'_routeAirportHotel').mockResolvedValue(null);
  const input:AnyRec=fixture(); input.itinerary.days[4].intercity_transit={mode:'KTX',from_city:'Seoul',to_city:'Busan',from_station:'UNREGISTERED_SOURCE_STATION',to_station:'UNREGISTERED_TARGET_STATION',est_min:165,recommended_depart:'09:00',arrival_at:'11:45',depart_estimated:true};
  const out=JSON.parse((await new RouteAgent('mock').call(JSON.stringify(input))).rawOutput);
- writeFileSync('E:/ai에이젼시만들기/handoff-local/r53-ten-day-missing-stations.json',JSON.stringify(out,null,2));
  expect(out.itinerary.days).toHaveLength(10);
  expect(out.itinerary.days[4].intercity_transit.lodging_to_station).toBeUndefined();
  expect(out.itinerary.days[4].intercity_transit.station_to_lodging).toBeUndefined();
