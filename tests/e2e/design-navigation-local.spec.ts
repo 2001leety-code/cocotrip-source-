@@ -25,6 +25,7 @@ async function setupPage(page: Page) {
   }, BASE.origin);
 
   const writes: string[] = [];
+  await page.routeWebSocket('**/*', socket => socket.close());
   await page.route('**/*', (route) => {
     const request = route.request();
     const url = new URL(request.url());

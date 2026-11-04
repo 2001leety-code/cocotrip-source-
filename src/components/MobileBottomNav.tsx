@@ -90,5 +90,5 @@ export function MobileBottomNav() {
 export function MobileBottomSpacer() {
   const location = useLocation();
   if (location.pathname.startsWith('/admin') || location.pathname === '/community' || location.pathname.startsWith('/community/')) return null;
-  return <div aria-hidden="true" className="md:hidden" style={{ height: 'calc(72px + env(safe-area-inset-bottom, 0px))' }} />;
+  return <div aria-hidden="true" className="md:hidden h-[72px]" style={{ height: 'calc(72px + env(safe-area-inset-bottom, 0px))' }} />;
 }

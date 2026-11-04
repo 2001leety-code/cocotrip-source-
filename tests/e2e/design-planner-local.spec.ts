@@ -27,6 +27,7 @@ async function setupPage(page: Page, lang: Lang, width: number) {
   const writes: string[] = [];
   const pageErrors: string[] = [];
   page.on('pageerror', (error) => pageErrors.push(error.message));
+  await page.routeWebSocket('**/*', socket => socket.close());
   await page.route('**/*', (route) => {
     const request = route.request();
     const url = new URL(request.url());

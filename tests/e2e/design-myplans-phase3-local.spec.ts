@@ -24,6 +24,7 @@ async function isolate(page: Page, width: number, language: Language = 'ko') {
   const errors: string[] = [];
   const writes: string[] = [];
   page.on('pageerror', (error) => errors.push(error.message));
+  await page.routeWebSocket('**/*', socket => socket.close());
   await page.route('**/*', (route) => {
     const req = route.request();
     const url = new URL(req.url());
