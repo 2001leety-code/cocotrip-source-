@@ -1,3 +1,4 @@
+import { isPreviewOperatorSuppressed, suppressedOperatorReceipt } from './_shared/preview-egress-policy.js';
 /**
  * POST /api/notify-claim
  *
@@ -23,6 +24,7 @@ export const config = { runtime: 'nodejs' };
 const _rateDb = initAdminDb('notify-claim');
 
 export default async function handler(req, res) {
+  if (isPreviewOperatorSuppressed()) return res.status(200).json(suppressedOperatorReceipt());
   if (req.method !== 'POST') {
     res.status(405).json({ ok: false, error: 'POST only' });
     return;

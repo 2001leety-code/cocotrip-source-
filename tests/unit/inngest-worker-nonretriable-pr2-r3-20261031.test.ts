@@ -3,7 +3,7 @@
  *   사유 코드·상세를 저장하고 무료 AI 쿠폰을 되살린다. 코드 없는 일반 실패는 종전대로(재시도·쿠폰 유지).
  *   step 오류는 설치된 SDK 의 실제 serializeError → JSON → StepError 로 왕복시킨 뒤 onFailure 에 넘긴다.
  */
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
@@ -91,5 +91,24 @@ describe('r3-11 — deterministic 422 in the worker: no retry, reason code store
     expect((buildPlanAiCompletePayload({ ...base, consumedCoupon: { uid: 'u1', code: 'C', consumptionId: 'cons-1', extra: 'x' } }) as { ctx: Record<string, unknown> }).ctx.consumedCoupon).toEqual({ uid: 'u1', code: 'C', consumptionId: 'cons-1' });
     expect('consumedCoupon' in (buildPlanAiCompletePayload({ ...base, consumedCoupon: null }) as { ctx: Record<string, unknown> }).ctx).toBe(false);
     expect(readFileSync(resolve(process.cwd(), 'api/_ai_core/handlerCore.js'), 'utf8')).toContain('consumedCoupon: consumedCouponInfo })) { issuance.handOff(); return; }');
+  });
+});
+
+
+describe('Preview worker suppression before all business effects', () => {
+  afterEach(() => vi.unstubAllEnvs());
+  it('does not execute route steps or persist a directly invoked Preview job', async () => {
+    vi.stubEnv('VERCEL_ENV', 'preview');
+    vi.stubEnv('PREVIEW_OPERATOR_NOTIFICATIONS_SUPPRESS', 'true');
+    const step = { run: vi.fn(() => { throw new Error('Business work forbidden'); }) };
+    expect(await worker.fn({ event: { data: eventData }, step, logger })).toMatchObject({ status: 'suppressed', ok: false });
+    expect(step.run).not.toHaveBeenCalled(); expect(sets).toHaveLength(0);
+    expect(pipelineMocks.savePlan).not.toHaveBeenCalled();
+  });
+  it('does not mutate plans/coupons or notify from a Preview failure callback', async () => {
+    vi.stubEnv('VERCEL_ENV', 'preview');
+    vi.stubEnv('PREVIEW_OPERATOR_NOTIFICATIONS_SUPPRESS', 'true');
+    expect(await worker.onFailureFn({ event: { data: { event: { data: eventData } } }, error: new Error('fixture') })).toMatchObject({ status: 'suppressed', ok: false });
+    expect(sets).toHaveLength(0); expect(restoreAiPlanCoupon).not.toHaveBeenCalled();
   });
 });

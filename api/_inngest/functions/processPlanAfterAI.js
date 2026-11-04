@@ -1,3 +1,4 @@
+import { isPreviewOperatorSuppressed, suppressedOperatorReceipt } from '../../_shared/preview-egress-policy.js';
 /**
  * Inngest worker — P220 (2026-05-26).
  *
@@ -122,6 +123,7 @@ export const processPlanAfterAI = inngest.createFunction(
     // 마킹 → 사용자 stuck 노출 단축 (P292 30분 sweep net 보완).
     // SAFETY (CLAUDE.md J): dietary validation 무관 — Firestore status mark 만.
     onFailure: async ({ event, error }) => {
+      if (isPreviewOperatorSuppressed()) return suppressedOperatorReceipt();
       const planId = event?.data?.event?.data?.planId || event?.data?.planId;
       if (!planId) {
         console.warn('[P307] onFailure: planId 없음 — skip');
@@ -193,6 +195,7 @@ export const processPlanAfterAI = inngest.createFunction(
     },
   },
   async ({ event, step, logger }) => {
+    if (isPreviewOperatorSuppressed()) return suppressedOperatorReceipt();
     const { planId: eventPlanId, itinerary, ctx } = event.data;
     const startMs = Date.now();
     logger.info(`[P220] worker start: planId=${eventPlanId || '(new)'}, days=${(itinerary?.days || []).length}`);

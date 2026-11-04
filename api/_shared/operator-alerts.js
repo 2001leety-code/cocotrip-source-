@@ -1,3 +1,4 @@
+import { isPreviewOperatorSuppressed, suppressedOperatorReceipt } from './preview-egress-policy.js';
 /**
  * CocoTripKR — 운영자 텔레그램 알림 헬퍼 (PR-G)
  *
@@ -51,6 +52,7 @@ const VALID_CATEGORIES = new Set(Object.keys(CATEGORY_LABELS));
  * @returns {Promise<{ ok: boolean, category: string, error?: string, messageId?: number }>}
  */
 export async function notifyOperator(category, body, options = {}) {
+  if (isPreviewOperatorSuppressed()) return suppressedOperatorReceipt();
   if (!VALID_CATEGORIES.has(category)) {
     console.error(`[operator-alerts] unknown category: ${category}`);
     return { ok: false, category, error: 'invalid_category' };

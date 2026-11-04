@@ -1,3 +1,4 @@
+import { isPreviewOperatorSuppressed, suppressedOperatorReceipt } from './_shared/preview-egress-policy.js';
 /**
  * CocoTripKR — Telegram Bot 알림 모듈
  *
@@ -20,6 +21,7 @@ const TELEGRAM_API = 'https://api.telegram.org';
  * @returns {object} API 응답
  */
 export async function sendMessage(text, options = {}) {
+  if (isPreviewOperatorSuppressed()) return suppressedOperatorReceipt();
   // 디스코드 미러 (DISCORD_WEBHOOK_URL 설정 시). 텔레그램과 병렬 — 지연 0, finally 에서 완료 보장.
   const discordMirror = sendDiscord(text);
   try {
@@ -63,6 +65,7 @@ export async function sendMessage(text, options = {}) {
  * @param {string} text
  */
 export async function sendLongMessage(text) {
+  if (isPreviewOperatorSuppressed()) return suppressedOperatorReceipt();
   const MAX_LEN = 4096;
   if (text.length <= MAX_LEN) {
     return sendMessage(text);

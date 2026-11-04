@@ -19,7 +19,7 @@
 
 import { captureError } from './_shared/sentry.js';
 import { isPreviewEmailSuppressed, suppressedEmailReceipt } from './_shared/email-delivery-policy.js';
-import { isPreviewSheetsSuppressed, suppressedSheetsReceipt } from './_shared/preview-egress-policy.js';
+import { isPreviewOperatorSuppressed, isPreviewSheetsSuppressed, suppressedSheetsReceipt } from './_shared/preview-egress-policy.js';
 import { initAdminDb } from './_shared/firebase-admin.js';
 import { appendBooking, updateBookingStatus } from './_google-sheets.js';
 // 2026-05-04: telegram 2-채널 분리 후 sendBookingAlert / generateBookingAlert / notify
@@ -489,6 +489,7 @@ const originalHandler = async (event) => {
   //   선점 결과가 already_completed / in_flight / outcome_unknown / store_unavailable 이면 전송하지 않는다.
   //   알림 결과는 처리기 응답·예약 상태를 바꾸지 않는다.
   async function sendTelegramChannel(field, send) {
+    if (isPreviewOperatorSuppressed()) return 'suppressed';
     const claim = await claimBookingStep(orderID, field);
     if (!claim.claimed) return `skip:${claim.reason}`;
     let result;
@@ -520,7 +521,9 @@ const originalHandler = async (event) => {
       sendTelegramChannel(BOOKING_STEP_MARKERS.telegramDispatch, sendDispatchAlert),
       sendTelegramChannel(BOOKING_STEP_MARKERS.telegramPayment, sendBookingPaymentAlert),
     ]);
-    if (dispatchState === 'sent' && paymentState === 'sent') {
+    if (dispatchState === 'suppressed' && paymentState === 'suppressed') {
+      results.steps.telegram = 'suppressed';
+    } else if (dispatchState === 'sent' && paymentState === 'sent') {
       results.steps.telegram = 'ok';
     } else if (dispatchState.startsWith('skip:') && paymentState.startsWith('skip:')) {
       results.steps.telegram = `skip: dispatch=${dispatchState} payment=${paymentState}`;
@@ -540,7 +543,9 @@ const originalHandler = async (event) => {
   //
   // ENV 게이트: AUTO_DISPATCH_BROADCAST=1 일 때만 활성. prod 도입 전 단계적 롤아웃.
   // booking.bookingRef 가 곧 bookings 도큐먼트 ID (booking-processor 호출처 보장).
-  if (process.env.AUTO_DISPATCH_BROADCAST === '1') {
+  if (isPreviewOperatorSuppressed()) {
+    results.steps.dispatchBroadcast = 'suppressed';
+  } else if (process.env.AUTO_DISPATCH_BROADCAST === '1') {
     try {
       const orderID = booking.bookingRef;
       if (!orderID) {

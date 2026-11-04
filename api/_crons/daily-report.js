@@ -1,3 +1,4 @@
+import { isPreviewOperatorSuppressed, suppressedOperatorReceipt } from '../_shared/preview-egress-policy.js';
 /**
  * CocoTripKR — 일일 모닝 리포트 (Vercel Cron)
  *
@@ -138,6 +139,7 @@ function aggregateByProduct(rows) {
 
 // ── 메인 ─────────────────────────────────────────────────────────────
 const dailyReportTask = async () => {
+  if (isPreviewOperatorSuppressed()) return { statusCode: 200, body: suppressedOperatorReceipt() };
   console.log('[daily-report] 모닝 리포트 시작');
   const kst = new Date(Date.now() + 9 * 60 * 60 * 1000);
   const dateStr = kst.toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric' });

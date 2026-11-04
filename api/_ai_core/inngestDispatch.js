@@ -1,3 +1,4 @@
+import { isPreviewOperatorSuppressed } from '../_shared/preview-egress-policy.js';
 /**
  * Inngest dispatch helper — P220 (2026-05-26).
  *
@@ -67,6 +68,7 @@ export function shouldDispatchToInngest() {
  *   - alert telegram — 외부 의존성 down 추적.
  */
 export async function publishPlanAiComplete(payload) {
+  if (isPreviewOperatorSuppressed()) throw Object.assign(new Error('Preview worker dispatch is disabled'), { code: 'PREVIEW_WORKER_DISABLED' });
   try {
     const result = await inngest.send({
       name: INNGEST_EVENTS.PLAN_AI_COMPLETE,

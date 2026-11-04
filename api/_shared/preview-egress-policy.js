@@ -14,3 +14,13 @@ export function suppressedSheetsReceipt() {
 export function suppressedPushReceipt() {
   return { status: 'suppressed', reason: 'preview_policy', suppressed: true, delivery: 'not_attempted', sent: 0, total: 0, retryable: false };
 }
+
+/** Operator channels and Preview workers require a separate explicit server flag. */
+export function isPreviewOperatorSuppressed(env = process.env) {
+  return env.VERCEL_ENV === 'preview' && env.PREVIEW_OPERATOR_NOTIFICATIONS_SUPPRESS === 'true';
+}
+
+export function suppressedOperatorReceipt() {
+  return { ok: false, status: 'suppressed', reason: 'preview_policy', suppressed: true,
+    delivery: 'not_attempted', alerted: false, retryable: false };
+}

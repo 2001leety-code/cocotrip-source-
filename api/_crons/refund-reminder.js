@@ -1,3 +1,4 @@
+import { isPreviewOperatorSuppressed, suppressedOperatorReceipt } from '../_shared/preview-egress-policy.js';
 import { isPreviewEmailSuppressed, suppressedEmailReceipt, isEmailSuppressed } from '../_shared/email-delivery-policy.js';
 /**
  * CocoTripKR — Free Cancellation Deadline Reminder (Vercel Cron)
@@ -266,6 +267,7 @@ function buildReminderEmail(booking, lang) {
 
 // ── Telegram 운영자 알림 (best-effort) ────────────────────────────────
 async function sendOperatorSummary({ targetDate, sentCount, skippedCount, errorCount }) {
+  if (isPreviewOperatorSuppressed()) return suppressedOperatorReceipt();
   try {
     const token = process.env.TELEGRAM_BOT_TOKEN;
     const chatId = process.env.TELEGRAM_CHAT_ID;

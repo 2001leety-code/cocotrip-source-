@@ -1,3 +1,4 @@
+import { isPreviewOperatorSuppressed, suppressedOperatorReceipt } from './_shared/preview-egress-policy.js';
 /**
  * Vercel API Route: Modify Booking
  * POST /api/modifyBooking
@@ -91,6 +92,7 @@ function getDb() {
 }
 
 async function notifyTelegram(msg) {
+  if (isPreviewOperatorSuppressed()) return suppressedOperatorReceipt();
   const discordMirror = sendDiscord(msg); // 디스코드 미러 (병렬 — 텔레그램/예약수정 응답 지연 0)
   try {
     const token  = process.env.TELEGRAM_BOT_TOKEN;

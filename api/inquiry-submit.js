@@ -1,3 +1,4 @@
+import { isPreviewOperatorSuppressed, suppressedOperatorReceipt } from './_shared/preview-egress-policy.js';
 /**
  * POST /api/inquiry-submit
  *
@@ -75,6 +76,7 @@ function resolveInquiryChannel() {
 }
 
 async function notifyInquiry(text) {
+  if (isPreviewOperatorSuppressed()) return suppressedOperatorReceipt();
   const { token, chatId, tokenSource, chatSource } = resolveInquiryChannel();
   if (!token || !chatId) {
     console.warn('[inquiry-submit] InquiryCHAT_BOT not configured — token:', tokenSource, 'chat:', chatSource);

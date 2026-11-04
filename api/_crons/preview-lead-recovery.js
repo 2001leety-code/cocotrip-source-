@@ -1,3 +1,4 @@
+import { isPreviewOperatorSuppressed, suppressedOperatorReceipt } from '../_shared/preview-egress-policy.js';
 import { isPreviewEmailSuppressed, suppressedEmailReceipt, isEmailSuppressed } from '../_shared/email-delivery-policy.js';
 /**
  * CocoTripKR — 무료 미리보기 이탈 회복 이메일 (Vercel Cron).
@@ -114,6 +115,7 @@ export function buildRecoveryEmail(lead, unsubscribeUrl) {
 }
 
 async function sendOperatorSummary({ matchedCount, sentCount, optOutSkipCount, convertedCount, errorCount, dryRun }) {
+  if (isPreviewOperatorSuppressed()) return suppressedOperatorReceipt();
   try {
     const token = process.env.TELEGRAM_BOT_TOKEN;
     const chatId = process.env.TELEGRAM_CHAT_ID;

@@ -142,3 +142,17 @@ describe('booking-processor telegram — per-channel idempotency', () => {
     expect(telegramStep(r)).toContain('store_unavailable');
   });
 });
+
+
+it('Preview operator suppression performs no Telegram claims or successful/unknown delivery markers', async () => {
+  vi.stubEnv('PREVIEW_OPERATOR_NOTIFICATIONS_SUPPRESS', 'true');
+  try {
+    const result = await run();
+    expect(telegramStep(result)).toBe('suppressed');
+    expect(result.body.data.steps.dispatchBroadcast).toBe('suppressed');
+    expect(dispatchAlert).not.toHaveBeenCalled(); expect(paymentAlert).not.toHaveBeenCalled();
+    for (const field of ['telegramDispatchSentAt', 'telegramDispatchSentAtState', 'telegramPaymentSentAt', 'telegramPaymentSentAtState']) {
+      expect(db.__get(PATH)).not.toHaveProperty(field);
+    }
+  } finally { vi.unstubAllEnvs(); }
+});

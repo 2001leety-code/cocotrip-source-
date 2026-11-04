@@ -1,3 +1,4 @@
+import { isPreviewOperatorSuppressed } from './preview-egress-policy.js';
 /**
  * CocoTripKR — Telegram Bot 공통 헬퍼 (멀티 봇 지원)
  *
@@ -18,6 +19,7 @@ const TELEGRAM_API = 'https://api.telegram.org';
  * @param {object} payload - method 별 파라미터
  */
 export async function callBot(botToken, method, payload) {
+  if (isPreviewOperatorSuppressed()) throw Object.assign(new Error('Preview bot delivery suppressed'), { code: 'PREVIEW_NOTIFICATION_SUPPRESSED', retryable: false });
   if (!botToken) throw new Error('botToken required');
   const res = await fetch(`${TELEGRAM_API}/bot${botToken}/${method}`, {
     method: 'POST',

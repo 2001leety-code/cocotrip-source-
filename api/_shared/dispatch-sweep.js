@@ -1,3 +1,4 @@
+import { isPreviewOperatorSuppressed, suppressedOperatorReceipt } from './preview-egress-policy.js';
 /**
  * Dispatch timeout sweep — 만료된 배차 메시지 자동 거절 처리.
  *
@@ -35,6 +36,7 @@ const TIMEOUT_MS = 10 * 60 * 1000; // 10분
  * @returns {Promise<{ swept: number, errors: number }>}
  */
 export async function sweepExpiredDispatches(opts = {}) {
+  if (isPreviewOperatorSuppressed()) return { ...suppressedOperatorReceipt(), swept: 0, errors: 0 };
   const { driverBotToken, adminBotToken, adminChatId, maxBatch = 20 } = opts;
   if (!driverBotToken) {
     return { swept: 0, errors: 0, skipped: 'no driver bot token' };
