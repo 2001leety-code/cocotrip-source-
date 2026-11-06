@@ -31,7 +31,7 @@ on:
         default: false
         type: boolean
       preflight_mode:
-        description: 'auth/identity are read-only; meal7 runs one unpaid 7-day meal precheck'
+        description: 'auth/identity read-only; meal7 unpaid check; quick7to15 paid Day-1 previews only'
         required: false
         default: auth
         type: choice
@@ -39,6 +39,7 @@ on:
           - auth
           - identity
           - meal7
+          - quick7to15
   # docs/test/script/workflow only PR 도 통과시키기 위해 pull_request fallback.
   # pr-i18n-smoke 와 동일 paths 패턴.
   pull_request:
@@ -174,7 +175,7 @@ jobs:
   preview-auth-preflight:
     if: github.event_name == 'workflow_dispatch' && inputs.auth_preflight == true
     runs-on: ubuntu-24.04
-    timeout-minutes: 6
+    timeout-minutes: ${{ inputs.preflight_mode == 'quick7to15' && 12 || (inputs.preflight_mode == 'meal7' && 6 || 3) }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -195,6 +196,7 @@ jobs:
             auth) node scripts/preview-auth-preflight.mjs ;;
             identity) node scripts/preview-auth-preflight.mjs --identity-only ;;
             meal7) node scripts/preview-auth-preflight.mjs --meal-only ;;
+            quick7to15) node scripts/preview-auth-preflight.mjs --quick-series ;;
             *) exit 2 ;;
           esac
       - name: Save sanitized readiness result

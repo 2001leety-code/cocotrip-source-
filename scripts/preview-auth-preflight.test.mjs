@@ -147,3 +147,54 @@ test('route-budget business failure is recorded and never retried', async () => 
   assert.equal(result.mealReason, 'MEAL_ROUTE_BUDGET_EXHAUSTED');
   assert.equal(calls, 2);
 });
+
+const previewBody = { ok: true, data: { marketingNarrative: 'Example preview narrative', themes: ['culture'], spotDetails: [{}, {}, {}], day1MarkdownTable: '| Time | Place |\n|---|---|\n|09:00|A|\n|12:00|B|\n|15:00|C|' } };
+test('quick series makes one request per duration and records Day1 separately', async () => {
+  const calls = [], progress = [];
+  const result = await preflight({ ...env, VERCEL_AUTOMATION_BYPASS_SECRET: 'example-deployment-access' }, async (url, options) => {
+    calls.push([url, options]);
+    assert.equal(url.includes('/api/ai-planner-full'), false);
+    assert.equal(url.includes('/api/meal-plan-draft'), false);
+    assert.equal(url.includes('/api/admin-operational-checks'), false);
+    if (calls.length === 1) return reply(200, { idToken: token() });
+    return reply(200, previewBody);
+  }, Date.now, { quickSeries: true, onProgress: (value) => progress.push(value) });
+  assert.equal(result.ok, true);
+  assert.equal(calls.length, 10);
+  assert.deepEqual(result.cases.map((entry) => entry.days), [7,8,9,10,11,12,13,14,15]);
+  assert.deepEqual(result.cases.map((entry) => entry.previewDaysGenerated), Array(9).fill(1));
+  assert.equal(result.cases.every((entry) => entry.tableDataRows === 3), true);
+  assert.equal(result.cases[0].endDate, '2026-11-25');
+  assert.equal(result.cases[8].endDate, '2026-12-03');
+  assert.equal(progress[0].cases[0].status, 'requested_outcome_unconfirmed');
+  for (const [url, options] of calls.slice(1)) {
+    assert.equal(url, env.BASE_URL + '/api/ai-planner-quick');
+    assert.equal(options.headers.Origin, env.BASE_URL);
+    assert.equal(options.headers['x-vercel-protection-bypass'], 'example-deployment-access');
+    assert.equal(JSON.parse(options.body).special_request.startsWith('TEST ONLY'), true);
+  }
+  for (const privateValue of [env.HEALTH_CHECK_EMAIL, env.HEALTH_CHECK_PASSWORD, token(), 'example-deployment-access']) assert.equal(JSON.stringify(result).includes(privateValue), false);
+});
+test('quick series stops on rate rejection without changing identity or retrying', async () => {
+  let calls = 0;
+  const result = await preflight(env, async () => {
+    calls++;
+    return calls === 1 ? reply(200, { idToken: token() }) : reply(429);
+  }, Date.now, { quickSeries: true });
+  assert.equal(calls, 2);
+  assert.equal(result.cases.length, 1);
+  assert.equal(result.cases[0].status, 'http_rejected_no_retry');
+  assert.equal(result.ok, false);
+});
+test('unknown preview network outcome is recorded and never resent', async () => {
+  let calls = 0;
+  const result = await preflight(env, async () => {
+    calls++;
+    if (calls === 1) return reply(200, { idToken: token() });
+    throw new Error('private-response-content');
+  }, Date.now, { quickSeries: true });
+  assert.equal(calls, 2);
+  assert.equal(result.cases[0].status, 'requested_outcome_unconfirmed');
+  assert.equal(result.ok, false);
+  assert.equal(JSON.stringify(result).includes('private-response-content'), false);
+});

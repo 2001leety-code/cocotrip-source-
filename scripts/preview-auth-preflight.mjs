@@ -7,9 +7,10 @@ const COURSE = 'TEST_CLAUDE_20261105_JONGNO_01';
 
 // Normal existing-account Firebase password login, as in planner-smoke.mjs.
 // Default auth/identity checks are read-only. Explicit --meal-only may update
-// Preview rate counters and save an unpaid meal draft. No model, full planner,
-// payment or new credential operations occur in this script.
-export async function preflight(env, fetcher = fetch, now = Date.now, { identityOnly = false, mealOnly = false } = {}) {
+// Preview rate counters and save an unpaid meal draft. No full-planner,
+// payment or new credential operations occur in this script. Explicit quick-series
+// mode makes bounded paid Day-1 preview requests, separate from full generation.
+export async function preflight(env, fetcher = fetch, now = Date.now, { identityOnly = false, mealOnly = false, quickSeries = false, onProgress = () => {} } = {}) {
   const result = { qaOrigin: ORIGIN, expectedProject: PROJECT, stage: 'configuration',
     ok: false, modelCalls: 0, dataWrites: 0, generationPermission: 'not_checked' };
   const stop = (code) => ({ ...result, code });
@@ -54,6 +55,66 @@ export async function preflight(env, fetcher = fetch, now = Date.now, { identity
     // Firebase Auth and Firestore continue to receive no Vercel credential.
     const qaHeaders = { ...headers, ...(deploymentCredential
       ? { 'x-vercel-protection-bypass': deploymentCredential } : {}) };
+    if (quickSeries) {
+      result.stage = 'day1_preview_series';
+      result.adminRequestSkipped = true;
+      result.modelCalls = 'requires_server_usage_evidence';
+      result.dataWrites = 'preview_rate_and_usage_counters';
+      result.planWrites = 0;
+      result.fullGeneration = 'not_requested';
+      result.previewIsOnlyDay1 = true;
+      result.maximumClientRequests = 9;
+      result.cases = [];
+      for (let days = 7; days <= 15; days++) {
+        const endDate = new Date(Date.UTC(2026, 10, 19 + days - 1)).toISOString().slice(0, 10);
+        const entry = { days, startDate: '2026-11-19', endDate,
+          testId: 'R90-Q' + String(days).padStart(2, '0') + '-20261106',
+          status: 'requested_outcome_unconfirmed', startedAtUtc: new Date(now()).toISOString() };
+        result.cases.push(entry);
+        onProgress(JSON.parse(JSON.stringify(result)));
+        const input = {
+          area: 'seoul', regions: ['Seoul'], durationDays: days, pax: 2,
+          startDate: '2026-11-19', endDate, language: 'en', reservation_status: 'nothing',
+          styles: ['Food Tour', 'Photo Spots', 'Palace'], priceRange: 'Moderate',
+          arrival_airport: 'ICN_T1', departure_airport: 'ICN_T1',
+          recommendedZone: 'myeongdong', tourStartTime: '09:00', tourEndTime: '21:00',
+          tourPace: 'full', dietaryRestrictions: [], suggestHotels: false,
+          special_request: 'TEST ONLY / ' + entry.testId + '. Diagnostic Preview test. No booking or notifications.',
+        };
+        const started = now();
+        const response = await request(ORIGIN + '/api/ai-planner-quick', {
+          method: 'POST', headers: { ...qaHeaders, 'Content-Type': 'application/json', Origin: ORIGIN },
+          body: JSON.stringify(input),
+        }, 70000);
+        entry.httpStatus = response.status;
+        entry.responseMs = now() - started;
+        entry.finishedAtUtc = new Date(now()).toISOString();
+        const trace = response.headers?.get?.('x-vercel-id');
+        if (typeof trace === 'string' && /^[a-zA-Z0-9:._-]{1,200}$/.test(trace)) entry.vercelTrace = trace;
+        if (response.status !== 200) {
+          entry.status = 'http_rejected_no_retry';
+          onProgress(JSON.parse(JSON.stringify(result)));
+          return stop('QUICK_SERIES_STOPPED_ON_HTTP_REJECTION');
+        }
+        const body = await response.json();
+        const data = body.data;
+        if (body.ok !== true || !data || typeof data.day1MarkdownTable !== 'string'
+          || typeof data.marketingNarrative !== 'string') {
+          entry.status = 'response_contract_not_confirmed';
+          onProgress(JSON.parse(JSON.stringify(result)));
+          return stop('QUICK_SERIES_STOPPED_ON_RESPONSE_CONTRACT');
+        }
+        entry.status = 'preview_success';
+        entry.previewDaysGenerated = 1;
+        entry.tableDataRows = Math.max(0, data.day1MarkdownTable.split('\n').filter((line) => line.trim().startsWith('|')).length - 2);
+        entry.narrativeCharacters = data.marketingNarrative.length;
+        entry.themeCount = Array.isArray(data.themes) ? data.themes.length : 0;
+        entry.spotDetailCount = Array.isArray(data.spotDetails) ? data.spotDetails.length : 0;
+        onProgress(JSON.parse(JSON.stringify(result)));
+      }
+      result.stage = 'complete';
+      return { ...result, ok: true, code: 'NINE_DAY1_PREVIEWS_COMPLETED_FULL_GENERATION_UNRUN' };
+    }
     if (mealOnly) {
       // A normal authenticated customer may request an unpaid meal precheck.
       // Do not request the denied admin endpoint or the paid/full generator.
@@ -135,7 +196,14 @@ export async function preflight(env, fetcher = fetch, now = Date.now, { identity
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
-  const result = await preflight(process.env, fetch, Date.now, { identityOnly: process.argv.includes('--identity-only'), mealOnly: process.argv.includes('--meal-only') });
+  const persistProgress = (value) => {
+    writeFileSync('preview-auth-result.json', JSON.stringify(value, null, 2) + '\n');
+    console.log(JSON.stringify(value));
+  };
+  const result = await preflight(process.env, fetch, Date.now, {
+    identityOnly: process.argv.includes('--identity-only'), mealOnly: process.argv.includes('--meal-only'),
+    quickSeries: process.argv.includes('--quick-series'), onProgress: persistProgress,
+  });
   writeFileSync('preview-auth-result.json', JSON.stringify(result, null, 2) + '\n');
   console.log(JSON.stringify(result));
   process.exitCode = result.ok ? 0 : 1;
