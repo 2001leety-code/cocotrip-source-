@@ -6,7 +6,9 @@ const PROJECT = 'cocotrip-preview-2026';
 const COURSE = 'TEST_CLAUDE_20261105_JONGNO_01';
 
 // Normal existing-account Firebase password login, as in planner-smoke.mjs.
-// No model, meal, payment, data-write or new credential operations occur here.
+// Default auth/identity checks are read-only. Explicit --meal-only may update
+// Preview rate counters and save an unpaid meal draft. No model, full planner,
+// payment or new credential operations occur in this script.
 export async function preflight(env, fetcher = fetch, now = Date.now, { identityOnly = false, mealOnly = false } = {}) {
   const result = { qaOrigin: ORIGIN, expectedProject: PROJECT, stage: 'configuration',
     ok: false, modelCalls: 0, dataWrites: 0, generationPermission: 'not_checked' };

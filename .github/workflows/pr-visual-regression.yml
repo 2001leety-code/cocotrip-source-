@@ -26,10 +26,19 @@ on:
         required: true
         type: string
       auth_preflight:
-        description: 'Check existing Preview Firebase auth and read permissions only; no generation'
+        description: 'Run the explicitly selected Preview check'
         required: false
         default: false
         type: boolean
+      preflight_mode:
+        description: 'auth/identity are read-only; meal7 runs one unpaid 7-day meal precheck'
+        required: false
+        default: auth
+        type: choice
+        options:
+          - auth
+          - identity
+          - meal7
   # docs/test/script/workflow only PR 도 통과시키기 위해 pull_request fallback.
   # pr-i18n-smoke 와 동일 paths 패턴.
   pull_request:
@@ -173,14 +182,21 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - name: Check one authorized seven-day unpaid meal precheck
+      - name: Run the explicitly selected Preview check
         env:
           BASE_URL: ${{ inputs.base_url }}
+          PREFLIGHT_MODE: ${{ inputs.preflight_mode }}
           FIREBASE_WEB_API_KEY: ${{ secrets.PREVIEW_FIREBASE_WEB_API_KEY }}
           HEALTH_CHECK_EMAIL: ${{ secrets.PREVIEW_HEALTH_CHECK_EMAIL }}
           HEALTH_CHECK_PASSWORD: ${{ secrets.PREVIEW_HEALTH_CHECK_PASSWORD }}
           VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
-        run: node scripts/preview-auth-preflight.mjs --meal-only
+        run: |
+          case "$PREFLIGHT_MODE" in
+            auth) node scripts/preview-auth-preflight.mjs ;;
+            identity) node scripts/preview-auth-preflight.mjs --identity-only ;;
+            meal7) node scripts/preview-auth-preflight.mjs --meal-only ;;
+            *) exit 2 ;;
+          esac
       - name: Save sanitized readiness result
         if: always()
         uses: actions/upload-artifact@v4
