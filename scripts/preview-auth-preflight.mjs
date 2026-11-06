@@ -16,6 +16,10 @@ export async function preflight(env, fetcher = fetch, now = Date.now) {
     .every((key) => typeof env[key] === 'string' && env[key].length > 0)) {
     return stop('EXISTING_PREVIEW_LOGIN_CONFIGURATION_MISSING');
   }
+  const deploymentCredential = env.VERCEL_AUTOMATION_BYPASS_SECRET || '';
+  if (typeof deploymentCredential !== 'string' || /[\r\n]/.test(deploymentCredential)) {
+    return stop('INVALID_EXISTING_DEPLOYMENT_CREDENTIAL');
+  }
   const request = (url, options) => fetcher(url, { ...options,
     redirect: 'error', signal: AbortSignal.timeout(20000) });
   try {
@@ -45,7 +49,11 @@ export async function preflight(env, fetcher = fetch, now = Date.now) {
     result.previewProjectMatches = true;
     const headers = { Authorization: 'Bearer ' + auth.idToken };
     result.stage = 'server_verified_admin_read';
-    const admin = await request(ORIGIN + '/api/admin-operational-checks', { method: 'GET', headers });
+    // The existing deployment credential is sent only to the exact QA host.
+    // Firebase Auth and Firestore continue to receive no Vercel credential.
+    const qaHeaders = { ...headers, ...(deploymentCredential
+      ? { 'x-vercel-protection-bypass': deploymentCredential } : {}) };
+    const admin = await request(ORIGIN + '/api/admin-operational-checks', { method: 'GET', headers: qaHeaders });
     result.adminReadHttp = admin.status;
     if (admin.status !== 200) return stop('AUTHENTICATED_ADMIN_READ_NOT_CONFIRMED');
     const adminBody = await admin.json();

@@ -59,3 +59,24 @@ test('HTTP200 without the actual admin contract cannot pass readiness', async ()
   assert.equal(result.code, 'ADMIN_READ_RESPONSE_NOT_CONFIRMED');
   assert.equal(calls, 2);
 });
+
+test('existing deployment credential is sent only to the exact QA host', async () => {
+  const secret = 'example-deployment-access';
+  const calls = [];
+  const result = await preflight({ ...env, VERCEL_AUTOMATION_BYPASS_SECRET: secret }, async (url, options) => {
+    calls.push([url, options]);
+    if (calls.length === 1) return reply(200, { idToken: token() });
+    if (calls.length === 2) return reply(200, { ok: true, data: {} });
+    return reply(404);
+  });
+  assert.equal(result.ok, true);
+  assert.equal(calls[0][1].headers['x-vercel-protection-bypass'], undefined);
+  assert.equal(calls[1][0], env.BASE_URL + '/api/admin-operational-checks');
+  assert.equal(calls[1][1].headers['x-vercel-protection-bypass'], secret);
+  assert.equal(calls[2][1].headers['x-vercel-protection-bypass'], undefined);
+  assert.equal(JSON.stringify(result).includes(secret), false);
+});
+test('malformed deployment credential stops before normal login', async () => {
+  const result = await preflight({ ...env, VERCEL_AUTOMATION_BYPASS_SECRET: 'bad\r\nheader' }, () => assert.fail('network'));
+  assert.equal(result.code, 'INVALID_EXISTING_DEPLOYMENT_CREDENTIAL');
+});
