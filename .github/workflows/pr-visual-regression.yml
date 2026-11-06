@@ -25,6 +25,11 @@ on:
         description: '검증 대상 preview URL (같은 앱 번들의 기존 배포)'
         required: true
         type: string
+      auth_preflight:
+        description: 'Check existing Preview Firebase auth and read permissions only; no generation'
+        required: false
+        default: false
+        type: boolean
   # docs/test/script/workflow only PR 도 통과시키기 위해 pull_request fallback.
   # pr-i18n-smoke 와 동일 paths 패턴.
   pull_request:
@@ -47,12 +52,13 @@ permissions:
 jobs:
   visual:
     if: |
-      github.event_name == 'pull_request' ||
-      github.event_name == 'workflow_dispatch' ||
-      (github.event_name == 'deployment_status' &&
-       github.event.deployment_status.state == 'success' &&
-       github.event.deployment.environment == 'Preview' &&
-       github.event.deployment.creator.login == 'vercel[bot]')
+      (github.event_name != 'workflow_dispatch' || inputs.auth_preflight != true) &&
+      (github.event_name == 'pull_request' ||
+       github.event_name == 'workflow_dispatch' ||
+       (github.event_name == 'deployment_status' &&
+        github.event.deployment_status.state == 'success' &&
+        github.event.deployment.environment == 'Preview' &&
+        github.event.deployment.creator.login == 'vercel[bot]'))
     # 2026-10-23: ubuntu-latest(=26.04 전환) 에서 chromium 설치가 7분 타임아웃·exit 100 으로 실패(#1448) — #1447 과 같은 이유로 고정.
     runs-on: ubuntu-24.04
     # 2026-08-19: 10 → 18 분 상향. 배경: pr-i18n-smoke 의 자매 job(`smoke`)이
@@ -155,3 +161,29 @@ jobs:
           name: visual-regression-report-pr-${{ github.run_id }}
           path: tests/visual-report
           retention-days: 14
+
+  preview-auth-preflight:
+    if: github.event_name == 'workflow_dispatch' && inputs.auth_preflight == true
+    runs-on: ubuntu-24.04
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Check normal Preview authentication and read permissions
+        env:
+          BASE_URL: ${{ inputs.base_url }}
+          FIREBASE_WEB_API_KEY: ${{ secrets.PREVIEW_FIREBASE_WEB_API_KEY }}
+          HEALTH_CHECK_EMAIL: ${{ secrets.PREVIEW_HEALTH_CHECK_EMAIL }}
+          HEALTH_CHECK_PASSWORD: ${{ secrets.PREVIEW_HEALTH_CHECK_PASSWORD }}
+        run: node scripts/preview-auth-preflight.mjs
+      - name: Save sanitized readiness result
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: preview-auth-preflight-${{ github.run_id }}
+          path: preview-auth-result.json
+          retention-days: 7
