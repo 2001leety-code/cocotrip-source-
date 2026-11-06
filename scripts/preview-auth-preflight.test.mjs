@@ -109,3 +109,41 @@ test('identity-only root denial stops without trying any privileged route', asyn
   assert.equal(result.code, 'QA_ROOT_ACCESS_NOT_CONFIRMED');
   assert.equal(calls, 2);
 });
+
+test('ordinary seven-day meal precheck does not call denied admin or full generator', async () => {
+  const calls = [];
+  const fixtureSecret = 'example-deployment-access';
+  const result = await preflight({ ...env, VERCEL_AUTOMATION_BYPASS_SECRET: fixtureSecret }, async (url, options) => {
+    calls.push([url, options]);
+    assert.equal(url.includes('/api/admin-operational-checks'), false);
+    assert.equal(url.includes('/api/ai-planner-full'), false);
+    if (calls.length === 1) return reply(200, { idToken: token() });
+    return { ...reply(200, { ok: true, status: 'opening_unconfirmed', draftId: 'private-draft-id', fingerprint: 'private-proof', revision: 'private-revision', referenceMeals: [{}, {}] }), headers: { get: () => 'example-request-id' } };
+  }, Date.now, { mealOnly: true });
+  assert.equal(result.ok, true);
+  assert.equal(calls.length, 2);
+  assert.equal(calls[1][0], env.BASE_URL + '/api/meal-plan-draft');
+  assert.equal(calls[1][1].headers['x-vercel-protection-bypass'], fixtureSecret);
+  assert.equal(calls[1][1].signal.aborted, false);
+  const sent = JSON.parse(calls[1][1].body);
+  assert.equal(sent.input.durationDays, 7);
+  assert.equal(sent.input.pax, 2);
+  assert.equal(sent.input.special_request.startsWith('TEST ONLY'), true);
+  assert.deepEqual(sent.input.dietaryRestrictions, []);
+  assert.equal(result.mealDraftSaved, true);
+  assert.equal(result.modelCalls, 0);
+  assert.equal(result.planWrites, 0);
+  const output = JSON.stringify(result);
+  for (const value of [fixtureSecret, 'private-draft-id', 'private-proof', 'private-revision', env.HEALTH_CHECK_EMAIL]) assert.equal(output.includes(value), false);
+});
+test('route-budget business failure is recorded and never retried', async () => {
+  let calls = 0;
+  const result = await preflight(env, async () => {
+    calls++;
+    if (calls === 1) return reply(200, { idToken: token() });
+    return reply(200, { ok: true, status: 'route_failed', reason: 'MEAL_ROUTE_BUDGET_EXHAUSTED' });
+  }, Date.now, { mealOnly: true });
+  assert.equal(result.ok, false);
+  assert.equal(result.mealReason, 'MEAL_ROUTE_BUDGET_EXHAUSTED');
+  assert.equal(calls, 2);
+});

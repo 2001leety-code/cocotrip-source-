@@ -165,7 +165,7 @@ jobs:
   preview-auth-preflight:
     if: github.event_name == 'workflow_dispatch' && inputs.auth_preflight == true
     runs-on: ubuntu-24.04
-    timeout-minutes: 3
+    timeout-minutes: 6
     steps:
       - uses: actions/checkout@v4
         with:
@@ -173,14 +173,14 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - name: Diagnose existing Preview identity and allowed read paths
+      - name: Check one authorized seven-day unpaid meal precheck
         env:
           BASE_URL: ${{ inputs.base_url }}
           FIREBASE_WEB_API_KEY: ${{ secrets.PREVIEW_FIREBASE_WEB_API_KEY }}
           HEALTH_CHECK_EMAIL: ${{ secrets.PREVIEW_HEALTH_CHECK_EMAIL }}
           HEALTH_CHECK_PASSWORD: ${{ secrets.PREVIEW_HEALTH_CHECK_PASSWORD }}
           VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
-        run: node scripts/preview-auth-preflight.mjs --identity-only
+        run: node scripts/preview-auth-preflight.mjs --meal-only
       - name: Save sanitized readiness result
         if: always()
         uses: actions/upload-artifact@v4
