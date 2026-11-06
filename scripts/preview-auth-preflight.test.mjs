@@ -80,3 +80,32 @@ test('malformed deployment credential stops before normal login', async () => {
   const result = await preflight({ ...env, VERCEL_AUTOMATION_BYPASS_SECRET: 'bad\r\nheader' }, () => assert.fail('network'));
   assert.equal(result.code, 'INVALID_EXISTING_DEPLOYMENT_CREDENTIAL');
 });
+
+test('identity-only diagnostic never retries the forbidden admin resource', async () => {
+  const calls = [];
+  const result = await preflight({ ...env, VERCEL_AUTOMATION_BYPASS_SECRET: 'example-deployment-access' }, async (url, options) => {
+    calls.push([url, options]);
+    assert.equal(url.includes('/api/admin-operational-checks'), false);
+    if (calls.length === 1) return reply(200, { idToken: token() });
+    if (calls.length === 2) return reply(200);
+    return reply(404);
+  }, Date.now, { identityOnly: true });
+  assert.equal(result.ok, true);
+  assert.equal(result.adminRequestSkipped, true);
+  assert.equal(result.tokenAdminClaim, false);
+  assert.equal(result.matchesKnownOperatorEmail, false);
+  assert.equal(result.qaRootHttp, 200);
+  assert.equal(calls[1][0], env.BASE_URL + '/');
+  assert.equal(calls[1][1].headers.Authorization, undefined);
+  assert.equal(calls[2][1].headers['x-vercel-protection-bypass'], undefined);
+  assert.equal(JSON.stringify(result).includes(env.HEALTH_CHECK_EMAIL), false);
+});
+test('identity-only root denial stops without trying any privileged route', async () => {
+  let calls = 0;
+  const result = await preflight(env, async () => {
+    calls++;
+    return calls === 1 ? reply(200, { idToken: token() }) : reply(403);
+  }, Date.now, { identityOnly: true });
+  assert.equal(result.code, 'QA_ROOT_ACCESS_NOT_CONFIRMED');
+  assert.equal(calls, 2);
+});

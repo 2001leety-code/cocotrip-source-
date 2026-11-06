@@ -7,7 +7,7 @@ const COURSE = 'TEST_CLAUDE_20261105_JONGNO_01';
 
 // Normal existing-account Firebase password login, as in planner-smoke.mjs.
 // No model, meal, payment, data-write or new credential operations occur here.
-export async function preflight(env, fetcher = fetch, now = Date.now) {
+export async function preflight(env, fetcher = fetch, now = Date.now, { identityOnly = false } = {}) {
   const result = { qaOrigin: ORIGIN, expectedProject: PROJECT, stage: 'configuration',
     ok: false, modelCalls: 0, dataWrites: 0, generationPermission: 'not_checked' };
   const stop = (code) => ({ ...result, code });
@@ -48,19 +48,31 @@ export async function preflight(env, fetcher = fetch, now = Date.now) {
     }
     result.previewProjectMatches = true;
     const headers = { Authorization: 'Bearer ' + auth.idToken };
-    result.stage = 'server_verified_admin_read';
     // The existing deployment credential is sent only to the exact QA host.
     // Firebase Auth and Firestore continue to receive no Vercel credential.
     const qaHeaders = { ...headers, ...(deploymentCredential
       ? { 'x-vercel-protection-bypass': deploymentCredential } : {}) };
-    const admin = await request(ORIGIN + '/api/admin-operational-checks', { method: 'GET', headers: qaHeaders });
-    result.adminReadHttp = admin.status;
-    if (admin.status !== 200) return stop('AUTHENTICATED_ADMIN_READ_NOT_CONFIRMED');
-    const adminBody = await admin.json();
-    if (adminBody.ok !== true || !adminBody.data || typeof adminBody.data !== 'object') {
-      return stop('ADMIN_READ_RESPONSE_NOT_CONFIRMED');
+    if (identityOnly) {
+      // The previous admin request was forbidden. Do not retry that resource.
+      result.stage = 'allowed_identity_diagnostic';
+      result.adminRequestSkipped = true;
+      result.tokenAdminClaim = claims.admin === true;
+      result.matchesKnownOperatorEmail = claims.email.toLowerCase() === '2001leety@gmail.com';
+      const rootHeaders = deploymentCredential ? { 'x-vercel-protection-bypass': deploymentCredential } : {};
+      const root = await request(ORIGIN + '/', { method: 'GET', headers: rootHeaders });
+      result.qaRootHttp = root.status;
+      if (root.status !== 200) return stop('QA_ROOT_ACCESS_NOT_CONFIRMED');
+    } else {
+      result.stage = 'server_verified_admin_read';
+      const admin = await request(ORIGIN + '/api/admin-operational-checks', { method: 'GET', headers: qaHeaders });
+      result.adminReadHttp = admin.status;
+      if (admin.status !== 200) return stop('AUTHENTICATED_ADMIN_READ_NOT_CONFIRMED');
+      const adminBody = await admin.json();
+      if (adminBody.ok !== true || !adminBody.data || typeof adminBody.data !== 'object') {
+        return stop('ADMIN_READ_RESPONSE_NOT_CONFIRMED');
+      }
+      result.serverAdminReadAllowed = true;
     }
-    result.serverAdminReadAllowed = true;
     result.stage = 'test_course_read';
     const course = await request('https://firestore.googleapis.com/v1/projects/' + PROJECT
       + '/databases/(default)/documents/zone_courses/' + COURSE, { method: 'GET', headers });
@@ -74,7 +86,8 @@ export async function preflight(env, fetcher = fetch, now = Date.now) {
     }
     result.testCourse1Exists = course.status === 200;
     result.stage = 'complete';
-    return { ...result, ok: true, code: 'NORMAL_PREVIEW_AUTH_AND_READ_CHECKED' };
+    return { ...result, ok: true, code: identityOnly
+      ? 'NORMAL_PREVIEW_IDENTITY_AND_ALLOWED_READS_CHECKED' : 'NORMAL_PREVIEW_AUTH_AND_READ_CHECKED' };
   } catch {
     // Never print provider bodies, exception messages, secrets or token claims.
     return stop('REQUEST_OR_RESPONSE_ERROR');
@@ -82,7 +95,7 @@ export async function preflight(env, fetcher = fetch, now = Date.now) {
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
-  const result = await preflight(process.env);
+  const result = await preflight(process.env, fetch, Date.now, { identityOnly: process.argv.includes('--identity-only') });
   writeFileSync('preview-auth-result.json', JSON.stringify(result, null, 2) + '\n');
   console.log(JSON.stringify(result));
   process.exitCode = result.ok ? 0 : 1;
