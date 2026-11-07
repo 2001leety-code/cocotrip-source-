@@ -29,12 +29,17 @@
 import { initAdminDb } from '../_shared/firebase-admin.js';
 import { FieldValue } from 'firebase-admin/firestore';
 import { notify } from '../_shared/notify.js';
+import { verifyCronRequest } from '../_shared/cron-auth.js';
 
 const STUCK_THRESHOLD_MS = 30 * 60 * 1000; // 30분
 const MAX_BATCH = 10;
 
 export default async function handler(req, res) {
   try {
+    const auth = await verifyCronRequest(req);
+    if (!auth.ok) {
+      return res.status(auth.status).json({ ok: false, code: 'AUTH_REQUIRED', error: auth.error });
+    }
     const db = initAdminDb('plan-streaming-sweep');
     if (!db) {
       console.error('[cron:plan-streaming-sweep] Firestore unavailable');
