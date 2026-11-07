@@ -64,18 +64,26 @@ export default async function handler(req, res) {
       const startedMs = Number(data._streaming_started_at) || Number(data.createdAtMs) || 0;
       if (!startedMs || startedMs > cutoffMs) continue; // stuck 아님
 
-      const elapsedMin = Math.round((Date.now() - startedMs) / 60000);
-      await doc.ref.update({
-        status: 'error',
-        _streaming_in_progress: false,
-        _streaming_error: 'streaming_timeout_sweep_p292',
-        _swept_at: FieldValue.serverTimestamp(),
-        _swept_elapsed_min: elapsedMin,
+      // The query is only a candidate list. A worker may finish or restart before this write.
+      const closed = await db.runTransaction(async (tx) => {
+        const current = await tx.get(doc.ref);
+        if (!current.exists) return null;
+        const latest = current.data() || {};
+        const latestStartedMs = Number(latest._streaming_started_at) || Number(latest.createdAtMs) || 0;
+        if (latest.status !== 'streaming' || !latestStartedMs || latestStartedMs > cutoffMs) return null;
+        const elapsedMin = Math.round((Date.now() - latestStartedMs) / 60000);
+        tx.update(doc.ref, {
+          status: 'error',
+          _streaming_in_progress: false,
+          _streaming_error: 'streaming_timeout_sweep_p292',
+          _swept_at: FieldValue.serverTimestamp(),
+          _swept_elapsed_min: elapsedMin,
+        });
+        return { planId: doc.id, elapsedMin, uid: latest.uid || null, email: latest.guestEmail || null };
       });
+      if (!closed) continue;
       swept++;
-      if (alertSamples.length < 3) {
-        alertSamples.push({ planId: doc.id, elapsedMin, uid: data.uid || null, email: data.guestEmail || null });
-      }
+      if (alertSamples.length < 3) alertSamples.push(closed);
     }
 
     if (swept > 0) {

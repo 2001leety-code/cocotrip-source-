@@ -169,10 +169,13 @@ itinerary"**. "AI planner" is the mechanism, not the headline.
 **Name the capability, not the implementation.** The nav entry is `nav.planner` in
 `src/i18n/locales/*.json`: `Trip Planner` / `여행 플래너` / `旅行プランナー` / `行程规划`.
 The route (`/planner`), the paid gate and the product itself are unchanged — this is
-naming only. One place still says "AI" and is **kept on purpose**:
+naming only. Loading copy must also stay accurate:
 
-- `planner.loading_step1..4` names the real engine while it runs. That is transparency
-  about mechanism, and it appears only once the traveller has already committed.
+- `planner.loading_step1..4` describes itinerary work during generation. Model
+  and routing labels are provider-neutral in all four languages: the loading
+  component receives no provider identity. The list is a static work description,
+  not live phase status. Without per-phase events, elapsed time or an agent count
+  must not create completion checks, a current-step marker or a percentage.
 
 2026-08-10 phase 2: the planner's own surfaces were re-framed. The mode card said
 `Let AI plan everything` / `AI가 전부 짜드려요`, the intro modal was titled
