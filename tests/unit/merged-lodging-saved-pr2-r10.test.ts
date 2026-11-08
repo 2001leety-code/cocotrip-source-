@@ -11,7 +11,7 @@ function chain(): any {
   return {
     collection: () => chain(),
     doc: () => chain(),
-    get: async () => ({ exists: fx.planData !== null, data: () => fx.planData }),
+    get: async () => ({ exists: fx.planData !== null, updateTime: { seconds: 1, nanoseconds: 2 }, data: () => fx.planData }),
     update: async (u: any) => { fx.updates.push(u); },
     set: async () => {},
   };

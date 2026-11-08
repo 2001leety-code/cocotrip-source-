@@ -9,6 +9,7 @@
  * handlerCore 는 500줄 cap(P129)이라 catch 본문을 여기로 옮겼다 — 동작·순서는 그대로.
  * 변경 없음: plan-streaming-sweep / Inngest onFailure / 쿠폰·발급권 본문.
  */
+import { couponFailureDetails } from '../_shared/ai-coupon-persistence.js';
 import { FieldValue } from 'firebase-admin/firestore';
 import { captureError } from '../_shared/sentry.js';
 import { throttledTelegramAlert } from '../_shared/telegram-throttle.js';
@@ -65,7 +66,7 @@ export async function closeStreamingPlanOnFailure({ adminDb, planId, error, stag
 }
 
 /**
- * handlerCore catch 본문. 순서 고정: 응답 → 쿠폰 복구 → plan 마감(await) → 발급권 해제(await) → 알림.
+ * handlerCore catch: resolve coupon/root evidence before responding, then close streaming state and release unused issuance.
  *   - 마감이 해제보다 먼저다 — releaseIfUnused 가 issuance.claim 을 비운다(그 뒤면 claim 대조 불가).
  *   - worker 로 인계된 뒤(handedToWorker)엔 쿠폰·마감·해제 모두 하지 않는다 — worker 가 플랜을
  *     계속 만들고 있다. handOff() 는 유료 claim 이 없어도 플래그를 세운다(무료쿠폰 경로 포함).
@@ -75,7 +76,14 @@ export async function runHandlerFailureCleanup({
 }) {
   console.error('[ai-planner-full] UNHANDLED ERROR:', error.message, error.stack);
 
-  // batch 9 fix (PR-N): 응답 먼저 보내고 부수작업은 fire-and-forget (이전: await captureError throw 시 catch abort → res.end 못 보냄).
+  let failureLanguage = 'en';
+  try { failureLanguage = (typeof req.body === 'string' ? JSON.parse(req.body) : req.body)?.language || 'en'; } catch { /* invalid JSON: existing default */ }
+  let couponResolution = null;
+  if (consumedCouponInfo && !planPersisted && !issuance.handedToWorker) {
+    couponResolution = await restoreAiPlanCoupon(adminDb, consumedCouponInfo.uid, consumedCouponInfo.code,
+      consumedCouponInfo.consumptionId, consumedCouponInfo.binding || null);
+  }
+  // Coupon resolution above is awaited; telemetry below remains fire-and-forget after the response.
   if (!res.headersSent) {
     const statusCode = error.statusCode || 500;
     const code = error.code || 'INTERNAL_ERROR';
@@ -84,7 +92,8 @@ export async function runHandlerFailureCleanup({
       ok: false,
       error: 'Planner failed',
       code,
-      details: error.message || 'Unknown error',
+      details: couponResolution && !['restored', 'noop'].includes(couponResolution.outcome)
+        ? couponFailureDetails(failureLanguage, couponResolution.outcome === 'committed') : (error.message || 'Unknown error'),
       // 2026-10-24: 구조화 상세(예: 종단 끼니 실패의 날짜·끼니·사유) — details(message) 는 기존 그대로.
       ...(failureDetailsOf(error) ? { failureDetails: failureDetailsOf(error) } : {}),
       // batch 9 fix (PR-N): root cause 진단 위해 prod 에서도 stack head 일부 노출.
@@ -93,13 +102,10 @@ export async function runHandlerFailureCleanup({
       stackHead: (error.stack || '').slice(0, 500),
     }));
   }
-  // 버그헌트 A fix (2026-06-27): 무료 쿠폰으로 시작했는데 plan 저장 전 실패 → 쿠폰 롤백(재시도 가능하게).
-  //   저장 성공(planPersisted) 후엔 정당 소비라 롤백 X. worker 인계 뒤에도 X — 플랜이 계속 만들어진다.
-  //   fire-and-forget(응답 후) — 롤백 실패해도 사용자 응답엔 영향 없음.
-  if (consumedCouponInfo && !planPersisted && !issuance.handedToWorker) {
-    restoreAiPlanCoupon(adminDb, consumedCouponInfo.uid, consumedCouponInfo.code, consumedCouponInfo.consumptionId) // PR2 r4: 같은 소비만
-      .catch((e) => console.warn('[ai-planner-full] coupon rollback failed:', e.message));
-  }
+  // A completed root keeps its coupon consumed. Unknown evidence never authorizes restoration.
+  // The original !planPersisted / !handedToWorker conditions remain unchanged.
+  // Restoration is already resolved transactionally before the response; it is not fire-and-forget.
+
   // streaming 문서 즉시 마감 — 결과는 로그만(실패해도 sweep 이 30분 뒤 정리).
   if (streamingPlanId && !planPersisted && !issuance.handedToWorker) {
     const closeout = await closeStreamingPlanOnFailure({ adminDb, planId: streamingPlanId, error, stage, issuanceClaim: issuance.claim });

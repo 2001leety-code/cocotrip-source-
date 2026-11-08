@@ -53,6 +53,8 @@ import {
 } from '../../_ai_core/postResponsePipeline.js';
 import { triggerPass3BackgroundIfPending } from '../../_ai_core/backgroundPipelines.js';
 import { savePlanSkeleton } from '../../_ai_core/planPersister.js'; // P231: stub → full skeleton 업그레이드
+import { rootFieldsFor } from '../../_shared/ai-coupon-persistence.js';
+import { guardGenerationPatch } from '../../_shared/plan-persistence-guard.js';
 import { releasePlanIssuance } from '../../_shared/plan-issuance.js'; // P0: onFailure 시 발급권 해제
 import { VEHICLE_LABELS } from '../../_ai_core/vehicleAndPrice.js';
 import { sendNotificationEmail, recordLeadToSheets } from '../../_ai_core/emailNotifier.js';
@@ -128,7 +130,7 @@ export const processPlanAfterAI = inngest.createFunction(
         return;
       }
       try {
-        await adminDb.collection('plans').doc(planId).set(
+        const closeout = await guardGenerationPatch(adminDb, planId,
           {
             status: 'error',
             _streaming_in_progress: false,
@@ -141,9 +143,9 @@ export const processPlanAfterAI = inngest.createFunction(
             ...(failureDetailsOf(error) ? { _streaming_error_details: failureDetailsOf(error) } : {}),
             _failed_at: new Date().toISOString(),
           },
-          { merge: true },
+          { kind: 'failure', merge: true, issuanceClaim: event?.data?.event?.data?.ctx?.issuanceClaim || null },
         );
-        console.warn(`[P307] onFailure marked plan ${planId} as error: ${error?.message?.slice(0, 100)}`);
+        console.warn('[P307] onFailure status write:', planId, closeout.reason || 'written');
       } catch (markErr) {
         console.error(`[P307] onFailure mark failed (P292 cron sweep 가 30분 후 정리): ${markErr.message}`);
       }
@@ -177,7 +179,7 @@ export const processPlanAfterAI = inngest.createFunction(
       //   코드 없는 일반 실패는 저장 뒤 step 일 수 있어(정당 소비) 건드리지 않는다. restoreAiPlanCoupon 은 오류를 삼킨다.
       const failedCoupon = event?.data?.event?.data?.ctx?.consumedCoupon;
       if (failedCoupon && failedCoupon.uid && failedCoupon.code && failureCodeOf(error)) {
-        await restoreAiPlanCoupon(adminDb, failedCoupon.uid, failedCoupon.code, failedCoupon.consumptionId); // r4: 같은 소비만(재실행 멱등)
+        await restoreAiPlanCoupon(adminDb, failedCoupon.uid, failedCoupon.code, failedCoupon.consumptionId, failedCoupon.binding || null); // r4: 같은 소비만(재실행 멱등)
       }
       // 운영자 escalation — sweep 30분 net 보다 빠르게 manual 환불 안내 시작 가능.
       try {
@@ -226,6 +228,7 @@ export const processPlanAfterAI = inngest.createFunction(
           //   플래그 OFF (forceGuestToken falsy) 시 fullDoc 에 accessToken 키 자체가 없음 = 기존 동작
           //   byte-identical (이전엔 accessToken 미설정, persistPlan 이 최종 set). nullish 금지, OR 사용.
           const fullDoc = {
+            ...(ctx.consumedCoupon?.binding ? rootFieldsFor(ctx.consumedCoupon.binding) : {}),
             planId: planIdForSkeleton,
             status: 'streaming',
             _streaming_in_progress: true,
@@ -259,7 +262,7 @@ export const processPlanAfterAI = inngest.createFunction(
             ...(blockModeItinerary ? { _block_mode_used: true } : {}),
             _p231_stub: false, // stub 교체 완료 표시
           };
-          await adminDb.collection('plans').doc(planIdForSkeleton).set(fullDoc, { merge: true });
+          await guardGenerationPatch(adminDb, planIdForSkeleton, fullDoc, { kind: 'skeleton', create: true, merge: true, uid: uid || null, couponBinding: ctx.consumedCoupon?.binding || null, couponBindingRequired: typeof ctx.couponBindingRequired === 'boolean' ? ctx.couponBindingRequired : !!ctx.body?.aiCouponCode });
           logger.info(`[P231] skeleton-write done: planId=${planIdForSkeleton}`);
           return { planId: planIdForSkeleton };
         } catch (skErr) {
@@ -418,6 +421,8 @@ export const processPlanAfterAI = inngest.createFunction(
         //   step retry 는 event.data 를 그대로 재수화하므로 **같은 attemptId/planId** 가 유지된다
         //   (event.data 는 불변). 따라서 재시도해도 같은 발급권으로 같은 plan 문서에 쓴다.
         //   claim 이 예약한 planId 가 planIdOverride 보다 우선한다(persistPlan 이 대조·강제).
+        couponBinding: ctx.consumedCoupon?.binding || null,
+        couponBindingRequired: typeof ctx.couponBindingRequired === 'boolean' ? ctx.couponBindingRequired : !!ctx.body?.aiCouponCode,
         issuanceClaim: ctx.issuanceClaim || null,
       });
     });

@@ -19,12 +19,19 @@ import { updatePlanProgressive, savePlanSkeleton } from '../../api/_ai_core/plan
 // geminiPipeline 는 @google/generative-ai → 실제 API 호출 X.
 
 // Firestore set mock
-function makeAdminDbMock() {
-  const setMock = vi.fn().mockResolvedValue(undefined);
+function makeAdminDbMock(seed?: Record<string, unknown>) {
+  let current = seed;
+  const setMock = vi.fn(async (data: Record<string, unknown>, opts?: { merge?: boolean }) => {
+    current = opts?.merge ? { ...current, ...data } : { ...data };
+  });
+  const ref = { set: setMock };
+  const tx = {
+    get: async () => ({ exists: current !== undefined, data: () => current }),
+    set: (_ref: typeof ref, data: Record<string, unknown>, opts?: { merge?: boolean }) => setMock(data, opts),
+  };
   return {
-    collection: vi.fn().mockReturnValue({
-      doc: vi.fn().mockReturnValue({ set: setMock }),
-    }),
+    collection: vi.fn().mockReturnValue({ doc: vi.fn().mockReturnValue(ref) }),
+    runTransaction: async (callback: (transaction: typeof tx) => Promise<unknown>) => callback(tx),
     _setMock: setMock,
   };
 }
@@ -115,7 +122,7 @@ describe('tryParsePartialJSON — best-effort partial JSON parse', () => {
 // ── 4: updatePlanProgressive ─────────────────────────────────────────────────
 describe('updatePlanProgressive — Firestore set merge 호출', () => {
   it('시나리오 4: adminDb.set 이 merge:true 로 호출됨', async () => {
-    const adminDb = makeAdminDbMock();
+    const adminDb = makeAdminDbMock({ planId: 'test-plan-id-123', uid: null, status: 'streaming', _streaming_in_progress: true });
     await updatePlanProgressive(adminDb as never, 'test-plan-id-123', {
       'itinerary.days': [{ city: 'Seoul', stops: [] }],
       _streaming_progress: 1,

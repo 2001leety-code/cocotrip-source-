@@ -97,7 +97,7 @@ describe('D5① — stale arrival rest note is removed', () => {
     expect(src).toContain('arrival_rest_day: arrivalRestDay,');
     const dup = src.indexOf('runDuplicateStopGate(itinerary, revisitCtx)');
     const note = src.indexOf('applyArrivalRestNote(itinerary, { restDay: arrivalRestDay === true, language });');
-    const save = src.indexOf('await docRef.set({', note);
+    const save = src.indexOf('await saveIfUnchanged(adminDb, docRef, docSnap.updateTime, {', note);
     expect(dup).toBeGreaterThan(-1);
     expect(note).toBeGreaterThan(dup);
     expect(save).toBeGreaterThan(note);
@@ -167,12 +167,14 @@ describe('r1-1 — screen edit save path re-judges the rest note', () => {
     expect(p.days[0].stops[0]).toMatchObject({ tip: 'Late check-in OK.' });
     expect(hasArrivalRestNote(p.days[0].stops[0])).toBe(false);
   });
-  it('the leaf is the single implementation (planPersister re-exports it) and every editor save calls it before setPlan/commit', () => {
+  it('the leaf is the single implementation (planPersister re-exports it) and every server command applies cleanup before atomic persistence', () => {
     expect(read('api/_ai_core/planPersister.js')).toMatch(/import \{ arrivalRestNote, stripArrivalRestNote[^}]*\} from '\.\.\/\.\.\/src\/lib\/arrivalRestNote\.js';/);
     expect(read('api/_ai_core/planPersister.js')).not.toMatch(/export function stripArrivalRestNote/);
     const editor = read('src/pages/PlanDetailPage/hooks/usePlanEditor.ts');
-    expect((editor.match(/stripArrivalRestNoteIfDay1Active\(\{ days: nextDays \}\);/g) || []).length).toBe(4);
-    expect((editor.match(/await commitDays\(nextDays, snapshot\);/g) || []).length).toBe(4);
+    expect(read('api/plan-edit.js')).toContain('stripArrivalRestNoteIfDay1Active({ days });');
+    expect(read('api/_shared/plan-edit-service.js')).toContain('cleanDays(applyOperation(doc, command))');
+    expect((editor.match(/await commit\(\{type:/g) || []).length).toBe(4);
+    expect(editor).not.toContain('updateDoc');
   });
 });
 

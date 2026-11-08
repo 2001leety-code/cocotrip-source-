@@ -11,6 +11,8 @@ import { SCHEDULE_BUFFER_MIN, arrivalRestDayInfo, resolveTourEndTime } from './c
 import { throttledTelegramAlert } from '../_shared/telegram-throttle.js';
 import { detectPaymentSource, isAdminBypassOrderId, isOperatorTestEmail } from '../_shared/admin-bypass-detector.js';
 import { beginPlanCommit, finalizePlanIssuance } from '../_shared/plan-issuance.js';
+import { validateBinding, rootFieldsFor } from '../_shared/ai-coupon-persistence.js';
+import { commitGenerationRoot, repairGenerationListing, guardGenerationPatch } from '../_shared/plan-persistence-guard.js';
 import { departureBreakfastNote } from '../../src/lib/departureBreakfastNote.js';
 import { arrivalRestNote, stripArrivalRestNote, hasArrivalRestNote } from '../../src/lib/arrivalRestNote.js';
 
@@ -1183,15 +1185,15 @@ export async function updatePlanEnrichment(adminDb, planId, enrichedItinerary) {
   if (!adminDb || !planId || !enrichedItinerary) {
     throw new Error('[updatePlanEnrichment] adminDb / planId / enrichedItinerary 필수');
   }
-  await adminDb.collection('plans').doc(planId).set(
+  const outcome = await guardGenerationPatch(adminDb, planId,
     {
       'itinerary.days': enrichedItinerary.days,
       'itinerary._pass3_pending': false,
       'itinerary._pass3_completed_at': new Date().toISOString(),
     },
-    { merge: true },
+    { kind: 'enrichment', merge: true },
   );
-  console.log(`[planPersister] P168 updatePlanEnrichment: planId=${planId}, days=${(enrichedItinerary.days || []).length}`);
+  console.log(`[planPersister] P168 updatePlanEnrichment: planId=${planId}, days=${(enrichedItinerary.days || []).length}, outcome=${outcome.written ? 'written' : outcome.reason}`);
 }
 
 /**
@@ -1245,6 +1247,8 @@ export async function savePlanSkeleton(adminDb, {
   // accessToken 을 발급해 기존 게스트 공유 링크 흐름 유지. 플래그 OFF 시 항상 false 로 전달
   // → accessToken 식이 기존 (uid ? null : random) 과 동일 (byte-identical).
   forceGuestToken = false,
+  couponBinding = null,
+  couponBindingRequired = !!body?.aiCouponCode,
   // P0 원자 발급 (2026-07-15): claim 이 예약한 planId. 유료 PayPal 경로만 값이 있다.
   //   skeleton 과 최종 persistPlan 이 같은 문서를 써야 claim 이 그 planId 로 완성 여부를 직접
   //   읽어 복구할 수 있다. null/undefined = 기존 randomUUID 동작 byte-identical.
@@ -1256,11 +1260,13 @@ export async function savePlanSkeleton(adminDb, {
 }) {
   if (!adminDb) throw new Error('[P169] Firebase not configured — cannot save skeleton');
 
-  const planId = planIdOverride || randomUUID();
+  const planId = couponBinding ? couponBinding.planId : (planIdOverride || randomUUID());
+  if (couponBinding && (!validateBinding(couponBinding) || (planIdOverride && planIdOverride !== planId))) throw new Error('COUPON_PLAN_MISMATCH');
   // forceGuestToken=true → uid 있어도 token 발급. false → 기존 (uid ? null : random). nullish 금지, OR 사용.
   const accessToken = (forceGuestToken || !uid) ? randomUUID() : null;
 
   const skeletonDoc = {
+    ...(couponBinding ? rootFieldsFor(couponBinding) : {}),
     planId,
     status: 'streaming',
     _streaming_in_progress: true,
@@ -1299,7 +1305,7 @@ export async function savePlanSkeleton(adminDb, {
   };
 
   try {
-    await adminDb.collection('plans').doc(planId).set(skeletonDoc);
+    await guardGenerationPatch(adminDb, planId, skeletonDoc, { kind: 'skeleton', create: true, merge: false, uid: uid || null, couponBinding, couponBindingRequired });
   } catch (saveErr) {
     console.error('[planPersister P169] skeleton save failed:', saveErr.message);
     throw new Error(`Skeleton save failed (${saveErr.code || saveErr.name})`);
@@ -1320,13 +1326,13 @@ export async function savePlanSkeleton(adminDb, {
  */
 export async function updatePlanProgressive(adminDb, planId, partial) {
   if (!adminDb || !planId) return;
-  await adminDb.collection('plans').doc(planId).set(
+  await guardGenerationPatch(adminDb, planId,
     {
       ...partial,
       _streaming_in_progress: true,
       _streaming_last_update: Date.now(),
     },
-    { merge: true },
+    { kind: 'progress', merge: true },
   );
 }
 
@@ -1503,6 +1509,8 @@ export async function persistPlan(adminDb, {
   // (격리된 익명 uid) 라도 accessToken 발급 — 게스트는 로그인 세션이 없어 공유 링크/접근 토큰
   // 필요. 플래그 OFF 시 항상 false → accessToken 식이 기존 (uid ? null : random) 과 동일.
   forceGuestToken = false,
+  couponBinding = null,
+  couponBindingRequired = !!body?.aiCouponCode,
   // planner-intent-v1 (2026-08-24): requestShaper/handlerCore 가 이미 정규화한 단일 intent.
   //   있으면 input.planner_intent_v1 로 그대로 저장하고, dietaryRestrictions 는 이 값을 우선
   //   신뢰한다 (allergy 값은 normalizePlannerIntentV1 이 이미 걸러냈다 — 재도입 경로 없음).
@@ -1533,7 +1541,9 @@ export async function persistPlan(adminDb, {
       throw new Error('Plan issuance claim orderId does not match request');
     }
   }
-  const planId = (issuanceClaim && issuanceClaim.planId) || planIdOverride || randomUUID();
+  if (couponBindingRequired && body.aiCouponCode && !validateBinding(couponBinding)) throw new Error('COUPON_BINDING_REQUIRED');
+  if (couponBinding && (issuanceClaim || (planIdOverride && planIdOverride !== couponBinding.planId) || uid !== couponBinding.planOwnerUid || verifiedHistoryUid !== couponBinding.verifiedHistoryUid || forceGuestToken !== couponBinding.forceGuestToken)) throw new Error('COUPON_PLAN_MISMATCH');
+  const planId = (issuanceClaim && issuanceClaim.planId) || (couponBinding && couponBinding.planId) || planIdOverride || randomUUID();
   // forceGuestToken=true → uid 있어도 token 발급. false → 기존 (uid ? null : random). nullish 금지, OR 사용.
   const accessToken = (forceGuestToken || !uid) ? randomUUID() : null;
 
@@ -1584,6 +1594,7 @@ export async function persistPlan(adminDb, {
   // AirportToLodgingGuide luggage 분기 (heavyLoad 자동 추천) + revision prefill
   // (PR #323) 모두 input.* 필드 의존. 누락 시 silent UX 저하 (audit P1).
   const docToSave = {
+    ...(couponBinding ? rootFieldsFor(couponBinding) : {}),
     planId,
     status: 'ready',
     isPublic: false,
@@ -1777,8 +1788,8 @@ export async function persistPlan(adminDb, {
   // 🔴 P0 fencing (2026-07-15): plans 대용량 저장 **직전**에 COMMITTING 을 원자 선점한다.
   //   여기까지 오는 사이 lease 가 만료돼 다른 attempt 가 takeover 했을 수 있다. 그 경우 이 attempt 는
   //   발급권을 잃었으므로 **plan 을 저장하면 안 된다**(저장하면 완성 plan 이 2개가 된다).
-  //   plans 문서를 트랜잭션에 넣지 않는 이유는 _shared/plan-issuance.js 헤더 참조
-  //   (저장 직전 truncation 이 days.pop() 으로 문서를 in-place mutate → tx 재시도 시 손상).
+  // Keep the existing begin/root/finalize protocol. Build and truncate outside tx;
+  // only the immutable prepared root is written inside its guarded transaction.
   if (issuanceClaim) {
     const begun = await beginPlanCommit(adminDb, issuanceClaim);
     if (!begun.ok) {
@@ -1791,12 +1802,31 @@ export async function persistPlan(adminDb, {
     //   이미 ready 인 plan 을 status:'error' 로 만들어 "결제·발급은 성공했는데 화면엔 실패" 가 된다.
     if (begun.alreadyIssued) {
       console.warn('[planPersister] 이 attempt 가 이미 발급 확정함 — plan 재저장 skip (step 재실행):', planId);
-      return { planId, planUrl: `/my-plans/${planId}` };
+      const existing = await commitGenerationRoot(adminDb, {
+        finalDoc: docToSave, issuanceClaim, trustedFixedId: true, requireReady: true,
+      });
+      const root = await repairGenerationListing(adminDb, {
+        finalDoc: existing.root, issuanceClaim, trustedFixedId: true,
+      });
+      return { planId, planUrl: root.accessToken ? `/my-plans/${planId}?token=${root.accessToken}` : `/my-plans/${planId}`, accessToken: root.accessToken || null };
     }
   }
 
+  // Skeleton input intentionally differs from final shaping (e.g. preferences -> styles).
+  // Match the existing savePlanSkeleton/worker schema, not regenerated itinerary data.
+  const skeletonInput = {
+    guestName: guestName || 'Guest', pax: pax || 2,
+    styles: Array.isArray(body.styles) ? body.styles : [], area: area || null,
+    startDate: startDate || null, language: language || 'en', vehicle: vehicle || null,
+    regions: Array.isArray(body.regions) && body.regions.length > 0 ? body.regions : (area ? [area] : []),
+    ...(plannerIntent ? { planner_intent_v1: plannerIntent } : {}),
+  };
+  let persistedRoot;
   try {
-    await adminDb.collection('plans').doc(planId).set(docToSave);
+    const committed = await commitGenerationRoot(adminDb, {
+      finalDoc: docToSave, issuanceClaim, trustedFixedId: !!(issuanceClaim || planIdOverride || couponBinding), skeletonInput, couponBinding, couponBindingRequired,
+    });
+    persistedRoot = committed.root;
   } catch (saveErr) {
     // Firestore set() 실패 시 마지막 안전망 — 사용자 결제 후 plan loss 회피.
     // throw 시 ai-planner-full handler 가 catch 해서 사용자에게 명확한 에러 + 환불 안내.
@@ -1824,20 +1854,9 @@ export async function persistPlan(adminDb, {
     await markPlanIssued(adminDb, body?.paypalOrderId, { planId, uid });
   }
 
-  if (uid) {
-    await adminDb
-      .collection('users').doc(uid)
-      .collection('plans').doc(planId)
-      .set({
-        planId,
-        createdAt: new Date().toISOString(),
-        status: 'ready',
-        tourTitle: itinerary.tour_title || `${guestName}'s Korea Itinerary`,
-        startDate,
-        area,
-        pax,
-      });
-  }
+  persistedRoot = await repairGenerationListing(adminDb, {
+    finalDoc: persistedRoot, issuanceClaim, trustedFixedId: true, couponBinding,
+  });
 
   console.log('[ai-planner-full] Firestore saved:', planId);
 
@@ -1890,9 +1909,25 @@ export async function persistPlan(adminDb, {
   //
   // 회귀 잠금: tests/unit/planner-no-ledger-write.test.ts
 
-  const planUrl = accessToken
-    ? `/my-plans/${planId}?token=${accessToken}`
+  const canonicalToken = persistedRoot.accessToken || null;
+  const planUrl = canonicalToken
+    ? `/my-plans/${planId}?token=${canonicalToken}`
     : `/my-plans/${planId}`;
 
-  return { planId, planUrl, accessToken };
+  return { planId, planUrl, accessToken: canonicalToken };
+}
+
+// Exact server binding, already authenticated by coupon gate; never a generic ready lookup.
+export async function recoverCouponPlan(adminDb, couponBinding, recoveryOwner = null) {
+  if (!validateBinding(couponBinding)) throw new Error('COUPON_BINDING_REQUIRED');
+  // Recovery may not reissue a bearer token to a consumer who has no current owner proof.
+  if (!recoveryOwner || !couponBinding.planOwnerUid || recoveryOwner.consumerUid !== couponBinding.consumerUid
+      || recoveryOwner.planOwnerUid !== couponBinding.planOwnerUid || recoveryOwner.verifiedHistoryUid !== couponBinding.verifiedHistoryUid
+      || recoveryOwner.forceGuestToken !== couponBinding.forceGuestToken
+      || (couponBinding.planOwnerUid !== couponBinding.consumerUid && !recoveryOwner.forceGuestToken)) {
+    throw Object.assign(new Error('AI_COUPON_RECOVERY_REQUIRED'), { code: 'AI_COUPON_RECOVERY_REQUIRED', statusCode: 409 });
+  }
+  const root = await repairGenerationListing(adminDb, { couponBinding });
+  const token = root.accessToken || null;
+  return { planId: root.planId, planUrl: token ? `/my-plans/${root.planId}?token=${token}` : `/my-plans/${root.planId}` };
 }

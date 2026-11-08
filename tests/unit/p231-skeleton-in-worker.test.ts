@@ -43,17 +43,20 @@ const handlerSrc = readFileSync(HANDLER_PATH, 'utf-8');
 //   the actual Firestore writes without a live Inngest server.
 //   vi.hoisted() is required because vi.mock() factories are hoisted above plain
 //   const declarations — the mock adminDb must exist before that hoisting point.
-const { mockAdminDb, mockCalls, pipelineMocks } = vi.hoisted(() => {
+const { mockAdminDb, mockCalls, docs, pipelineMocks } = vi.hoisted(() => {
   const mockCalls: Array<{ id: string; data: Record<string, unknown>; opts: Record<string, unknown> | undefined }> = [];
+  // Single-callback IO adapter, not a transaction-concurrency emulator.
+  const docs = new Map<string, Record<string, unknown>>();
+  const tx = {
+    get: async (ref: { id: string }) => ({ exists: docs.has(ref.id), data: () => docs.get(ref.id) }),
+    set: (ref: { id: string }, data: Record<string, unknown>, opts?: Record<string, unknown>) => {
+      mockCalls.push({ id: ref.id, data, opts });
+      docs.set(ref.id, opts?.merge ? { ...docs.get(ref.id), ...data } : { ...data });
+    },
+  };
   const mockAdminDb = {
-    collection: () => ({
-      doc: (id: string) => ({
-        set: async (data: Record<string, unknown>, opts?: Record<string, unknown>) => {
-          mockCalls.push({ id, data, opts });
-          return {};
-        },
-      }),
-    }),
+    runTransaction: async (callback: (transaction: typeof tx) => Promise<unknown>) => callback(tx),
+    collection: () => ({ doc: (id: string) => ({ id, set: async (data: Record<string, unknown>, opts?: Record<string, unknown>) => tx.set({ id }, data, opts) }) }),
   };
   const pipelineMocks = {
     runRouteEnrichment: vi.fn(async () => {}),
@@ -63,7 +66,7 @@ const { mockAdminDb, mockCalls, pipelineMocks } = vi.hoisted(() => {
     savePlan: vi.fn(async () => ({ planId: 'plan-abc', planUrl: '/my-plans/plan-abc' })),
     arrivalRestDayFromCtx: vi.fn(() => false), // 2026-10-26: worker 가 pass3 tripTimes 휴식일 플래그용으로 import
   };
-  return { mockAdminDb, mockCalls, pipelineMocks };
+  return { mockAdminDb, mockCalls, docs, pipelineMocks };
 });
 
 vi.mock('../../api/_ai_core/firestoreAdmin.js', () => ({ initAdminDb: () => mockAdminDb }));
@@ -266,6 +269,8 @@ describe('P231 Step 0 (skeleton-write) — real invocation, public doc sanitizat
 
   beforeEach(() => {
     mockCalls.length = 0;
+    docs.clear();
+    docs.set('plan-abc', { planId: 'plan-abc', uid: 'u1', status: 'streaming', _streaming_in_progress: true, _p231_stub: true });
     vi.clearAllMocks();
   });
 

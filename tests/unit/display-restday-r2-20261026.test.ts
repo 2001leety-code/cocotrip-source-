@@ -112,7 +112,9 @@ describe('r2-5 — editor: a meal added on the departure day removes the breakfa
     const one: Itin = { days: [{ stops: [{ category: 'food', name: 'A' }, lodging('06:00', { breakfast_note: 'x', _breakfast_note: true })] }] };
     expect(stripBreakfastNoteIfLastDayHasMeal(one)).toBe(false);
     const editor = read('src/pages/PlanDetailPage/hooks/usePlanEditor.ts');
-    expect((editor.match(/stripBreakfastNoteIfLastDayHasMeal\(\{ days: nextDays \}\);/g) || []).length).toBe(4);
+    expect(read('api/plan-edit.js')).toContain('stripBreakfastNoteIfLastDayHasMeal({ days });');
+    expect(read('api/_shared/plan-edit-service.js')).toContain('cleanDays(applyOperation(doc, command))');
+    expect((editor.match(/await commit\(\{type:/g) || []).length).toBe(4);
   });
 });
 

@@ -39,17 +39,20 @@ import path from 'path';
 //   what would have landed in the PUBLIC Firestore doc a guest's onSnapshot reads.
 function makeMockAdminDb() {
   const calls: Array<{ id: string; data: Record<string, unknown>; opts: Record<string, unknown> | undefined }> = [];
-  return {
-    calls,
-    collection: () => ({
-      doc: (id: string) => ({
-        set: async (data: Record<string, unknown>, opts?: Record<string, unknown>) => {
-          calls.push({ id, data, opts });
-          return {};
-        },
-      }),
-    }),
+  // Single-callback IO adapter, not a transaction-concurrency emulator.
+  const docs = new Map<string, Record<string, unknown>>();
+  const tx = {
+    get: async (ref: { id: string }) => ({ exists: docs.has(ref.id), data: () => docs.get(ref.id) }),
+    set: (ref: { id: string }, data: Record<string, unknown>, opts?: Record<string, unknown>) => {
+      calls.push({ id: ref.id, data, opts });
+      docs.set(ref.id, opts?.merge ? { ...docs.get(ref.id), ...data } : { ...data });
+    },
   };
+  const mockAdminDb = {
+    runTransaction: async (callback: (transaction: typeof tx) => Promise<unknown>) => callback(tx),
+    collection: () => ({ doc: (id: string) => ({ id, set: async (data: Record<string, unknown>, opts?: Record<string, unknown>) => tx.set({ id }, data, opts) }) }),
+  };
+  return { ...mockAdminDb, calls };
 }
 
 const __filename = fileURLToPath(import.meta.url);
@@ -90,8 +93,9 @@ describe('P230 block-mode + Inngest 통합 회귀 차단', () => {
     // tryInitBlockModeForInngest 함수 본문에 _streaming_skeleton + merge:true 패턴 (전체 파일 검사 + 함수 시작 위치 확인)
     const fnStart = bgSrc.indexOf('export async function tryInitBlockModeForInngest');
     expect(fnStart).toBeGreaterThan(0);
-    // 함수 시작 후 ~3000 chars 범위 (함수 본문 크기)
-    const fnBody = bgSrc.slice(fnStart, fnStart + 3500);
+    // Inspect the complete function, not a fixed character budget.
+    const nextExport = bgSrc.indexOf('\nexport ', fnStart + 1);
+    const fnBody = bgSrc.slice(fnStart, nextExport < 0 ? bgSrc.length : nextExport);
     expect(fnBody).toMatch(/_streaming_skeleton/);
     expect(fnBody).toMatch(/merge:\s*true/);
   });

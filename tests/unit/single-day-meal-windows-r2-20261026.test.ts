@@ -9,6 +9,7 @@
  */
 import { describe, it, expect, vi } from 'vitest';
 import { readFileSync } from 'node:fs';
+import { createFakeFirestore } from '../helpers/fake-firestore.js';
 import { resolve } from 'node:path';
 
 vi.mock('../../api/_shared/telegram-throttle.js', () => ({ throttledTelegramAlert: vi.fn(async () => ({ ok: true })) }));
@@ -43,20 +44,14 @@ describe('1 — generation → persisted input → modify keep the same one-day 
     const gen = validatePatternStructure(plan, { regions: shaped.regions, arrival_airport: shaped.arrival_airport, departure_airport: shaped.departure_airport, durationDays: 1, styles: shaped.styles, arrival_rest_day: false, meal_windows: genWindows });
     expect(gen).toEqual([]);
 
-    const writes: Array<{ collection: string; data: Dict }> = [];
-    const doc = (collection: string) => () => ({
-      set: vi.fn(async (data: Dict) => { writes.push({ collection, data }); }),
-      update: vi.fn(async () => {}),
-      get: vi.fn(async () => ({ exists: false, data: () => ({}) })),
-      collection: () => ({ doc: () => ({ set: vi.fn(async () => {}) }) }),
-    });
-    const db = { collection: vi.fn((name: string) => ({ doc: doc(name) })) };
-    await persistPlan(db as never, {
+    const db = createFakeFirestore();
+    const persisted = await persistPlan(db as never, {
       body, itinerary: structuredClone(plan), uid: 'u-r2', vehicle: 'sedan', priceKRW: 0, priceUSD: 0, guestName: 'T', pax: 1, styles: [],
       area: shaped.area, duration: 1, startDate: '2099-12-01', email: 't@e.x', specialRequest: '',
       arrival_airport: shaped.arrival_airport, departure_airport: shaped.departure_airport, hotel_address: null, mobility: null, language: 'en', dietary: [], foodIndex: [],
     } as never);
-    const saved = writes.find((w) => w.collection === 'plans' && w.data && w.data.input);
+    const canonical = db.__get(`plans/${persisted.planId}`);
+    const saved = canonical ? { data: canonical } : undefined;
     expect(saved).toBeDefined();
     const input = (saved as { data: { input: Dict } }).data.input;
     expect(input.departure_time).toBe('20:00');
