@@ -1,5 +1,5 @@
 import type { PlannerDict } from '../types';
-// Loading state — 4-step progress + Korea travel tips slideshow.
+// Loading state — itinerary work descriptions + Korea travel tips slideshow.
 // 2026-05-08: honest time display (1–2 min), step labels with tech hints,
 //             10-tip slideshow for en/ja/zh; ko users see existing Korean tips.
 // 2026-08-10 (Korea Editorial Concierge): converted from the dark card with
@@ -12,11 +12,10 @@ import type { PlannerDict } from '../types';
 //       that it was running long (`slowNote`);
 //     · the tip crossfade used a hardcoded 0.35s, so `prefers-reduced-motion`
 //       did not reach it. It rides the duration token now.
-//   The phase labels still name the real engine — that is transparency about
-//   mechanism, which the design system keeps; it is the marketing surfaces that
-//   lead with the itinerary instead.
+//   Phase labels describe itinerary work without naming an active model or
+//   routing provider: this component receives neither provider identity nor
+//   per-phase completion events. They are not a live progress checklist.
 import { useState, useEffect } from 'react';
-import { Check } from 'lucide-react';
 import { pickPlannerCopy } from '../plannerCopy';
 
 interface TriviaLoadingAnimationProps {
@@ -30,7 +29,7 @@ interface TriviaLoadingAnimationProps {
    * 2026-08-10 follow-up — this screen serves two different runs.
    *
    * Paid (`PurchaseSection`): the six-agent full pipeline. The ETA, the four
-   * phases and the "n / 6 agents" counter all describe it accurately, and the
+   * work descriptions and the "n / 6 agents" counter describe it, and the
    * slow note can offer the emailed plan because the plan is emailed.
    *
    * Free (`/api/ai-planner-quick`, wizard submit): one call that returns day one.
@@ -50,23 +49,18 @@ export function TriviaLoadingAnimation({ p, streamStep, lang = 'en', durationDay
   const tips: string[]   = p.loading_tips || [];
   const phases: string[] = [p.loading_step1, p.loading_step2, p.loading_step3, p.loading_step4];
   const [tipIdx,   setTipIdx]   = useState(0);
-  const [phaseIdx, setPhaseIdx] = useState(0);
   const [visible,  setVisible]  = useState(true);
   const [isSlow,   setIsSlow]   = useState(false);
 
   useEffect(() => {
     if (!tips.length) return;
     const tipsLen   = tips.length;
-    const phasesLen = phases.length;
     const tipTimer  = setInterval(() => {
       setVisible(false);
       setTimeout(() => { setTipIdx(i => (i + 1) % tipsLen); setVisible(true); }, 400);
     }, 3400);
-    const phaseTimer = setInterval(() => {
-      setPhaseIdx(i => Math.min(i + 1, phasesLen - 1));
-    }, 4000);
-    return () => { clearInterval(tipTimer); clearInterval(phaseTimer); };
-  }, [tips.length, phases.length]);
+    return () => clearInterval(tipTimer);
+  }, [tips.length]);
 
   // Runs regardless of whether tips exist — the acknowledgement is about the
   // wait, not about the slideshow.
@@ -74,10 +68,6 @@ export function TriviaLoadingAnimation({ p, streamStep, lang = 'en', durationDay
     const id = setTimeout(() => setIsSlow(true), SLOW_AFTER_MS);
     return () => clearTimeout(id);
   }, []);
-
-  const progressPercent = streamStep
-    ? Math.round((streamStep / 6) * 100)
-    : Math.round(((phaseIdx + 1) / phases.length) * 100);
 
   // "1~2분" honest time label — pull from locale if available, fallback per lang.
   // P163 (2026-05-23): durationDays 있으면 동적 ETA (3일 2~3분 / 5일 3~4분 / 7일 4~5분).
@@ -117,18 +107,10 @@ export function TriviaLoadingAnimation({ p, streamStep, lang = 'en', durationDay
     >
       <div className="flex items-baseline justify-between gap-3">
         <p className="ec-eyebrow">{preview ? c.loading.previewEyebrow : c.loading.eyebrow}</p>
-        {/* The percentage is derived from the paid pipeline's phase clock. On a
-            free preview it would be a number measuring nothing, and it reaches
-            100% while the request is still open. */}
-        {!preview && <p className="ec-figure text-[13px] text-ec-ink-3">{progressPercent}%</p>}
+        {/* Neither elapsed time nor the last agent step confirms a saved plan.
+            Keep the loading state pending without a fabricated percentage. */}
       </div>
       <h2 className="ec-h3 mt-2">{preview ? c.loading.previewHeading : c.loading.heading}</h2>
-
-      {!preview && (
-        <div className="ec-steprail mt-3" aria-hidden>
-          <span className="ec-steprail-fill" style={{ width: `${progressPercent}%` }} />
-        </div>
-      )}
 
       {!preview && <p className="ec-body-sm mt-3 text-ec-ink">{timeLabel}</p>}
       <p className={`ec-body-sm text-ec-ink-3 ${preview ? 'mt-3' : ''}`}>{analyzingLabel}</p>
@@ -143,32 +125,24 @@ export function TriviaLoadingAnimation({ p, streamStep, lang = 'en', durationDay
         </p>
       )}
 
-      {/* Phases — a checklist, not four glowing rows. Done items keep their
-          label so the traveller can see what has already happened. They name the
-          paid pipeline's stages (DB matching, Naver/ODsay routing, saving), so
-          the free preview does not borrow them. */}
+      {/* Work descriptions, not live phase status. Elapsed time and agent counts
+          do not confirm which of these phases is active or complete. The free
+          preview does not borrow the paid pipeline's descriptions. */}
       {!preview && (
       <ol className="mt-5 border-t border-ec-line">
-        {phases.map((phase, idx) => {
-          const done   = idx < phaseIdx;
-          const active = idx === phaseIdx;
-          return (
+        {phases.map((phase, idx) => (
             <li
               key={idx}
               className="flex items-center gap-2.5 border-b border-ec-line py-2.5"
-              aria-current={active ? 'step' : undefined}
             >
               <span className="grid h-5 w-5 shrink-0 place-items-center" aria-hidden>
-                {done
-                  ? <Check className="h-4 w-4 text-ec-success" />
-                  : <span className={`ec-figure text-[11px] ${active ? 'text-ec-brand' : 'text-ec-ink-4'}`}>{idx + 1}</span>}
+                <span className="ec-figure text-[11px] text-ec-ink-4">{idx + 1}</span>
               </span>
-              <span className={`text-[13px] ${active ? 'font-semibold text-ec-ink' : done ? 'text-ec-ink-3' : 'text-ec-ink-3'}`}>
+              <span className="text-[13px] text-ec-ink-3">
                 {phase}
               </span>
             </li>
-          );
-        })}
+        ))}
       </ol>
       )}
 

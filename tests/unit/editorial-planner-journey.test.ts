@@ -112,10 +112,23 @@ describe('planner positioning — the capability is the headline, not the mechan
     }
   });
 
-  it('keeps the mechanism where it is a technical or legal fact', () => {
-    // The loading phases name the real engine as transparency, not a sales
-    // line — the one place mechanism-naming survives (docs/DESIGN-EDITORIAL-CONCIERGE.md §5).
-    expect((locale('en').planner as Record<string, string>).loading_step1).toMatch(/Gemini/i);
+  it('describes itinerary work without guessing the active model provider', () => {
+    // The loading component receives no provider identity. Keep the existing
+    // four-language neutral copy rather than asserting one backend model.
+    const expected: Record<string, string> = {
+      ko: '일정 구성 중...',
+      en: 'Building itinerary...',
+      ja: '日程を構成中...',
+      zh: '正在构建行程...',
+    };
+    for (const l of LOCALES) {
+      const p = locale(l).planner as Record<string, string>;
+      expect(p.loading_step1, l).toBe(expected[l]);
+      for (const key of ['loading_step1', 'loading_step2', 'loading_step3', 'loading_step4']) {
+        expect(typeof p[key], `${l}.${key}`).toBe('string');
+        expect(p[key].trim().length, `${l}.${key}`).toBeGreaterThan(3);
+      }
+    }
   });
 
   it('planner copy exists in four languages with the same shape', async () => {

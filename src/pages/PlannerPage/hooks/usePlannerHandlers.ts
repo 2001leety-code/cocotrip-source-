@@ -12,6 +12,9 @@ import { buildQuickPreviewPayload } from '../lib/quickPreviewIntent';
 import { parseQuickPreviewResponse } from '../lib/quickPreviewContract';
 import { buildFullPlannerIntentPayload } from '../lib/plannerIntent';
 
+// The quick endpoint has a 60-second runtime limit; allow 15 seconds for delivery.
+const QUICK_PREVIEW_TIMEOUT_MS = 75_000;
+
 // feat/guest-anon-auth-pii (2026-06-15): 비로그인 게스트 + 플래그 ON 이면 격리된
 // 익명 Firebase 인스턴스(guestReader)로 로그인해 idToken 을 x-guest-anon-token 헤더로
 // 첨부한다. 결제용 Authorization 헤더는 절대 건드리지 않는다 (게스트는 그대로 없음 →
@@ -96,6 +99,7 @@ export type PlannerErrorCode =
   | 'INTERNAL_ERROR'
   | 'NETWORK_ERROR'
   | 'ABORT_TIMEOUT'
+  | 'PREVIEW_TIMEOUT'
   | 'INVALID_RESPONSE'
   | 'MISSING_FORM'
   | 'NO_PLAN_URL'
@@ -143,7 +147,7 @@ export function usePlannerHandlers({ language, userEmail, setUserEmail }: UsePla
   }
 
   // 1: Quick preview (free) -- ai-planner-quick call with auto-retry
-  async function submitQuickPreview(values: PlannerFormValues) {
+  async function submitQuickPreview(values: PlannerFormValues, signal: AbortSignal) {
     lastValues.current = values;
     setStatus('loadingQuick');
     setResultQuick(null);
@@ -170,15 +174,24 @@ export function usePlannerHandlers({ language, userEmail, setUserEmail }: UsePla
       void posthogTrack('preview_degraded_or_failed', { language, code });
     }
 
+    function timedOut() {
+      if (!signal.aborted) return false;
+      fail('PREVIEW_TIMEOUT', 'The preview took too long. Please try again.');
+      return true;
+    }
+
     for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+      if (timedOut()) return;
       let res: Response;
       try {
         res = await fetch('/api/ai-planner-quick', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: payload,
+          signal,
         });
       } catch (err) {
+        if (timedOut()) return;
         if (attempt < MAX_ATTEMPTS && err instanceof TypeError) {
           console.warn(`[Planner] Network error on attempt ${attempt}, retrying...`);
           await new Promise(r => setTimeout(r, 1500));
@@ -191,6 +204,7 @@ export function usePlannerHandlers({ language, userEmail, setUserEmail }: UsePla
 
       if (!res.ok) {
         const errBody = await res.json().catch(() => ({}));
+        if (timedOut()) return;
         const msg = errBody.details || errBody.error || `Server error (${res.status})`;
         const p = normalizeFetchError(new Error(msg), errBody.code, errBody.details);
         fail(p.code, p.details || msg);
@@ -198,6 +212,7 @@ export function usePlannerHandlers({ language, userEmail, setUserEmail }: UsePla
       }
 
       const json = await res.json().catch(() => null);
+      if (timedOut()) return;
       if (!json || json.ok !== true || !parseQuickPreviewResponse(json.data, language)) {
         fail('INVALID_RESPONSE', 'The preview response was malformed.');
         return;
@@ -221,9 +236,12 @@ export function usePlannerHandlers({ language, userEmail, setUserEmail }: UsePla
   async function handleSubmit(values: PlannerFormValues) {
     if (quickSubmitInFlight.current) return;
     quickSubmitInFlight.current = true;
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), QUICK_PREVIEW_TIMEOUT_MS);
     try {
-      return await submitQuickPreview(values);
+      return await submitQuickPreview(values, controller.signal);
     } finally {
+      clearTimeout(timeoutId);
       quickSubmitInFlight.current = false;
     }
   }
@@ -264,20 +282,20 @@ export function usePlannerHandlers({ language, userEmail, setUserEmail }: UsePla
       return;
     }
 
+    // Keep the existing deadline active until the response body is consumed.
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => {
+      controller.abort(new DOMException(
+        'AI 플랜 생성이 5분 이상 걸려 중단했습니다. 잠시 후 다시 시도하거나 WhatsApp으로 문의주세요.',
+        'AbortError'
+      ));
+    }, 300000);
     try {
       // 2026-05-03: timeout 120s → 300s. 백엔드 ai-planner-full.js는
       // maxDuration=300 (Vercel Pro 5분)인데 client가 2분만 기다려서 정상
       // 응답 전에 abort → "signal is aborted without reason" UX 망가짐.
       // 5분으로 매칭 + 의미있는 reason 전달 (DOMException name='AbortError'
       // 유지해서 catch 블록의 err.name === 'AbortError' 체크 호환).
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => {
-        controller.abort(new DOMException(
-          'AI 플랜 생성이 5분 이상 걸려 중단했습니다. 잠시 후 다시 시도하거나 WhatsApp으로 문의주세요.',
-          'AbortError'
-        ));
-      }, 300000);
-
       const authHeaders = await getAuthHeader();
       // 2026-05-10 (P0-2 launch blocker): guest checkout 지원 — token 없어도
       // paypalOrderId 있으면 진행. backend paymentGate.js 가 PayPal order 검증으로
@@ -287,7 +305,6 @@ export function usePlannerHandlers({ language, userEmail, setUserEmail }: UsePla
       // doc 으로 검증 가능 → guard 통과 허용. PR #332 의 guard relax 부작용 차단.
       const needsAuth = paypalOrderId?.startsWith('ADMIN-BYPASS-') || paypalOrderId?.startsWith('TEST-');
       if (!authHeaders.Authorization && (!paypalOrderId || needsAuth)) {
-        clearTimeout(timeoutId);
         const errMsg = needsAuth
           ? 'Sign-in required for admin/test mode. Sign in with admin account first.'
           : 'Sign-in or payment required to generate AI plan.';
@@ -328,12 +345,18 @@ export function usePlannerHandlers({ language, userEmail, setUserEmail }: UsePla
         }),
       });
 
-      clearTimeout(timeoutId);
-
       let json;
       try {
         json = await res.json();
-      } catch {
+      } catch (bodyError) {
+        // Preserve real string error codes, but do not turn an aborted body into
+        // INVALID_RESPONSE. Some stream implementations reject with TypeError.
+        const bodyCode = (bodyError as { code?: unknown } | null)?.code;
+        if (controller.signal.aborted) {
+          if (typeof bodyCode === 'string' && bodyCode) throw bodyError;
+          throw controller.signal.reason;
+        }
+        if ((bodyError as { name?: string } | null)?.name === 'AbortError') throw bodyError;
         // batch 9 fix (B9-6): JSON parse 실패 시 raw body 콘솔 dump + 메시지에 status 포함.
         // 502/504/HTML error page 케이스 진단 위해 운영자가 DevTools 콘솔에서 정확한
         // 원인 즉시 확인 가능. body는 200자까지만 (HTML 에러 페이지의 핵심만).
@@ -383,14 +406,20 @@ export function usePlannerHandlers({ language, userEmail, setUserEmail }: UsePla
       }
     } catch (err: unknown) {
       console.error('[PlannerPage] Plan generation failed:', err);
+      // DOMException.code is numeric (AbortError = 20), not a server error code.
+      const serverCode = (err as { code?: unknown } | null)?.code;
+      // DOMException can also originate outside this JavaScript Error realm.
+      const abortCode = (err as { name?: string } | null)?.name === 'AbortError' ? 'ABORT_TIMEOUT' : undefined;
       const payload = normalizeFetchError(
         err,
-        (err as { code?: string }).code,
+        typeof serverCode === 'string' && serverCode ? serverCode : abortCode,
         (err as { details?: string }).details || (err as Error).message,
       );
       setPlanErrorCode(payload.code);
       setPlanError(payload.details || (err instanceof Error ? err.message : 'Something went wrong. Please contact us via WhatsApp.'));
       setIsGeneratingPlan(false);
+    } finally {
+      clearTimeout(timeoutId);
     }
   }
 
