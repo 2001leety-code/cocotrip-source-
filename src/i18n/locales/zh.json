@@ -1901,6 +1901,7 @@
       "publicTransitRoute": "公共交通路线",
       "transitTransfers": "换乘",
       "mealCostLabel": "餐费另计",
+      "restaurantHoursAdvisory": "营业时间请在前往之前向店铺确认",
       "planRouteTimeline": "路线时间轴",
       "planStatDays": "天",
       "planStatStops": "景点",

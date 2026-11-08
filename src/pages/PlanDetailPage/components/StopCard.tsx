@@ -323,6 +323,14 @@ export function StopCard({ stop, lodgingRole, isOwner }: { stop: PlanStop; lodgi
               </span>
             )}
           </div>
+          {isFoodStop && (
+            <p
+              className="mt-1 text-[12px] leading-relaxed text-ec-ink-2"
+              data-testid="restaurant-hours-advisory"
+            >
+              {ui.restaurantHoursAdvisory || 'Please check opening hours with the venue before visiting'}
+            </p>
+          )}
         </div>
         {isFav && (
           <Heart aria-hidden className="mt-1 h-3.5 w-3.5 shrink-0 fill-current text-ec-brand" />

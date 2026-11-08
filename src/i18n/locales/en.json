@@ -1901,6 +1901,7 @@
       "publicTransitRoute": "Public transit route",
       "transitTransfers": "Transfers",
       "mealCostLabel": "Meal cost separate",
+      "restaurantHoursAdvisory": "Please check opening hours with the venue before visiting",
       "planRouteTimeline": "Route timeline",
       "planStatDays": "Days",
       "planStatStops": "Stops",
