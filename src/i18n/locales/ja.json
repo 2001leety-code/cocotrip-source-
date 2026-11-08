@@ -527,6 +527,12 @@
     }
   },
   "planner": {
+    "aiIssuanceTitle": "旅程の完了確認が必要です",
+    "aiIssuanceBody": "このブラウザには完了を確認できていないAI旅程の記録があるため、ここでの新しいAI購入を一時的に制限しています。別の端末で再度支払わず、既存の旅程を確認するか、注文番号を添えてお問い合わせください。",
+    "aiIssuanceStorageWarning": "この端末で案内を保存または読み取れませんでした。このタブの保護は再読み込み後や別の端末では維持されない場合があります。再度支払わずにお問い合わせください。",
+    "aiIssuanceOpenPlan": "リンク先の旅程を確認",
+    "aiIssuanceOrder": "注文",
+    "aiIssuanceCheckoutBlocked": "既存の注文と購入時のアカウントをご確認ください。再度支払わずにお問い合わせください。",
     "heroTitle": "あなただけの\n韓国旅行",
     "badgeLabel": "AI Travel Planner",
     "notifyPlanReadyTitle": "韓国の旅程ができました",
@@ -563,6 +569,7 @@
     "step4": "移動時間を計算中…",
     "errorTitle": "プランの作成に失敗しました",
     "errors": {
+      "AI_SCOPE_AUTH_CHANGED": "既存の注文と購入時のアカウントをご確認ください。再度支払わずにお問い合わせください。",
       "GEMINI_TIMEOUT": "旅程の作成にいつもより時間がかかっています。少し待ってからもう一度お試しください。",
       "GEMINI_ERROR": "旅程を完成できませんでした。もう一度お試しください。",
       "MISSING_DESTINATION": "プレビューをリクエストする前に目的地を選んでください。",

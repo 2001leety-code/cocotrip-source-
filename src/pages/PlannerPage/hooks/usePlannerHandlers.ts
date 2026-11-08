@@ -1,6 +1,8 @@
+import type { AiCheckoutScope } from '@/lib/aiCheckoutScope';
+import { beginAiPlanNotice, linkAiPlanNotice, holdAiCheckoutInThisTab, hasCompletedAiPlanNotice } from '@/lib/aiPlanIssuanceNotice';
 // Planner page state handlers -- extracted verbatim from legacy PlannerPage.tsx.
 // LOCKED region -- handlePaymentSuccess lifted verbatim.
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import type { PlannerFormValues } from '@/components/PlannerForm';
 import { cityNameToAreaKey } from '../lib/formatters';
@@ -52,6 +54,7 @@ interface UsePlannerHandlersOptions {
 type Status = 'idle' | 'loadingQuick' | 'quickSuccess' | 'loadingFull' | 'fullSuccess' | 'error';
 
 export type PlannerErrorCode =
+  | 'AI_SCOPE_AUTH_CHANGED'
   | 'GEMINI_TIMEOUT'
   | 'GEMINI_ERROR'
   // 2026-08-24 (planner-trust-course, E/quick preview): stable quick-preview error codes.
@@ -265,9 +268,58 @@ export function usePlannerHandlers({ language, userEmail, setUserEmail }: UsePla
     setStatus('quickSuccess');
   }
 
+  // 검증된 final 시점 scope. order별 1건, UID는 create 시점 local hint(권한 증거 아님).
+  const aiFlowMounted = useRef(true);
+  useEffect(() => { aiFlowMounted.current = true; return () => { aiFlowMounted.current = false; }; }, []);
+  const aiInputByAttempt = useRef<Map<string, {uid:string|null; values:PlannerFormValues|null}>>(new Map());
+  function handleAiCheckoutStarted(attemptId:string, uid:string|null) {
+    aiInputByAttempt.current.set(attemptId, {uid, values:lastValues.current});
+  }
+  const aiScopeByOrder = useRef<Map<string, AiCheckoutScope>>(new Map());
+  // 같은 attempt 의 반복 final 이 자동 full 을 중복 시작하지 않도록 1회 허용.
+  const aiAttemptStarted = useRef<Set<string>>(new Set());
+  const readCurrentUid = (): string | null =>
+    firebaseAuth.currentUser ? firebaseAuth.currentUser.uid : null;
+  /**
+   * PayPalBookingButton.onVerifiedPayPalFinal 전용.
+   * true  → 기존 onPaymentSuccess(orderId) 로 자동 발급 계속
+   * false → 자동 발급 중단(공유 capture clear 는 버튼 쪽 기존 동작, 여기서 건드리지 않음)
+   */
+  function handleVerifiedPayPalFinal(scope: AiCheckoutScope | null, orderId: string): boolean | 'known-complete' {
+    // legacy unknown(scope 자체 null) 또는 order 불일치 → 자동 발급 안 함
+    if (!scope || scope.orderId !== orderId) return false;
+    const currentUid = readCurrentUid();
+    if (scope.uid && currentUid === scope.uid && hasCompletedAiPlanNotice(scope.uid, orderId)) return 'known-complete';
+    // explicit guest(uid null): 현재도 비로그인일 때만 기존 guest 동작.
+    // pending 기록/복구 보장 없음.
+    const key = `${orderId}:${scope.attemptId}`;
+    if (aiAttemptStarted.current.has(key)) return false; // 기존 pending 유지, 재생성 0
+    if (scope.uid === null) {
+      const pinned = aiInputByAttempt.current.get(scope.attemptId);
+      if (!aiFlowMounted.current || currentUid !== null || !pinned || pinned.uid !== null || !pinned.values || pinned.values !== lastValues.current) {
+        holdAiCheckoutInThisTab(); return false;
+      }
+      aiAttemptStarted.current.add(key);
+      aiScopeByOrder.current.set(orderId, scope);
+      return true; // Preserve guest issuance without claiming durable account-scoped recovery.
+    }
+    // verified final 증거: 현재 계정이 달라도 원래 UID 에 동기 기록.
+    const begun = beginAiPlanNotice(scope.uid, orderId, scope.attemptId);
+    if (begun === null) return false; // 별도 done 이미 존재 → 자동 재발급 금지
+    aiAttemptStarted.current.add(key);
+    if (!aiFlowMounted.current || currentUid !== scope.uid) return false; // 원래 UID 와 다른 계정 → 자동 진행 안 함
+    const pinned = aiInputByAttempt.current.get(scope.attemptId);
+    if (!pinned || pinned.uid !== scope.uid || !pinned.values || pinned.values !== lastValues.current) return false;
+    aiScopeByOrder.current.set(orderId, scope);
+    return true;
+  }
+
+
   // LOCKED region -- handlePaymentSuccess lifted verbatim from legacy PlannerPage.tsx L1414-1493
   // 2: PayPal payment success -> Full AI plan generation (paid)
   async function handlePaymentSuccess(paypalOrderId: string, aiCouponCode?: string) {
+    const aiScope = aiScopeByOrder.current.get(paypalOrderId) || null;
+    if (aiScope && !aiFlowMounted.current) return;
     setIsGeneratingPlan(true);
     setPlanError(null);
     setPlanErrorCode(null);
@@ -276,12 +328,18 @@ export function usePlannerHandlers({ language, userEmail, setUserEmail }: UsePla
 
     const values = lastValues.current;
     if (!values) {
+      if (aiScope && aiScope.uid === null) holdAiCheckoutInThisTab();
       setPlanErrorCode('MISSING_FORM');
       setPlanError('Form data missing. Please try again.');
       setIsGeneratingPlan(false);
       return;
     }
 
+    const scopeHolds = () => !aiScope || (aiFlowMounted.current && readCurrentUid() === aiScope.uid);
+    const makeScopeError = () => Object.assign(new Error('Please check the original account and existing order.'), {code:'AI_SCOPE_AUTH_CHANGED'});
+    if (!scopeHolds()) {
+      setPlanErrorCode('AI_SCOPE_AUTH_CHANGED'); setPlanError(makeScopeError().message); setIsGeneratingPlan(false); return;
+    }
     // Keep the existing deadline active until the response body is consumed.
     const controller = new AbortController();
     const timeoutId = setTimeout(() => {
@@ -297,6 +355,7 @@ export function usePlannerHandlers({ language, userEmail, setUserEmail }: UsePla
       // 5분으로 매칭 + 의미있는 reason 전달 (DOMException name='AbortError'
       // 유지해서 catch 블록의 err.name === 'AbortError' 체크 호환).
       const authHeaders = await getAuthHeader();
+      if (!scopeHolds()) throw makeScopeError();
       // 2026-05-10 (P0-2 launch blocker): guest checkout 지원 — token 없어도
       // paypalOrderId 있으면 진행. backend paymentGate.js 가 PayPal order 검증으로
       // guest 결제 인증. 외국인 sign-in 미인증자도 결제만 완료하면 plan 생성 가능.
@@ -315,6 +374,7 @@ export function usePlannerHandlers({ language, userEmail, setUserEmail }: UsePla
       // feat/guest-anon-auth-pii: 비로그인 게스트 + 플래그 ON 일 때만 별도 익명 토큰 헤더.
       // 플래그 OFF 또는 로그인 사용자 = {} → fetch 헤더 동일 (기존 동작 불변).
       const guestAnonHeaders = await getGuestAnonHeader(!!authHeaders.Authorization);
+      if (!scopeHolds()) throw makeScopeError();
       // 2026-08-24 (planner-intent-v1): the ONE builder NEW and REVISION both
       // call — see src/pages/PlannerPage/lib/plannerIntent.ts. `flat` carries
       // every travel-preference field (backward-compatible key names); the
@@ -376,6 +436,8 @@ export function usePlannerHandlers({ language, userEmail, setUserEmail }: UsePla
       }
 
       const data = json.data;
+      if (aiScope && aiScope.uid) linkAiPlanNotice(aiScope.uid, aiScope.orderId, aiScope.attemptId, data?.planId);
+      if (!scopeHolds()) throw makeScopeError();
 
       setStreamStep(4);
       setStreamAgent('done');
@@ -405,6 +467,15 @@ export function usePlannerHandlers({ language, userEmail, setUserEmail }: UsePla
         throw e;
       }
     } catch (err: unknown) {
+      if (aiScope && !aiFlowMounted.current) return;
+      if (aiScope && readCurrentUid() !== aiScope.uid) {
+        if (aiScope.uid === null) holdAiCheckoutInThisTab();
+        setPlanErrorCode('AI_SCOPE_AUTH_CHANGED');
+        setPlanError(makeScopeError().message);
+        setIsGeneratingPlan(false);
+        return;
+      }
+      if (aiScope && aiScope.uid === null) holdAiCheckoutInThisTab();
       console.error('[PlannerPage] Plan generation failed:', err);
       // DOMException.code is numeric (AbortError = 20), not a server error code.
       const serverCode = (err as { code?: unknown } | null)?.code;
@@ -554,6 +625,8 @@ export function usePlannerHandlers({ language, userEmail, setUserEmail }: UsePla
     handleSubmit,
     handleRevisionSubmit,
     handlePaymentSuccess,
+    handleVerifiedPayPalFinal,
+    handleAiCheckoutStarted,
     handleRevisionRegenerate,
     handleReset,
   };

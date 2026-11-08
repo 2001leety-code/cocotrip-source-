@@ -527,6 +527,12 @@
     }
   },
   "planner": {
+    "aiIssuanceTitle": "Itinerary completion needs confirmation",
+    "aiIssuanceBody": "This browser has an AI itinerary whose completion is not confirmed, so new AI purchases here are temporarily paused. Please check the existing itinerary or contact us with your order number rather than pay again on another device.",
+    "aiIssuanceStorageWarning": "This device could not save or read the notice. Protection in this tab may not survive reload or carry to another device. Please contact us rather than pay again.",
+    "aiIssuanceOpenPlan": "Check linked itinerary",
+    "aiIssuanceOrder": "Order",
+    "aiIssuanceCheckoutBlocked": "Please check your existing order and the account used at checkout. Contact us rather than pay again.",
     "heroTitle": "Your Korea.\nYour Way.",
     "badgeLabel": "AI Travel Planner",
     "notifyPlanReadyTitle": "Your Korea itinerary is ready",
@@ -563,6 +569,7 @@
     "step4": "Calculating travel times…",
     "errorTitle": "Failed to generate itinerary",
     "errors": {
+      "AI_SCOPE_AUTH_CHANGED": "Please check your existing order and the account used at checkout. Contact us rather than pay again.",
       "GEMINI_TIMEOUT": "Writing your itinerary is taking longer than usual. Please wait a moment and try again.",
       "GEMINI_ERROR": "Your itinerary could not be completed. Please try again.",
       "MISSING_DESTINATION": "Please choose a destination before requesting a preview.",

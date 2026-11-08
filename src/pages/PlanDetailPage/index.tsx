@@ -1,3 +1,5 @@
+import { auth as firebaseAuth } from '@/lib/firebase-auth';
+import { settleAiPlanNoticesFromOwnerRead } from '@/lib/aiPlanIssuanceNotice';
 // PlanDetailPage container: Firestore listener + swipe carousel + edit mode.
 // Split from src/pages/PlanDetailPage.tsx (1144L) during P2 Lock release.
 // LOCKED regions moved out:
@@ -232,7 +234,9 @@ export default function PlanDetailPage() {
 
     // 로그인 = 소유자 실시간 경로(onSnapshot). 본인 plan 만 룰이 read 허용.
     //   permission-denied = 로그인 비소유자(룰 거부) → API 로 폴백(서버가 공개/토큰 판정).
-    const unsub = onSnapshot(doc(db, 'plans', planId), (snap) => {
+    const planRef = doc(db, 'plans', planId);
+    // UI observer: default includeMetadataChanges=false → metadata-only snapshots never reach handleSnap.
+    const unsub = onSnapshot(planRef, (snap) => {
       if (cancelled) return;
       if (!snap.exists()) { setError('notfound'); setLoading(false); return; }
       handleSnap(snap.data() as PlanDocument, uid);
@@ -245,7 +249,33 @@ export default function PlanDetailPage() {
       }
       handleErrLegacy(err);
     });
-    return () => { cancelled = true; unsub(); };
+    // Completion observer: same planRef target; only settles owner-read notices, never touches UI state.
+    let unsubCompletion: (() => void) | undefined;
+    try {
+      unsubCompletion = onSnapshot(planRef, { includeMetadataChanges: true }, (snap) => {
+        if (cancelled) return;
+        try {
+          if (!snap.exists()) return;
+          // Only fresh owner data may settle a UI hint; API/public projections never do.
+          settleAiPlanNoticesFromOwnerRead({
+            currentUid: firebaseAuth.currentUser?.uid,
+            viewerUid: uid, planId,
+            fromCache: snap.metadata?.fromCache,
+            hasPendingWrites: snap.metadata?.hasPendingWrites,
+            data: snap.data() as PlanDocument,
+          });
+        } catch { /* A hint must never affect the rendered document. */ }
+      }, () => {
+        /* Completion errors (incl. permission) are ignored: UI observer owns error/fallback; pending is not released. */
+      });
+    } catch {
+      /* Synchronous registration failure: keep UI observer; pending is not released. */
+    }
+    return () => {
+      cancelled = true;
+      try { unsub(); } catch { /* ignore */ }
+      try { unsubCompletion?.(); } catch { /* ignore */ }
+    };
   }, [planId, token, uid, authLoading, localScenario]);
 
   // share_visit tracking

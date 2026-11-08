@@ -21,6 +21,7 @@ const leaflet = vi.hoisted(() => ({ map: vi.fn(), polyline: vi.fn(), marker: vi.
 
 vi.mock('firebase/firestore', () => firestore);
 vi.mock('../../src/lib/firebase', () => ({ db: {} }));
+vi.mock('../../src/lib/firebase-auth', () => ({ auth: { get currentUser() { return session.auth.user; } } }));
 vi.mock('../../src/hooks/useAuth', () => ({ useAuth: () => session.auth }));
 vi.mock('../../src/hooks/useLanguage', () => ({ useLanguage: () => session.language }));
 vi.mock('../../src/hooks/usePageMeta', () => ({ usePageMeta: () => {} }));
@@ -125,7 +126,8 @@ describe('day route map prop wiring', () => {
   it('shows the selected day scope and stops from the plan page through DayTimeline without fetching routes', async () => {
     const fetchMock = vi.fn();
     vi.stubGlobal('fetch', fetchMock);
-    firestore.onSnapshot.mockImplementation((_ref: unknown, next: (snap: unknown) => void) => {
+    firestore.onSnapshot.mockImplementation((_ref: unknown, optionsOrNext: unknown, callback: unknown) => {
+      const next = (typeof optionsOrNext === 'function' ? optionsOrNext : callback) as (snap: unknown) => void;
       void Promise.resolve().then(() => next({
         exists: () => true,
         data: () => ({ uid: 'u1', status: 'ready', input: { language: 'en' }, itinerary: { tour_title: 'Trip', days } }),

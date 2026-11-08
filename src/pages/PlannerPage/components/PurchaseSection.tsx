@@ -1,3 +1,7 @@
+import type { AiCheckoutScope } from '@/lib/aiCheckoutScope';
+import { auth as firebaseAuth } from '@/lib/firebase-auth';
+import { useAiPlanNotices } from '@/hooks/useAiPlanNotices';
+import { readAiPlanNotices, isAiCheckoutHeldInThisTab } from '@/lib/aiPlanIssuanceNotice';
 // Purchase section -- single primary CTA (Klook pattern).
 // 2026-05-05: free-claim funnel 폐기 — Option B "already booked? get it free"
 // bundle toggle 분기 제거. 유료 PayPal flow만 노출.
@@ -46,6 +50,8 @@ interface PurchaseSectionProps {
   revisionReason?: string | null;
   revisionNote?: string | null;
   avoidList?: string | null;
+  onAiCheckoutStarted?: (attemptId:string, uid:string|null) => void;
+  onVerifiedPayPalFinal?: (scope: AiCheckoutScope | null, orderId: string) => boolean | 'known-complete';
   onPaymentSuccess: (orderId: string, aiCouponCode?: string) => void;
   onRevisionRegenerate: (values: PlannerFormValues, planId: string, token: string | null, revisionReason?: string | null, revisionNote?: string | null, avoidList?: string | null) => void;
 }
@@ -55,7 +61,7 @@ export function PurchaseSection({
   isGeneratingPlan, planError, resultQuick, lastValues,
   revisionMode, revisionPlanId, revisionToken,
   revisionReason, revisionNote, avoidList,
-  onPaymentSuccess, onRevisionRegenerate,
+  onPaymentSuccess, onVerifiedPayPalFinal, onAiCheckoutStarted, onRevisionRegenerate,
 }: PurchaseSectionProps) {
   // 5/7 변경: PayPalBookingButton 이 PayPal Smart Buttons (live) + SDK 차단 시 paypal.me QR
   // fallback 통합. PurchaseSection 은 단순히 button 렌더만.
@@ -65,6 +71,9 @@ export function PurchaseSection({
   // 일정표 못 받음" 사고. 운영자 정책: 비로그인 결제 금지. 결제창(PayPal) 뜨기 전에
   // 막아서 결제 후 실패를 원천 차단. (backend verifyUserToken 은 의도된 인증 — 무변경.)
   const { user, loading: authLoading } = useAuth();
+  const { notices, tabHold } = useAiPlanNotices(user?.uid);
+  const hasPendingIssuance = tabHold || notices.length > 0;
+  const canStartAiCheckout = () => !isAiCheckoutHeldInThisTab() && readAiPlanNotices(firebaseAuth.currentUser?.uid).notices.length === 0;
   // 게스트 결제 (FEATURE_GUEST_ANON_AUTH): ON 이면 비로그인 손님도 가입 없이 바로 결제
   //   (벽 → 당근). 백엔드 handlerCore 가 같은 플래그로 게스트 PayPal 결제를 받는다.
   //   OFF(기본) = P315 로그인 벽 그대로 (현행 byte-identical).
@@ -319,6 +328,8 @@ export function PurchaseSection({
                   {(p as { aiCouponProceed?: string }).aiCouponProceed || '무료 쿠폰으로 일정표 받기'}
                 </button>
               </div>
+            ) : hasPendingIssuance ? (
+              <p role="status">{tabHold ? p.aiIssuanceCheckoutBlocked : p.aiIssuanceBody}</p>
             ) : (
               <PayPalBookingButton
                 productType="ai-planner-full" passengers={1} dateStart="" dateEnd=""
@@ -330,6 +341,10 @@ export function PurchaseSection({
                 memo={`Full itinerary for: ${userEmail}`}
                 itineraryData={resultQuick}
                 onPaymentSuccess={onPaymentSuccess}
+                onVerifiedPayPalFinal={onVerifiedPayPalFinal}
+                canStartAiCheckout={canStartAiCheckout}
+                onAiCheckoutStarted={onAiCheckoutStarted}
+                aiCheckoutBlockedMessage={p.aiIssuanceCheckoutBlocked}
                 userEmail={userEmail}
               />
             )}

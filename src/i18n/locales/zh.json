@@ -527,6 +527,12 @@
     }
   },
   "planner": {
+    "aiIssuanceTitle": "需要确认行程是否完成",
+    "aiIssuanceBody": "此浏览器留有尚未确认完成的AI行程记录，因此暂时限制在此购买新的AI行程。请勿在其他设备重复付款，请先查看现有行程或提供订单号联系我们。",
+    "aiIssuanceStorageWarning": "此设备无法保存或读取提示。当前标签页的保护在刷新后或其他设备上可能无法保留。请联系我们，不要再次付款。",
+    "aiIssuanceOpenPlan": "查看关联行程",
+    "aiIssuanceOrder": "订单",
+    "aiIssuanceCheckoutBlocked": "请先核对现有订单及付款时使用的账号。请联系我们，不要再次付款。",
     "heroTitle": "专属韩国\n定制之旅",
     "badgeLabel": "AI Travel Planner",
     "notifyPlanReadyTitle": "你的韩国行程已完成",
@@ -563,6 +569,7 @@
     "step4": "正在计算行程时间…",
     "errorTitle": "行程生成失败",
     "errors": {
+      "AI_SCOPE_AUTH_CHANGED": "请先核对现有订单及付款时使用的账号。请联系我们，不要再次付款。",
       "GEMINI_TIMEOUT": "行程生成时间比平时长，请稍等片刻后再试。",
       "GEMINI_ERROR": "未能完成您的行程，请重试。",
       "MISSING_DESTINATION": "请先选择目的地，再请求预览。",
