@@ -527,6 +527,12 @@
     }
   },
   "planner": {
+    "aiIssuanceTitle": "일정 완료 확인이 필요합니다",
+    "aiIssuanceBody": "이 브라우저에 이전 AI 일정의 완료 미확인 기록이 있어 새 AI 구매를 잠시 제한합니다. 다른 기기에서 다시 결제하지 말고, 기존 일정을 확인하거나 주문 번호와 함께 문의해 주세요.",
+    "aiIssuanceStorageWarning": "기기에 확인 기록을 저장하거나 읽지 못했습니다. 현재 탭의 보호는 새로고침이나 다른 기기에서 유지되지 않을 수 있으니 다시 결제하지 말고 문의해 주세요.",
+    "aiIssuanceOpenPlan": "연결된 일정 확인",
+    "aiIssuanceOrder": "주문",
+    "aiIssuanceCheckoutBlocked": "기존 주문과 결제 당시 계정을 먼저 확인해 주세요. 다시 결제하지 말고 문의해 주세요.",
     "heroTitle": "당신의 한국,\n당신의 방식.",
     "badgeLabel": "AI Travel Planner",
     "notifyPlanReadyTitle": "한국 일정이 완성됐어요",
@@ -563,6 +569,7 @@
     "step4": "이동 시간을 계산하는 중…",
     "errorTitle": "일정 생성에 실패했습니다",
     "errors": {
+      "AI_SCOPE_AUTH_CHANGED": "기존 주문과 결제 당시 계정을 먼저 확인해 주세요. 다시 결제하지 말고 문의해 주세요.",
       "GEMINI_TIMEOUT": "일정을 짜는 데 평소보다 오래 걸리고 있습니다. 잠시 후 다시 시도해 주세요.",
       "GEMINI_ERROR": "일정을 완성하지 못했습니다. 다시 시도해 주세요.",
       "MISSING_DESTINATION": "미리보기를 요청하기 전에 목적지를 선택해 주세요.",

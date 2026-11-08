@@ -67,7 +67,19 @@ describe('소스 회귀 가드 — 플래그 게이트 + OFF 경로 보존', () 
     //   로그인 비소유자)는 /api/get-plan(서버 마스킹) 경유만, 소유자만 onSnapshot.
     const src = readFileSync(resolve(ROOT, 'src/pages/PlanDetailPage/index.tsx'), 'utf8');
     // 소유자(로그인 본인) 경로 = 메인 db onSnapshot 유지
-    expect(src).toContain("onSnapshot(doc(db, 'plans', planId)");
+    expect(src).toMatch(/const\s+planRef\s*=\s*doc\(db,\s*'plans',\s*planId\)/);
+    expect(src).toMatch(/const\s+unsub\s*=\s*onSnapshot\(planRef,\s*\(snap\)\s*=>/);
+    expect(src).toMatch(/unsubCompletion\s*=\s*onSnapshot\(planRef,\s*\{\s*includeMetadataChanges:\s*true\s*\}/);
+    expect(src.match(/onSnapshot\(planRef,/g)).toHaveLength(2);
+    const completionStart = src.indexOf('unsubCompletion = onSnapshot(');
+    const completionEnd = src.indexOf('return () => {', completionStart);
+    expect(completionStart).toBeGreaterThan(-1);
+    expect(completionEnd).toBeGreaterThan(completionStart);
+    const completion = src.slice(completionStart, completionEnd);
+    expect(completion).toContain('settleAiPlanNoticesFromOwnerRead(');
+    expect(completion).toContain('fromCache: snap.metadata?.fromCache');
+    expect(completion).toContain('hasPendingWrites: snap.metadata?.hasPendingWrites');
+    expect(completion).not.toMatch(/(?:handleSnap|setPlan|setError|fetchViaApi)\s*\(/);
     expect(src).toContain("setError('autherror')");
     // 비소유자 경로 = 서버 경유 읽기 (wire 전에 서버 마스킹)
     expect(src).toContain('fetchViaApi');

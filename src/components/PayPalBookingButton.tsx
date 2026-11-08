@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, lazy, Suspense } from 'react';
+import { useState, useEffect, useLayoutEffect, useRef, lazy, Suspense } from 'react';
 import { Tag, Check, AlertCircle, Ticket, Sparkles, ChevronDown, ChevronUp, ArrowRight, Loader2, ShieldCheck } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { track as posthogTrack } from '@/lib/posthog';
@@ -17,6 +17,9 @@ import { charterCheckoutExpectedUsd, charterUsdFromKrw } from '@/lib/charterUsd'
 import { GuestSignupNudge } from '@/components/GuestSignupNudge';
 import { usePaymentRecovery, reconcilePayment, classifyCaptureResponse, recoveryCopy, recoveryHeadline, type CaptureOutcome } from '@/lib/paymentRecovery';
 import type { Language } from '@/i18n';
+import { auth as firebaseAuth } from '@/lib/firebase-auth';
+import { holdAiCheckoutInThisTab } from '@/lib/aiPlanIssuanceNotice';
+import { readAiCheckoutScope, rememberAiCheckoutScope, newAiCheckoutAttemptId, type AiCheckoutScope } from '@/lib/aiCheckoutScope';
 
 // SDK 차단·로드 실패 시 fallback — paypal.me QR (외부 redirect, paypalobjects.com 무관).
 // lazy import 로 첫 paint 영향 0.
@@ -75,6 +78,11 @@ interface Props {
   itineraryData?: unknown;
   /** Called after PayPal capture succeeds — parent handles next step (e.g. AI plan generation) */
   onPaymentSuccess?: (orderID: string) => void | Promise<void>;
+  /** AI-only observation of verified final. False stops auto-issuance, not capture recovery. */
+  onVerifiedPayPalFinal?: (scope: AiCheckoutScope | null, orderId: string) => boolean | 'known-complete';
+  canStartAiCheckout?: () => boolean;
+  onAiCheckoutStarted?: (attemptId: string, uid: string | null) => void;
+  aiCheckoutBlockedMessage?: string;
   /** 현재 사용자 이메일 — 테스트 계정 감지용 */
   userEmail?: string;
   /** 공항 픽업 전용 부가 정보 (터미널/편명/수하물) */
@@ -147,7 +155,10 @@ declare global {
 // 🧪 bypass 버튼 노출. 운영 안정 후 제거 가능.
 const TEST_ACCOUNTS: string[] = ['2001leety@gmail.com'];
 
-export function PayPalBookingButton({ productType, passengers, dateStart = '', dateEnd = '', priceKRW: rawPriceKRW, expectedUSD, disabled = false, estimateConsent, p = {}, lang, pickupLocation = '', dropoffLocation = '', vehicleType = '', memo = '', itineraryData, onPaymentSuccess, userEmail = '', airport, customAmountKRW, pickupTime = '', durationDays, originKey, destKey, tripType, vehicle, routeCoords, termsAgreed, marketingConsent, options, tourId, tourSlotId, bookingDate, slotCapacity }: Props) {
+function currentUid(): string | null { return firebaseAuth.currentUser?.uid || null; }
+function safeCanStart(fn: () => boolean): boolean { try { return fn() === true; } catch { return false; } }
+
+export function PayPalBookingButton({ productType, passengers, dateStart = '', dateEnd = '', priceKRW: rawPriceKRW, expectedUSD, disabled = false, estimateConsent, p = {}, lang, pickupLocation = '', dropoffLocation = '', vehicleType = '', memo = '', itineraryData, onPaymentSuccess, onVerifiedPayPalFinal, canStartAiCheckout, onAiCheckoutStarted, aiCheckoutBlockedMessage, userEmail = '', airport, customAmountKRW, pickupTime = '', durationDays, originKey, destKey, tripType, vehicle, routeCoords, termsAgreed, marketingConsent, options, tourId, tourSlotId, bookingDate, slotCapacity }: Props) {
   // 슬롯 정원 4필드 — create/capture 두 요청에 **같은 값**이 실려야 pending → confirmed 가 이어진다.
   // 한 번만 계산해 두 곳에서 공유(한쪽만 고치는 사고 방지).
   const slotFields = tourSlotBody({ tourId, tourSlotId, bookingDate, slotCapacity });
@@ -192,7 +203,22 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
   const { recovery, remember, clearRecovery } = usePaymentRecovery('single');
   const captureInFlight = useRef(false);
   const [reconciling, setReconciling] = useState(false);
+  // Unknown legacy scope or an observer failure is not permission for a second AI checkout.
+  const [aiIssuanceHalted, setAiIssuanceHalted] = useState(false);
+  const aiIssuanceHaltedRef = useRef(false);
   const rc = recoveryCopy(lang);
+  const verifiedFinalRef = useRef(onVerifiedPayPalFinal);
+  const canStartRef = useRef(canStartAiCheckout);
+  const aiCreatedAttempts = useRef(new Map<string, string>());
+  const blockedMsgRef = useRef(aiCheckoutBlockedMessage);
+  useLayoutEffect(() => {
+    verifiedFinalRef.current = onVerifiedPayPalFinal;
+    canStartRef.current = canStartAiCheckout;
+    blockedMsgRef.current = aiCheckoutBlockedMessage;
+  }, [onVerifiedPayPalFinal, canStartAiCheckout, aiCheckoutBlockedMessage]);
+  function aiBlockedMessage(): string {
+    return blockedMsgRef.current || 'Please check your existing AI order before starting another payment.';
+  }
   async function applyCaptureOutcome(outcome: CaptureOutcome, orderID: string, fresh: boolean) {
     if (outcome.kind === 'final') {
       clearRecovery(orderID);
@@ -203,7 +229,29 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
       }
       // A restored pointer for a different product never feeds this product's success callback.
       const sameProduct = fresh || recovery?.productType === productType;
-      if (onPaymentSuccess && sameProduct) { setShowPaypal(false); await onPaymentSuccess(orderID); return; }
+      if (onPaymentSuccess && sameProduct) {
+        setShowPaypal(false);
+        const verifiedFinal = verifiedFinalRef.current;
+        if (verifiedFinal) {
+          let proceed = false;
+          const scope = readAiCheckoutScope(orderID);
+          try {
+            const decision = verifiedFinal(scope, orderID);
+            if (decision === 'known-complete') { setRateInfo(null); return; }
+            proceed = decision === true;
+          }
+          catch { holdAiCheckoutInThisTab(); }
+          if (!scope) holdAiCheckoutInThisTab();
+          if (!proceed) {
+            aiIssuanceHaltedRef.current = true;
+            setAiIssuanceHalted(true);
+            setError(aiBlockedMessage());
+            return;
+          }
+        }
+        await onPaymentSuccess(orderID);
+        return;
+      }
       setSuccessData({ orderID, payerName: result.payerName || '', payerEmail: result.payerEmail || '', amount: result.amount || '' });
       setShowSuccess(true); setShowPaypal(false); setRateInfo(null);
       return;
@@ -496,7 +544,15 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
 
     const sharedConfig = {
       // 모바일 호환: 주문은 미리 생성됨 → ID만 동기 반환 (async 금지 — 모바일 팝업 차단 방지)
-      createOrder: () => rateInfo.orderID,
+      createOrder: () => {
+        if (aiIssuanceHaltedRef.current) throw new Error(aiBlockedMessage());
+        const canStart = canStartRef.current;
+        if (canStart) {
+          const scope = readAiCheckoutScope(rateInfo.orderID);
+          if (!scope || scope.uid !== currentUid() || aiCreatedAttempts.current.get(rateInfo.orderID) !== scope.attemptId || !safeCanStart(canStart)) throw new Error(aiBlockedMessage());
+        }
+        return rateInfo.orderID;
+      },
       onApprove: async (data: { orderID: string }) => {
         if (captureInFlight.current) return;
         captureInFlight.current = true;
@@ -612,10 +668,16 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
 
   // ── 버튼 클릭 핸들러 — SDK 대기 + 주문 생성 + PayPal 버튼 표시 ──
   async function handleBookClick() {
+    if (aiIssuanceHaltedRef.current) return;
     // 🔴 P0-2: 게이트는 **여기**에도 있어야 한다. CTA 의 disabled 속성만 믿으면 프로그램적 호출
     //   (개발자도구·자동화)로 그대로 주문이 만들어진다. 서버도 fail-closed 지만, 여기서 막아야
     //   "동의 안 했는데 PayPal 창이 뜬" 상태 자체가 생기지 않는다.
     if (disabled || orderRequestInFlight.current || recovery) return;
+    const canStart = canStartRef.current;
+    const aiScoped = typeof canStart === 'function';
+    if (canStart && !safeCanStart(canStart)) { setError(aiBlockedMessage()); return; }
+    const checkoutStartUid = aiScoped ? currentUid() : null;
+    let attemptId = "";
     orderRequestInFlight.current = true;
     setError(null);
     setLoading(true);
@@ -628,6 +690,10 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
       currency: 'KRW',
     });
     try {
+      if (aiScoped) {
+        attemptId = newAiCheckoutAttemptId();
+        onAiCheckoutStarted?.(attemptId, checkoutStartUid);
+      }
       // 1. SDK가 로딩 중이면 대기 (최대 10초)
       const sdkReady = await waitForPaypalReady();
       if (!sdkReady) {
@@ -637,6 +703,9 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
       }
 
       // 2. 주문 생성 (authFetch: 로그인 시 owner uid 를 서버가 주문에 묶는다 — 같은 주문 복구 권한)
+      if (aiScoped) {
+        if (!canStartRef.current || !safeCanStart(canStartRef.current) || currentUid() !== checkoutStartUid) throw new Error(aiBlockedMessage());
+      }
       const res = await authFetch('/api/createPaypalOrder', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -714,6 +783,13 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
         return;
       }
       if (!res.ok || !json.ok) throw new Error(json.error ?? d?.error ?? 'Order creation failed');
+      if (aiScoped) {
+        rememberAiCheckoutScope({ uid: checkoutStartUid, attemptId, orderId: d.orderID });
+        const savedScope = readAiCheckoutScope(d.orderID);
+        if (!savedScope || savedScope.uid !== checkoutStartUid || savedScope.attemptId !== attemptId) throw new Error(aiBlockedMessage());
+        aiCreatedAttempts.current.set(d.orderID, attemptId);
+        if (currentUid() !== checkoutStartUid) throw new Error(aiBlockedMessage());
+      }
       setRateInfo(d);
       setPaypalReady(true);
       // GA4 begin_checkout: 주문 생성 성공 → 결제창 진입 시점. "결제진입→구매" 전환율 측정(GA_ID 미설정 시 no-op).
@@ -918,6 +994,15 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
 
   // SDK 차단·로드 실패 시 사용자가 fallback 으로 전환 → paypal.me QR 패널 노출.
   // PayPal 본 사이트 redirect (외부) 라 paypalobjects.com SDK CDN 차단 영향 무관.
+  if (aiIssuanceHalted) {
+    return <div className="ec-error-note" role="alert">
+      <p>{aiCheckoutBlockedMessage || 'Please check your existing AI order before starting another payment.'}</p>
+      <a href="https://wa.me/821087140611" target="_blank" rel="noopener noreferrer" className="underline">
+        {typeof p.contactWhatsApp === 'string' ? p.contactWhatsApp : 'Contact us on WhatsApp'}
+      </a>
+    </div>;
+  }
+
   if (useFallback) {
     return (
       <Suspense

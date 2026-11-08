@@ -73,12 +73,17 @@ describe('PR #450 W-H16 — onSnapshot effect deps use uid (stable string), not 
     expect(src).not.toMatch(/data\.uid\s*===\s*user\.uid/);
   });
 
-  it('cleanup return-unsub still in place (no listener leak path)', () => {
-    // fix/plan-pii-wire-leak (2026-06-20): owner onSnapshot cleanup gained a
-    // `cancelled` guard (so the API-fallback fetch can't setState after unmount),
-    // so the cleanup is now `return () => { cancelled = true; unsub(); };`.
-    // The unsubscribe is still called on every cleanup → no listener leak.
-    expect(src).toMatch(/return\s*\(\s*\)\s*=>\s*\{\s*cancelled\s*=\s*true;\s*unsub\(\);\s*\}/);
+  it('cleanup cancels first and independently releases both observers', () => {
+    const start = src.indexOf('return () => {', src.indexOf('let unsubCompletion'));
+    const end = src.indexOf('}, [planId, token, uid, authLoading, localScenario]);', start);
+    expect(start).toBeGreaterThan(-1);
+    expect(end).toBeGreaterThan(start);
+    const cleanup = src.slice(start, end);
+    expect(cleanup).toMatch(/return\s*\(\)\s*=>\s*\{\s*cancelled\s*=\s*true;/);
+    expect(cleanup).toMatch(/try\s*\{\s*unsub\(\);\s*\}\s*catch/);
+    expect(cleanup).toMatch(/try\s*\{\s*unsubCompletion\?\.\(\);\s*\}\s*catch/);
+    expect(cleanup.indexOf('cancelled = true')).toBeLessThan(cleanup.indexOf('unsub()'));
+    expect(cleanup.indexOf('cancelled = true')).toBeLessThan(cleanup.indexOf('unsubCompletion?.()'));
   });
 });
 
@@ -87,8 +92,21 @@ describe('PR #450 W-H16 — onSnapshot effect still wired correctly', () => {
     expect(src).toMatch(/import\s*\{[^}]*onSnapshot[^}]*\}\s*from\s*['"]firebase\/firestore['"]/);
   });
 
-  it('subscribes to `plans/{planId}` doc', () => {
-    expect(src).toMatch(/onSnapshot\(\s*doc\(\s*db\s*,\s*['"]plans['"]\s*,\s*planId\s*\)/);
+  it('subscribes both observers to the same plans doc with distinct metadata contracts', () => {
+    expect(src).toMatch(/const\s+planRef\s*=\s*doc\(\s*db\s*,\s*['"]plans['"]\s*,\s*planId\s*\)/);
+    expect(src).toMatch(/const\s+unsub\s*=\s*onSnapshot\(planRef,\s*\(snap\)\s*=>/);
+    expect(src).toMatch(/unsubCompletion\s*=\s*onSnapshot\(planRef,\s*\{\s*includeMetadataChanges:\s*true\s*\}/);
+    expect(src.match(/onSnapshot\(planRef,/g)).toHaveLength(2);
+  });
+
+  it('completion observer cannot change rendering or trigger public API fallback', () => {
+    const start = src.indexOf('unsubCompletion = onSnapshot(');
+    const end = src.indexOf('return () => {', start);
+    expect(start).toBeGreaterThan(-1);expect(end).toBeGreaterThan(start);
+    const completion = src.slice(start,end);
+    expect(completion).toContain('settleAiPlanNoticesFromOwnerRead(');
+    expect(completion).toContain('if (cancelled) return;');
+    expect(completion).not.toMatch(/(?:handleSnap|setPlan|setError|setLoading|fetchViaApi)\s*\(/);
   });
 
   it('still gates on !planId and authLoading early', () => {

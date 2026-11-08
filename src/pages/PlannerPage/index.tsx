@@ -1,3 +1,4 @@
+import { AiPlanIssuanceNoticePanel } from '@/components/AiPlanIssuanceNoticePanel';
 // PlannerPage main entry -- assembled from legacy PlannerPage.tsx.
 // All components extracted to ./components/, handlers to ./hooks/.
 //
@@ -29,7 +30,8 @@ import '@/styles/editorial-planner.css';
 import { PAGE_STYLE } from './constants';
 import { pickPlannerCopy } from './plannerCopy';
 import { focusAndReveal } from '@/lib/motion';
-import { PlannerMasthead, PlannerBriefNotes, PlannerEvidence } from './components/PlannerMasthead';
+import { PlannerBriefNotes, PlannerEvidence } from './components/PlannerMasthead';
+import { PlannerWorkspaceRail } from './components/PlannerWorkspaceRail';
 import { usePlannerHandlers } from './hooks/usePlannerHandlers';
 import { resolveErrorMessage } from './hooks/errorMessages';
 import { TriviaLoadingAnimation } from './components/TriviaLoadingAnimation';
@@ -165,7 +167,7 @@ export default function PlannerPage() {
   const {
     status, resultQuick, errorMsg, errorCode,
     isGeneratingPlan, planError, planErrorCode, lastValues,
-    handleSubmit, handleRevisionSubmit, handlePaymentSuccess, handleRevisionRegenerate, handleReset,
+    handleSubmit, handleRevisionSubmit, handlePaymentSuccess, handleVerifiedPayPalFinal, handleAiCheckoutStarted, handleRevisionRegenerate, handleReset,
   } = usePlannerHandlers({ language, userEmail, setUserEmail });
 
   const localizedError = resolveErrorMessage(errorCode, errorMsg, (p as { errors?: Record<string, string> }).errors);
@@ -252,39 +254,15 @@ export default function PlannerPage() {
       <Header language={language} t={t} onLanguageChange={changeLanguage} />
 
       <main className={`planner-main ${isMobile ? 'px-4 pb-6' : 'ec-container-wide pb-10'}`}>
+        <AiPlanIssuanceNoticePanel uid={authUser?.uid} p={p} />
         <div className={`planner-workspace ${splitWorkspace ? 'is-split' : ''}`}>
-          <div className="planner-rail">
-            <PlannerMasthead copy={c} />
-
-            {/* Mode choice — two one-line buttons. The long description of the
-                chosen mode sits in a native disclosure below the form (with the
-                other supporting notes) and still describes the pressed button;
-                full cards pushed the first question to y=901 on a 390×844
-                screen (2026-08-06), and on this page nothing outranks the first
-                question. */}
-            {status === 'idle' && (
-              <section aria-labelledby="planner-mode-heading" className="planner-modes">
-                <h2 id="planner-mode-heading" className="ec-eyebrow">{c.modes.heading}</h2>
-                <div className="planner-mode-row">
-                  {MODES.map(({ key, title }) => {
-                    const active = plannerMode === key;
-                    return (
-                      <button
-                        key={key}
-                        type="button"
-                        aria-pressed={active}
-                        aria-describedby={active ? 'planner-mode-desc' : undefined}
-                        onClick={() => setPlannerMode(key)}
-                        className={`planner-mode-btn ${active ? 'is-selected' : ''}`}
-                      >
-                        {title}
-                      </button>
-                    );
-                  })}
-                </div>
-              </section>
-            )}
-          </div>
+          <PlannerWorkspaceRail
+            copy={c}
+            modes={MODES}
+            selectedMode={plannerMode}
+            showModes={status === 'idle'}
+            onModeChange={setPlannerMode}
+          />
 
           <div className="planner-stage">
             {/* 🔴 2026-07-30: 가격을 여기서 **처음** 밝힌다.
@@ -395,6 +373,8 @@ export default function PlannerPage() {
               revisionNote={revisionNote}
               avoidList={avoidList}
               onPaymentSuccess={handlePaymentSuccess}
+              onVerifiedPayPalFinal={handleVerifiedPayPalFinal}
+              onAiCheckoutStarted={handleAiCheckoutStarted}
               onRevisionRegenerate={handleRevisionRegenerate}
             />
           </div>

@@ -11,6 +11,7 @@ import zh from '../../src/i18n/locales/zh.json';
 
 // Extract all PlannerErrorCode values from the type. This is the source of truth.
 const ERROR_CODES: PlannerErrorCode[] = [
+  'AI_SCOPE_AUTH_CHANGED',
   'GEMINI_TIMEOUT',
   'GEMINI_ERROR',
   'MISSING_DESTINATION',
