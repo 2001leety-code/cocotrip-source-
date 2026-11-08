@@ -25,6 +25,7 @@ import { initAdminDb } from './firestoreAdmin.js';
 import { enforcePaymentAndRevision } from './paymentGate.js';
 import { createIssuanceContext } from '../_shared/plan-issuance.js';
 import { runHandlerFailureCleanup } from './planCloseout.js';
+import { recoverCouponPlan } from './planPersister.js';
 import { checkStartDateTooSoon } from './validateStartDate.js';
 import { VEHICLE_LABELS } from './vehicleAndPrice.js';
 import { buildAvoidContext } from './avoidListQuery.js';
@@ -159,7 +160,9 @@ export default async function handler(req, res) {
     const authenticatedEmail = auth.ok ? auth.email : null;
     lastEmail = authenticatedEmail;
     // ── 결제 + 재생성 게이트 (인증된 email 전달) ──────────────────────────
-    const gate = await withStep('paymentGate', () => enforcePaymentAndRevision(body, adminDb, authenticatedEmail, auth.uid));
+    const couponOwner = body.aiCouponCode && !body.revisionOf ? await resolveGuestAnonOwner(req, body.uid) : null;
+    const couponContext = couponOwner ? { ...couponOwner, verifiedHistoryUid: auth.uid } : null;
+    const gate = await withStep('paymentGate', () => enforcePaymentAndRevision(body, adminDb, authenticatedEmail, auth.uid, couponContext));
     if (gate.rejection) {
       const { statusCode, code, message, details } = gate.rejection;
       res.writeHead(statusCode, { ...CORS, 'Content-Type': 'application/json' });
@@ -167,12 +170,19 @@ export default async function handler(req, res) {
     }
     // 버그헌트 A(2026-06-27): 무료쿠폰이 게이트에서 소비됨 — 이후 plan 생성 실패 시 catch 에서 롤백하려고 정보 보관.
     if (gate.consumedCoupon) consumedCouponInfo = gate.consumedCoupon;
+    if (gate.couponCommitted) {
+      const recovered = await recoverCouponPlan(adminDb, consumedCouponInfo.binding, { ...couponContext, consumerUid: auth.uid });
+      planPersisted = true;
+      res.writeHead(200, { ...CORS, 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify(_ok({ ...recovered, firestoreSaved: true, status: 'ready', emailSent: false })));
+    }
     if (gate.isAdminBypass) adoptLlmMock('admin-bypass + x-llm-mock'); // LLM 공급자 전환: CI 테스트 주문만 mock (유료 호출 0)
     issuance.adopt(gate);  // P0: 게이트가 선점한 발급권 흡수 (유료 PayPal 경로만)
 
     // ── AI 플래너 출발일 검증 (day1=오늘 불가, 내일 이후만). 로직=validateStartDate.js (P129 handlerCore 슬림). ──
     const tooSoon = checkStartDateTooSoon(body, gate.isRevision);
     if (tooSoon) {
+      if (consumedCouponInfo) throw Object.assign(new Error('Start date must be tomorrow or later.'), { statusCode: 400, code: 'PLANNER_DATE_TOO_SOON' });
       console.warn('[ai-planner-full] day1 today rejected:', tooSoon.reqStartDate, 'today KST:', tooSoon.todayKST);
       await issuance.releaseIfUnused(adminDb, false, 'start-date-rejected');  // P0: 생성 전 거부 → 재시도 가능
       res.writeHead(400, { ...CORS, 'Content-Type': 'application/json' });
@@ -240,7 +250,7 @@ export default async function handler(req, res) {
       `mode=${abDecision.mode} reason=${abDecision.reason} ` +
       `bucket=${abDecision.bucket ?? '-'}`,
     );
-    const { planOwnerUid, forceGuestToken } = await resolveGuestAnonOwner(req, uid); // FEATURE_GUEST_ANON_AUTH (OFF=기존 동작, 상세 user-auth.js)
+    const { planOwnerUid, forceGuestToken } = couponOwner || await resolveGuestAnonOwner(req, uid); // FEATURE_GUEST_ANON_AUTH (OFF=기존 동작, 상세 user-auth.js)
     const verifiedHistoryUid = auth.ok ? auth.uid : (forceGuestToken ? planOwnerUid : null);
     console.log('[ai-planner-full] Request:', JSON.stringify({ styles, area, duration, pax, vehicle, arrival_airport, mobility }));
 
@@ -321,7 +331,7 @@ export default async function handler(req, res) {
     let streamingResponseSent = false;
     let skeletonCtx = null; // P231: worker Step 0 에 전달할 full skeleton 파라미터 (ENV off 시 null)
     if (useStreaming) {
-      const sk = await tryInitStreamingSkeleton({ adminDb, uid: planOwnerUid, forceGuestToken, email, area, startDate, guestName, pax, language, vehicle, durationDays, body, reservedPlanId: issuance.reservedPlanId() });
+      const sk = await tryInitStreamingSkeleton({ adminDb, couponBinding: consumedCouponInfo?.binding || null, couponBindingRequired: !gate.isRevision, uid: planOwnerUid, forceGuestToken, email, area, startDate, guestName, pax, language, vehicle, durationDays, body, reservedPlanId: consumedCouponInfo ? consumedCouponInfo.binding.planId : issuance.reservedPlanId() });
       if (sk) { streamingPlanId = sk.planId; streamingPlanUrl = sk.planUrl; skeletonCtx = sk.skeletonCtx || null; }
     }
 
@@ -375,9 +385,10 @@ export default async function handler(req, res) {
     // P230/P231: block-mode + Inngest 통합 — skeleton + dispatch + early response 단일 helper. 성공 시 handler return. dispatch 실패 시 streamingPlanId 만 받아 inline path 재사용(blkInn.skeletonCtx → dispatchFn 전달).
     const blkInn = blockModeUsed && !streamingPlanId
       ? await tryBlockModeInngestPath({
-          adminDb, isInngestEnabled: shouldDispatchToInngest(), blockModeUsed, itinerary, uid, email, area,
+          adminDb, isInngestEnabled: shouldDispatchToInngest(), blockModeUsed, itinerary, uid: consumedCouponInfo ? planOwnerUid : uid, email, area,
           startDate, guestName, pax, language, vehicle, durationDays, body, handlerStart,
-          reservedPlanId: issuance.reservedPlanId(),  // P0: 예약 planId (skeleton == 최종 plan 문서)
+          couponBinding: consumedCouponInfo?.binding || null, couponBindingRequired: !gate.isRevision,
+          reservedPlanId: consumedCouponInfo ? consumedCouponInfo.binding.planId : issuance.reservedPlanId(),  // P0: 예약 planId (skeleton == 최종 plan 문서)
           dispatchFn: ({ streamingPlanId: spid, skeletonCtx: spCtx }) => dispatchOrInlineForHandlerCore({
             streamingResponseSent: true, itinerary, streamingPlanId: spid, skeletonCtx: spCtx || null, apiKey, body, routeHotelAddress, hotel_address,
             arrival_airport, departure_airport, pax, recommendedZone, recommendedZoneAddress, hotelByCity,
@@ -385,7 +396,7 @@ export default async function handler(req, res) {
             specialRequest, mobility, language, PLANNER_MODE, blockModeUsed, blocksUsed, abDecision,
             isAdminBypass: gate.isAdminBypass, identifierForBucketing, handlerStart, issuanceClaim: issuance.claim, avoidStopNames, plannerIntent,
             arrivalRestDay, // 2026-10-26: worker 가 재계산 없이 같은 휴식일 판정
-            consumedCoupon: consumedCouponInfo, // PR2 r5-4: 블록모드 worker 도 결정론 422 뒤 무료 쿠폰 복구(legacy 디스패치와 같은 값)
+            consumedCoupon: consumedCouponInfo, couponBindingRequired: !gate.isRevision, // PR2 r5-4: 블록모드 worker 도 결정론 422 뒤 무료 쿠폰 복구(legacy 디스패치와 같은 값)
           }),
           sendEarlyResponse: ({ planId, planUrl, debug }) => sendStreamingEarlyResponse({ res, CORS, planId, planUrl, debug }),
           buildDebug: () => buildAdminDebug({ gate, plannerMode: PLANNER_MODE, abDecision, identifierForBucketing, blockModeUsed, blocksUsed, useStreaming, itinerary }),
@@ -398,7 +409,7 @@ export default async function handler(req, res) {
     if (blkInn) { streamingPlanId = blkInn.streamingPlanId; streamingPlanUrl = blkInn.streamingPlanUrl; skeletonCtx = blkInn.skeletonCtx || null; }
 
     // P220/P230/P231/P0: Inngest dispatch — streaming+ENV+토글 시 post-Gemini 를 별 invocation 으로(ENV/throw 시 inline fallback). block-mode 는 위에서 처리 완료 → skip, legacy streaming 만 진입. skeletonCtx 는 worker Step 0 full skeleton 저장용. issuanceClaim 전달 + dispatch 성공 시 소유권 이관(handler release 금지).
-    if (!blockModeUsed && await dispatchOrInlineForHandlerCore({ streamingResponseSent, itinerary, streamingPlanId, skeletonCtx, apiKey, body, routeHotelAddress, hotel_address, arrival_airport, departure_airport, pax, recommendedZone, recommendedZoneAddress, hotelByCity, area, dietPrefs: dietaryAll, regions, vehicle, durationDays, uid: planOwnerUid, verifiedHistoryUid, forceGuestToken, guestName, styles, duration, startDate, email, specialRequest, mobility, language, PLANNER_MODE, blockModeUsed, blocksUsed, abDecision, isAdminBypass: gate.isAdminBypass, identifierForBucketing, handlerStart, issuanceClaim: issuance.claim, avoidStopNames, plannerIntent, arrivalRestDay, consumedCoupon: consumedCouponInfo })) { issuance.handOff(); return; }
+    if (!blockModeUsed && await dispatchOrInlineForHandlerCore({ streamingResponseSent, itinerary, streamingPlanId, skeletonCtx, apiKey, body, routeHotelAddress, hotel_address, arrival_airport, departure_airport, pax, recommendedZone, recommendedZoneAddress, hotelByCity, area, dietPrefs: dietaryAll, regions, vehicle, durationDays, uid: planOwnerUid, verifiedHistoryUid, forceGuestToken, guestName, styles, duration, startDate, email, specialRequest, mobility, language, PLANNER_MODE, blockModeUsed, blocksUsed, abDecision, isAdminBypass: gate.isAdminBypass, identifierForBucketing, handlerStart, issuanceClaim: issuance.claim, avoidStopNames, plannerIntent, arrivalRestDay, consumedCoupon: consumedCouponInfo, couponBindingRequired: !gate.isRevision })) { issuance.handOff(); return; }
 
     console.log('[planner] Step 2: Running RouteAgent...');
 
@@ -436,6 +447,7 @@ export default async function handler(req, res) {
       abReason: abDecision.reason, abBucket: abDecision.bucket,
       blocksUsed: blockModeUsed ? blocksUsed : null,
       ...(streamingPlanId ? { planIdOverride: streamingPlanId } : {}),  // P169: streaming 모드 skeleton planId 재사용
+      couponBinding: consumedCouponInfo?.binding || null, couponBindingRequired: !gate.isRevision,
       issuanceClaim: issuance.claim,  // P0: persistPlan 이 저장 직전 fencing + 저장 후 확정
     }));
     planPersisted = true; // 버그헌트 A: plan 저장 성공 → 무료쿠폰 정당 소비(catch 롤백 안 함)

@@ -72,11 +72,11 @@ beforeEach(() => {
   vi.clearAllMocks();
 });
 
-describe('r3-11 — deterministic 422 in the worker: no retry, reason code stored, free coupon restored', () => {
+describe('r3-11 — deterministic 422 in the worker: no retry, reason code stored, coupon resolution delegated (helper mocked)', () => {
   it.each([
     ['routeEnrich', 'ROUTE_DAY_INFEASIBLE', () => { pipelineMocks.runRouteEnrichment.mockRejectedValueOnce(routeDayInfeasibleError(['Day 2: Palace would start or end after midnight'])); }],
     ['recommendedRestaurants', FINAL_GATE_MEAL_CODE, () => { pipelineMocks.applyRecommendedRestaurants.mockRejectedValueOnce(buildFinalGateError({ code: FINAL_GATE_MEAL_CODE, violations: [], zeroFoodDays: [], requiredMealIssues: ['Day 1: dinner missing'] }, [], 'post_response')); }],
-  ])('%s throws %s → NonRetriableError (real SDK round trip) → onFailure stores code + details and restores the coupon', async (_step, code, arrange) => {
+  ])('%s throws %s → NonRetriableError (real SDK round trip) → onFailure stores code + details and calls the guarded coupon resolver', async (_step, code, arrange) => {
     arrange();
     const { thrown, fnErr } = await runUntilStepFails();
     expect(thrown.name).toBe('NonRetriableError'); // engine: error?.name === "NonRetriableError" → retriable false
@@ -87,7 +87,7 @@ describe('r3-11 — deterministic 422 in the worker: no retry, reason code store
     expect(mark).toMatchObject({ status: 'error', _streaming_error_code: code });
     expect(Array.isArray(mark._streaming_error_details)).toBe(true);
     expect(restoreAiPlanCoupon).toHaveBeenCalledTimes(1);
-    expect(restoreAiPlanCoupon).toHaveBeenCalledWith(mockAdminDb, 'u1', 'AI-FREE-1', 'cons-A'); // r4: 소비 ID 전달
+    expect(restoreAiPlanCoupon).toHaveBeenCalledWith(mockAdminDb, 'u1', 'AI-FREE-1', 'cons-A', null); // Legacy payload has no binding: actual resolver must refuse, not blindly restore.
   });
   it('a generic failure (no allow-listed code) is NOT wrapped (keeps retries) and does NOT restore the coupon', async () => {
     pipelineMocks.runRouteEnrichment.mockRejectedValueOnce(new Error('ODsay 500'));
@@ -106,6 +106,8 @@ describe('r3-11 — deterministic 422 in the worker: no retry, reason code store
     const base = { itinerary: { days: [] }, body: {}, abReason: null, abBucket: null };
     expect((buildPlanAiCompletePayload({ ...base, consumedCoupon: { uid: 'u1', code: 'C', consumptionId: 'cons-1', extra: 'x' } }) as { ctx: Record<string, unknown> }).ctx.consumedCoupon).toEqual({ uid: 'u1', code: 'C', consumptionId: 'cons-1' });
     expect('consumedCoupon' in (buildPlanAiCompletePayload({ ...base, consumedCoupon: null }) as { ctx: Record<string, unknown> }).ctx).toBe(false);
-    expect(readFileSync(resolve(process.cwd(), 'api/_ai_core/handlerCore.js'), 'utf8')).toContain('consumedCoupon: consumedCouponInfo })) { issuance.handOff(); return; }');
+    const binding = { version: 1, planId: 'synthetic-binding-transport-marker' }; // Payload survival only, not authorization proof.
+    expect((buildPlanAiCompletePayload({ ...base, consumedCoupon: {uid:'u1',code:'C',consumptionId:'cons-1',binding} }) as {ctx:{consumedCoupon:{binding:unknown}}}).ctx.consumedCoupon.binding).toEqual(binding);
+    expect(readFileSync(resolve(process.cwd(), 'api/_ai_core/handlerCore.js'), 'utf8')).toContain('consumedCoupon: consumedCouponInfo, couponBindingRequired: !gate.isRevision })) { issuance.handOff(); return; }');
   });
 });

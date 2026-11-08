@@ -5,6 +5,7 @@
  *   3) 경로 계산 실패 때 구제 식당과 겹치는 앞 관광을 뺀다(정상 경로 불변).
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { createFakeFirestore } from '../helpers/fake-firestore.js';
 
 vi.mock('axios', () => ({ default: { get: vi.fn(() => Promise.reject(new Error('offline'))), post: vi.fn(() => Promise.reject(new Error('offline'))) } }));
 vi.mock('../../api/_transit_provider.js', () => ({ searchTransit: vi.fn(async () => null), getTransitProvider: () => 'odsay' }));
@@ -38,25 +39,16 @@ beforeEach(() => {
 });
 afterEach(() => { vi.restoreAllMocks(); delete process.env.ROUTE_TSP_ENABLED; });
 
-/** users/{uid}/coupons 한 장 + 실제 트랜잭션 의미(tx.get 이 그 순간 문서, tx.update 가 반영). */
+/** Shared fake with actual path identity/root reads; no real Firestore/provider calls. */
 function fakeCouponDb(initial: Record<string, unknown>) {
-  const doc: Record<string, unknown> = { ...initial };
-  const ref = { id: 'coupon-1' };
-  const col = { where() { return col; }, limit() { return col; }, async get() { return { empty: false, docs: [{ ref, data: () => ({ ...doc }) }] }; } };
-  return {
-    doc,
-    collection: () => ({ doc: () => ({ collection: () => col }) }),
-    async runTransaction(fn: (tx: unknown) => Promise<unknown>) {
-      const writes: Array<Record<string, unknown>> = [];
-      const out = await fn({ get: async () => ({ data: () => ({ ...doc }) }), update: (_r: unknown, patch: Record<string, unknown>) => { writes.push(patch); } });
-      for (const w of writes) Object.assign(doc, w);
-      return out;
-    },
-  };
+  const db = createFakeFirestore();
+  const path = 'users/user123/coupons/coupon-1';
+  db.__set(path, initial);
+  return { ...db, get doc() { return db.__get(path) as Record<string, unknown>; } };
 }
 const AI = { code: 'WELCOME-AIPLAN-ABC23', productScope: 'ai-plan', type: 'free', value: 100, isUsed: false, maxDays: 3 };
 const UID = 'user123';
-const consume = (db: ReturnType<typeof fakeCouponDb>) => enforcePaymentAndRevision({ aiCouponCode: AI.code, durationDays: 2 }, db, 'u@e.com', UID);
+const consume = (db: ReturnType<typeof fakeCouponDb>) => enforcePaymentAndRevision({ aiCouponCode: AI.code, durationDays: 2 }, db, 'u@e.com', UID, {planOwnerUid:null,verifiedHistoryUid:UID,forceGuestToken:false});
 
 describe('r4-1 — coupon restore only undoes the same consumption', () => {
   it('A fails & restores → B reuses the coupon → A\'s failure handling runs again → B stays used', async () => {
@@ -65,22 +57,23 @@ describe('r4-1 — coupon restore only undoes the same consumption', () => {
     const aId = a.consumedCoupon.consumptionId;
     expect(typeof aId).toBe('string');
     expect(db.doc).toMatchObject({ isUsed: true, consumptionId: aId });
-    await restoreAiPlanCoupon(db, UID, AI.code, aId);
+    await restoreAiPlanCoupon(db, UID, AI.code, aId, a.consumedCoupon.binding);
     expect(db.doc).toMatchObject({ isUsed: false, consumptionId: null });
     const b = await consume(db);
     expect(b.isFreeAiCoupon).toBe(true);
     const bId = b.consumedCoupon.consumptionId;
     expect(bId).not.toBe(aId);
-    await restoreAiPlanCoupon(db, UID, AI.code, aId); // A 의 onFailure 재실행
+    await restoreAiPlanCoupon(db, UID, AI.code, aId, a.consumedCoupon.binding); // A 의 onFailure 재실행
     expect(db.doc).toMatchObject({ isUsed: true, consumptionId: bId });
-    expect((await consume(db)).rejection?.code).toBe('COUPON_USED');
+    expect((await consume(db)).rejection).toMatchObject({statusCode:409,code:'AI_COUPON_CONFLICT'});
   });
   it('restoring the same consumption twice = once (idempotent)', async () => {
     const db = fakeCouponDb(AI);
-    const id = (await consume(db)).consumedCoupon.consumptionId;
-    await restoreAiPlanCoupon(db, UID, AI.code, id);
+    const consumed = (await consume(db)).consumedCoupon;
+    const id = consumed.consumptionId;
+    await restoreAiPlanCoupon(db, UID, AI.code, id, consumed.binding);
     const firstRestoredAt = db.doc.restoredAt;
-    await restoreAiPlanCoupon(db, UID, AI.code, id);
+    await restoreAiPlanCoupon(db, UID, AI.code, id, consumed.binding);
     expect(db.doc).toMatchObject({ isUsed: false, restoredAt: firstRestoredAt });
   });
   it('no consumption ID (old call shape) → nothing restored', async () => {

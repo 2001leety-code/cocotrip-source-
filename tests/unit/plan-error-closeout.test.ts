@@ -5,7 +5,7 @@
  *   skeleton 문서는 'streaming' 으로 남아 plan-streaming-sweep(30분)까지 손님 화면이 "생성 중".
  *
  * 함께 잠그는 것:
- *   - 순서: 응답 → 쿠폰 복구 → 마감 → 발급권 해제 → 알림 (해제가 issuance.claim 을 비우므로 마감이 먼저).
+ *   - 쿠폰은 응답 전에 안전한 복구 여부 확인, 이후 응답 → 마감 → 발급권 해제 → 알림 (해제가 issuance.claim 을 비우므로 마감이 먼저).
  *   - worker 로 인계된 뒤(dispatch 성공) 응답만 실패하면 쿠폰·마감·해제를 하지 않는다 — worker 가
  *     플랜을 계속 만드는데 쿠폰이 복구되면 재사용 구멍이 된다.
  *   - 같은 planId 를 다른 attempt 가 재선점했으면 마감하지 않는다(claim_mismatch).
@@ -84,7 +84,7 @@ beforeEach(() => {
 });
 
 describe('runHandlerFailureCleanup — 게이트 실패 시 마감', () => {
-  it('게이트 422 + streaming 문서 → error 마감, 응답 422 그대로, 순서 = 응답 → 쿠폰 → 마감 → 해제 → 알림', async () => {
+  it('게이트 422 + streaming 문서 → error 마감, 응답 422 그대로, 쿠폰은 응답 전 확인, 이후 마감 → 해제 → 알림', async () => {
     const db = createFakeFirestore({ [PLAN_PATH]: STREAMING_DOC, [ORDER_PATH]: ISSUING_DOC });
     const issuance = createIssuanceContext();
     issuance.claim = { ...CLAIM };
@@ -105,7 +105,7 @@ describe('runHandlerFailureCleanup — 게이트 실패 시 마감', () => {
     });
     await flush();
 
-    expect(h.order).toEqual(['response', 'coupon(plan=streaming)', 'release(plan=error)', 'alert']);
+    expect(h.order).toEqual(['coupon(plan=streaming)', 'response', 'release(plan=error)', 'alert']);
     expect(res.statusCode).toBe(422);
     expect(JSON.parse(res.body as string)).toEqual({
       ok: false,
@@ -114,7 +114,7 @@ describe('runHandlerFailureCleanup — 게이트 실패 시 마감', () => {
       details: error.message,
       stackHead: (error.stack || '').slice(0, 500),
     });
-    expect(h.restore).toHaveBeenCalledWith(db, 'u1', 'FREE-AI', 'cons-1');
+    expect(h.restore).toHaveBeenCalledWith(db, 'u1', 'FREE-AI', 'cons-1', null);
     expect(db.__get(PLAN_PATH)).toMatchObject({
       status: 'error',
       _streaming_in_progress: false,

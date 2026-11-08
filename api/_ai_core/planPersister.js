@@ -11,6 +11,7 @@ import { SCHEDULE_BUFFER_MIN, arrivalRestDayInfo, resolveTourEndTime } from './c
 import { throttledTelegramAlert } from '../_shared/telegram-throttle.js';
 import { detectPaymentSource, isAdminBypassOrderId, isOperatorTestEmail } from '../_shared/admin-bypass-detector.js';
 import { beginPlanCommit, finalizePlanIssuance } from '../_shared/plan-issuance.js';
+import { validateBinding, rootFieldsFor } from '../_shared/ai-coupon-persistence.js';
 import { commitGenerationRoot, repairGenerationListing, guardGenerationPatch } from '../_shared/plan-persistence-guard.js';
 import { departureBreakfastNote } from '../../src/lib/departureBreakfastNote.js';
 import { arrivalRestNote, stripArrivalRestNote, hasArrivalRestNote } from '../../src/lib/arrivalRestNote.js';
@@ -1246,6 +1247,8 @@ export async function savePlanSkeleton(adminDb, {
   // accessToken 을 발급해 기존 게스트 공유 링크 흐름 유지. 플래그 OFF 시 항상 false 로 전달
   // → accessToken 식이 기존 (uid ? null : random) 과 동일 (byte-identical).
   forceGuestToken = false,
+  couponBinding = null,
+  couponBindingRequired = !!body?.aiCouponCode,
   // P0 원자 발급 (2026-07-15): claim 이 예약한 planId. 유료 PayPal 경로만 값이 있다.
   //   skeleton 과 최종 persistPlan 이 같은 문서를 써야 claim 이 그 planId 로 완성 여부를 직접
   //   읽어 복구할 수 있다. null/undefined = 기존 randomUUID 동작 byte-identical.
@@ -1257,11 +1260,13 @@ export async function savePlanSkeleton(adminDb, {
 }) {
   if (!adminDb) throw new Error('[P169] Firebase not configured — cannot save skeleton');
 
-  const planId = planIdOverride || randomUUID();
+  const planId = couponBinding ? couponBinding.planId : (planIdOverride || randomUUID());
+  if (couponBinding && (!validateBinding(couponBinding) || (planIdOverride && planIdOverride !== planId))) throw new Error('COUPON_PLAN_MISMATCH');
   // forceGuestToken=true → uid 있어도 token 발급. false → 기존 (uid ? null : random). nullish 금지, OR 사용.
   const accessToken = (forceGuestToken || !uid) ? randomUUID() : null;
 
   const skeletonDoc = {
+    ...(couponBinding ? rootFieldsFor(couponBinding) : {}),
     planId,
     status: 'streaming',
     _streaming_in_progress: true,
@@ -1300,7 +1305,7 @@ export async function savePlanSkeleton(adminDb, {
   };
 
   try {
-    await guardGenerationPatch(adminDb, planId, skeletonDoc, { kind: 'skeleton', create: true, merge: false, uid: uid || null });
+    await guardGenerationPatch(adminDb, planId, skeletonDoc, { kind: 'skeleton', create: true, merge: false, uid: uid || null, couponBinding, couponBindingRequired });
   } catch (saveErr) {
     console.error('[planPersister P169] skeleton save failed:', saveErr.message);
     throw new Error(`Skeleton save failed (${saveErr.code || saveErr.name})`);
@@ -1504,6 +1509,8 @@ export async function persistPlan(adminDb, {
   // (격리된 익명 uid) 라도 accessToken 발급 — 게스트는 로그인 세션이 없어 공유 링크/접근 토큰
   // 필요. 플래그 OFF 시 항상 false → accessToken 식이 기존 (uid ? null : random) 과 동일.
   forceGuestToken = false,
+  couponBinding = null,
+  couponBindingRequired = !!body?.aiCouponCode,
   // planner-intent-v1 (2026-08-24): requestShaper/handlerCore 가 이미 정규화한 단일 intent.
   //   있으면 input.planner_intent_v1 로 그대로 저장하고, dietaryRestrictions 는 이 값을 우선
   //   신뢰한다 (allergy 값은 normalizePlannerIntentV1 이 이미 걸러냈다 — 재도입 경로 없음).
@@ -1534,7 +1541,9 @@ export async function persistPlan(adminDb, {
       throw new Error('Plan issuance claim orderId does not match request');
     }
   }
-  const planId = (issuanceClaim && issuanceClaim.planId) || planIdOverride || randomUUID();
+  if (couponBindingRequired && body.aiCouponCode && !validateBinding(couponBinding)) throw new Error('COUPON_BINDING_REQUIRED');
+  if (couponBinding && (issuanceClaim || (planIdOverride && planIdOverride !== couponBinding.planId) || uid !== couponBinding.planOwnerUid || verifiedHistoryUid !== couponBinding.verifiedHistoryUid || forceGuestToken !== couponBinding.forceGuestToken)) throw new Error('COUPON_PLAN_MISMATCH');
+  const planId = (issuanceClaim && issuanceClaim.planId) || (couponBinding && couponBinding.planId) || planIdOverride || randomUUID();
   // forceGuestToken=true → uid 있어도 token 발급. false → 기존 (uid ? null : random). nullish 금지, OR 사용.
   const accessToken = (forceGuestToken || !uid) ? randomUUID() : null;
 
@@ -1585,6 +1594,7 @@ export async function persistPlan(adminDb, {
   // AirportToLodgingGuide luggage 분기 (heavyLoad 자동 추천) + revision prefill
   // (PR #323) 모두 input.* 필드 의존. 누락 시 silent UX 저하 (audit P1).
   const docToSave = {
+    ...(couponBinding ? rootFieldsFor(couponBinding) : {}),
     planId,
     status: 'ready',
     isPublic: false,
@@ -1814,7 +1824,7 @@ export async function persistPlan(adminDb, {
   let persistedRoot;
   try {
     const committed = await commitGenerationRoot(adminDb, {
-      finalDoc: docToSave, issuanceClaim, trustedFixedId: !!(issuanceClaim || planIdOverride), skeletonInput,
+      finalDoc: docToSave, issuanceClaim, trustedFixedId: !!(issuanceClaim || planIdOverride || couponBinding), skeletonInput, couponBinding, couponBindingRequired,
     });
     persistedRoot = committed.root;
   } catch (saveErr) {
@@ -1845,7 +1855,7 @@ export async function persistPlan(adminDb, {
   }
 
   persistedRoot = await repairGenerationListing(adminDb, {
-    finalDoc: persistedRoot, issuanceClaim, trustedFixedId: true,
+    finalDoc: persistedRoot, issuanceClaim, trustedFixedId: true, couponBinding,
   });
 
   console.log('[ai-planner-full] Firestore saved:', planId);
@@ -1905,4 +1915,19 @@ export async function persistPlan(adminDb, {
     : `/my-plans/${planId}`;
 
   return { planId, planUrl, accessToken: canonicalToken };
+}
+
+// Exact server binding, already authenticated by coupon gate; never a generic ready lookup.
+export async function recoverCouponPlan(adminDb, couponBinding, recoveryOwner = null) {
+  if (!validateBinding(couponBinding)) throw new Error('COUPON_BINDING_REQUIRED');
+  // Recovery may not reissue a bearer token to a consumer who has no current owner proof.
+  if (!recoveryOwner || !couponBinding.planOwnerUid || recoveryOwner.consumerUid !== couponBinding.consumerUid
+      || recoveryOwner.planOwnerUid !== couponBinding.planOwnerUid || recoveryOwner.verifiedHistoryUid !== couponBinding.verifiedHistoryUid
+      || recoveryOwner.forceGuestToken !== couponBinding.forceGuestToken
+      || (couponBinding.planOwnerUid !== couponBinding.consumerUid && !recoveryOwner.forceGuestToken)) {
+    throw Object.assign(new Error('AI_COUPON_RECOVERY_REQUIRED'), { code: 'AI_COUPON_RECOVERY_REQUIRED', statusCode: 409 });
+  }
+  const root = await repairGenerationListing(adminDb, { couponBinding });
+  const token = root.accessToken || null;
+  return { planId: root.planId, planUrl: token ? `/my-plans/${root.planId}?token=${token}` : `/my-plans/${root.planId}` };
 }

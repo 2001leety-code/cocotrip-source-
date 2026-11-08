@@ -20,7 +20,7 @@ describe('actual worker guards, mocked IO and versioned fake DB',()=>{
  it('late worker failure preserves ready while leaving release/coupon call conditions intact',async()=>{
   const before=h.state.db.__get(`plans/${id}`);const claim={orderId:'order',attemptId:'attempt',planId:id};
   await processPlanAfterAI.onFailureFn({event:{data:{event:{data:{planId:id,ctx:{issuanceClaim:claim,consumedCoupon:{uid:owner,code:'synthetic',consumptionId:'consumption'}}}}}},error:Object.assign(new Error('synthetic route failure'),{code:'ROUTE_DAY_INFEASIBLE'})});
-  expect(h.state.db.__get(`plans/${id}`)).toEqual(before);expect(h.release).toHaveBeenCalledWith(h.db,claim);expect(h.coupon).toHaveBeenCalledWith(h.db,owner,'synthetic','consumption');
+  expect(h.state.db.__get(`plans/${id}`)).toEqual(before);expect(h.release).toHaveBeenCalledWith(h.db,claim);expect(h.coupon).toHaveBeenCalledWith(h.db,owner,'synthetic','consumption',null);
  });
  it('matching streaming failure keeps original error metadata',async()=>{
   h.state.db.__set(`plans/${id}`,{planId:id,uid:owner,status:'streaming',_streaming_in_progress:true});

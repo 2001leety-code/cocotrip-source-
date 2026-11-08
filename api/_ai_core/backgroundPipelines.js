@@ -38,6 +38,7 @@
  *          [[feedback_mistake_p168_pass3_background_async]]
  *          [[feedback_mistake_p169_gemini_streaming]]
  */
+import { rootFieldsFor } from '../_shared/ai-coupon-persistence.js';
 import { guardGenerationPatch } from '../_shared/plan-persistence-guard.js';
 import { pass3Enrich } from './threePassPipeline.js';
 import { updatePlanEnrichment, savePlanSkeleton } from './planPersister.js';
@@ -214,6 +215,8 @@ export async function tryInitStreamingSkeleton({
   //   streaming 창에서는 주문으로 조회가 불가능하다).
   //   null (비유료 경로) = 기존 randomUUID 동작 그대로.
   reservedPlanId = null,
+  couponBinding = null,
+  couponBindingRequired = !!body?.aiCouponCode,
 }) {
   try {
     const { priceKRW: skPriceKRW, priceUSD: skPriceUSD } = (() => {
@@ -235,6 +238,7 @@ export async function tryInitStreamingSkeleton({
       //   화면 = "세션이 만료되었습니다" 잘못된 표시.
       //   guest plan 은 uid=null (Firestore Rules 의 별도 guest 분기 통과).
       await guardGenerationPatch(adminDb, planId, {
+        ...(couponBinding ? rootFieldsFor(couponBinding) : {}),
         planId,
         status: 'streaming',
         _streaming_in_progress: true,
@@ -242,11 +246,13 @@ export async function tryInitStreamingSkeleton({
         _p231_stub: true, // P231 디버그용 — worker Step 0 가 full skeleton 으로 교체
         uid: uid || null, // P295 SAFETY
         guestEmail: email || null, // P295 SAFETY — guest plan 도 Rules 통과
-      }, { kind: 'skeleton', create: true, merge: false, uid: uid || null });
+      }, { kind: 'skeleton', create: true, merge: false, uid: uid || null, couponBinding, couponBindingRequired });
       console.log('[planner P231] Stub doc saved (skeleton-in-worker mode):', planId);
       // skeletonCtx: worker Step 0 에서 savePlanSkeleton 호출 시 필요한 파라미터 전체.
       // FEATURE_GUEST_ANON_AUTH: forceGuestToken 포함 → worker skeleton-write 가 accessToken 발급.
       const skeletonCtx = {
+        couponBinding, couponBindingRequired,
+        ...(couponBinding ? { forceGuestToken: couponBinding.forceGuestToken } : {}),
         uid, email, area, startDate, guestName, pax, language,
         vehicle, priceKRW: skPriceKRW, priceUSD: skPriceUSD, body, forceGuestToken,
       };
@@ -257,6 +263,8 @@ export async function tryInitStreamingSkeleton({
     const sk = await savePlanSkeleton(adminDb, {
       uid, email, area, startDate, guestName, pax, language,
       vehicle, priceKRW: skPriceKRW, priceUSD: skPriceUSD, body, forceGuestToken,
+      couponBinding, couponBindingRequired,
+      ...(couponBinding ? { forceGuestToken: couponBinding.forceGuestToken } : {}),
       planIdOverride: reservedPlanId,  // P0: claim 예약 planId (null = 기존 randomUUID)
     });
     console.log('[planner P169] Skeleton saved:', sk.planId);
@@ -293,12 +301,14 @@ export async function tryBlockModeInngestPath({
   language, vehicle, durationDays, body, dispatchFn, sendEarlyResponse, buildDebug, handlerStart,
   // P0 (2026-07-15): claim 예약 planId. null = 기존 randomUUID 동작.
   reservedPlanId = null,
+  couponBinding = null,
+  couponBindingRequired = !!body?.aiCouponCode,
   // 2026-10-23: dispatch 성공 직후·응답 전에 부른다(handlerCore = issuance.handOff). buildDebug/sendEarlyResponse 가
   //   던져도 worker 는 이미 플랜을 만들고 있다 — 인계 기록이 응답 뒤면 catch 가 쿠폰 복구·발급권 해제를 해버린다.
   onDispatched = null,
 }) {
   if (!blockModeUsed || !itinerary || !isInngestEnabled) return null;
-  const sk = await tryInitBlockModeForInngest({ adminDb, uid, email, area, startDate, guestName, pax, language, vehicle, durationDays, body, itinerary, reservedPlanId });
+  const sk = await tryInitBlockModeForInngest({ adminDb, uid, email, area, startDate, guestName, pax, language, vehicle, durationDays, body, itinerary, reservedPlanId, couponBinding, couponBindingRequired });
   if (!sk) return null;
   // P231: sk.skeletonCtx → dispatchFn 에 전달 → worker Step 0 가 full skeleton 저장.
   const dispatched = await dispatchFn({ streamingPlanId: sk.planId, streamingPlanUrl: sk.planUrl, skeletonCtx: sk.skeletonCtx || null });
@@ -349,6 +359,8 @@ export async function tryInitBlockModeForInngest({
   adminDb, uid, email, area, startDate, guestName, pax, language, vehicle, durationDays, body, itinerary,
   // P0 (2026-07-15): claim 예약 planId. null = 기존 randomUUID 동작.
   reservedPlanId = null,
+  couponBinding = null,
+  couponBindingRequired = !!body?.aiCouponCode,
 }) {
   if (!adminDb || !itinerary) return null;
   try {
@@ -366,6 +378,7 @@ export async function tryInitBlockModeForInngest({
       // P295 (2026-05-29): SAFETY-CRITICAL — uid 즉시 저장 (block-mode 도 동일 fix).
       //   Firestore Rules race window 차단 (sync path 의 stub fix 와 동일 의도).
       await guardGenerationPatch(adminDb, planId, {
+        ...(couponBinding ? rootFieldsFor(couponBinding) : {}),
         planId,
         status: 'streaming',
         _streaming_in_progress: true,
@@ -373,10 +386,12 @@ export async function tryInitBlockModeForInngest({
         _p231_stub: true,
         uid: uid || null, // P295 SAFETY
         guestEmail: email || null, // P295 SAFETY
-      }, { kind: 'skeleton', create: true, merge: false, uid: uid || null });
+      }, { kind: 'skeleton', create: true, merge: false, uid: uid || null, couponBinding, couponBindingRequired });
       console.log('[planner P231] block-mode stub doc saved (skeleton-in-worker mode):', planId);
       // skeletonCtx: worker Step 0 에서 full skeleton + itinerary merge 수행.
       const skeletonCtx = {
+        couponBinding, couponBindingRequired,
+        ...(couponBinding ? { forceGuestToken: couponBinding.forceGuestToken } : {}),
         uid, email, area, startDate, guestName, pax, language,
         vehicle, priceKRW: skPriceKRW, priceUSD: skPriceUSD, body,
         blockModeItinerary: itinerary, // block-mode 결과 — worker 가 merge
@@ -390,6 +405,8 @@ export async function tryInitBlockModeForInngest({
     const sk = await savePlanSkeleton(adminDb, {
       uid, email, area, startDate, guestName, pax, language,
       vehicle, priceKRW: skPriceKRW, priceUSD: skPriceUSD, body,
+      couponBinding, couponBindingRequired,
+      ...(couponBinding ? { forceGuestToken: couponBinding.forceGuestToken } : {}),
       planIdOverride: reservedPlanId,  // P0: claim 예약 planId (null = 기존 randomUUID)
     });
     // 🔴 2026-08-24 (planner-trust): 예전엔 여기서 block-mode raw itinerary(days 포함)를
@@ -401,7 +418,7 @@ export async function tryInitBlockModeForInngest({
       await guardGenerationPatch(adminDb, sk.planId, {
         itinerary: { tour_title: null, days: [], _streaming_skeleton: true },
         _block_mode_used: true,
-      }, { kind: 'block', merge: true, uid: uid || null });
+      }, { kind: 'block', merge: true, uid: uid || null, couponBinding, couponBindingRequired });
     } catch (mergeErr) {
       // skeleton 은 저장됐으나 이 merge 실패 — non-fatal (worker 완료 시 채워짐).
       console.warn('[planner P230] block-mode stub merge failed (non-fatal):', mergeErr.message);

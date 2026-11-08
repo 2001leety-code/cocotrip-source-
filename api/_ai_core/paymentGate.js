@@ -9,6 +9,7 @@
  *   { isRevision: boolean, isAdminBypass: boolean }         // caller proceeds
  */
 import { randomUUID } from 'crypto'; // PR2 r4: 무료 쿠폰 소비 ID
+import { createBinding, consumeOrRecover, restoreOrResolve, validateBinding, couponFailureDetails } from '../_shared/ai-coupon-persistence.js';
 import { FieldValue } from 'firebase-admin/firestore';
 import { getPaypalAccessToken, resolveIsSandbox } from '../_shared/paypal.js';
 import { captureError } from '../_shared/sentry.js';
@@ -63,22 +64,26 @@ function reject(statusCode, code, message, details) {
  * 검증: 소유(uid)·productScope='ai-plan'·type='free'·미사용·미만료·durationDays≤maxDays(1~3).
  * 멱등: 트랜잭션으로 isUsed 재검사+세팅 → 더블클릭/동시요청도 1회만 소비(무료 plan 2개 생성=돈손실 차단).
  */
-async function consumeAiPlanCoupon(adminDb, uid, code, durationDays) {
+async function consumeAiPlanCoupon(adminDb, uid, code, durationDays, body, couponContext) {
   if (!adminDb) return reject(500, 'FIRESTORE_UNAVAILABLE', 'Coupon check requires Firestore');
   if (!code) return reject(400, 'COUPON_MISSING', 'Coupon code required');
   const couponsRef = adminDb.collection('users').doc(uid).collection('coupons');
   const snap = await couponsRef.where('code', '==', code).limit(1).get();
-  if (snap.empty) return reject(404, 'COUPON_NOT_FOUND', 'Coupon not found', '쿠폰을 찾을 수 없습니다.');
+  if (snap.empty) return reject(404, 'COUPON_NOT_FOUND', 'Coupon not found');
+  if (!couponContext) return reject(409, 'AI_COUPON_CONFLICT', 'Coupon recovery required', couponFailureDetails(body.language));
   const couponRef = snap.docs[0].ref;
-  const coupon = snap.docs[0].data();
+  const consumptionId = randomUUID();
+  const nowMs = Date.now(), nowIso = new Date(nowMs).toISOString();
+  const binding = createBinding({ consumerUid: uid, couponDocId: couponRef.id, consumptionId,
+    ...couponContext, requestProjection: { body, owner: couponContext } });
+  const isEligible = coupon => {
   if (coupon.productScope !== 'ai-plan' || coupon.type !== 'free') {
     return reject(400, 'COUPON_WRONG_TYPE', 'Not a free AI-plan coupon', '이 쿠폰은 AI 플랜 무료 쿠폰이 아닙니다.');
   }
   if (coupon.isRevoked === true) {
     return reject(403, 'COUPON_REVOKED', 'Coupon revoked', '환불로 회수된 쿠폰입니다.');
   }
-  if (coupon.isUsed) return reject(403, 'COUPON_USED', 'Coupon already used', '이미 사용한 쿠폰입니다.');
-  if (coupon.expiresAt && coupon.expiresAt < Date.now()) {
+  if (coupon.expiresAt && coupon.expiresAt < nowMs) {
     return reject(403, 'COUPON_EXPIRED', 'Coupon expired', '만료된 쿠폰입니다.');
   }
   const maxDays = coupon.maxDays || 3;
@@ -86,26 +91,19 @@ async function consumeAiPlanCoupon(adminDb, uid, code, durationDays) {
     return reject(400, 'COUPON_DAYS_EXCEEDED', `Free coupon covers up to ${maxDays} days`,
       `무료 쿠폰은 최대 ${maxDays}일 일정까지 사용 가능합니다 (현재 ${durationDays}일).`);
   }
-  // PR2 r4: 이번 소비의 ID — 실패 보상(restoreAiPlanCoupon)이 같은 소비일 때만 되돌린다(다음 사용을 풀지 않게). secret 아님.
-  const consumptionId = randomUUID();
-  try {
-    await adminDb.runTransaction(async (tx) => {
-      const fresh = await tx.get(couponRef);
-      const freshCoupon = fresh.data() || {};
-      if (freshCoupon.isRevoked === true) throw new Error('COUPON_REVOKED');
-      if (freshCoupon.isUsed) throw new Error('COUPON_USED');
-      tx.update(couponRef, { isUsed: true, usedAt: new Date().toISOString(), consumptionId });
-    });
-  } catch (e) {
-    if (e && e.message === 'COUPON_REVOKED') {
-      return reject(403, 'COUPON_REVOKED', 'Coupon revoked', '환불로 회수된 쿠폰입니다.');
-    }
-    if (e && e.message === 'COUPON_USED') {
-      return reject(403, 'COUPON_USED', 'Coupon already used', '이미 사용한 쿠폰입니다.');
-    }
-    throw e;
+    return null;
+  };
+  const args = { db: adminDb, couponRef, binding, isEligible, nowIso };
+  let result = await consumeOrRecover(args);
+  // One same-ID resolution after uncertain acknowledgement; never mint a second attempt.
+  if (result.outcome === 'unknown') result = await consumeOrRecover(args);
+  if (result.outcome === 'consumed' || result.outcome === 'committed') {
+    return { ok: true, consumptionId: result.binding.consumptionId, binding: result.binding, committed: result.outcome === 'committed' };
   }
-  return { ok: true, consumptionId };
+  if (result.rejection) return { rejection: result.rejection };
+  if (result.reason === 'COUPON_USED') return reject(403, 'COUPON_USED', 'Coupon already used', couponFailureDetails(body.language));
+  const status = result.outcome === 'unknown' ? 503 : 409;
+  return reject(status, result.outcome === 'unknown' ? 'AI_COUPON_UNAVAILABLE' : 'AI_COUPON_CONFLICT', 'Coupon recovery required', couponFailureDetails(body.language));
 }
 
 /**
@@ -122,31 +120,17 @@ async function consumeAiPlanCoupon(adminDb, uid, code, durationDays) {
  *   A 실패·복구 → B 가 같은 쿠폰 재사용 → A 의 실패 처리 재실행 이 B 의 소비를 풀던 문제(다르면 no-op + 로그). 두 번 불러도 1회.
  *   ID 없는 호출(옛 형태)은 되돌리지 않는다 — 어느 소비인지 증명할 수 없다(돈 쪽 보수적 선택).
  */
-export async function restoreAiPlanCoupon(adminDb, uid, code, consumptionId) {
-  if (!adminDb || !uid || !code) return;
-  if (!consumptionId) {
-    console.warn('[paymentGate] coupon restore skipped — no consumptionId | uid:', uid, '| code:', code);
-    return;
+export async function restoreAiPlanCoupon(adminDb, uid, code, consumptionId, binding = null) {
+  if (!adminDb || !validateBinding(binding) || uid !== binding.consumerUid || consumptionId !== binding.consumptionId || !code) {
+    return { outcome: 'unknown', reason: 'UNBOUND_CONSUMPTION' };
   }
-  try {
-    const couponsRef = adminDb.collection('users').doc(uid).collection('coupons');
-    const snap = await couponsRef.where('code', '==', code).limit(1).get();
-    if (snap.empty) return;
-    const ref = snap.docs[0].ref;
-    const restored = await adminDb.runTransaction(async (tx) => {
-      const cur = (await tx.get(ref)).data() || {};
-      if (cur.isUsed !== true || cur.consumptionId !== consumptionId) return false;
-      tx.update(ref, { isUsed: false, usedAt: null, consumptionId: null, restoredAt: new Date().toISOString() });
-      return true;
-    });
-    if (restored) console.log('[paymentGate] 🎟️↩️ AI 무료 쿠폰 롤백 (plan 생성 실패) | uid:', uid, '| code:', code);
-    else console.warn('[paymentGate] coupon restore no-op — different/no active consumption | uid:', uid, '| code:', code);
-  } catch (e) {
-    console.warn('[paymentGate] coupon restore failed:', e.message);
-  }
+  // Exact document binding, not a code-only lookup. Unknown outcomes never release.
+  const result = await restoreOrResolve({ db: adminDb, binding, nowIso: new Date().toISOString() });
+  console.log('[paymentGate] coupon persistence resolution:', result.outcome, result.reason || '');
+  return result;
 }
 
-export async function enforcePaymentAndRevision(body, adminDb, authenticatedEmail, authenticatedUid) {
+export async function enforcePaymentAndRevision(body, adminDb, authenticatedEmail, authenticatedUid, couponContext = null) {
   const revisionOf = body.revisionOf;
   const revisionToken = body.revisionToken;
   let isRevision = false;
@@ -229,10 +213,10 @@ export async function enforcePaymentAndRevision(body, adminDb, authenticatedEmai
       return reject(403, 'AUTH_REQUIRED', 'Login required', 'AI 무료 쿠폰은 로그인 후 사용할 수 있습니다.');
     }
     const durationDays = body.durationDays || (body.duration === 'multi_day' ? 2 : 1);
-    const couponResult = await consumeAiPlanCoupon(adminDb, authenticatedUid, aiCouponCode, durationDays);
+    const couponResult = await consumeAiPlanCoupon(adminDb, authenticatedUid, aiCouponCode, durationDays, body, couponContext);
     if (couponResult.rejection) return couponResult;
     console.log('[planner] 🎟️ AI 무료 쿠폰 0원 통과 | uid:', authenticatedUid, '| days:', durationDays, '| code:', aiCouponCode);
-    return { isRevision: false, isAdminBypass: false, isFreeAiCoupon: true, consumedCoupon: { uid: authenticatedUid, code: aiCouponCode, consumptionId: couponResult.consumptionId } };
+    return { isRevision: false, isAdminBypass: false, isFreeAiCoupon: true, couponCommitted: couponResult.committed, consumedCoupon: { uid: authenticatedUid, code: aiCouponCode, consumptionId: couponResult.consumptionId, binding: couponResult.binding } };
   }
 
   if (!isRevision && !paypalOrderId) {

@@ -1,5 +1,6 @@
 // Adapted from the reviewed synthetic Fable draft (2026-11-08).
 // Internal server writers only: a client-provided ID/boolean is not provenance.
+import { readFinalFence, inspectRoot, ROOT, validateBinding, matchBinding } from './ai-coupon-persistence.js';
 import { canonicalJson } from '../../src/lib/planEditCanonical.js';
 import { PLAN_ISSUANCE_COLLECTION, isCompletedPlanForClaim } from './plan-issuance.js';
 
@@ -58,17 +59,20 @@ function assertReusable(root, expected, claim, trustedFixedId) {
   if (claim && !isCompletedPlanForClaim({ exists: true, data: () => root }, claim)) conflict('completed order mismatch');
 }
 
-export async function commitGenerationRoot(db, { finalDoc, issuanceClaim = null, trustedFixedId = false, requireReady = false, skeletonInput = null }) {
+export async function commitGenerationRoot(db, { finalDoc, issuanceClaim = null, trustedFixedId = false, requireReady = false, skeletonInput = null, couponBinding = null, couponBindingRequired = true }) {
   const expected = prepareGenerationPayload(finalDoc);
   const sourceInput = skeletonInput ? prepareGenerationPayload(skeletonInput) : null;
   const claim = issuanceClaim ? prepareGenerationPayload(issuanceClaim) : null;
   if (!isCompletePlanRoot(expected) || hasPlanEditMarkers(expected) || !expected.planId || !own(expected, 'uid')) conflict('invalid final payload');
   if (claim && (claim.planId !== expected.planId || claim.orderId !== expected.input?.paypalOrderId)) conflict('claim payload mismatch');
+  if (couponBindingRequired && (expected.isFreeCoupon || expected.paymentSource === 'ai-coupon') && (!validateBinding(couponBinding) || !matchBinding(expected.aiCouponBinding, couponBinding))) conflict('coupon binding required');
+  if (couponBinding && inspectRoot(expected, couponBinding) !== ROOT.COMPLETE) conflict('coupon final identity mismatch');
   const ref = db.collection('plans').doc(expected.planId);
   return db.runTransaction(async tx => {
     const snap = await tx.get(ref);
     const fence = await readPaidFence(tx, db, claim, 'final');
     const current = snap.exists ? snap.data() : null;
+    if (couponBinding) await readFinalFence({ tx, db, binding: couponBinding, root: current });
     if (current && current.status === 'ready') {
       assertReusable(current, expected, claim, trustedFixedId);
       return { reused: true, root: current };
@@ -80,21 +84,26 @@ export async function commitGenerationRoot(db, { finalDoc, issuanceClaim = null,
   });
 }
 
-export async function repairGenerationListing(db, { finalDoc, issuanceClaim = null, trustedFixedId = false }) {
+export async function repairGenerationListing(db, { finalDoc = null, issuanceClaim = null, trustedFixedId = false, couponBinding = null }) {
   // Existing root metadata may contain native Firestore Timestamp values.
   // Compare only original generation identity/input, never clone the entire saved root.
-  const expected = prepareGenerationPayload({
+  const expected = finalDoc ? prepareGenerationPayload({
     planId: finalDoc.planId, uid: finalDoc.uid, input: finalDoc.input,
     paymentSource: finalDoc.paymentSource, isFreeCoupon: finalDoc.isFreeCoupon,
     isAdminBypass: finalDoc.isAdminBypass, verifiedHistoryUid: finalDoc.verifiedHistoryUid,
-  });
+  }) : null;
   const claim = issuanceClaim ? prepareGenerationPayload(issuanceClaim) : null;
-  const ref = db.collection('plans').doc(expected.planId);
+  if (!expected && !validateBinding(couponBinding)) conflict('missing recovery binding');
+  const ref = db.collection('plans').doc(expected ? expected.planId : couponBinding.planId);
   return db.runTransaction(async tx => {
     const snap = await tx.get(ref);
     await readPaidFence(tx, db, claim, 'listing');
     const root = snap.exists ? snap.data() : null;
-    assertReusable(root, expected, claim, trustedFixedId);
+    if (couponBinding) {
+      await readFinalFence({ tx, db, binding: couponBinding, root });
+      if (inspectRoot(root, couponBinding) !== ROOT.COMPLETE) conflict('coupon recovery is incomplete');
+    }
+    if (expected) assertReusable(root, expected, claim, trustedFixedId);
     if (root.uid) {
       const input = root.input;
       const summary = {
@@ -113,15 +122,16 @@ const PATCH_KEYS = {
   progress: ['itinerary.days', '_streaming_progress', '_streaming_in_progress', '_streaming_last_update'],
   enrichment: ['itinerary.days', 'itinerary._pass3_pending', 'itinerary._pass3_completed_at'],
   failure: ['status', '_streaming_in_progress', '_streaming_error', '_streaming_error_message', '_streaming_error_code', '_streaming_error_details', '_failed_at'],
-  skeleton: ['planId', 'status', '_streaming_in_progress', '_streaming_started_at', '_p231_stub', 'isPublic', 'paymentSource', 'isFreeCoupon', 'isAdminBypass', 'createdAt', 'createdAtMs', 'uid', 'accessToken', 'guestEmail', 'input', 'pricing', 'revisionCredits', 'revisionCount', 'itinerary', '_block_mode_used'],
+  skeleton: ['planId', 'status', '_streaming_in_progress', '_streaming_started_at', '_p231_stub', 'isPublic', 'paymentSource', 'isFreeCoupon', 'isAdminBypass', 'createdAt', 'createdAtMs', 'uid', 'accessToken', 'guestEmail', 'input', 'pricing', 'revisionCredits', 'revisionCount', 'itinerary', '_block_mode_used', 'aiCouponBinding', 'verifiedHistoryUid'],
   block: ['itinerary', '_block_mode_used'],
 };
 export async function guardGenerationPatch(db, planId, patch, options = {}) {
-  const { kind, merge = true, create = false, issuanceClaim = null } = options;
+  const { kind, merge = true, create = false, issuanceClaim = null, couponBinding = null, couponBindingRequired = true } = options;
   const keys = PATCH_KEYS[kind];
   if (!keys || !planId) conflict('invalid patch kind or plan');
   if (Object.keys(patch).some(key => !keys.includes(key))) conflict('unsupported patch field');
   const payload = prepareGenerationPayload(patch); // no dates/random/mutation in retried callback
+  if (kind === 'skeleton' && couponBinding && inspectRoot(payload, couponBinding) !== ROOT.INCOMPLETE) conflict('coupon skeleton identity mismatch');
   const claim = issuanceClaim ? prepareGenerationPayload(issuanceClaim) : null;
   const ref = db.collection('plans').doc(planId);
   return db.runTransaction(async tx => {
@@ -129,6 +139,11 @@ export async function guardGenerationPatch(db, planId, patch, options = {}) {
     if (!snap.exists) {
       if (!create || kind !== 'skeleton') return { written: false, reason: 'missing' };
       if (payload.planId !== planId || !own(payload, 'uid') || payload.status !== 'streaming' || payload._streaming_in_progress !== true) conflict('invalid new skeleton');
+      if (couponBindingRequired && payload.isFreeCoupon && (!validateBinding(couponBinding) || !matchBinding(payload.aiCouponBinding, couponBinding))) conflict('coupon skeleton binding required');
+      if (couponBinding) {
+        if (inspectRoot(payload, couponBinding) !== ROOT.INCOMPLETE) conflict('coupon skeleton identity mismatch');
+        await readFinalFence({ tx, db, binding: couponBinding, root: null });
+      }
       if (merge) tx.set(ref, payload, { merge: true });
       else tx.set(ref, payload);
       return { written: true };
@@ -144,6 +159,12 @@ export async function guardGenerationPatch(db, planId, patch, options = {}) {
         return { written: false, reason: 'claim_mismatch' };
       }
       if (claim.planId !== planId) return { written: false, reason: 'claim_mismatch' };
+    }
+    const binding = couponBinding || current.aiCouponBinding;
+    // Legacy display flags alone are not coupon authority; only a server binding adds the fence.
+    if (binding) {
+      if (payload.aiCouponBinding && !matchBinding(payload.aiCouponBinding, binding)) conflict('coupon patch mismatch');
+      await readFinalFence({ tx, db, binding, root: current });
     }
     // Preserve original set(...,{merge:true}) dotted-key semantics; do not change to update().
     if (merge) tx.set(ref, payload, { merge: true });

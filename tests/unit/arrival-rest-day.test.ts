@@ -261,13 +261,13 @@ describe('r5 — local-language city names, one flag passed through, min-stop ex
   it('the handler flag is passed (not recomputed) to the user message and the Inngest payload', () => {
     const core = read('api/_ai_core/handlerCore.js');
     expect(core).toMatch(/buildUserMessage\(\{[^}]*arrivalRestDay \}\)/);
-    expect(core).toMatch(/issuanceClaim: issuance\.claim, avoidStopNames, plannerIntent, arrivalRestDay(, consumedCoupon: consumedCouponInfo)? \}\)\)/); // PR2 r3-11: 쿠폰 인자 추가
+    expect(core).toMatch(/issuanceClaim: issuance\.claim, avoidStopNames, plannerIntent, arrivalRestDay, consumedCoupon: consumedCouponInfo, couponBindingRequired: !gate\.isRevision \}\)\)/); // PR2 r3-11: 쿠폰 인자 추가
     expect(core).toMatch(/plannerIntent,\s*arrivalRestDay, \/\/ 2026-10-26: worker/);
     const umb = read('api/_ai_core/userMessageBuilder.js');
     expect(umb).toMatch(/arrival_rest_day: typeof arrivalRestDay === 'boolean' \? arrivalRestDay : \(arrivalRestDayInfo\(\{[\s\S]*?\}\)\.rest && Number\(durationDays\) > 1\)/);
     const disp = read('api/_ai_core/inngestDispatch.js');
     expect(disp).toContain("...(typeof arrivalRestDay === 'boolean' ? { arrivalRestDay } : {}),");
-    expect(disp).toMatch(/avoidStopNames, plannerIntent, arrivalRestDay,( consumedCoupon,)?\s*\}, handlerStart\)/); // PR2 r3-11
+    expect(disp).toMatch(/avoidStopNames, plannerIntent, arrivalRestDay, consumedCoupon, couponBindingRequired,\s*\}, handlerStart\)/); // PR2 r3-11
     expect(read('api/_ai_core/postResponsePipeline.js')).toContain("if (typeof ctx.arrivalRestDay === 'boolean') return ctx.arrivalRestDay;");
   });
   it('r6: both generation-stage selfHealLodgingBookend calls pass the rest-day flag', () => {

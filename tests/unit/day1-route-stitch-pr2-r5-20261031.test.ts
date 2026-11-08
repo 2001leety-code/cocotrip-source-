@@ -136,7 +136,7 @@ describe('r5-4 — the block-mode Inngest dispatch carries the free coupon too',
     const core = readFileSync(resolve(process.cwd(), 'api/_ai_core/handlerCore.js'), 'utf8');
     expect((core.match(/consumedCoupon: consumedCouponInfo/g) || []).length).toBe(2);
     const blk = core.slice(core.indexOf('tryBlockModeInngestPath({'), core.indexOf('sendEarlyResponse:'));
-    expect(blk).toContain('consumedCoupon: consumedCouponInfo, // PR2 r5-4');
+    expect(blk).toContain('consumedCoupon: consumedCouponInfo, couponBindingRequired: !gate.isRevision');
   });
 });
 
