@@ -1901,6 +1901,7 @@
       "publicTransitRoute": "대중교통 경로",
       "transitTransfers": "환승",
       "mealCostLabel": "식사비 별도",
+      "restaurantHoursAdvisory": "영업시간은 방문 전 매장에 확인해 주세요",
       "planRouteTimeline": "동선 타임라인",
       "planStatDays": "일",
       "planStatStops": "방문지",

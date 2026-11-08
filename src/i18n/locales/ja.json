@@ -1901,6 +1901,7 @@
       "publicTransitRoute": "公共交通の経路",
       "transitTransfers": "乗り換え",
       "mealCostLabel": "食事代は別",
+      "restaurantHoursAdvisory": "営業時間は訪問前に店舗へご確認ください",
       "planRouteTimeline": "ルートタイムライン",
       "planStatDays": "日",
       "planStatStops": "訪問地",
