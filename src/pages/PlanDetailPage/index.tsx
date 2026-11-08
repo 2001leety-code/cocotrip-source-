@@ -53,13 +53,15 @@ import { AdSlide } from './components/AdSlide';
 import { QualityWarningsPanel } from './components/QualityWarningsPanel';
 import { UserPlanNoticesPanel } from './components/UserPlanNoticesPanel';
 import { usePlanEditor } from './hooks/usePlanEditor';
+import type { EditCtx } from './hooks/useEditCommand';
+import { canonicalSource } from '@/lib/planEditCanonical.js';
 import { useSwipeNavigation } from './hooks/useSwipeNavigation';
 import { usePlanCompletionTracking } from './hooks/usePlanCompletionTracking';
 import { buildSlides } from './lib/buildSlides';
 import { formatDayLabel } from './lib/dayLabel';
 import { getPlanDocumentStatus } from './lib/planStats';
 import type { PlanDocument } from './types';
-import { getPlanDetailUI } from './types';
+import { getPlanDetailUI, getPlanDetailDict } from './types';
 import { DndContext, closestCenter, PointerSensor, TouchSensor, useSensor, useSensors } from '@dnd-kit/core';
 import type { DragEndEvent } from '@dnd-kit/core';
 
@@ -75,6 +77,7 @@ export default function PlanDetailPage() {
   const [error, setError] = useState<'notfound' | 'unauthorized' | 'autherror' | null>(() => planId ? null : 'notfound');
   const [loading, setLoading] = useState(() => !!planId);
   const [editMode, setEditMode] = useState(false);
+  const [editFailureIdentity, setEditFailureIdentity] = useState<string | null>(null);
   const [addStopDay, setAddStopDay] = useState<number | null>(null);
   const [isOwner, setIsOwner] = useState(false);
   const [reportOpen, setReportOpen] = useState(false);
@@ -82,8 +85,16 @@ export default function PlanDetailPage() {
   const streamingStartRef = useRef<number | null>(null);
   const [streamingTimedOut, setStreamingTimedOut] = useState(false);
 
-  // Plan editor (optimistic Firestore updates + auto transit recalc)
-  const editor = usePlanEditor(planId || '', plan, setPlan);
+  const [editSource, setEditSource] = useState<{ identity: string; context: EditCtx } | null>(null);
+  // Canonical read binding, never a click-time version lookup.
+
+  const editUncertain = getPlanDetailDict(t).editor?.saveUncertain || 'The save result is not yet confirmed. Check the same request in this tab.';
+  const editSaveFailed = getPlanDetailDict(t).editor?.saveFailed || 'Failed to save changes. Please try again.';
+  async function runEdit(operation: () => Promise<void>): Promise<void> {
+    setEditFailureIdentity(null);
+    try { await operation(); }
+    catch (cause) { setEditFailureIdentity(dataIdentity); throw cause; }
+  }
 
   // Drag sensors with distance constraint for mobile scroll compatibility
   const sensors = useSensors(
@@ -120,6 +131,7 @@ export default function PlanDetailPage() {
     languageRef.current = language;
   }, [language]);
   const dataIdentity = `${planId || ''}\u0000${token || ''}\u0000${uid || ''}\u0000${localScenario || ''}`;
+  const editor = usePlanEditor(planId || '', plan, setPlan, editSource?.identity === dataIdentity ? editSource.context : null);
   const requestIdentity = `${dataIdentity}\u0000${authLoading}`;
   const [previousRequest, setPreviousRequest] = useState(() => ({ requestIdentity, dataIdentity }));
   // 경로/공유 토큰/사용자 전환은 새 읽기 상태를 즉시 보여 주되, 인증 복구 중에는
@@ -128,6 +140,7 @@ export default function PlanDetailPage() {
     setPreviousRequest({ requestIdentity, dataIdentity });
     if (dataIdentity !== previousRequest.dataIdentity) {
       setPlan(null);
+      setEditSource(null);
       setIsOwner(false);
     }
     if (!planId || dataIdentity !== previousRequest.dataIdentity || !authLoading) {
@@ -185,6 +198,7 @@ export default function PlanDetailPage() {
 
     // 소유자 onSnapshot 경로의 에러 핸들러 — 동작 100% 동일.
     const handleErrLegacy = (err: unknown) => {
+      setEditSource(null);
       // P235: permission-denied = 인증 만료 또는 PWA 스테일 캐시 → 재로그인/새로고침 안내.
       // 그 외 (not-found, network 등) = 일반 notfound 처리.
       const code = (err as { code?: string })?.code || '';
@@ -234,14 +248,31 @@ export default function PlanDetailPage() {
 
     // 로그인 = 소유자 실시간 경로(onSnapshot). 본인 plan 만 룰이 read 허용.
     //   permission-denied = 로그인 비소유자(룰 거부) → API 로 폴백(서버가 공개/토큰 판정).
+    let editReadGeneration = 0;
     const planRef = doc(db, 'plans', planId);
     // UI observer: default includeMetadataChanges=false → metadata-only snapshots never reach handleSnap.
     const unsub = onSnapshot(planRef, (snap) => {
       if (cancelled) return;
-      if (!snap.exists()) { setError('notfound'); setLoading(false); return; }
-      handleSnap(snap.data() as PlanDocument, uid);
+      if (!snap.exists()) { ++editReadGeneration; setEditSource(null); setError('notfound'); setLoading(false); return; }
+      const raw = snap.data() as PlanDocument;
+      const generation = ++editReadGeneration;
+      setEditSource(null);
+      handleSnap(raw, uid);
+      if (raw.uid !== uid || raw.planId !== planId || raw.status !== 'ready' ||
+          raw._streaming_in_progress === true || raw._p231_stub === true) return;
+      const revision = raw.editRevision === undefined ? 0 : raw.editRevision;
+      if (typeof revision !== 'number' || !Number.isSafeInteger(revision) || revision < 0) return;
+      try {
+        const encoded = new TextEncoder().encode(canonicalSource(raw));
+        void crypto.subtle.digest('SHA-256', encoded).then(bytes => {
+          if (cancelled || editReadGeneration !== generation || firebaseAuth.currentUser?.uid !== uid) return;
+          const fingerprint = Array.from(new Uint8Array(bytes), b => b.toString(16).padStart(2, '0')).join('');
+          setEditSource({ identity: dataIdentity, context: { uid, planId, fingerprint, revision } });
+        }).catch(() => { /* Unsupported legacy data stays read-only. */ });
+      } catch { /* Unsupported canonical data stays read-only. */ }
     }, (err) => {
       if (cancelled) return;
+      ++editReadGeneration; setEditSource(null);
       const code = (err as { code?: string })?.code || '';
       if (code === 'permission-denied' || code === 'PERMISSION_DENIED') {
         void fetchViaApi(uid);
@@ -276,7 +307,7 @@ export default function PlanDetailPage() {
       try { unsub(); } catch { /* ignore */ }
       try { unsubCompletion?.(); } catch { /* ignore */ }
     };
-  }, [planId, token, uid, authLoading, localScenario]);
+  }, [planId, token, uid, authLoading, localScenario, dataIdentity]);
 
   // share_visit tracking
   useEffect(() => {
@@ -521,7 +552,7 @@ export default function PlanDetailPage() {
             {/* Edit toggle — 소유자만 (공유 링크 고객에겐 미노출). */}
             {isOwner && (
               <div className="flex justify-end mb-3">
-                <EditModeToggle editMode={editMode} onToggle={() => setEditMode(!editMode)} />
+                {editor.canEdit ? <EditModeToggle editMode={editMode} onToggle={() => setEditMode(!editMode)} /> : <span role="status" className="text-sm">{getPlanDetailDict(t).editor?.savePreparing || 'Checking edit availability.'}</span>}
               </div>
             )}
             <DndContext
@@ -533,7 +564,7 @@ export default function PlanDetailPage() {
                 const activeMatch = String(active.id).match(/^day-(\d+)-stop-(\d+)$/);
                 const overMatch = String(over.id).match(/^day-(\d+)-stop-(\d+)$/);
                 if (activeMatch && overMatch && activeMatch[1] === overMatch[1]) {
-                  editor.reorderStops(parseInt(activeMatch[1], 10), parseInt(activeMatch[2], 10), parseInt(overMatch[2], 10), token);
+                  void runEdit(() => editor.reorderStops(parseInt(activeMatch[1], 10), parseInt(activeMatch[2], 10), parseInt(overMatch[2], 10), token)).catch(() => {});
                 }
               }}
             >
@@ -541,11 +572,11 @@ export default function PlanDetailPage() {
                 day={dayData}
                 dayIndex={dayIdx}
                 routeScopeKey={`${planId || ''}:day:${dayIdx}`}
-                editMode={editMode}
+                editMode={editMode && editor.canEdit}
                 isRecalculating={editor.isRecalculating}
-                onDeleteStop={(di, si) => editor.deleteStop(di, si, token)}
-                onAddStop={(di) => setAddStopDay(di)}
-                onApplyOrder={(di, order) => editor.applyStopOrder(di, order, token)}
+                onDeleteStop={(di, si) => { void runEdit(() => editor.deleteStop(di, si, token)).catch(() => {}); }}
+                onAddStop={(di) => { setEditFailureIdentity(null); setAddStopDay(di); }}
+                onApplyOrder={(di, order) => runEdit(() => editor.applyStopOrder(di, order, token))}
                 plan={plan}
                 isOwner={isOwner}
               />
@@ -586,6 +617,19 @@ export default function PlanDetailPage() {
         regionNames={((t as unknown as { planner?: { regionNames?: Record<string, string> } }).planner?.regionNames) || {}}
       />
       <main data-testid="plan-document-ready" className="ec-container-wide py-8 md:py-12">
+        {isOwner && addStopDay === null && editor.editState !== 'idle' && (
+          <div role="status" className="mb-4 rounded-xl border border-ec-border bg-ec-surface p-4 text-[14px]">
+            <p>{editor.editState === 'uncertain'
+              ? editUncertain
+              : editor.editState === 'sending' ? (getPlanDetailDict(t).editor?.savePreparing || 'Checking the edit request.')
+              : (getPlanDetailDict(t).editor?.saveAwaiting || 'Waiting for the latest server itinerary.')}</p>
+            {(editor.editState === 'uncertain' || editor.editState === 'awaitingSnapshot') && (
+              <button type="button" className="mt-2 min-h-11 underline"
+                onClick={() => { setEditFailureIdentity(null); void editor.retryEdit().catch(() => {}); }}>{getPlanDetailDict(t).editor?.saveRetry || 'Check same request'}</button>
+            )}
+          </div>
+        )}
+        {editFailureIdentity === dataIdentity && editor.editState === 'idle' && <p role="alert" className="mb-4 text-[14px] text-ec-critical">{editSaveFailed}</p>}
         {/* P169: Streaming 진행 중 인디케이터 배너 (onSnapshot 자동 감지) */}
         {/* P225: streamingTimedOut 시 오류 배너 + 새로고침 버튼 */}
         {isStreamingInProgress && (
@@ -617,20 +661,20 @@ export default function PlanDetailPage() {
         <SwipeContainer
           current={current}
           onSlideChange={goToSlide}
-          editMode={editMode}
+          editMode={editMode && editor.canEdit}
         >
           {slideElements}
         </SwipeContainer>
 
         {/* AddStopModal: sibling to SwipeContainer, overlays regardless of current slide */}
         <AddStopModal
+          saveFailureMessage={editor.editState === 'uncertain' ? editUncertain : undefined}
+          onRetrySave={editor.editState === 'uncertain' ? editor.retryEdit : undefined}
           open={addStopDay !== null}
           onClose={() => setAddStopDay(null)}
-          onAdd={(stopData) => {
-            if (addStopDay !== null) {
-              editor.addStop(addStopDay, stopData, token);
-              setAddStopDay(null);
-            }
+          onAdd={async (stopData) => {
+            if (addStopDay === null) throw new Error('No selected day');
+            await editor.addStop(addStopDay, stopData, token);
           }}
         />
 

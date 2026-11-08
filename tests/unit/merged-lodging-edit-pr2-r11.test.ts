@@ -11,7 +11,7 @@ function chain(): any {
   return {
     collection: () => chain(),
     doc: () => chain(),
-    get: async () => ({ exists: fx.planData !== null, data: () => fx.planData }),
+    get: async () => ({ exists: fx.planData !== null, updateTime: { seconds: 1, nanoseconds: 2 }, data: () => fx.planData }),
     update: async (u: any) => { fx.updates.push(u); },
     set: async () => {},
   };
@@ -20,6 +20,7 @@ vi.mock('firebase-admin/app', () => ({ initializeApp: vi.fn(), cert: vi.fn(), ge
 vi.mock('firebase-admin/firestore', () => ({ getFirestore: () => chain(), FieldValue: { increment: () => 1 } }));
 vi.mock('firebase/firestore', () => ({ doc: vi.fn(), updateDoc: vi.fn() }));
 vi.mock('@/lib/firebase', () => ({ db: {} }));
+vi.mock('@/lib/firebase-auth', () => ({ auth: { currentUser: null } }));
 vi.mock('@/lib/authFetch', () => ({ authFetch: vi.fn() }));
 vi.mock('../../api/_shared/ip-rate-limit.js', () => ({ checkIpRateLimit: async () => ({ ok: true }), getClientIp: () => '1.2.3.4' }));
 vi.mock('axios', () => ({ default: { get: vi.fn(() => Promise.reject(new Error('offline'))), post: vi.fn(() => Promise.reject(new Error('offline'))) } }));

@@ -21,6 +21,7 @@
  * NOTE: revision (전체 재생성) 와 다름 — revision 은 별도 결제 + 전체 Gemini 재호출,
  *       modify 는 무료 + 부분 mutation. modifyCount 별도 카운트.
  */
+import { saveIfUnchanged } from './_shared/save-if-unchanged.js';
 import { initAdminDb } from './_shared/firebase-admin.js';
 import { verifyUserToken } from './_shared/user-auth.js';
 import { captureError } from './_shared/sentry.js';
@@ -814,12 +815,16 @@ export default async function handler(req, res) {
     applyArrivalRestNote(itinerary, { restDay: arrivalRestDay === true, language });
 
     // ── persist
-    await docRef.set({
+    const saveOutcome = await saveIfUnchanged(adminDb, docRef, docSnap.updateTime, {
       itinerary,
       modifyCount: (planData.modifyCount || 0) + 1,
       lastModifiedAt: new Date().toISOString(),
       lastModifyIntent: classified.intent,
-    }, { merge: true });
+    });
+    if (saveOutcome.conflict) {
+      res.writeHead(409, JSON_CORS);
+      return res.end(JSON.stringify(_err('Plan changed during modification', 'PLAN_CHANGED')));
+    }
 
     // P130 — log successful mutation for monitoring.
     logIntentClassifierAsync({

@@ -1,12 +1,14 @@
 // Add Stop modal -- bottom sheet on mobile, centered on desktop.
 // Collects: name, address (optional), start_time, stay_min, category.
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { X } from 'lucide-react';
 import { useLanguage } from '@/hooks/useLanguage';
 import { getPlanDetailDict } from '../types';
 
 interface AddStopModalProps {
   open: boolean;
+  saveFailureMessage?: string;
+  onRetrySave?: () => Promise<void>;
   onClose: () => void;
   onAdd: (stopData: {
     name: string;
@@ -15,7 +17,7 @@ interface AddStopModalProps {
     start_time: string;
     stay_min: number;
     category: string;
-  }) => void;
+  }) => Promise<void>;
 }
 
 const CATEGORIES = [
@@ -36,7 +38,7 @@ const CATEGORY_LABELS: Record<string, Record<string, string>> = {
   activity: { ko: '체험', en: 'Activity', ja: '体験', zh: '体验' },
 };
 
-export function AddStopModal({ open, onClose, onAdd }: AddStopModalProps) {
+export function AddStopModal({ open, onClose, onAdd, saveFailureMessage, onRetrySave }: AddStopModalProps) {
   const { t, language } = useLanguage();
   const pd = getPlanDetailDict(t);
   const ed = pd.editor || {};
@@ -48,6 +50,22 @@ export function AddStopModal({ open, onClose, onAdd }: AddStopModalProps) {
   const [startTime, setStartTime] = useState('12:00');
   const [stayMin, setStayMin] = useState(60);
   const [category, setCategory] = useState('landmark');
+  const [pending, setPending] = useState(false);
+  const [saveFailed, setSaveFailed] = useState(false);
+  const [previousOpen, setPreviousOpen] = useState(open);
+  if (previousOpen !== open) {
+    setPreviousOpen(open);
+    setSaveFailed(false);
+  }
+  const inFlight = useRef(false);
+  const session = useRef(0);
+  const mounted = useRef(false);
+  useLayoutEffect(() => {
+    mounted.current = true;
+    session.current += 1;
+    return () => { mounted.current = false; session.current += 1; };
+  }, [open]);
+  const close = () => { session.current += 1; onClose(); };
   // Mobile keyboard detection: when an input has focus the on-screen keyboard
   // pushes ~350px up. Shrink modal max-h so the form + sticky submit stay visible.
   const [keyboardOpen, setKeyboardOpen] = useState(false);
@@ -56,7 +74,7 @@ export function AddStopModal({ open, onClose, onAdd }: AddStopModalProps) {
   const onCloseRef = useRef(onClose);
 
   useEffect(() => {
-    onCloseRef.current = onClose;
+    onCloseRef.current = () => { session.current += 1; onClose(); };
   }, [onClose]);
 
   useEffect(() => {
@@ -73,7 +91,7 @@ export function AddStopModal({ open, onClose, onAdd }: AddStopModalProps) {
       if (event.key !== 'Tab' || !dialogRef.current) return;
       const focusable = Array.from(dialogRef.current.querySelectorAll<HTMLElement>(
         'button:not([disabled]), input:not([disabled]), select:not([disabled]), [href], [tabindex]:not([tabindex="-1"])',
-      )).filter((element) => element.getClientRects().length > 0);
+      )).filter((element) => !element.matches(':disabled') && element.getClientRects().length > 0);
       if (focusable.length === 0) {
         event.preventDefault();
         dialogRef.current.focus();
@@ -102,31 +120,42 @@ export function AddStopModal({ open, onClose, onAdd }: AddStopModalProps) {
 
   if (!open) return null;
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!name.trim()) return;
-    onAdd({
-      name: name.trim(),
-      display_name: name.trim(),
-      address: address.trim(),
-      start_time: startTime,
-      stay_min: stayMin,
-      category,
-    });
-    // Reset form
-    setName('');
-    setAddress('');
-    setStartTime('12:00');
-    setStayMin(60);
-    setCategory('landmark');
-    onClose();
+  const save = async (operation: () => Promise<void>) => {
+    if (inFlight.current) return;
+    inFlight.current = true;
+    const startedSession = session.current;
+    setPending(true);
+    setSaveFailed(false);
+    try {
+      await operation();
+      if (!mounted.current || session.current !== startedSession) return;
+      setName('');
+      setAddress('');
+      setStartTime('12:00');
+      setStayMin(60);
+      setCategory('landmark');
+      close();
+    } catch {
+      if (mounted.current && session.current === startedSession) setSaveFailed(true);
+    } finally {
+      inFlight.current = false;
+      if (mounted.current) setPending(false);
+    }
   };
 
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!name.trim() || onRetrySave) return;
+    await save(() => onAdd({
+      name: name.trim(), display_name: name.trim(), address: address.trim(),
+      start_time: startTime, stay_min: stayMin, category,
+    }));
+  };
   return (
     <div
       className="fixed inset-0 z-50 flex items-end sm:items-center justify-center"
       style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
-      onClick={onClose}
+      onClick={close}
       role="presentation"
     >
       <div data-testid="plan-add-stop-scrim" className="absolute inset-0 bg-black/45" />
@@ -143,13 +172,16 @@ export function AddStopModal({ open, onClose, onAdd }: AddStopModalProps) {
         {/* Header */}
         <div className="flex items-center justify-between border-b border-ec-line p-4">
           <h3 id="add-stop-title" className="ec-h3 text-[20px]">{ed.addStop || 'Add Stop'}</h3>
-          <button type="button" onClick={onClose} className="ec-btn ec-btn-quiet min-h-[44px] min-w-[44px] px-0" aria-label={t.a11y?.close || 'Close'}>
+          <button type="button" onClick={close} className="ec-btn ec-btn-quiet min-h-[44px] min-w-[44px] px-0" aria-label={t.a11y?.close || 'Close'}>
             <X className="h-5 w-5" aria-hidden />
           </button>
         </div>
 
         {/* Form */}
-        <form onSubmit={handleSubmit} className="p-4 space-y-4">
+        <form onSubmit={handleSubmit} aria-busy={pending} className="p-4 space-y-4">
+          {saveFailed && <p role="alert" className="text-[14px] text-ec-critical">{saveFailureMessage || ed.saveFailed || 'Failed to save changes. Please try again.'}</p>}
+          {saveFailed && onRetrySave && <button type="button" disabled={pending} className="min-h-11 underline" onClick={() => { void save(onRetrySave); }}>{ed.saveRetry || 'Check same request'}</button>}
+          <fieldset disabled={pending || !!onRetrySave} className="min-w-0 space-y-4">
           {/* Name */}
           <div>
             <label htmlFor="plan-stop-name" className="mb-1.5 block text-[14px] font-semibold text-ec-ink-2">{ed.nameLabel || 'Place name'}</label>
@@ -245,6 +277,7 @@ export function AddStopModal({ open, onClose, onAdd }: AddStopModalProps) {
               {ed.addBtn || 'Add'}
             </button>
           </div>
+          </fieldset>
         </form>
       </div>
     </div>

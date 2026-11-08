@@ -20,6 +20,7 @@
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { readFileSync } from 'node:fs';
+import { createFakeFirestore } from '../helpers/fake-firestore.js';
 import { resolve } from 'node:path';
 
 const src = readFileSync(
@@ -90,30 +91,16 @@ function makeHugeItinerary(days: number, perStopBytes: number) {
 }
 
 function makeAdminDbMock() {
-  const writes: Array<{ collection: string; doc?: string; data: PlanWriteData; merge?: boolean }> = [];
-  const make = (collectionName: string) => {
-    const docFn = (docId: string) => ({
-      set: vi.fn(async (data: PlanWriteData, opts?: { merge?: boolean }) => {
-        writes.push({ collection: collectionName, doc: docId, data, merge: opts?.merge });
-      }),
-      update: vi.fn(async (data: PlanWriteData) => {
-        writes.push({ collection: collectionName, doc: docId, data });
-      }),
-      get: vi.fn(async () => ({ exists: false, data: () => ({}) })),
-      collection: (sub: string) => makeSubCollection(`${collectionName}/${docId}/${sub}`),
-    });
-    return { doc: docFn };
-  };
-  const makeSubCollection = (path: string) => ({
-    doc: (docId?: string) => ({
-      set: vi.fn(async (data: PlanWriteData, opts?: { merge?: boolean }) => {
-        writes.push({ collection: path, doc: docId, data, merge: opts?.merge });
-      }),
-    }),
-  });
+  const db = createFakeFirestore();
   return {
-    collection: vi.fn((name: string) => make(name)),
-    _writes: writes,
+    ...db,
+    // Assertions inspect committed documents, not the obsolete direct set() boundary.
+    get _writes() {
+      return Object.entries(db.__dump()).map(([path, data]) => ({
+        collection: path.split('/').slice(0, -1).join('/'),
+        doc: path.split('/').at(-1), data: data as PlanWriteData,
+      }));
+    },
   };
 }
 

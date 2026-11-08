@@ -1,34 +1,11 @@
-// Plan editor hook -- optimistic Firestore updates with rollback.
-// Level 2: delete / add / reorder + automatic transit recalculation.
-// After any edit, stale transits are sent to /api/recalc-transit for
-// server-side ODsay + Naver refresh. The plan auto-updates via the
-// existing Firestore onSnapshot listener in index.tsx.
-import { useState, useCallback, useRef } from 'react';
-import { doc, updateDoc } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
+// Owner commands never write client/translated days. Canonical owner read updates the view.
+import { useState, useCallback, useRef, useEffect } from 'react';
+import { auth } from '@/lib/firebase-auth';
 import { authFetch } from '@/lib/authFetch';
-import type { PlanDocument, PlanDay, PlanStop, SetPlanFn } from '../types';
-import { stripArrivalRestNoteIfDay1Active } from '@/lib/arrivalRestNote.js';
-import { stripBreakfastNoteIfLastDayHasMeal } from '@/lib/departureBreakfastNote.js';
+import type { PlanDocument, PlanStop, SetPlanFn } from '../types';
+import { useEditCommand, type EditCtx } from './useEditCommand';
+type StopData = {name:string;display_name:string;address:string;start_time:string;stay_min:number;category:string};
 
-interface StopData {
-  name: string;
-  display_name: string;
-  address: string;
-  start_time: string;
-  stay_min: number;
-  category: string;
-  entry_fee_krw: number;
-  tip: string;
-  _userAdded: boolean;
-}
-
-/**
- * PR2 r11: 편집으로 앞 stop 이 바뀐 stop 을 재조회 대상으로 — 이동 객체가 있으면 _stale, 없으면(같은 숙소로 합친 표식 등 null)
- *   stop 단위 _stale_transit(서버 recalc-transit 이 읽고 지움). 그리고 "앞 숙소와 같은 숙소" 표식은 관계가 바뀌었으니 해제. 0번은 제외.
- *   r12: before = 편집 전 배열(같은 stop 객체). 병합 표식 stop 의 앞 stop 이 편집 전과 **같으면**(관계 그대로) 아무것도 안 한다 —
- *   다른 곳 삭제·재정렬로 병합 쌍에 가짜 이동(25+5)이 붙던 문제.
- */
 export function markStopStale(stops: PlanStop[], i: number, before?: PlanStop[]): void {
   const s = stops[i] as (PlanStop & { _stale_transit?: boolean; same_lodging_as_prev?: boolean }) | undefined;
   if (!s || i === 0) return;
@@ -41,196 +18,59 @@ export function markStopStale(stops: PlanStop[], i: number, before?: PlanStop[])
   delete s.same_lodging_as_prev;
 }
 
-export function usePlanEditor(
-  planId: string,
-  plan: PlanDocument | null,
-  setPlan: SetPlanFn,
-) {
+export function usePlanEditor(planId: string, plan: PlanDocument | null, _setPlan: SetPlanFn, context: EditCtx = null) {
   const [isRecalculating, setIsRecalculating] = useState(false);
-  const recalcTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  // Persist updated days array to Firestore
-  async function commitDays(nextDays: PlanDay[], snapshot: PlanDocument) {
-    try {
-      await updateDoc(doc(db, 'plans', planId), {
-        'itinerary.days': nextDays,
-        edited: true,
-        lastEditedAt: Date.now(),
-      });
-    } catch (e) {
-      console.error('[planEditor] Firestore write failed, rolling back:', e);
-      setPlan(() => snapshot);
-      throw e;
-    }
-  }
-
-  // Mark transit as stale for stops adjacent to changes
-  function markStale(stops: PlanStop[], affectedIdx: number, before?: PlanStop[]) {
-    // The stop AT affectedIdx and the one AFTER it get _stale
-    //   PR2 r11: 이동이 null 인 stop(같은 숙소로 합친 표식 등)도 앞 stop 이 바뀌었으니 재조회 대상(stop 단위 _stale_transit),
-    //   그리고 "앞 숙소와 같은 숙소" 표식은 관계가 바뀌었으므로 해제(서버 recalc 가 일반 구간으로 다시 계산). r12: 관계 그대로면 유지.
-    for (const i of [affectedIdx, affectedIdx + 1]) markStopStale(stops, i, before);
-  }
-
-  // Call /api/recalc-transit to refresh stale segments
-  const recalcTransit = useCallback(async (dayIdx: number, token: string | null) => {
-    if (!planId) return;
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const mounted = useRef(false);
+  useEffect(() => {
+    mounted.current = true;
+    return () => { mounted.current = false; if (timer.current) clearTimeout(timer.current); };
+  }, []);
+  const recalcTransit = useCallback(async (dayIndex: number, token: string | null) => {
+    if (!planId || !mounted.current) return;
     setIsRecalculating(true);
     try {
-      // authFetch 가 로그인 시 검증 가능한 Firebase ID 토큰을 Bearer 로 첨부(서버 verifyUserToken
-      // 으로 owner 검증). 비로그인(게스트)은 토큰 없이 전송 → 서버는 body.token(accessToken) 인증.
-      const res = await authFetch('/api/recalc-transit', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ planId, dayIndex: dayIdx, token }),
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        console.error('[planEditor] recalc-transit failed:', data.error);
-      } else {
-        console.log(`[planEditor] Transit recalculated: ${data.recalculated} segment(s)`);
-        // Firestore onSnapshot will auto-update the local plan state
-      }
-    } catch (e) {
-      console.error('[planEditor] recalc-transit request failed:', e);
-    } finally {
-      setIsRecalculating(false);
-    }
+      const response = await authFetch('/api/recalc-transit', {method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({planId,dayIndex,token})});
+      if (!response.ok) console.warn('[planEditor] Transit was not refreshed');
+    } catch { console.warn('[planEditor] Transit refresh unavailable'); }
+    finally { if (mounted.current) setIsRecalculating(false); }
   }, [planId]);
-
-  // Schedule transit recalculation (debounced 2s after last edit)
-  const scheduleRecalc = useCallback((dayIdx: number, token: string | null) => {
-    if (recalcTimerRef.current) {
-      clearTimeout(recalcTimerRef.current);
-    }
-    recalcTimerRef.current = setTimeout(() => {
-      recalcTransit(dayIdx, token);
+  function schedule(dayIndex: number, token: string | null) {
+    if (!mounted.current) return;
+    if (timer.current) clearTimeout(timer.current);
+    const ownerUid = context?.uid;
+    timer.current = setTimeout(() => {
+      if (mounted.current && ownerUid && auth.currentUser?.uid === ownerUid) void recalcTransit(dayIndex, token);
     }, 2000);
-  }, [recalcTransit]);
-
-  async function deleteStop(dayIdx: number, stopIdx: number, token?: string | null) {
-    if (!plan || !plan.itinerary) return;
-    const snapshot = structuredClone(plan) as PlanDocument;
-    const nextDays = structuredClone(plan.itinerary.days || []) as PlanDay[];
-    const stops = (nextDays[dayIdx]?.stops || []) as PlanStop[];
-    const before = stops.slice(); // r12: 편집 전 앞 stop 대조용(같은 객체)
-    stops.splice(stopIdx, 1);
-    // Mark neighbors stale
-    if (stops[stopIdx]) {
-      markStale(stops, stopIdx, before);
-    }
-    // Re-number orders
-    stops.forEach((s, i) => { s.order = i + 1; });
-    nextDays[dayIdx].stops = stops;
-
-    stripArrivalRestNoteIfDay1Active({ days: nextDays }); // 2026-10-26: Day1 에 식당·관광이 생기면 휴식 안내 제거(저장 전)
-    stripBreakfastNoteIfLastDayHasMeal({ days: nextDays }); // 2026-10-26: 출국일에 식당이 생기면 조식 안내 제거(저장 전)
-    setPlan((prev) => prev ? ({
-      ...prev,
-      itinerary: { ...prev.itinerary, days: nextDays },
-      edited: true,
-      lastEditedAt: Date.now(),
-    }) : prev);
-    await commitDays(nextDays, snapshot);
-    scheduleRecalc(dayIdx, token || null);
   }
-
-  async function addStop(dayIdx: number, stopData: Partial<StopData>, token?: string | null) {
-    if (!plan || !plan.itinerary) return;
-    const snapshot = structuredClone(plan) as PlanDocument;
-    const nextDays = structuredClone(plan.itinerary.days || []) as PlanDay[];
-    const stops = (nextDays[dayIdx]?.stops || []) as PlanStop[];
-    const newStop: PlanStop = {
-      name: stopData.name || '',
-      display_name: stopData.display_name || stopData.name || '',
-      address: stopData.address || '',
-      start_time: stopData.start_time || '12:00',
-      stay_min: stopData.stay_min || 60,
-      category: stopData.category || 'landmark',
-      entry_fee_krw: 0,
-      tip: '',
-      order: stops.length + 1,
-      _userAdded: true,
-      transit_from_prev: {
-        method: 'walk',
-        est_min: 10,
-        est_fare_krw: 0,
-        _stale: true,
-        source: 'placeholder',
-      },
-    };
-    stops.push(newStop);
-    nextDays[dayIdx].stops = stops;
-
-    stripArrivalRestNoteIfDay1Active({ days: nextDays }); // 2026-10-26: Day1 에 식당·관광이 생기면 휴식 안내 제거(저장 전)
-    stripBreakfastNoteIfLastDayHasMeal({ days: nextDays }); // 2026-10-26: 출국일에 식당이 생기면 조식 안내 제거(저장 전)
-    setPlan((prev) => prev ? ({
-      ...prev,
-      itinerary: { ...prev.itinerary, days: nextDays },
-      edited: true,
-      lastEditedAt: Date.now(),
-    }) : prev);
-    await commitDays(nextDays, snapshot);
-    scheduleRecalc(dayIdx, token || null);
+  const command = useEditCommand(context, () => auth.currentUser?.uid || null, (body, signal) =>
+    authFetch('/api/plan-edit', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body),signal}), (operation, ownerUid, originalPlanId) => {
+      const dayIndex = (operation as {dayIndex?:unknown}).dayIndex;
+      if (originalPlanId === planId && auth.currentUser?.uid === ownerUid && typeof dayIndex === 'number') schedule(dayIndex, null);
+    });
+  async function commit(operation: Record<string, unknown>, _token?: string | null) {
+    void _token;
+    await command.execute(operation);
+    // Accepted callback covers both initial save and same-request retry.
   }
-
-  async function reorderStops(dayIdx: number, oldIdx: number, newIdx: number, token?: string | null) {
-    if (!plan || !plan.itinerary) return;
-    if (oldIdx === newIdx) return;
-    const snapshot = structuredClone(plan) as PlanDocument;
-    const nextDays = structuredClone(plan.itinerary.days || []) as PlanDay[];
-    const stops = (nextDays[dayIdx]?.stops || []) as PlanStop[];
-    const before = stops.slice(); // r12: 편집 전 앞 stop 대조용
-    const [moved] = stops.splice(oldIdx, 1);
-    stops.splice(newIdx, 0, moved);
-    // Mark all affected range stale
-    const minIdx = Math.min(oldIdx, newIdx);
-    const maxIdx = Math.max(oldIdx, newIdx);
-    for (let i = minIdx; i <= maxIdx + 1 && i < stops.length; i++) markStopStale(stops, i, before); // PR2 r11/r12: null 이동도 재조회, 병합 쌍 그대로면 유지
-    // Re-number orders
-    stops.forEach((s, i) => { s.order = i + 1; });
-    nextDays[dayIdx].stops = stops;
-
-    stripArrivalRestNoteIfDay1Active({ days: nextDays }); // 2026-10-26: Day1 에 식당·관광이 생기면 휴식 안내 제거(저장 전)
-    stripBreakfastNoteIfLastDayHasMeal({ days: nextDays }); // 2026-10-26: 출국일에 식당이 생기면 조식 안내 제거(저장 전)
-    setPlan((prev) => prev ? ({
-      ...prev,
-      itinerary: { ...prev.itinerary, days: nextDays },
-      edited: true,
-      lastEditedAt: Date.now(),
-    }) : prev);
-    await commitDays(nextDays, snapshot);
-    scheduleRecalc(dayIdx, token || null);
+  async function deleteStop(dayIndex:number,stopIndex:number,token?:string|null) {
+    await commit({type:'delete',dayIndex,stopIndex},token);
   }
-
-  /**
-   * UIUX P4 Optimize (2026-07-13): 제안된 방문 순서를 한 번에 적용.
-   * order = 기존 stops 인덱스의 permutation (optimizeSuggestions.suggestTimeOrder 출력).
-   * 전 세그먼트 _stale 처리 후 기존 recalc 파이프라인이 실측 transit 으로 재계산.
-   */
-  async function applyStopOrder(dayIdx: number, order: number[], token?: string | null) {
-    if (!plan || !plan.itinerary) return;
-    const snapshot = structuredClone(plan) as PlanDocument;
-    const nextDays = structuredClone(plan.itinerary.days || []) as PlanDay[];
-    const stops = (nextDays[dayIdx]?.stops || []) as PlanStop[];
-    // permutation 검증 — 길이 일치 + 인덱스 전수 포함 (아니면 no-op)
-    if (order.length !== stops.length) return;
-    if ([...order].sort((a, b) => a - b).some((v, i) => v !== i)) return;
-    const reordered = order.map((i) => stops[i]);
-    reordered.forEach((s, i) => { s.order = i + 1; markStopStale(reordered, i, stops); }); // PR2 r11/r12: null 이동도 재조회, 병합 쌍 그대로면 유지
-    nextDays[dayIdx].stops = reordered;
-
-    stripArrivalRestNoteIfDay1Active({ days: nextDays }); // 2026-10-26: Day1 에 식당·관광이 생기면 휴식 안내 제거(저장 전)
-    stripBreakfastNoteIfLastDayHasMeal({ days: nextDays }); // 2026-10-26: 출국일에 식당이 생기면 조식 안내 제거(저장 전)
-    setPlan((prev) => prev ? ({
-      ...prev,
-      itinerary: { ...prev.itinerary, days: nextDays },
-      edited: true,
-      lastEditedAt: Date.now(),
-    }) : prev);
-    await commitDays(nextDays, snapshot);
-    scheduleRecalc(dayIdx, token || null);
+  async function addStop(dayIndex:number,data:Partial<StopData>,token?:string|null) {
+    const stop={name:data.name || '',display_name:data.display_name || data.name || '',address:data.address || '',
+      start_time:data.start_time || '12:00',stay_min:data.stay_min || 60,category:data.category || 'landmark'};
+    await commit({type:'add',dayIndex,stop},token);
   }
-
-  return { deleteStop, addStop, reorderStops, applyStopOrder, recalcTransit, isRecalculating };
+  async function reorderStops(dayIndex:number,fromIndex:number,toIndex:number,token?:string|null) {
+    if(fromIndex===toIndex)return;
+    await commit({type:'reorder',dayIndex,fromIndex,toIndex},token);
+  }
+  async function applyStopOrder(dayIndex:number,order:number[],token?:string|null) {
+    const stops=plan?.itinerary?.days?.[dayIndex]?.stops || [];
+    if(order.length!==stops.length || [...order].sort((a,b)=>a-b).some((v,i)=>v!==i))return;
+    await commit({type:'applyOrder',dayIndex,order:[...order]},token);
+  }
+  return {deleteStop,addStop,reorderStops,applyStopOrder,recalcTransit,isRecalculating,
+    editState:command.state,canEdit:command.canEdit,retryEdit:command.retry};
 }

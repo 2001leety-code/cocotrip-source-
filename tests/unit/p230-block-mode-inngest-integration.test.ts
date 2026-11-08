@@ -39,17 +39,20 @@ import path from 'path';
 //   what would have landed in the PUBLIC Firestore doc a guest's onSnapshot reads.
 function makeMockAdminDb() {
   const calls: Array<{ id: string; data: Record<string, unknown>; opts: Record<string, unknown> | undefined }> = [];
-  return {
-    calls,
-    collection: () => ({
-      doc: (id: string) => ({
-        set: async (data: Record<string, unknown>, opts?: Record<string, unknown>) => {
-          calls.push({ id, data, opts });
-          return {};
-        },
-      }),
-    }),
+  // Single-callback IO adapter, not a transaction-concurrency emulator.
+  const docs = new Map<string, Record<string, unknown>>();
+  const tx = {
+    get: async (ref: { id: string }) => ({ exists: docs.has(ref.id), data: () => docs.get(ref.id) }),
+    set: (ref: { id: string }, data: Record<string, unknown>, opts?: Record<string, unknown>) => {
+      calls.push({ id: ref.id, data, opts });
+      docs.set(ref.id, opts?.merge ? { ...docs.get(ref.id), ...data } : { ...data });
+    },
   };
+  const mockAdminDb = {
+    runTransaction: async (callback: (transaction: typeof tx) => Promise<unknown>) => callback(tx),
+    collection: () => ({ doc: (id: string) => ({ id, set: async (data: Record<string, unknown>, opts?: Record<string, unknown>) => tx.set({ id }, data, opts) }) }),
+  };
+  return { ...mockAdminDb, calls };
 }
 
 const __filename = fileURLToPath(import.meta.url);

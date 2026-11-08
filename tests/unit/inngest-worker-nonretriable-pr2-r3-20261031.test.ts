@@ -7,9 +7,21 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
-const { mockAdminDb, sets, pipelineMocks, restoreAiPlanCoupon } = vi.hoisted(() => {
+const { mockAdminDb, sets, docs, pipelineMocks, restoreAiPlanCoupon } = vi.hoisted(() => {
   const sets: Array<{ id: string; data: Record<string, unknown> }> = [];
-  const mockAdminDb = { collection: () => ({ doc: (id: string) => ({ set: async (data: Record<string, unknown>) => { sets.push({ id, data }); return {}; } }) }) };
+  // Single-callback IO adapter, not a transaction-concurrency emulator.
+  const docs = new Map<string, Record<string, unknown>>();
+  const tx = {
+    get: async (ref: { id: string }) => ({ exists: docs.has(ref.id), data: () => docs.get(ref.id) }),
+    set: (ref: { id: string }, data: Record<string, unknown>, opts?: Record<string, unknown>) => {
+      sets.push({ id: ref.id, data });
+      docs.set(ref.id, opts?.merge ? { ...docs.get(ref.id), ...data } : { ...data });
+    },
+  };
+  const mockAdminDb = {
+    runTransaction: async (callback: (transaction: typeof tx) => Promise<unknown>) => callback(tx),
+    collection: () => ({ doc: (id: string) => ({ id, set: async (data: Record<string, unknown>, opts?: Record<string, unknown>) => tx.set({ id }, data, opts) }) }),
+  };
   const pipelineMocks = {
     runRouteEnrichment: vi.fn(async () => {}),
     applyBackfillsAndTmoney: vi.fn((itin: unknown) => itin),
@@ -18,7 +30,7 @@ const { mockAdminDb, sets, pipelineMocks, restoreAiPlanCoupon } = vi.hoisted(() 
     savePlan: vi.fn(async () => ({ planId: 'plan-abc', planUrl: '/my-plans/plan-abc' })),
     arrivalRestDayFromCtx: vi.fn(() => false),
   };
-  return { mockAdminDb, sets, pipelineMocks, restoreAiPlanCoupon: vi.fn(async () => {}) };
+  return { mockAdminDb, sets, docs, pipelineMocks, restoreAiPlanCoupon: vi.fn(async () => {}) };
 });
 
 vi.mock('../../api/_ai_core/firestoreAdmin.js', () => ({ initAdminDb: () => mockAdminDb }));
@@ -54,7 +66,11 @@ async function runUntilStepFails() {
   return { thrown: thrown as Error & { cause?: Record<string, unknown> }, fnErr };
 }
 
-beforeEach(() => { sets.length = 0; vi.clearAllMocks(); });
+beforeEach(() => {
+  sets.length = 0; docs.clear();
+  docs.set('plan-abc', { planId: 'plan-abc', uid: null, status: 'streaming', _streaming_in_progress: true });
+  vi.clearAllMocks();
+});
 
 describe('r3-11 — deterministic 422 in the worker: no retry, reason code stored, free coupon restored', () => {
   it.each([

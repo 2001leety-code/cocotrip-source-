@@ -118,6 +118,8 @@ export default async function handler(req, res) {
       return res.status(200).json({ ok: true, recalculated: 0, message: 'No stale transits' });
     }
 
+    if (!snap.updateTime) return res.status(409).json({ error: 'Recalculation version unavailable', code: 'RECALC_VERSION_REQUIRED' });
+
     console.log(`[recalc-transit] Plan ${planId} Day ${dayIndex}: ${staleIndices.length} stale segment(s)`);
 
     // 키 해석 = mood-route.resolveNcpKeys (SSOT). 여기서 process.env 를 직접 읽지 않는다.
@@ -287,10 +289,17 @@ export default async function handler(req, res) {
     const updatedDays = [...days];
     updatedDays[dayIndex] = day;
 
-    await db.collection('plans').doc(planId).update({
-      'itinerary.days': updatedDays,
-      lastTransitRecalcAt: Date.now(),
-    });
+    try {
+      await db.collection('plans').doc(planId).update({
+        'itinerary.days': updatedDays,
+        lastTransitRecalcAt: Date.now(),
+      }, { lastUpdateTime: snap.updateTime });
+    } catch (error) {
+      if (error.code === 9 || error.code === 'failed-precondition' || error.code === 'FAILED_PRECONDITION') {
+        return res.status(409).json({ error: 'Plan changed during recalculation', code: 'RECALC_CONFLICT', savedEditUnaffected: true });
+      }
+      throw error;
+    }
 
     console.log(`[recalc-transit] Done. Recalculated ${recalculated} segment(s)`);
 

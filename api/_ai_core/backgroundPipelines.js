@@ -38,6 +38,7 @@
  *          [[feedback_mistake_p168_pass3_background_async]]
  *          [[feedback_mistake_p169_gemini_streaming]]
  */
+import { guardGenerationPatch } from '../_shared/plan-persistence-guard.js';
 import { pass3Enrich } from './threePassPipeline.js';
 import { updatePlanEnrichment, savePlanSkeleton } from './planPersister.js';
 import { isPass3BackgroundEnabled, isStreamingEnabled, buildModel, loadFoodIndex } from './geminiPipeline.js';
@@ -233,7 +234,7 @@ export async function tryInitStreamingSkeleton({
       //   ~1-3초 race window) 에 PlanDetailPage 진입 시 permission-denied → autherror
       //   화면 = "세션이 만료되었습니다" 잘못된 표시.
       //   guest plan 은 uid=null (Firestore Rules 의 별도 guest 분기 통과).
-      await adminDb.collection('plans').doc(planId).set({
+      await guardGenerationPatch(adminDb, planId, {
         planId,
         status: 'streaming',
         _streaming_in_progress: true,
@@ -241,7 +242,7 @@ export async function tryInitStreamingSkeleton({
         _p231_stub: true, // P231 디버그용 — worker Step 0 가 full skeleton 으로 교체
         uid: uid || null, // P295 SAFETY
         guestEmail: email || null, // P295 SAFETY — guest plan 도 Rules 통과
-      });
+      }, { kind: 'skeleton', create: true, merge: false, uid: uid || null });
       console.log('[planner P231] Stub doc saved (skeleton-in-worker mode):', planId);
       // skeletonCtx: worker Step 0 에서 savePlanSkeleton 호출 시 필요한 파라미터 전체.
       // FEATURE_GUEST_ANON_AUTH: forceGuestToken 포함 → worker skeleton-write 가 accessToken 발급.
@@ -364,7 +365,7 @@ export async function tryInitBlockModeForInngest({
       const planUrl = `/my-plans/${planId}`;
       // P295 (2026-05-29): SAFETY-CRITICAL — uid 즉시 저장 (block-mode 도 동일 fix).
       //   Firestore Rules race window 차단 (sync path 의 stub fix 와 동일 의도).
-      await adminDb.collection('plans').doc(planId).set({
+      await guardGenerationPatch(adminDb, planId, {
         planId,
         status: 'streaming',
         _streaming_in_progress: true,
@@ -372,7 +373,7 @@ export async function tryInitBlockModeForInngest({
         _p231_stub: true,
         uid: uid || null, // P295 SAFETY
         guestEmail: email || null, // P295 SAFETY
-      });
+      }, { kind: 'skeleton', create: true, merge: false, uid: uid || null });
       console.log('[planner P231] block-mode stub doc saved (skeleton-in-worker mode):', planId);
       // skeletonCtx: worker Step 0 에서 full skeleton + itinerary merge 수행.
       const skeletonCtx = {
@@ -397,10 +398,10 @@ export async function tryInitBlockModeForInngest({
     //   onSnapshot 이 미검증 stop 을 볼 수 있었다. 게이트 통과 전엔 days 는 항상 빈 배열 —
     //   실제 block-mode 결과는 skeletonCtx.blockModeItinerary (event.data, 내부 전용)로만 흐른다.
     try {
-      await adminDb.collection('plans').doc(sk.planId).set({
+      await guardGenerationPatch(adminDb, sk.planId, {
         itinerary: { tour_title: null, days: [], _streaming_skeleton: true },
         _block_mode_used: true,
-      }, { merge: true });
+      }, { kind: 'block', merge: true, uid: uid || null });
     } catch (mergeErr) {
       // skeleton 은 저장됐으나 이 merge 실패 — non-fatal (worker 완료 시 채워짐).
       console.warn('[planner P230] block-mode stub merge failed (non-fatal):', mergeErr.message);

@@ -19,6 +19,7 @@
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { readFileSync } from 'node:fs';
+import { createFakeFirestore } from '../helpers/fake-firestore.js';
 import { resolve } from 'node:path';
 
 const persisterSrc = readFileSync(
@@ -56,36 +57,20 @@ vi.mock('../../api/_ai_core/qualityMetrics.js', () => ({
 
 import { persistPlan } from '../../api/_ai_core/planPersister.js';
 
-type WriteOptions = { merge?: boolean };
 type CacheMetrics = { cached: number; total: number; output: number; cacheHitRate: number; persistedAt: number };
 type WriteData = Record<string, unknown> & { _debug?: { cacheMetrics?: CacheMetrics } };
-type Write = { collection: string; doc?: string; data: WriteData; merge?: boolean };
 
 function makeAdminDbMock() {
-  const writes: Write[] = [];
-  const make = (collectionName: string) => {
-    const docFn = (docId: string) => ({
-      set: vi.fn(async (data: WriteData, opts?: WriteOptions) => {
-        writes.push({ collection: collectionName, doc: docId, data, merge: opts?.merge });
-      }),
-      update: vi.fn(async (data: WriteData) => {
-        writes.push({ collection: collectionName, doc: docId, data });
-      }),
-      get: vi.fn(async () => ({ exists: false, data: () => ({}) })),
-      collection: (sub: string) => makeSubCollection(`${collectionName}/${docId}/${sub}`),
-    });
-    return { doc: docFn };
-  };
-  const makeSubCollection = (path: string) => ({
-    doc: (docId?: string) => ({
-      set: vi.fn(async (data: WriteData, opts?: WriteOptions) => {
-        writes.push({ collection: path, doc: docId, data, merge: opts?.merge });
-      }),
-    }),
-  });
+  const db = createFakeFirestore();
   return {
-    collection: vi.fn((name: string) => make(name)),
-    _writes: writes,
+    ...db,
+    // Assertions inspect committed documents, not the obsolete direct set() boundary.
+    get _writes() {
+      return Object.entries(db.__dump()).map(([path, data]) => ({
+        collection: path.split('/').slice(0, -1).join('/'),
+        doc: path.split('/').at(-1), data: data as WriteData,
+      }));
+    },
   };
 }
 

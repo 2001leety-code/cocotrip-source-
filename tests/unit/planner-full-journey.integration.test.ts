@@ -113,7 +113,7 @@ type ApiHandler = (req: Record<string, unknown>, res: {
 }) => Promise<void>;
 let plannerHandler: ApiHandler;
 let getPlanHandler: ApiHandler;
-let restoreCollection = () => {};
+let restoreDbBoundary = () => {};
 const PAYPAL_ORDER = '5O190127TN364715T';
 const paypalOrder = {
   id: PAYPAL_ORDER, status: 'COMPLETED',
@@ -128,8 +128,8 @@ beforeAll(async () => {
 
 beforeEach(() => {
   boundary.sendEvent.mockReset().mockResolvedValue({ ids: ['synthetic-event'] });
-  restoreCollection();
-  restoreCollection = () => {};
+  restoreDbBoundary();
+  restoreDbBoundary = () => {};
   for (const path of Object.keys(boundary.db?.__dump() || {})) boundary.db?.__delete(path);
   boundary.db?.__set(`paypal_order_snapshots/${PAYPAL_ORDER}`, {
     productType: 'ai-planner-full', expectedUSD: '9.90', expectedCurrency: 'USD', expectedKRW: 14000,
@@ -165,7 +165,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
-  restoreCollection();
+  restoreDbBoundary();
   vi.unstubAllEnvs();
   vi.unstubAllGlobals();
 });
@@ -269,16 +269,17 @@ describe('full planner journey: real handler → route/post-response → persist
 
   it('Firestore plan write failure cannot return success', async () => {
     const db = boundary.db!;
-    const collection = db.collection.bind(db);
-    restoreCollection = () => { db.collection = collection; };
-    db.collection = (name: string) => {
-      const col = collection(name);
-      if (name !== 'plans') return col;
-      return { ...col, doc: (id?: string) => {
-        const ref = col.doc(id);
-        return { ...ref, set: async () => { throw new Error('synthetic Firestore outage'); } };
-      } };
-    };
+    const transact = db.runTransaction.bind(db);
+    restoreDbBoundary = () => { db.runTransaction = transact; };
+    db.runTransaction = fn => transact(async tx => {
+      let planWrite = false;
+      const result = await fn({ ...tx, set(ref, data, options) {
+        if (ref.path.startsWith('plans/')) planWrite = true;
+        tx.set(ref, data, options);
+      } });
+      if (planWrite) throw new Error('synthetic Firestore commit outage');
+      return result;
+    });
     const result = await runPlanner(requestBody());
     expect(result.statusCode).toBe(500);
     expect(result.json.ok).toBe(false);

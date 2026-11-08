@@ -107,7 +107,15 @@ describe('P168 updatePlanEnrichment — Firestore set merge assertion', () => {
     const setMock = vi.fn().mockResolvedValue(undefined);
     const docMock = vi.fn().mockReturnValue({ set: setMock });
     const collectionMock = vi.fn().mockReturnValue({ doc: docMock });
-    const adminDb = { collection: collectionMock } as unknown as FirebaseFirestore.Firestore;
+    const current = { planId: 'test-plan-id-123', uid: null, status: 'ready', _streaming_in_progress: false };
+    const tx = {
+      get: async () => ({ exists: true, data: () => current }),
+      set: (_ref: unknown, data: Record<string, unknown>, opts?: { merge?: boolean }) => setMock(data, opts),
+    };
+    const adminDb = {
+      collection: collectionMock,
+      runTransaction: async (callback: (transaction: typeof tx) => Promise<unknown>) => callback(tx),
+    } as unknown as FirebaseFirestore.Firestore;
 
     const enrichedItinerary = {
       days: [

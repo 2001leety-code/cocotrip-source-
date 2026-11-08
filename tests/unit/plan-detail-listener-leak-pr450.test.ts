@@ -68,14 +68,15 @@ describe('PR #450 W-H16 — onSnapshot effect deps use uid (stable string), not 
     // is unchanged — only the parameter name.
     expect(src).toMatch(/const\s+ownerCheck\s*=\s*!!\(\s*viewerUid\s*&&\s+data\.uid\s*===\s*viewerUid\s*\)/);
     // login/legacy path must feed the hoisted stable `uid` into handleSnap.
-    expect(src).toMatch(/handleSnap\(\s*snap\.data\(\)[^,]*,\s*uid\s*\)/);
+    expect(src).toMatch(/const\s+raw\s*=\s*snap\.data\(\)/);
+    expect(src).toMatch(/handleSnap\(\s*raw\s*,\s*uid\s*\)/);
     // never re-read the user object's uid inside the snapshot closure.
     expect(src).not.toMatch(/data\.uid\s*===\s*user\.uid/);
   });
 
   it('cleanup cancels first and independently releases both observers', () => {
     const start = src.indexOf('return () => {', src.indexOf('let unsubCompletion'));
-    const end = src.indexOf('}, [planId, token, uid, authLoading, localScenario]);', start);
+    const end = src.indexOf('}, [planId, token, uid, authLoading, localScenario, dataIdentity]);', start);
     expect(start).toBeGreaterThan(-1);
     expect(end).toBeGreaterThan(start);
     const cleanup = src.slice(start, end);

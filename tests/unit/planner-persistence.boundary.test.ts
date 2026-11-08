@@ -73,18 +73,17 @@ describe('real persistPlan → Firestore boundary', () => {
 
   it('does not return a plan when the Firestore write fails', async () => {
     const db = createFakeFirestore();
-    const originalCollection = db.collection.bind(db);
-    db.collection = (name: string) => {
-      const collection = originalCollection(name);
-      if (name !== 'plans') return collection;
-      return {
-        ...collection,
-        doc: (id: string) => ({
-          ...collection.doc(id),
-          set: vi.fn(async () => { throw new Error('synthetic Firestore failure'); }),
-        }),
-      };
-    };
+    const transact = db.runTransaction.bind(db);
+    db.runTransaction = fn => transact(async tx => {
+      let planWrite = false;
+      const result = await fn({ ...tx, set(ref, data, options) {
+        if (ref.path.startsWith('plans/')) planWrite = true;
+        tx.set(ref, data, options);
+      } });
+      // Fail the transaction after staging but before committing the root write.
+      if (planWrite) throw new Error('synthetic Firestore commit failure');
+      return result;
+    });
 
     await expect(persistPlan(db, { ...baseArgs, planIdOverride: 'plan-write-failure' }))
       .rejects.toThrow('Plan save failed');

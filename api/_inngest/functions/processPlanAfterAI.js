@@ -53,6 +53,7 @@ import {
 } from '../../_ai_core/postResponsePipeline.js';
 import { triggerPass3BackgroundIfPending } from '../../_ai_core/backgroundPipelines.js';
 import { savePlanSkeleton } from '../../_ai_core/planPersister.js'; // P231: stub → full skeleton 업그레이드
+import { guardGenerationPatch } from '../../_shared/plan-persistence-guard.js';
 import { releasePlanIssuance } from '../../_shared/plan-issuance.js'; // P0: onFailure 시 발급권 해제
 import { VEHICLE_LABELS } from '../../_ai_core/vehicleAndPrice.js';
 import { sendNotificationEmail, recordLeadToSheets } from '../../_ai_core/emailNotifier.js';
@@ -128,7 +129,7 @@ export const processPlanAfterAI = inngest.createFunction(
         return;
       }
       try {
-        await adminDb.collection('plans').doc(planId).set(
+        const closeout = await guardGenerationPatch(adminDb, planId,
           {
             status: 'error',
             _streaming_in_progress: false,
@@ -141,9 +142,9 @@ export const processPlanAfterAI = inngest.createFunction(
             ...(failureDetailsOf(error) ? { _streaming_error_details: failureDetailsOf(error) } : {}),
             _failed_at: new Date().toISOString(),
           },
-          { merge: true },
+          { kind: 'failure', merge: true, issuanceClaim: event?.data?.event?.data?.ctx?.issuanceClaim || null },
         );
-        console.warn(`[P307] onFailure marked plan ${planId} as error: ${error?.message?.slice(0, 100)}`);
+        console.warn('[P307] onFailure status write:', planId, closeout.reason || 'written');
       } catch (markErr) {
         console.error(`[P307] onFailure mark failed (P292 cron sweep 가 30분 후 정리): ${markErr.message}`);
       }
@@ -259,7 +260,7 @@ export const processPlanAfterAI = inngest.createFunction(
             ...(blockModeItinerary ? { _block_mode_used: true } : {}),
             _p231_stub: false, // stub 교체 완료 표시
           };
-          await adminDb.collection('plans').doc(planIdForSkeleton).set(fullDoc, { merge: true });
+          await guardGenerationPatch(adminDb, planIdForSkeleton, fullDoc, { kind: 'skeleton', create: true, merge: true, uid: uid || null });
           logger.info(`[P231] skeleton-write done: planId=${planIdForSkeleton}`);
           return { planId: planIdForSkeleton };
         } catch (skErr) {
