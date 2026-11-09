@@ -18,6 +18,7 @@ import { randomUUID } from 'node:crypto';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { initAdminDb } from '../_shared/firebase-admin.js';
 import { verifyCronRequest } from '../_shared/cron-auth.js';
+import { isNotificationSuppressed } from '../_shared/preview-notification-policy.js';
 import { notifyOperatorLong } from '../_shared/operator-alerts.js';
 import { resolveGeminiModel } from '../_ai_core/geminiModelResolver.js';
 import { selectFoodMaterials, pickDailyMaterial, kstDayIndex } from '../_shared/contentDraftSelector.js';
@@ -149,6 +150,7 @@ export async function contentDraftTask() {
   }).catch(() => {});
 
   const result = await notifyOperatorLong('todo', msg, { skipPrefix: true });
+  if (isNotificationSuppressed(result)) return { statusCode: 200, body: 'suppressed', notification: result };
   if (!result.ok) {
     console.error('[content-draft] 텔레그램 발송 실패:', result.error);
     return { statusCode: 500, body: `send-fail:${result.error || 'unknown'}` };
@@ -162,7 +164,7 @@ export default async function vercelHandler(req, res) {
   if (!auth.ok) return res.status(auth.status).json({ ok: false, code: 'AUTH_REQUIRED', error: auth.error });
   try {
     const r = await contentDraftTask();
-    return res.status(r.statusCode || 200).json({ ok: (r.statusCode || 200) < 400, body: r.body });
+    return res.status(r.statusCode || 200).json({ ok: (r.statusCode || 200) < 400, body: r.body, ...(isNotificationSuppressed(r.notification) ? { notification: r.notification } : {}) });
   } catch (e) {
     console.error('[content-draft] 실패:', e && e.message);
     return res.status(500).json({ error: e && e.message });

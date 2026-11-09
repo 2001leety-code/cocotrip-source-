@@ -4,6 +4,7 @@
  */
 import { initializeApp, getApps, cert } from 'firebase-admin/app';
 import { getFirestore as getAdminFirestore } from 'firebase-admin/firestore';
+import { getPreviewFirebaseApp, previewFirebaseErrorCode } from './_shared/preview-firebase-app.js';
 
 // 2026-10-26: 런타임 Node 버전 확인용 — 모듈 최상위(콜드스타트당 1회), 요청마다 찍지 않는다.
 console.log(`[runtime] node=${process.version} region=${process.env.VERCEL_REGION || '-'}`);
@@ -12,6 +13,15 @@ export const maxDuration = 15;
 export const config = { runtime: 'nodejs' };
 
 let adminDb = null;
+// [preview-firebase:plan-status] Exact Preview uses shared resolver; safe null on failure.
+if (process.env.VERCEL_ENV === 'preview') {
+  try {
+    adminDb = getAdminFirestore(getPreviewFirebaseApp());
+  } catch (e) {
+    adminDb = null;
+    console.warn('[plan-status] preview Firebase init rejected:', previewFirebaseErrorCode(e));
+  }
+} else {
 try {
   const projectId = process.env.FIREBASE_PROJECT_ID || '';
   const clientEmail = process.env.FIREBASE_CLIENT_EMAIL || '';
@@ -23,6 +33,7 @@ try {
     adminDb = getAdminFirestore(adminApp);
   }
 } catch (e) { console.warn('[plan-status] Firebase init error:', e.message); }
+}
 
 // ── 표준 응답 래퍼 ──
 const _ok  = (data) => ({ ok: true, data });

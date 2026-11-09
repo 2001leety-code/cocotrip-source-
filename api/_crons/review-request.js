@@ -14,10 +14,21 @@
  *   refund-reminder.js 미러 — getDb/detectLanguage/sendOperatorSummary 동일 패턴.
  */
 import { Buffer } from 'buffer';
+import { getPreviewFirebaseApp, previewFirebaseErrorCode } from '../_shared/preview-firebase-app.js';
 import { sendEmail } from '../_send-email.js';
+import { isNotificationSuppressed, isPreviewSuppressed, operatorSuppressedReceipt } from '../_shared/preview-notification-policy.js';
 import { sendDiscord } from '../_shared/notify.js';
 
 async function getDb() {
+  if (process.env.VERCEL_ENV === 'preview') {
+    try {
+      const app = getPreviewFirebaseApp();
+      const { getFirestore, FieldValue } = await import('firebase-admin/firestore');
+      return { db: getFirestore(app), FieldValue };
+    } catch (e) {
+      throw new Error(previewFirebaseErrorCode(e));
+    }
+  }
   const { initializeApp, cert, getApps } = await import('firebase-admin/app');
   const { getFirestore, FieldValue } = await import('firebase-admin/firestore');
   if (!getApps().length) {
@@ -132,6 +143,7 @@ function buildReviewEmail(booking, lang) {
 }
 
 async function sendOperatorSummary({ targetDate, sentCount, skippedCount, errorCount, dryRun }) {
+  if (isPreviewSuppressed('telegram')) return operatorSuppressedReceipt('telegram', 'operator-summary');
   try {
     const token = process.env.TELEGRAM_BOT_TOKEN;
     const chatId = process.env.TELEGRAM_CHAT_ID;
@@ -161,6 +173,7 @@ const reviewRequestTask = async (dryRunArg = false) => {
     .get();
 
   let sentCount = 0, skippedCount = 0, errorCount = 0;
+  let suppressedCount = 0, emailNotification = null, operatorNotification = null;
   const matched = [];
   for (const doc of snap.docs) {
     const b = doc.data();
@@ -170,7 +183,12 @@ const reviewRequestTask = async (dryRunArg = false) => {
     try {
       const lang = detectLanguage(b.payerEmail, b.payerName || '');
       const email = buildReviewEmail(b, lang);
-      await sendEmail({ to: b.payerEmail, subject: email.subject, html: email.html, text: email.text });
+      const emailResult = await sendEmail({ to: b.payerEmail, subject: email.subject, html: email.html, text: email.text });
+      if (isNotificationSuppressed(emailResult)) {
+        suppressedCount++;
+        emailNotification = emailResult;
+        continue;
+      }
       await doc.ref.update({ reviewRequestSent: FieldValue.serverTimestamp(), reviewRequestLang: lang });
       sentCount++;
     } catch (err) {
@@ -180,9 +198,9 @@ const reviewRequestTask = async (dryRunArg = false) => {
   }
 
   if (sentCount > 0 || errorCount > 0 || (dryRun && matched.length > 0)) {
-    await sendOperatorSummary({ targetDate: target, sentCount, skippedCount, errorCount, dryRun });
+    operatorNotification = await sendOperatorSummary({ targetDate: target, sentCount, skippedCount, errorCount, dryRun });
   }
-  return { statusCode: 200, body: { enabled, dryRun, targetDate: target, totalMatched: snap.size, sentCount, skippedCount, errorCount, matched } };
+  return { statusCode: 200, body: { enabled, dryRun, targetDate: target, totalMatched: snap.size, sentCount, skippedCount, errorCount, matched, ...(suppressedCount > 0 ? { suppressedCount, emailNotification } : {}), ...(operatorNotification && isNotificationSuppressed(operatorNotification) ? { operatorNotification } : {}) } };
 };
 
 export default async function vercelHandler(req, res) {

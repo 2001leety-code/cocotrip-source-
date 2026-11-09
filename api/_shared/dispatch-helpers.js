@@ -17,6 +17,7 @@
  */
 import { callBot } from './telegram-bot.js';
 import { escapeTelegram as esc } from './escape.js';
+import { isPreviewSuppressed, operatorSuppressedReceipt } from './preview-notification-policy.js';
 import { initAdminDb } from './firebase-admin.js';
 import { FieldValue } from 'firebase-admin/firestore';
 import { computeExpiryDate } from './dispatch-sweep.js';
@@ -52,6 +53,10 @@ function buildDispatchText(orderID, booking) {
  * @returns {Promise<{ ok: boolean, messageId?: number, error?: string }>}
  */
 export async function sendDispatchToDriver(opts) {
+  // Preview guard: runs before opts access, DB init, formatter or token lookup.
+  if (isPreviewSuppressed('telegram')) {
+    return operatorSuppressedReceipt('telegram', 'driverDispatch');
+  }
   const {
     orderID,
     booking,
@@ -134,6 +139,16 @@ export async function sendDispatchToDriver(opts) {
  * @returns {Promise<{ ok: boolean, sent: number, failed: number, errors: string[] }>}
  */
 export async function broadcastDispatchToDrivers(opts) {
+  // Preview guard: runs before opts access and recipient (DB) lookup. No total is reported because recipients were never looked up.
+  if (isPreviewSuppressed('telegram')) {
+    return {
+      ...operatorSuppressedReceipt('telegram', 'driverBroadcast'),
+      sent: 0,
+      failed: 0,
+      errors: [],
+      recipientLookup: 'skipped',
+    };
+  }
   const { orderID, booking, driverBotToken } = opts;
   const db = initAdminDb('dispatch-helpers');
   if (!db) return { ok: false, sent: 0, failed: 0, errors: ['firestore unavailable'] };

@@ -130,12 +130,13 @@ export async function triggerBookingProcessor({
   let result;
   try {
     const r = await fetch(`${siteUrl}/api/booking-processor`, {
+      ...(process.env.VERCEL_ENV === 'preview' ? { redirect: 'error' } : {}),
       method: 'POST',
       // booking-processor 는 내부 전용(2026-07-29 인증 게이트) — 서비스 토큰 동봉 필수.
       headers: {
         'Content-Type': 'application/json',
         'x-internal-token': (process.env.INTERNAL_API_TOKEN || '').trim(),
-        ...vercelBypassHeaders(),
+        ...vercelBypassHeaders(siteUrl),
       },
       body: JSON.stringify(payload),
       signal: controller.signal,

@@ -10,6 +10,8 @@
  */
 
 import { getYesterdayBookings, getTodayTours, getWeekSummary } from '../_google-sheets.js';
+import { isNotificationSuppressed } from '../_shared/preview-notification-policy.js';
+import { getPreviewFirebaseApp, previewFirebaseErrorCode } from '../_shared/preview-firebase-app.js';
 import { sendLongMessage, sendErrorAlert } from '../_telegram.js';
 import { throttledTelegramAlert } from '../_shared/telegram-throttle.js';
 import { USD_TO_KRW } from '../_shared/exchange-rate.js';
@@ -40,6 +42,15 @@ function geminiCostPerCall(type) {
 
 // ── Firebase Admin 초기화 ────────────────────────────────────────────
 async function getFirestoreAdmin() {
+  if (process.env.VERCEL_ENV === 'preview') {
+    try {
+      const app = getPreviewFirebaseApp();
+      const { getFirestore } = await import('firebase-admin/firestore');
+      return getFirestore(app);
+    } catch (e) {
+      throw new Error(previewFirebaseErrorCode(e));
+    }
+  }
   const { initializeApp, cert, getApps } = await import('firebase-admin/app');
   const { getFirestore } = await import('firebase-admin/firestore');
 
@@ -251,7 +262,8 @@ const dailyReportTask = async () => {
 
     msg += `\n\n🌐 cocotripkr.com`;
 
-    await sendLongMessage(msg);
+    const notifyResult = await sendLongMessage(msg);
+    if (isNotificationSuppressed(notifyResult)) return { statusCode: 200, body: 'suppressed', notification: notifyResult };
     console.log('[daily-report] 전송 완료');
     return { statusCode: 200, body: '모닝 리포트 전송 완료' };
   } catch (err) {

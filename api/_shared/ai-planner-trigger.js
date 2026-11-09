@@ -66,8 +66,9 @@ export async function triggerAiPlanner({
   let result;
   try {
     const r = await fetch(`${siteUrl}/api/ai-planner-full`, {
+      ...(process.env.VERCEL_ENV === 'preview' ? { redirect: 'error' } : {}),
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', ...vercelBypassHeaders() },
+      headers: { 'Content-Type': 'application/json', ...vercelBypassHeaders(siteUrl) },
       body: JSON.stringify(payload),
       signal: controller.signal,
     });

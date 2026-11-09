@@ -20,6 +20,7 @@
 
 import { initializeApp, cert, getApps } from 'firebase-admin/app';
 import { getFirestore, FieldValue } from 'firebase-admin/firestore';
+import { getPreviewFirebaseApp, previewFirebaseErrorCode } from './_shared/preview-firebase-app.js';
 import { checkIpRateLimit, getClientIp } from './_shared/ip-rate-limit.js';
 import { verifyUserToken } from './_shared/user-auth.js';
 import axios from 'axios';
@@ -34,6 +35,17 @@ export const maxDuration = 60;
 export const config = { runtime: 'nodejs' };
 
 // ── Firebase Admin (reuse singleton) ──
+// [preview-firebase:recalc-transit] Exact Preview: shared resolver only (no raw key / ADC).
+const IS_EXACT_PREVIEW = process.env.VERCEL_ENV === 'preview';
+let db = null;
+if (IS_EXACT_PREVIEW) {
+  try {
+    db = getFirestore(getPreviewFirebaseApp());
+  } catch (e) {
+    db = null;
+    console.warn('[recalc-transit] preview Firebase init rejected:', previewFirebaseErrorCode(e));
+  }
+} else {
 if (!getApps().length) {
   const raw = process.env.FIREBASE_SERVICE_ACCOUNT_KEY;
   if (raw) {
@@ -43,9 +55,14 @@ if (!getApps().length) {
     initializeApp();
   }
 }
-const db = getFirestore();
+db = getFirestore();
+}
 
 export default async function handler(req, res) {
+  // [preview-firebase:recalc-transit:guard] before any rate-limit/db/network work
+  if (IS_EXACT_PREVIEW && !db) {
+    return res.status(503).json({ error: 'firebase_unavailable' });
+  }
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
   }

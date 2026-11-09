@@ -29,11 +29,19 @@
 import { Buffer } from 'buffer';
 import { initializeApp, getApps, cert } from 'firebase-admin/app';
 import { getAuth } from 'firebase-admin/auth';
+import { getPreviewFirebaseApp } from './preview-firebase-app.js';
 
 let _adminAuth = null;
 let _bootstrapTried = false;
 
 function bootstrapAdminAuth() {
+  if (process.env.VERCEL_ENV === 'preview') {
+    try {
+      return getAuth(getPreviewFirebaseApp());
+    } catch {
+      return null;
+    }
+  }
   if (_adminAuth) return _adminAuth;
   if (_bootstrapTried && !_adminAuth) {
     // Already tried + failed — don't retry every request, but allow ENV

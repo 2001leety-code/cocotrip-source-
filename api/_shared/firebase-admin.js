@@ -14,10 +14,26 @@ import { logger } from './log.js';
 // 🔴 2026-07-29: Preview 배포가 운영 Firebase 를 그대로 쓰면 테스트 결제가 운영
 //   예약·포인트를 실제로 쓴다. 부팅 시 1회 검사한다(기본 warn, enforce 시 중단).
 import { assertFirebaseEnvMatch } from './firebase-env-guard.js';
+import { getPreviewFirebaseApp, previewFirebaseErrorCode } from './preview-firebase-app.js';
 
 let _adminDb = null;
 
+// [preview-firebase:central]
+function previewBootstrap() {
+  const P = '[firebase-admin][preview]';
+  try {
+    const app = getPreviewFirebaseApp();
+    _adminDb = getAdminFirestore(app);
+    _adminDb.settings({ ignoreUndefinedProperties: true });
+    logger.debug(`${P} initialized OK`);
+  } catch (e) {
+    _adminDb = null;
+    logger.warn(`${P} rejected: ${previewFirebaseErrorCode(e)}`);
+  }
+}
+
 (function bootstrap() {
+  if (process.env.VERCEL_ENV === 'preview') { previewBootstrap(); return; }
   try {
     assertFirebaseEnvMatch('firebase-admin');
     const projectId = process.env.FIREBASE_PROJECT_ID || '';

@@ -28,6 +28,7 @@
  *     chat id    fallback: TELEGRAM_INQUIRY_CHAT_ID → INQUIRY_CHAT_ID → TELEGRAM_CHAT_ID
  *   둘 다 dedicated 키 등록되면 Inquiry 봇이 별도 채널로 보낸다. 미설정 시 운영자 채널 폴백.
  */
+import { isPreviewSuppressed, operatorSuppressedReceipt } from './_shared/preview-notification-policy.js';
 import { captureError } from './_shared/sentry.js';
 import { initAdminDb } from './_shared/firebase-admin.js';
 import { FieldValue } from 'firebase-admin/firestore';
@@ -75,6 +76,7 @@ function resolveInquiryChannel() {
 }
 
 async function notifyInquiry(text) {
+  if (isPreviewSuppressed('telegram')) return operatorSuppressedReceipt('telegram', 'inquiry');
   const { token, chatId, tokenSource, chatSource } = resolveInquiryChannel();
   if (!token || !chatId) {
     console.warn('[inquiry-submit] InquiryCHAT_BOT not configured — token:', tokenSource, 'chat:', chatSource);

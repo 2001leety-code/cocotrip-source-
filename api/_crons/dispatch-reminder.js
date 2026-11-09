@@ -22,6 +22,7 @@
 
 import { initAdminDb } from '../_shared/firebase-admin.js';
 import { verifyCronRequest } from '../_shared/cron-auth.js';
+import { isNotificationSuppressed } from '../_shared/preview-notification-policy.js';
 import { notifyOperator, notifyOperatorLong } from '../_shared/operator-alerts.js';
 import { captureError } from '../_shared/sentry.js';
 
@@ -163,7 +164,7 @@ const dispatchReminderTask = async (dryRun = false) => {
     }
 
     const result = await notifyOperatorLong('dispatch', msg);
-    if (!result.ok) {
+    if (!result.ok && !isNotificationSuppressed(result)) {
       console.error('[dispatch-reminder] Telegram 발송 실패:', result.error);
     }
 
@@ -173,7 +174,8 @@ const dispatchReminderTask = async (dryRun = false) => {
         ok: true,
         count: found.length,
         notified: result.ok,
-        notifyError: result.ok ? null : result.error,
+        notifyError: result.ok || isNotificationSuppressed(result) ? null : result.error,
+        ...(isNotificationSuppressed(result) ? { notification: result } : {}),
       },
     };
   } catch (err) {

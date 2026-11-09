@@ -22,7 +22,7 @@ import { resolveIsSandbox } from '../../api/_shared/paypal.js';
 const read = (p: string) => readFileSync(resolve(process.cwd(), p), 'utf8');
 const saved = { ...process.env };
 afterEach(() => {
-  for (const k of ['VERCEL_ENV', 'VERCEL_URL', 'PAYPAL_ENV']) {
+  for (const k of ['VERCEL_ENV', 'VERCEL_URL', 'PAYPAL_ENV', 'VERCEL', 'VERCEL_TARGET_ENV', 'VERCEL_DEPLOYMENT_ID', 'PREVIEW_INTERNAL_PROJECT_ID', 'VERCEL_PROJECT_ID', 'VERCEL_PROJECT_PRODUCTION_URL']) {
     if (saved[k] === undefined) delete process.env[k];
     else process.env[k] = saved[k];
   }
@@ -44,6 +44,12 @@ describe('1. 돈 API 자기호출 주소 — 운영 도메인 하드코딩 금�
   it('VERCEL_ENV=preview 면 프리뷰 배포 URL 을 쓴다', () => {
     process.env.VERCEL_ENV = 'preview';
     process.env.VERCEL_URL = 'cocotrip-abc123-team.vercel.app';
+    process.env.VERCEL = '1';
+    process.env.VERCEL_TARGET_ENV = 'preview';
+    process.env.VERCEL_DEPLOYMENT_ID = 'dpl_fake123';
+    process.env.PREVIEW_INTERNAL_PROJECT_ID = 'prj_fake123';
+    process.env.VERCEL_PROJECT_ID = 'prj_fake123';
+    process.env.VERCEL_PROJECT_PRODUCTION_URL = 'cocotripkr.com';
     expect(internalMoneyApiBase()).toBe('https://cocotrip-abc123-team.vercel.app');
     expect(internalMoneyApiBase()).not.toContain('cocotripkr.com');
   });

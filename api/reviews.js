@@ -22,6 +22,7 @@
 // ── 표준 응답 래퍼 (api/_shared/response.js와 동일 형식) ──────────
 import { verifyUserToken } from './_shared/user-auth.js';
 import { verifyAdminToken } from './_shared/admin-auth.js';
+import { getPreviewFirebaseApp, previewFirebaseErrorCode } from './_shared/preview-firebase-app.js';
 
 const _ok  = (data) => ({ ok: true, data });
 const _err = (msg, code = 'UNKNOWN_ERROR') => ({ ok: false, error: msg, code });
@@ -41,6 +42,15 @@ export const maxDuration = 15;
 export const config = { runtime: 'nodejs' };
 
 async function getFirestore() {
+  if (process.env.VERCEL_ENV === 'preview') {
+    try {
+      const app = getPreviewFirebaseApp();
+      const { getFirestore: gfs } = await import('firebase-admin/firestore');
+      return { db: gfs(app) };
+    } catch (e) {
+      throw new Error(previewFirebaseErrorCode(e));
+    }
+  }
   const { initializeApp, cert, getApps } = await import('firebase-admin/app');
   const { getFirestore: gfs } = await import('firebase-admin/firestore');
   if (!getApps().length) {

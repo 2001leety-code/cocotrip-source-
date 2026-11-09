@@ -20,6 +20,7 @@
 import { captureError } from './_shared/sentry.js';
 import { initAdminDb } from './_shared/firebase-admin.js';
 import { appendBooking, updateBookingStatus } from './_google-sheets.js';
+import { isPreviewSuppressed, emailSuppressedReceipt, sheetsSuppressedReceipt, operatorSuppressedReceipt } from './_shared/preview-notification-policy.js';
 // 2026-05-04: telegram 2-채널 분리 후 sendBookingAlert / generateBookingAlert / notify
 // 직접 호출은 미사용. _telegram.js / _ai-employees.js 의 export 는 다른 파일이 사용하므로 유지.
 import { sendDispatchAlert, sendBookingPaymentAlert, sendErrorAlert } from './_telegram.js';
@@ -431,10 +432,17 @@ const originalHandler = async (event) => {
   //   stepGuards.skipSheets = 빠른 경로(이미 기록된 게 명백) / claim 실패 = 동시 호출이
   //   먼저 선점함 → 둘 다 'skip'. 선점 성공한 인스턴스만 appendBooking 1회 실행.
   let sheetsRowHint = null;
-  const sheetsClaim = stepGuards.skipSheets
+  // Preview 정책 게이트: claim 이전에 판정(env 는 호출 단위로 불변). 억제 시 claim/append/update 전부 생략.
+  const sheetsSuppressed = isPreviewSuppressed('sheets');
+  const emailSuppressed = isPreviewSuppressed('email');
+  const sheetsClaim = sheetsSuppressed ? null : (stepGuards.skipSheets
     ? { claimed: false, reason: CLAIM.ALREADY_COMPLETED }
-    : await claimBookingStep(orderID, BOOKING_STEP_MARKERS.sheets);
-  if (!sheetsClaim.claimed) {
+    : await claimBookingStep(orderID, BOOKING_STEP_MARKERS.sheets));
+  if (sheetsSuppressed) {
+    results.steps.sheets = 'suppressed: preview_policy';
+    results.stepStatus.sheets = STEP.SKIPPED;
+    results.notificationSuppression = Object.assign(results.notificationSuppression || {}, { sheets: sheetsSuppressedReceipt('append') });
+  } else if (!sheetsClaim.claimed) {
     results.steps.sheets = `skip: ${sheetsClaim.reason}`;
     results.stepStatus.sheets = stepFromClaimReason(sheetsClaim.reason);
     console.log('[booking-processor] Sheets 스킵:', sheetsClaim.reason, orderID);
@@ -481,6 +489,7 @@ const originalHandler = async (event) => {
   //     unknown   → outcome_unknown 격리(보냈는지 모른다 = 재발송 금지).
   //   선점 결과가 already_completed / in_flight / outcome_unknown / store_unavailable 이면 전송하지 않는다.
   //   알림 결과는 처리기 응답·예약 상태를 바꾸지 않는다.
+  // @@STEP3_TELEGRAM_STATE_START@@
   async function sendTelegramChannel(field, send) {
     const claim = await claimBookingStep(orderID, field);
     if (!claim.claimed) return `skip:${claim.reason}`;
@@ -508,7 +517,20 @@ const originalHandler = async (event) => {
     await markOutcomeUnknown({ db, orderID, field, reason: `telegram_delivery_unknown: ${(result && result.error) || ''}` });
     return 'unknown';
   }
-  try {
+  if (isPreviewSuppressed('telegram')) {
+    const priorSuppression = (results.notificationSuppression && typeof results.notificationSuppression === 'object')
+      ? results.notificationSuppression
+      : {};
+    results.notificationSuppression = {
+      ...priorSuppression,
+      telegram: {
+        dispatch: operatorSuppressedReceipt('telegram', 'telegram_dispatch'),
+        payment: operatorSuppressedReceipt('telegram', 'telegram_payment'),
+      },
+    };
+    results.steps.telegram = 'suppressed: preview_policy';
+    console.log('[booking-processor] 텔레그램 알림: preview 정책으로 억제됨 (선점/전송 없음)');
+  } else try {
     const [dispatchState, paymentState] = await Promise.all([
       sendTelegramChannel(BOOKING_STEP_MARKERS.telegramDispatch, sendDispatchAlert),
       sendTelegramChannel(BOOKING_STEP_MARKERS.telegramPayment, sendBookingPaymentAlert),
@@ -525,6 +547,7 @@ const originalHandler = async (event) => {
     results.steps.telegram = `error: ${err.message}`;
     console.error('[booking-processor] 텔레그램 전송 실패:', err.message);
   }
+  // @@STEP3_TELEGRAM_STATE_END@@
 
   // ── Step 3.5: (옵션) 자동 driver 배차 broadcast ─────────────────────
   // C2 (2026-05-04): driver bot 으로 [✓ 수락]/[✗ 거절] 인라인 키보드 메시지를
@@ -533,7 +556,14 @@ const originalHandler = async (event) => {
   //
   // ENV 게이트: AUTO_DISPATCH_BROADCAST=1 일 때만 활성. prod 도입 전 단계적 롤아웃.
   // booking.bookingRef 가 곧 bookings 도큐먼트 ID (booking-processor 호출처 보장).
-  if (process.env.AUTO_DISPATCH_BROADCAST === '1') {
+  // @@STEP35_DISPATCH_BEGIN
+  if (process.env.AUTO_DISPATCH_BROADCAST === '1' && isPreviewSuppressed('telegram')) {
+    results.steps.dispatchBroadcast = 'suppressed: preview_policy';
+    results.notificationSuppression = Object.assign({}, results.notificationSuppression, {
+      dispatchBroadcast: operatorSuppressedReceipt('telegram', 'dispatchBroadcast'),
+    });
+    console.log('[booking-processor] driver broadcast:', results.steps.dispatchBroadcast);
+  } else if (process.env.AUTO_DISPATCH_BROADCAST === '1') {
     try {
       const orderID = booking.bookingRef;
       if (!orderID) {
@@ -550,6 +580,7 @@ const originalHandler = async (event) => {
       console.error('[booking-processor] driver broadcast 실패:', err.message);
     }
   }
+  // @@STEP35_DISPATCH_END
 
   // ── Step 4: PDF 바우처 생성 ─────────────────────────────────────────
   let pdfBuffer = null;
@@ -585,10 +616,14 @@ const originalHandler = async (event) => {
   //   확인메일 발송 (중복 메일 방지). 선점 실패(stepGuards 빠른 경로 포함) = 이미 발송/선점됨.
   //   원래 voucherSentAt 은 Step 6.5 성공 시에만 set 됐으나, 이제 선점이 미리 박는다.
   //   발송 실패 시 releaseBookingStep 으로 마커를 풀어 retry 재발송 보장(기존 의미 유지).
-  const voucherClaim = stepGuards.skipVoucher
+  const voucherClaim = emailSuppressed ? null : (stepGuards.skipVoucher
     ? { claimed: false, reason: CLAIM.ALREADY_COMPLETED }
-    : await claimBookingStep(orderID, BOOKING_STEP_MARKERS.voucher);
-  if (!voucherClaim.claimed) {
+    : await claimBookingStep(orderID, BOOKING_STEP_MARKERS.voucher));
+  if (emailSuppressed) {
+    results.steps.email = 'suppressed: preview_policy';
+    results.stepStatus.email = STEP.SKIPPED;
+    results.notificationSuppression = Object.assign(results.notificationSuppression || {}, { email: emailSuppressedReceipt() });
+  } else if (!voucherClaim.claimed) {
     // 🔴 여기서 재발송하지 않는다. 이유는 reason 별로 다르다:
     //   already_completed = 확실히 보냈다 / in_flight = 다른 실행이 보내는 중
     //   outcome_unknown   = 보냈는지 알 수 없다 → 운영자 검토(자동 재발송 금지)
@@ -675,7 +710,10 @@ const originalHandler = async (event) => {
   // PR-L: operator-todo-reminder 가 voucherSentAt 빈 booking 검출용. 부분 실패도
   // 포함 (voucherFailedAt + voucherError) — 어드민이 명시적으로 인지 가능.
   // 비치명적 — Firestore unavailable 이어도 전체 처리는 계속.
-  if (voucherSkipped) {
+  if (emailSuppressed) {
+    // Preview 정책 억제 — voucherFailedAt/voucherError 등 DB 기록 없음.
+    results.steps.voucherStatus = 'suppressed: preview_policy';
+  } else if (voucherSkipped) {
     // 발송을 하지 않은 경우 — 왜 안 했는지가 운영자에게 중요하다(이미 보냄 / 결과 미상 / 저장소 불능).
     results.steps.voucherStatus = `skip: ${voucherClaim.reason}`;
   } else if (voucherEmailOk) {
@@ -704,7 +742,10 @@ const originalHandler = async (event) => {
   }
 
   // ── Step 7: Google Sheets 상태 '확정'으로 업데이트 (이슈#3 fix: rowHint로 전체 스캔 회피) ──
-  try {
+  if (sheetsSuppressed) {
+    results.steps.sheetsUpdate = 'suppressed: preview_policy';
+    results.notificationSuppression = Object.assign(results.notificationSuppression || {}, { sheetsUpdate: sheetsSuppressedReceipt('update_status') });
+  } else try {
     await updateBookingStatus(orderID, '확정', sheetsRowHint);
     results.steps.sheetsUpdate = 'ok';
   } catch (err) {
@@ -716,6 +757,7 @@ const originalHandler = async (event) => {
       console.error('[booking-processor] 상태 업데이트 실패:', err.message);
     }
   }
+  // PREVIEW-SUPPRESSION-TEST:STEP7-END
 
   // ── 오류가 있었다면 태연님께 알림 ──────────────────────────────────
   const failedSteps = Object.entries(results.steps)
@@ -793,6 +835,7 @@ const originalHandler = async (event) => {
       } else {
       try {
         const loyaltyRes = await fetch(`${moneyBase}/api/loyalty`, {
+          ...(process.env.VERCEL_ENV === 'preview' ? { redirect: 'error' } : {}),
           method: 'POST',
           // earn 은 내부 전용 — 서비스 토큰 동봉 (loyalty.js earn 게이트). 미설정 시 earn 403
           // → 적립 일시 중단(비치명적, best-effort). 운영자 INTERNAL_API_TOKEN 설정 필요.
@@ -800,7 +843,7 @@ const originalHandler = async (event) => {
           headers: {
             'Content-Type': 'application/json',
             'x-internal-token': (process.env.INTERNAL_API_TOKEN || '').trim(),
-            ...vercelBypassHeaders(),
+            ...vercelBypassHeaders(moneyBase),
           },
           body: JSON.stringify({
             action: 'earn',
@@ -870,6 +913,7 @@ const originalHandler = async (event) => {
       stepStatus: results.stepStatus,
       loyalty: results.loyalty,
       aiBenefits: results.aiBenefits || null,
+      ...(results.notificationSuppression ? { notificationSuppression: results.notificationSuppression } : {}),
     },
   });
 };

@@ -131,7 +131,7 @@ export default async function handler(req, res) {
     const tokenMatch = String(authHeader).match(/^Bearer\s+(.+)$/i);
     if (tokenMatch) {
       try {
-        const { getAuth } = await import('firebase-admin/auth');
+        const { getAuth } = await import('./_shared/firebase-auth-app.js');
         const { getApps } = await import('firebase-admin/app');
         if (getApps().length > 0) {
           const decoded = await getAuth().verifyIdToken(tokenMatch[1]);

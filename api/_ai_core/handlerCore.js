@@ -18,6 +18,7 @@ import { getMountainContextForPrompt } from '../_mountain_helper.js'; // P191 SA
 import { getRunningContextForPrompt } from '../_running_helper.js'; // P237: Running 코스 16개 DB
 import { throttledTelegramAlert } from '../_shared/telegram-throttle.js';
 import { CORS, arrivalRestDayInfo } from './constants.js';
+import { isPreviewSuppressed, emailSuppressedReceipt } from '../_shared/preview-notification-policy.js';
 import { arrivalRestDayCityKey, mealWindowsFromRequest } from './responseValidator.js';
 import { buildSystemPrompt, logPromptMetrics, buildRevisionInstruction } from './buildPrompt.js';
 import { loadFoodIndex, runGeminiPipeline } from './geminiPipeline.js';
@@ -464,7 +465,7 @@ export default async function handler(req, res) {
       const debug = buildAdminDebug({ gate, plannerMode: PLANNER_MODE, abDecision, identifierForBucketing, blockModeUsed, blocksUsed, useStreaming, itinerary });
       res.writeHead(200, { ...CORS, 'Content-Type': 'application/json' });
       res.end(JSON.stringify(_ok({
-        planId, planUrl, firestoreSaved: true, emailSent: !!email, itinerary,
+        planId, planUrl, firestoreSaved: true, ...(email && isPreviewSuppressed('email') ? { emailSent: false, emailDelivery: emailSuppressedReceipt() } : { emailSent: !!email }), itinerary,
         pricing: { vehicle, vehicleLabel: VEHICLE_LABELS[vehicle] || VEHICLE_LABELS.staria_8, priceKRW, priceUSD, currency: 'KRW' },
         ...(debug ? { _debug: debug } : {}),
       })));

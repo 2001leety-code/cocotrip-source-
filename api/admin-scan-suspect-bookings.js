@@ -228,12 +228,13 @@ export default async function handler(req, res) {
 
       try {
         const procRes = await fetch(`${siteUrl}/api/booking-processor`, {
+          ...(process.env.VERCEL_ENV === 'preview' ? { redirect: 'error' } : {}),
           method: 'POST',
           headers: {
           'Content-Type': 'application/json',
           // booking-processor 는 내부 전용(2026-07-29 인증 게이트) — 서비스 토큰 동봉 필수.
           'x-internal-token': (process.env.INTERNAL_API_TOKEN || '').trim(),
-          ...vercelBypassHeaders(),
+          ...vercelBypassHeaders(siteUrl),
         },
           body: JSON.stringify(payload),
         });

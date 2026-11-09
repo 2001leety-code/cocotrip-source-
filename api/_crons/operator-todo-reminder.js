@@ -28,6 +28,7 @@
 
 import { initAdminDb } from '../_shared/firebase-admin.js';
 import { verifyCronRequest } from '../_shared/cron-auth.js';
+import { isNotificationSuppressed } from '../_shared/preview-notification-policy.js';
 import { notifyOperatorLong } from '../_shared/operator-alerts.js';
 import { captureError } from '../_shared/sentry.js';
 import { hasExplicitTestSignal } from '../_shared/booking-test-flags.js';
@@ -547,7 +548,7 @@ export const operatorTodoTask = async (dryRun = false) => {
     }
 
     const result = await notifyOperatorLong('todo', msg);
-    if (!result.ok) {
+    if (!result.ok && !isNotificationSuppressed(result)) {
       console.error('[operator-todo] Telegram 발송 실패:', result.error);
     }
 
@@ -557,7 +558,8 @@ export const operatorTodoTask = async (dryRun = false) => {
         ok: true,
         totalCount,
         notified: result.ok,
-        notifyError: result.ok ? null : result.error,
+        notifyError: result.ok || isNotificationSuppressed(result) ? null : result.error,
+        ...(isNotificationSuppressed(result) ? { notification: result } : {}),
         collectionMissing,
         unprocessedStale: data.unprocessedStaleCount || 0,
         staleItems: data.staleItems || [],

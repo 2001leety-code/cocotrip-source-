@@ -14,7 +14,7 @@ export async function verifyUidFromAuthHeader(authHeader) {
   const m = /^Bearer\s+(.+)$/.exec(authHeader || '');
   if (!m) return null;
   try {
-    const { getAuth } = await import('firebase-admin/auth');
+    const { getAuth } = await import('./firebase-auth-app.js');
     const { getApps } = await import('firebase-admin/app');
     if (!getApps().length) return null;
     const decoded = await getAuth().verifyIdToken(m[1], true);

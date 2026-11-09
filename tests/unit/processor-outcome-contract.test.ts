@@ -90,6 +90,12 @@ beforeEach(() => {
   process.env.INTERNAL_API_TOKEN = 'secret-tok';
   process.env.VERCEL_ENV = 'preview';
   process.env.VERCEL_URL = 'preview-host.vercel.app';
+  process.env.VERCEL = '1';
+  process.env.VERCEL_TARGET_ENV = 'preview';
+  process.env.VERCEL_DEPLOYMENT_ID = 'dpl_fake123';
+  process.env.PREVIEW_INTERNAL_PROJECT_ID = 'prj_fake123';
+  process.env.VERCEL_PROJECT_ID = 'prj_fake123';
+  process.env.VERCEL_PROJECT_PRODUCTION_URL = 'cocotripkr.com';
   process.env.GOOGLE_SHEETS_SPREADSHEET_ID = 'S';
   appendBooking.mockClear();
   appendBooking.mockImplementation(async () => ({ appendedRow: '시트1!A2' }));
@@ -107,7 +113,7 @@ beforeEach(() => {
   mockLoyalty(200);
 });
 afterEach(() => {
-  for (const k of ['VERCEL_ENV', 'VERCEL_URL', 'INTERNAL_API_TOKEN', 'GOOGLE_SHEETS_SPREADSHEET_ID']) {
+  for (const k of ['VERCEL_ENV', 'VERCEL_URL', 'INTERNAL_API_TOKEN', 'GOOGLE_SHEETS_SPREADSHEET_ID', 'VERCEL', 'VERCEL_TARGET_ENV', 'VERCEL_DEPLOYMENT_ID', 'PREVIEW_INTERNAL_PROJECT_ID', 'VERCEL_PROJECT_ID', 'VERCEL_PROJECT_PRODUCTION_URL']) {
     if (savedEnv[k] === undefined) delete process.env[k];
     else process.env[k] = savedEnv[k];
   }
@@ -334,7 +340,7 @@ describe('후속 판정 — trigger / retry sweep / 관리자 재처리', () => 
     })) as never;
 
     const r = await triggerBookingProcessor({
-      db: retryDb as never, siteUrl: 'https://x', payload: { orderID: ORDER }, source: 'unit-test',
+      db: retryDb as never, siteUrl: 'https://preview-host.vercel.app', payload: { orderID: ORDER }, source: 'unit-test',
     });
     expect(r.ok).toBe(true);
     expect(retryDb.__get(`pending_processor_retries/${ORDER}`)).toBeUndefined();
@@ -347,7 +353,7 @@ describe('후속 판정 — trigger / retry sweep / 관리자 재처리', () => 
       text: async () => JSON.stringify({ outcome: 'manual_intervention', data: { stepStatus: { email: 'outcome_unknown' } } }),
     })) as never;
     const r = await triggerBookingProcessor({
-      db: null as never, siteUrl: 'https://x', payload: { orderID: ORDER }, source: 'unit-test',
+      db: null as never, siteUrl: 'https://preview-host.vercel.app', payload: { orderID: ORDER }, source: 'unit-test',
     });
     expect(r.ok).toBe(false);
     expect(r.manual).toBe(true);

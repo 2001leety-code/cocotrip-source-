@@ -22,6 +22,12 @@ function resetEnv() {
   delete process.env.VERCEL_ENV;
   delete process.env.VERCEL_URL;
   delete process.env.VERCEL_AUTOMATION_BYPASS_SECRET;
+  delete process.env.VERCEL;
+  delete process.env.VERCEL_TARGET_ENV;
+  delete process.env.VERCEL_DEPLOYMENT_ID;
+  delete process.env.PREVIEW_INTERNAL_PROJECT_ID;
+  delete process.env.VERCEL_PROJECT_ID;
+  delete process.env.VERCEL_PROJECT_PRODUCTION_URL;
 }
 
 beforeEach(resetEnv);
@@ -37,9 +43,15 @@ describe('internalApiBase', () => {
   });
 
   it('preview keeps the deployment URL (bypass header handles the SSO wall)', () => {
+    process.env.VERCEL = '1';
     process.env.VERCEL_ENV = 'preview';
-    process.env.VERCEL_URL = 'cocotrip-source2026-git-branch-team.vercel.app';
-    expect(internalApiBase()).toBe('https://cocotrip-source2026-git-branch-team.vercel.app');
+    process.env.VERCEL_TARGET_ENV = 'preview';
+    process.env.VERCEL_DEPLOYMENT_ID = 'dpl_fake123';
+    process.env.PREVIEW_INTERNAL_PROJECT_ID = 'prj_fake123';
+    process.env.VERCEL_PROJECT_ID = 'prj_fake123';
+    process.env.VERCEL_URL = 'fake-app-abc123-team.vercel.app';
+    process.env.VERCEL_PROJECT_PRODUCTION_URL = 'cocotripkr.com';
+    expect(internalApiBase()).toBe('https://fake-app-abc123-team.vercel.app');
   });
 
   it('no VERCEL_URL (local dev) falls back to the public domain', () => {

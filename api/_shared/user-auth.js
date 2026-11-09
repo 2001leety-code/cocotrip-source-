@@ -21,6 +21,10 @@ import { Buffer } from 'buffer';
 async function getAuthInstance() {
   const { initializeApp, cert, getApps } = await import('firebase-admin/app');
   const { getAuth } = await import('firebase-admin/auth');
+  if (process.env.VERCEL_ENV === 'preview') {
+    const { getPreviewFirebaseApp } = await import('./preview-firebase-app.js');
+    return getAuth(await getPreviewFirebaseApp());
+  }
   if (!getApps().length) {
     const sa = JSON.parse(Buffer.from(process.env.GOOGLE_SERVICE_ACCOUNT_KEY || '', 'base64').toString('utf8'));
     initializeApp({ credential: cert(sa) });

@@ -39,7 +39,7 @@ async function verifyUserToken(req) {
     if (!db) {
       return { ok: false, status: 500, error: 'Firebase Admin SDK init failed — check FIREBASE_* / GOOGLE_SERVICE_ACCOUNT_KEY env vars' };
     }
-    const { getAuth } = await import('firebase-admin/auth');
+    const { getAuth } = await import('../_shared/firebase-auth-app.js');
     const decoded = await getAuth().verifyIdToken(m[1], true);
     return { ok: true, uid: decoded.uid, email: decoded.email };
   } catch (err) {

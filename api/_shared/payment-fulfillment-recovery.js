@@ -131,7 +131,7 @@ export async function verifyBearerUid(authHeader) {
   const match = /^Bearer\s+(.+)$/.exec(authHeader || '');
   if (!match) return null;
   try {
-    const { getAuth } = await import('firebase-admin/auth');
+    const { getAuth } = await import('./firebase-auth-app.js');
     const { getApps } = await import('firebase-admin/app');
     if (!getApps().length) return null;
     const decoded = await getAuth().verifyIdToken(match[1], true);

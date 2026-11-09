@@ -19,12 +19,106 @@
 
 const PROD_ORIGIN = 'https://cocotripkr.com';
 
+const PREVIEW_ID_MAX_LEN = 64;
+const HOST_MAX_LEN = 253;
+const LABEL_MAX_LEN = 63;
+const ID_BODY_RE = /^[A-Za-z0-9]+$/;
+const LABEL_RE = /^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/;
+const VERCEL_APP_SUFFIX = '.vercel.app';
+
+// Visible ASCII only (0x21-0x7E). Rejects whitespace, control chars, DEL, non-ASCII/Unicode.
+function isStrictVisibleAscii(s) {
+  if (typeof s !== 'string' || s.length === 0) return false;
+  for (let i = 0; i < s.length; i++) {
+    const c = s.charCodeAt(i);
+    if (c < 0x21 || c > 0x7e) return false;
+  }
+  return true;
+}
+
+// Full-match regex test that does not rely on `$` semantics alone.
+function fullMatch(re, s) {
+  const m = re.exec(s);
+  return m !== null && m.index === 0 && m[0].length === s.length;
+}
+
+function isValidPrefixedId(v, prefix) {
+  if (!isStrictVisibleAscii(v)) return false;
+  if (v.length > PREVIEW_ID_MAX_LEN) return false;
+  if (v.slice(0, prefix.length) !== prefix) return false;
+  const body = v.slice(prefix.length);
+  return body.length > 0 && fullMatch(ID_BODY_RE, body);
+}
+
+// Strict lowercase ASCII DNS bare hostname: no scheme/credentials/port/path/query/hash,
+// no backslash, no trailing dot, finite label/host lengths.
+function isStrictBareHost(v) {
+  if (!isStrictVisibleAscii(v)) return false;
+  if (v.length > HOST_MAX_LEN) return false;
+  const labels = v.split('.');
+  if (labels.length < 2) return false;
+  for (let i = 0; i < labels.length; i++) {
+    const label = labels[i];
+    if (label.length === 0 || label.length > LABEL_MAX_LEN) return false;
+    if (!fullMatch(LABEL_RE, label)) return false;
+  }
+  return true;
+}
+
+/**
+ * Pure resolver for the preview-internal origin. Returns 'https://<host>' or null.
+ * Conditional defense only: assumes Vercel system env vars are trusted/not overridden.
+ */
+export function resolvePreviewInternalOrigin(env = process.env) {
+  if (!env || typeof env !== 'object') return null;
+  if (env.VERCEL_ENV !== 'preview') return null;
+  if (env.VERCEL !== '1') return null;
+  if (env.VERCEL_TARGET_ENV !== 'preview') return null;
+  if (!isValidPrefixedId(env.VERCEL_DEPLOYMENT_ID, 'dpl_')) return null;
+
+  const pinnedProject = env.PREVIEW_INTERNAL_PROJECT_ID;
+  const runtimeProject = env.VERCEL_PROJECT_ID;
+  if (!isValidPrefixedId(pinnedProject, 'prj_')) return null;
+  if (!isValidPrefixedId(runtimeProject, 'prj_')) return null;
+  if (pinnedProject !== runtimeProject) return null;
+
+  const host = env.VERCEL_URL;
+  if (!isStrictBareHost(host)) return null;
+  if (host.length <= VERCEL_APP_SUFFIX.length) return null;
+  if (host.slice(host.length - VERCEL_APP_SUFFIX.length) !== VERCEL_APP_SUFFIX) return null;
+  if (host.split('.').length < 3) return null;
+
+  const prodHost = env.VERCEL_PROJECT_PRODUCTION_URL;
+  if (!isStrictBareHost(prodHost)) return null;
+  if (host === prodHost) return null;
+  const prodSuffix = '.' + prodHost;
+  if (host.length > prodSuffix.length && host.slice(host.length - prodSuffix.length) === prodSuffix) return null;
+
+  return 'https://' + host;
+}
+
 export function internalApiBase() {
   if (process.env.VERCEL_ENV === 'production') return PROD_ORIGIN;
+  if (process.env.VERCEL_ENV === 'preview') {
+    const origin = resolvePreviewInternalOrigin(process.env);
+    if (origin === null) throw new Error('PREVIEW_INTERNAL_ORIGIN_INVALID');
+    return origin;
+  }
   return process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : PROD_ORIGIN;
 }
 
-export function vercelBypassHeaders() {
+export function vercelBypassHeaders(targetOrigin) {
+  if (process.env.VERCEL_ENV === 'preview') {
+    const resolvedOrigin = resolvePreviewInternalOrigin(process.env);
+    if (
+      typeof resolvedOrigin !== 'string' ||
+      resolvedOrigin === '' ||
+      typeof targetOrigin !== 'string' ||
+      targetOrigin !== resolvedOrigin
+    ) {
+      throw new Error('PREVIEW_INTERNAL_TARGET_INVALID');
+    }
+  }
   const secret = (process.env.VERCEL_AUTOMATION_BYPASS_SECRET || '').trim();
   return secret ? { 'x-vercel-protection-bypass': secret } : {};
 }
@@ -46,6 +140,9 @@ export function vercelBypassHeaders() {
  */
 export function internalMoneyApiBase() {
   if (process.env.VERCEL_ENV === 'production') return PROD_ORIGIN;
+  if (process.env.VERCEL_ENV === 'preview') {
+    return resolvePreviewInternalOrigin(process.env);
+  }
   const url = (process.env.VERCEL_URL || '').trim();
   return url ? `https://${url}` : null;
 }
