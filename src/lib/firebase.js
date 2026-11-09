@@ -11,6 +11,7 @@ import {
 import { getStorage } from 'firebase/storage';
 import { getAuth, signInAnonymously } from 'firebase/auth';
 import { app, getGuestApp } from './firebase-app.js';
+import { needsAiCouponReview } from './aiCouponPresentation';
 
 export {
   auth,
@@ -57,6 +58,57 @@ export async function getAvailableAiCoupon(uid, durationDays = 3) {
   } catch (e) {
     console.warn('[getAvailableAiCoupon] failed:', e && e.message);
     return null;
+  }
+}
+
+/**
+ * Read one explicitly requested code from this user's collection. Never substitutes a different coupon.
+ * UI eligibility is not server authorization; retained binding/root integrity is checked by the server.
+ * @param {string} uid
+ * @param {string} code
+ * @param {number} durationDays
+ * @returns {Promise<import('./aiCouponPresentation').RequestedAiCouponResult>}
+ */
+export async function getRequestedAiCoupon(uid, code, durationDays = 3) {
+  if (!uid || typeof code !== 'string' || !code.trim() || !Number.isInteger(durationDays) || durationDays < 1) {
+    return { state: 'unavailable' };
+  }
+  try {
+    const snap = await getDocs(query(collection(db, 'users', uid, 'coupons'), where('code', '==', code)));
+    // Duplicate or missing codes are ambiguous, not permission to pick the first record.
+    if (snap.docs.length !== 1) return { state: 'unavailable' };
+    const record = snap.docs[0];
+    const c = record.data();
+    if (!c || c.code !== code || c.productScope !== 'ai-plan' || c.type !== 'free' || c.isUsed !== false
+      || (c.isRevoked !== undefined && c.isRevoked !== false)) return { state: 'unavailable' };
+    const maxDays = c.maxDays === undefined || c.maxDays === null ? 3 : c.maxDays;
+    const expiresAt = c.expiresAt === undefined || c.expiresAt === null ? null : c.expiresAt;
+    if (!Number.isInteger(maxDays) || maxDays < durationDays
+      || (expiresAt !== null && (typeof expiresAt !== 'number' || !Number.isFinite(expiresAt) || expiresAt <= Date.now()))) {
+      return { state: 'unavailable' };
+    }
+    if (needsAiCouponReview(c)) return { state: 'review' };
+    if ((c.pendingCapture !== undefined && c.pendingCapture !== false)
+      || (c.usedOrderID !== undefined && c.usedOrderID !== null && c.usedOrderID !== '')
+      || (c.consumptionId !== undefined && c.consumptionId !== null)) return { state: 'unavailable' };
+    const binding = c.aiPlanBinding;
+    if (binding !== undefined && binding !== null) {
+      // Only recognize the supported metadata shape, never infer that a plan exists or is recoverable.
+      // Cryptographic identity, same-request and reciprocal persistence checks remain server-only.
+      if (typeof binding !== 'object' || Array.isArray(binding) || binding.version !== 1
+        || c.aiPlanBindingState !== 'restored' || binding.consumerUid !== uid || binding.couponDocId !== record.id
+        || typeof binding.consumptionId !== 'string' || !/^[A-Za-z0-9_-]{1,128}$/.test(binding.consumptionId)
+        || typeof binding.planId !== 'string' || !/^aicp_[a-f0-9]{40}$/.test(binding.planId)
+        || binding.requestFingerprintVersion !== 1 || typeof binding.requestFingerprintHash !== 'string'
+        || !/^[a-f0-9]{64}$/.test(binding.requestFingerprintHash)
+        || !(binding.planOwnerUid === null || (typeof binding.planOwnerUid === 'string' && binding.planOwnerUid.length > 0))
+        || !(binding.verifiedHistoryUid === null || (typeof binding.verifiedHistoryUid === 'string' && binding.verifiedHistoryUid.length > 0))
+        || typeof binding.forceGuestToken !== 'boolean') return { state: 'unavailable' };
+    } else if (c.aiPlanBindingState !== undefined) return { state: 'unavailable' };
+    return { state: 'available', coupon: { code, maxDays, expiresAt } };
+  } catch {
+    // A denied/offline read is distinct from no coupon; callers must not fall through to paid checkout.
+    return { state: 'error' };
   }
 }
 

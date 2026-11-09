@@ -5,10 +5,14 @@ import { resolve } from 'node:path';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import type { Coupon } from '../../src/hooks/useLoyalty';
+import { translations } from '../../src/i18n';
+import { createBinding } from '../../api/_shared/ai-coupon-persistence.js';
 
 const testState = vi.hoisted(() => ({
   loading: false,
   language: 'en',
+  coupons: [] as Coupon[],
   wishlistItems: [] as { id: string; productType: string; name: string; priceUSD?: number; thumbnailUrl?: string; href?: string }[],
   authFetch: vi.fn(),
 }));
@@ -41,6 +45,7 @@ vi.mock('../../src/hooks/useLanguage', () => ({
       changeLanguage: vi.fn(),
       t: {
         mypage: {
+        ...translations[testState.language as keyof typeof translations].mypage,
         tabOverview: 'Overview',
         tabBookings: 'My Bookings',
         tabCoupons: 'Coupons ({n})',
@@ -63,8 +68,8 @@ vi.mock('../../src/hooks/useLanguage', () => ({
 vi.mock('../../src/hooks/useLoyalty', () => ({
   useLoyalty: () => ({
     loyalty: { tier: 'Bronze', tripCoins: 0, totalSpentUSD: 0, bookingCount: 0, earnRate: 0.01 },
-    coupons: [],
-    activeCoupons: [],
+    coupons: testState.coupons,
+    activeCoupons: testState.coupons.filter(c => !c.isUsed && c.expiresAt > Date.now()),
     pointHistory: [],
     coinsToUSD: (c: number) => (c * 0.01).toFixed(2),
     loading: testState.loading,
@@ -107,6 +112,7 @@ describe('/mypage editorial shell', () => {
   beforeEach(() => {
     testState.loading = false;
     testState.language = 'en';
+    testState.coupons = [];
     testState.wishlistItems = [];
     testState.authFetch.mockReset();
   });
@@ -117,6 +123,48 @@ describe('/mypage editorial shell', () => {
     expect(container.innerHTML).not.toContain('bg-[#080b14]');
     expect(container.innerHTML).not.toContain('cocotrip-mobile-account');
     expect(container.innerHTML).not.toContain('linear-gradient');
+  });
+
+  it.each(['ko', 'en', 'ja', 'zh'] as const)('keeps a legacy coupon visible in a separate localized review section (%s)', language => {
+    testState.language = language;
+    testState.coupons = [{
+      id: 'legacy', code: 'LEGACY', productScope: 'ai-plan', label: 'Legacy AI coupon', type: 'free', value: 0,
+      currency: 'USD', minOrderUSD: 0, isUsed: false, createdAt: 0, expiresAt: Date.UTC(2099, 0, 1), restoredAt: 0,
+    }];
+    const view = renderPage('/mypage?tab=coupons');
+    const copy = translations[language].mypage;
+    expect(screen.getByRole('heading', { name: copy.aiCouponReviewTitle })).toBeVisible();
+    expect(screen.getByText(copy.aiCouponReviewBody)).toBeVisible();
+    expect(screen.getByRole('link', { name: copy.aiCouponSupport })).toHaveAttribute('href', 'https://wa.me/821087140611');
+    expect(view.container.querySelector('a[href^="/planner?coupon="]')).toBeNull();
+    expect(screen.getAllByText('LEGACY')).toHaveLength(1);
+    expect(screen.getByRole('button', { name: language === 'ja' ? '利用可能 (0)' : 'Available (0)' })).toBeVisible();
+    for (const name of language === 'ja' ? ['使用済み (0)', '期限切れ (0)'] : ['Used (0)', 'Expired (0)']) {
+      fireEvent.click(screen.getByRole('button', { name }));
+      expect(screen.getAllByText('LEGACY')).toHaveLength(1);
+      expect(screen.getByRole('link', { name: copy.aiCouponSupport })).toBeVisible();
+    }
+    expect(testState.authFetch).not.toHaveBeenCalled();
+  });
+
+  it('preserves normal, binding-backed, used, expired and other-product wallet categories', () => {
+    const base: Coupon = { id: 'normal', code: 'NORMAL', productScope: 'ai-plan', label: 'Normal coupon', type: 'free', value: 0,
+      currency: 'USD', minOrderUSD: 0, isUsed: false, createdAt: 0, expiresAt: Date.UTC(2099, 0, 1) };
+    testState.coupons = [base,
+      { ...base, id: 'bound', code: 'BOUND', restoredAt: 0, aiPlanBinding: createBinding({ consumerUid: 'editorial-owner',
+        couponDocId: 'bound', consumptionId: 'old-attempt', requestProjection: { durationDays: 3 },
+        planOwnerUid: 'editorial-owner', verifiedHistoryUid: null, forceGuestToken: false }) },
+      { ...base, id: 'used', code: 'USED', isUsed: true, restoredAt: 0 },
+      { ...base, id: 'expired', code: 'EXPIRED', expiresAt: 1, restoredAt: 0 },
+      { ...base, id: 'tour', code: 'TOUR', productScope: 'tour-package', restoredAt: 0 },
+    ];
+    const view = renderPage('/mypage?tab=coupons');
+    expect(screen.queryByRole('heading', { name: translations.en.mypage.aiCouponReviewTitle })).toBeNull();
+    expect(screen.getByRole('button', { name: 'Available (3)' })).toBeVisible();
+    expect(view.container.querySelectorAll('a[href^="/planner?coupon="]')).toHaveLength(2);
+    fireEvent.click(screen.getByRole('button', { name: 'Used (1)' })); expect(screen.getByText('USED')).toBeVisible();
+    fireEvent.click(screen.getByRole('button', { name: 'Expired (1)' })); expect(screen.getByText('EXPIRED')).toBeVisible();
+    expect(view.container.querySelector('a[href^="/planner?coupon="]')).toBeNull();
   });
 
   it('announces the loyalty fetch as a named loading region', () => {

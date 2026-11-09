@@ -14,7 +14,7 @@ import { readAiPlanNotices, isAiCheckoutHeldInThisTab } from '@/lib/aiPlanIssuan
 //   금액을 tabular figure 로 정렬, 특징 목록을 하이라인 목록으로.
 //   근거: `tests/unit/editorial-planner-journey.test.ts` 의 "purchase area" 블록과
 //   기존 `tests/unit/ai-planner-price-parity.test.ts` 가 값·SSOT 를 계속 잠근다.
-import { type MutableRefObject, useState, useEffect, useRef, lazy, Suspense } from 'react';
+import { type MutableRefObject, useState, useEffect, useLayoutEffect, useRef, lazy, Suspense } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import {
   Briefcase, UtensilsCrossed, Camera, Train, ShieldCheck, Check, LogIn, Phone, Ticket,
@@ -24,7 +24,8 @@ import type { PlannerFormValues } from '@/components/PlannerForm';
 import type { PlannerDict } from '../types';
 import { TriviaLoadingAnimation } from './TriviaLoadingAnimation';
 import { useAuth } from '@/hooks/useAuth';
-import { signInWithGoogle, getAvailableAiCoupon } from '@/lib/firebase';
+import { signInWithGoogle, getRequestedAiCoupon } from '@/lib/firebase';
+import type { AiCouponPresentation, RequestedAiCouponResult } from '@/lib/aiCouponPresentation';
 import { isGuestAnonEnabled } from '@/lib/guestReader';
 import { AI_PLANNER_FULL_USD, AI_PLANNER_ORIGINAL_USD, AI_PLANNER_REFERENCE_KRW, formatAiPlannerUsd, formatAiPlannerApproxKrw, fillPrice } from '@/lib/aiPlannerPrice';
 // P317 (2026-05-30): lazy-load phone sign-in modal (firebase phone auth) —
@@ -56,6 +57,11 @@ interface PurchaseSectionProps {
   onRevisionRegenerate: (values: PlannerFormValues, planId: string, token: string | null, revisionReason?: string | null, revisionNote?: string | null, avoidList?: string | null) => void;
 }
 
+function submittedInputKey(values: PlannerFormValues | null): string | null {
+  if (!values) return null;
+  try { return JSON.stringify(values); } catch { return null; }
+}
+
 export function PurchaseSection({
   p, language, userEmail, setUserEmail,
   isGeneratingPlan, planError, resultQuick, lastValues,
@@ -73,37 +79,87 @@ export function PurchaseSection({
   const { user, loading: authLoading } = useAuth();
   const { notices, tabHold } = useAiPlanNotices(user?.uid);
   const hasPendingIssuance = tabHold || notices.length > 0;
-  const canStartAiCheckout = () => !isAiCheckoutHeldInThisTab() && readAiPlanNotices(firebaseAuth.currentUser?.uid).notices.length === 0;
   // 게스트 결제 (FEATURE_GUEST_ANON_AUTH): ON 이면 비로그인 손님도 가입 없이 바로 결제
   //   (벽 → 당근). 백엔드 handlerCore 가 같은 플래그로 게스트 PayPal 결제를 받는다.
   //   OFF(기본) = P315 로그인 벽 그대로 (현행 byte-identical).
   const guestCheckoutEnabled = isGuestAnonEnabled();
   const [phoneModalOpen, setPhoneModalOpen] = useState(false);
   const [signingIn, setSigningIn] = useState(false);
-  // P1-②(여름 이벤트): 로그인 사용자의 AI 무료 쿠폰(1~3일) 조회 → "무료 쿠폰 사용" 버튼 노출.
-  const [aiCoupon, setAiCoupon] = useState<{ code: string; maxDays: number } | null>(null);
   const [isSending, setIsSending] = useState(false); // 진행 버튼 더블클릭 방지 — 0원 결제 1회 보장(결제 적대검증 1🟡). 3초 후 자동 해제(에러 시 재시도 허용).
-  const [previousCouponUser, setPreviousCouponUser] = useState(user);
-  if (previousCouponUser !== user) {
-    setPreviousCouponUser(user);
-    if (!user) setAiCoupon(null);
-  }
-  useEffect(() => {
-    if (!user) return;
-    const days = (lastValues?.current?.durationDays as number) || 3;
-    let on = true;
-    getAvailableAiCoupon(user.uid, days).then((c) => { if (on) setAiCoupon(c); });
-    return () => { on = false; };
-  }, [user, lastValues]);
-  // 쿠폰함 경유 흐름 (2026-06-28): 결제화면의 큰 "무료 쿠폰으로 받기" 버튼 폐기.
-  //   AI 무료쿠폰은 마이페이지 쿠폰함에서 "사용하기" → /planner?coupon=CODE 로 진입.
-  //   여기서 URL 코드가 사용자의 유효한 AI 무료쿠폰(getAvailableAiCoupon: ai-plan·미사용·
-  //   미만료·maxDays 검증)과 일치하면 "쿠폰 적용됨" 상태로 전환. 결제(0원) 로직은
-  //   기존 onPaymentSuccess('', code) 그대로 재사용 — 트리거 위치만 큰 버튼 → 쿠폰함 경유.
+  const sendingRef = useRef(false);
   const [searchParams] = useSearchParams();
-  const couponParam = searchParams.get('coupon');
-  // URL ?coupon=CODE 가 검증된 AI 무료쿠폰과 일치할 때만 적용 (위조 코드 무시).
-  const couponApplied = !!(couponParam && aiCoupon && couponParam === aiCoupon.code);
+  const couponParam = searchParams.get('coupon'); // Empty ?coupon= is an explicit, invalid request, not "none".
+  const uid = user?.uid || null;
+  const inputKey = submittedInputKey(lastValues.current);
+  const days = (lastValues.current?.durationDays as number) || 3;
+  const [readAttempt, setReadAttempt] = useState(0);
+  const [couponSlot, setCouponSlot] = useState<{
+    uid: string; code: string; inputKey: string; preview: QuickPreviewData; attempt: number; result: RequestedAiCouponResult;
+  } | null>(null);
+  const [previousScope, setPreviousScope] = useState({ uid, authLoading, couponParam, inputKey, resultQuick, revisionMode });
+  const scopeChanged = previousScope.uid !== uid || previousScope.authLoading !== authLoading
+    || previousScope.couponParam !== couponParam || previousScope.inputKey !== inputKey || previousScope.resultQuick !== resultQuick
+    || previousScope.revisionMode !== revisionMode;
+  if (scopeChanged) {
+    // Discard rather than cache results across logout/back navigation, including A -> B -> A.
+    setPreviousScope({ uid, authLoading, couponParam, inputKey, resultQuick, revisionMode });
+    setCouponSlot(null);
+  }
+  const latestScope = useRef<{
+    uid: string | null; code: string | null; inputKey: string | null; preview: QuickPreviewData;
+    authLoading: boolean; revisionMode: boolean; attempt: number; identity: typeof previousScope;
+  } | null>(null);
+  useLayoutEffect(() => {
+    latestScope.current = { uid, code: couponParam, inputKey, preview: resultQuick, authLoading, revisionMode, attempt: readAttempt, identity: previousScope };
+    return () => { latestScope.current = null; };
+  }, [uid, couponParam, inputKey, resultQuick, authLoading, revisionMode, readAttempt, previousScope]);
+
+  // React refs are not dependencies. Capture the submitted input value and preview, then compare again
+  // at render AND at event time; a ref-only mutation must never reuse a previous lookup/SDK start.
+  useEffect(() => {
+    if (authLoading || !uid || couponParam === null || !inputKey) return;
+    let cancelled = false;
+    const accept = (result: RequestedAiCouponResult) => {
+      if (cancelled || latestScope.current?.identity !== previousScope
+        || firebaseAuth.currentUser?.uid !== uid || submittedInputKey(lastValues.current) !== inputKey) return;
+      // Unexpected adapter data is not an available coupon (nor absence of a requested coupon).
+      const safeResult: RequestedAiCouponResult = result && ['available', 'review', 'unavailable', 'error'].includes(result.state)
+        && (result.state !== 'available' || (result.coupon?.code === couponParam
+          && Number.isInteger(result.coupon.maxDays) && result.coupon.maxDays >= days
+          && (result.coupon.expiresAt === null || (typeof result.coupon.expiresAt === 'number'
+            && Number.isFinite(result.coupon.expiresAt) && result.coupon.expiresAt > Date.now()))))
+        ? result : { state: 'unavailable' };
+      setCouponSlot({ uid, code: couponParam, inputKey, preview: resultQuick, attempt: readAttempt, result: safeResult });
+    };
+    getRequestedAiCoupon(uid, couponParam, days).then(accept, () => accept({ state: 'error' }));
+    return () => { cancelled = true; };
+  }, [authLoading, uid, couponParam, days, inputKey, resultQuick, readAttempt, lastValues, revisionMode, previousScope]);
+  const couponState: AiCouponPresentation = couponParam === null ? { state: 'none' }
+    : authLoading || scopeChanged ? { state: 'loading' }
+      : !uid || !inputKey ? { state: 'unavailable' }
+        : couponSlot?.uid === uid && couponSlot.code === couponParam && couponSlot.inputKey === inputKey
+          && couponSlot.preview === resultQuick && couponSlot.attempt === readAttempt
+          ? couponSlot.result : { state: 'loading' };
+  const aiCoupon = couponState.state === 'available' ? couponState.coupon : null;
+  const couponBlocked = couponState.state !== 'none' && couponState.state !== 'available';
+  const scopeIsCurrent = () => {
+    const latest = latestScope.current;
+    return !!latest && latest.identity === previousScope && !latest.authLoading && latest.uid === uid && latest.code === couponParam
+      && latest.inputKey === inputKey && latest.preview === resultQuick && latest.attempt === readAttempt
+      && latest.revisionMode === revisionMode && (firebaseAuth.currentUser?.uid || null) === uid
+      && submittedInputKey(lastValues.current) === inputKey;
+  };
+  // Guard NEW starts from an old mounted SDK. Do not wrap verified-final/payment-success recovery callbacks.
+  const canStartAiCheckout = () => scopeIsCurrent() && latestScope.current?.code === null
+    && !isAiCheckoutHeldInThisTab() && readAiPlanNotices(firebaseAuth.currentUser?.uid).notices.length === 0;
+  const handleCouponProceed = () => {
+    if (!aiCoupon || !uid || !scopeIsCurrent() || sendingRef.current || isGeneratingPlan
+      || (aiCoupon.expiresAt !== null && aiCoupon.expiresAt <= Date.now())) return;
+    sendingRef.current = true;
+    setIsSending(true);
+    onPaymentSuccess('', aiCoupon.code);
+    setTimeout(() => { sendingRef.current = false; setIsSending(false); }, 3000);
+  };
   const handleSignIn = async () => {
     if (signingIn) return;
     setSigningIn(true);
@@ -313,14 +369,34 @@ export function PurchaseSection({
             {/* 쿠폰함 경유 흐름 (2026-06-28): 큰 "무료 쿠폰으로 받기" 버튼 제거.
                 ?coupon=CODE 가 검증된 AI 무료쿠폰과 일치 → "적용됨 · 0원" 안내 + 진행 버튼.
                 결제(0원) 로직은 기존 onPaymentSuccess('', code) 그대로 (트리거만 이동). */}
-            {user && couponApplied && aiCoupon ? (
+            {couponBlocked ? (
+              <div className="ec-panel-quiet space-y-2" role={couponState.state === 'error' ? 'alert' : 'status'} aria-live="polite">
+                <p className="text-[14px] font-semibold text-ec-ink">
+                  {couponState.state === 'loading' ? p.aiCouponChecking
+                    : couponState.state === 'review' ? p.aiCouponReviewTitle
+                      : couponState.state === 'error' ? p.aiCouponLookupError : p.aiCouponUnavailable}
+                </p>
+                {couponState.state === 'review' && <p className="ec-body-sm text-ec-ink-2">{p.aiCouponReviewBody}</p>}
+                <div className="flex flex-wrap gap-2">
+                  <button type="button" onClick={() => setReadAttempt(attempt => attempt + 1)}
+                    disabled={couponState.state === 'loading' || !uid}
+                    className="ec-btn ec-btn-secondary min-h-[44px] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2">
+                    {p.aiCouponRecheck}
+                  </button>
+                  <a href="https://wa.me/821087140611" target="_blank" rel="noopener noreferrer"
+                    className="ec-btn ec-btn-quiet min-h-[44px] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2">
+                    {p.aiCouponSupport}
+                  </a>
+                </div>
+              </div>
+            ) : user && aiCoupon ? (
               <div className="space-y-2">
                 <p className="flex items-center gap-2 text-[14px] font-semibold text-ec-success">
                   <Ticket className="h-4 w-4 shrink-0" aria-hidden />
                   {(p as { aiCouponApplied?: string }).aiCouponApplied || '무료 쿠폰 적용됨 · 0원'}
                 </p>
                 <button
-                  onClick={() => { if (isSending) return; setIsSending(true); onPaymentSuccess('', aiCoupon.code); setTimeout(() => setIsSending(false), 3000); }}
+                  onClick={handleCouponProceed}
                   disabled={isGeneratingPlan || isSending}
                   type="button"
                   className="ec-btn ec-btn-primary w-full"

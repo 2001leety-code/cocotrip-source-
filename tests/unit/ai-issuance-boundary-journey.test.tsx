@@ -13,7 +13,7 @@ vi.mock('@/hooks/useAuth', () => ({ useAuth: () => ({ user: mocks.user, loading:
 vi.mock('@/hooks/useCart', () => ({ useCart: () => ({ items: [{ id: 'item-1', displayName: 'Airport pickup', priceUSD: '100', priceKRW: 135000, booking: { dateStart: '2026-12-01', passengers: 2 } }], clear: mocks.clear }) }));
 vi.mock('@/hooks/useLanguage', () => ({ useLanguage: () => ({ t: {}, language: 'en' }) }));
 vi.mock('@/lib/firebase-auth', () => ({ signInWithGoogle: vi.fn(), auth: { get currentUser() { return mocks.guest ? null : {...mocks.user,getIdToken:async()=> 'synthetic-token'}; } } }));
-vi.mock('@/lib/firebase', () => ({ auth: {}, db: {}, signInWithGoogle: vi.fn(), getAvailableAiCoupon: async () => null }));
+vi.mock('@/lib/firebase', () => ({ auth: {}, db: {}, signInWithGoogle: vi.fn(), getRequestedAiCoupon: async () => ({ state: 'unavailable' }) }));
 vi.mock('@/lib/haptic', () => ({ haptic: vi.fn() }));
 vi.mock('@/lib/exchange-rate', () => ({ formatPrice: (n: number) => String(n) }));
 vi.mock('@/lib/discountFlags', () => ({ discountV2Enabled: () => false }));

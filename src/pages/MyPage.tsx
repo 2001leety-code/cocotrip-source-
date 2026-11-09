@@ -14,6 +14,7 @@ import { collection, query, where, getDocs } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { useAuth } from '@/hooks/useAuth';
 import { useLoyalty, type Coupon, type LoyaltyInfo, type PointLog, type TierType } from '@/hooks/useLoyalty';
+import { needsAiCouponReview } from '@/lib/aiCouponPresentation';
 import { useWishlist, type WishlistItem } from '@/hooks/useWishlist';
 import { slugForTourId } from '@/data/tours';
 import { useLanguage } from '@/hooks/useLanguage';
@@ -201,6 +202,8 @@ export default function MyPage() {
   const [copiedCode, setCopiedCode] = useState<string | null>(null);
   const [redeeming, setRedeeming] = useState<number | null>(null);
   const [couponClock] = useState(Date.now);
+  const reviewCoupons = coupons.filter(c => c.isRevoked !== true && c.expiresAt > couponClock && needsAiCouponReview(c));
+  const reviewCouponIds = new Set(reviewCoupons.map(c => c.id));
   // UIUX 가이드 P8 쿠폰 지갑 — Available/Used/Expired 탭 필터 (2026-07-13)
   const [walletFilter, setWalletFilter] = useState<'available' | 'used' | 'expired'>('available');
 
@@ -637,11 +640,32 @@ export default function MyPage() {
               </p>
             </div>
 
+            {/* Keep unresolved legacy restores visible, independently of the three wallet filters. */}
+            {reviewCoupons.length > 0 && (
+              <section aria-labelledby="ai-coupon-review-title" className="space-y-3 mb-4">
+                <h3 id="ai-coupon-review-title" className="text-[14px] font-semibold text-ec-ink">{mp.aiCouponReviewTitle}</h3>
+                <p className="ec-body-sm text-ec-ink-2">{mp.aiCouponReviewBody}</p>
+                {reviewCoupons.map(c => (
+                  <div key={c.id} className="mypage-editorial-coupon">
+                    <p className="mypage-editorial-coupon-label">{c.label}</p>
+                    <p className="mypage-editorial-coupon-expiry">
+                      {uiCopy.expires}: {new Date(c.expiresAt).toLocaleDateString(DATE_LOCALE[languageKey])}
+                    </p>
+                    <code className="mypage-editorial-coupon-code break-all">{c.code}</code>
+                    <a href="https://wa.me/821087140611" target="_blank" rel="noopener noreferrer"
+                      className="mypage-editorial-coupon-cta min-h-[44px] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2">
+                      {mp.aiCouponSupport}
+                    </a>
+                  </div>
+                ))}
+              </section>
+            )}
+
             {/* 쿠폰 지갑 탭 (UIUX P8) — Available/Used/Expired. 실쿠폰(useLoyalty)만, 가짜 수치 없음. */}
             {coupons.length > 0 && (() => {
               const now = couponClock;
               const counts = {
-                available: coupons.filter((c) => !c.isUsed && c.expiresAt > now).length,
+                available: coupons.filter((c) => !reviewCouponIds.has(c.id) && !c.isUsed && c.expiresAt > now).length,
                 used: coupons.filter((c) => c.isUsed).length,
                 expired: coupons.filter((c) => !c.isUsed && c.expiresAt <= now).length,
               };
@@ -671,6 +695,7 @@ export default function MyPage() {
                 if (coupons.length === 0) return null;
                 const now = couponClock;
                 const filtered = coupons.filter((c) => {
+                  if (reviewCouponIds.has(c.id)) return false;
                   if (walletFilter === 'available') return !c.isUsed && c.expiresAt > now;
                   if (walletFilter === 'used') return c.isUsed;
                   return !c.isUsed && c.expiresAt <= now; // expired
