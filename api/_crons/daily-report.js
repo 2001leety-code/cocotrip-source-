@@ -10,6 +10,7 @@
  */
 
 import { getYesterdayBookings, getTodayTours, getWeekSummary } from '../_google-sheets.js';
+import { verifyCronRequest } from '../_shared/cron-auth.js';
 import { isNotificationSuppressed } from '../_shared/preview-notification-policy.js';
 import { getPreviewFirebaseApp, previewFirebaseErrorCode } from '../_shared/preview-firebase-app.js';
 import { sendLongMessage, sendErrorAlert } from '../_telegram.js';
@@ -282,6 +283,8 @@ const dailyReportTask = async () => {
 
 export default async function vercelHandler(req, res) {
   if (req.method === 'OPTIONS') return res.status(200).end();
+  const auth = await verifyCronRequest(req);
+  if (!auth.ok) return res.status(auth.status).json({ ok: false, code: 'AUTH_REQUIRED', error: auth.error });
   try {
     const r = await dailyReportTask();
     return res.status(r.statusCode || 200).json(r);

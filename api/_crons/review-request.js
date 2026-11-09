@@ -14,6 +14,7 @@
  *   refund-reminder.js 미러 — getDb/detectLanguage/sendOperatorSummary 동일 패턴.
  */
 import { Buffer } from 'buffer';
+import { verifyCronRequest } from '../_shared/cron-auth.js';
 import { getPreviewFirebaseApp, previewFirebaseErrorCode } from '../_shared/preview-firebase-app.js';
 import { sendEmail } from '../_send-email.js';
 import { isNotificationSuppressed, isPreviewSuppressed, operatorSuppressedReceipt } from '../_shared/preview-notification-policy.js';
@@ -205,6 +206,8 @@ const reviewRequestTask = async (dryRunArg = false) => {
 
 export default async function vercelHandler(req, res) {
   if (req.method === 'OPTIONS') return res.status(200).end();
+  const auth = await verifyCronRequest(req);
+  if (!auth.ok) return res.status(auth.status).json({ ok: false, code: 'AUTH_REQUIRED', error: auth.error });
   try {
     const dryRun = req.query?.dryRun === '1' || req.query?.dryRun === 'true';
     const r = await reviewRequestTask(dryRun);

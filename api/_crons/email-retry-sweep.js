@@ -13,6 +13,7 @@
  * AbortController 불필요. 5분 cron 호출당 최대 10건 처리.
  */
 import { initAdminDb } from '../_shared/firebase-admin.js';
+import { verifyCronRequest } from '../_shared/cron-auth.js';
 import { FieldValue } from 'firebase-admin/firestore';
 import { notify } from '../_shared/notify.js';
 import { sendEmail } from '../_send-email.js';
@@ -23,6 +24,8 @@ const MAX_ATTEMPTS = 5;
 const MAX_BATCH = 10;
 
 export default async function handler(req, res) {
+  const auth = await verifyCronRequest(req);
+  if (!auth.ok) return res.status(auth.status).json({ ok: false, code: 'AUTH_REQUIRED', error: auth.error });
   // Preview email suppression: runs before any DB init or query. ok:true means the cron handled the run, not that anything was delivered.
   if (isPreviewSuppressed('email')) {
     res.status(200).json({ ok: true, swept: 0, ...emailSuppressedReceipt() });

@@ -30,6 +30,7 @@ const h = vi.hoisted(() => ({
   db: { current: null as unknown },
 }));
 
+vi.mock('../../api/_shared/cron-auth.js', () => ({ verifyCronRequest: async () => ({ ok: true, source: 'test' }) }));
 vi.mock('../../api/_send-email.js', () => ({ sendEmail: h.sendEmail }));
 vi.mock('../../api/_shared/notify.js', () => ({ sendDiscord: h.sendDiscord }));
 vi.mock('../../api/_shared/firebase-admin.js', () => ({ initAdminDb: h.initAdminDb }));

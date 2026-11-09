@@ -6,6 +6,7 @@ const m = vi.hoisted(() => ({
   initAdminDb: vi.fn(),
 }));
 
+vi.mock('../../api/_shared/cron-auth.js', () => ({ verifyCronRequest: async () => ({ ok: true, source: 'test' }) }));
 vi.mock('../../api/_send-email.js', () => ({ sendEmail: m.sendEmail, default: m.sendEmail }));
 vi.mock('../../api/_shared/notify.js', () => ({ notify: m.notify, default: m.notify }));
 vi.mock('../../api/_shared/firebase-admin.js', () => ({ initAdminDb: m.initAdminDb }));
