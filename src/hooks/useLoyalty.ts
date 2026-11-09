@@ -27,7 +27,7 @@ export interface LoyaltyInfo {
 export interface Coupon {
   id: string;
   code: string;
-  type: 'percent' | 'fixed';
+  type: 'percent' | 'fixed' | 'free';
   value: number;           // percent: 5 → 5%, fixed: 5000 → ₩5000
   currency: 'USD' | 'KRW';
   label: string;
@@ -42,6 +42,8 @@ export interface Coupon {
   expiresAt: number;
   createdAt: number;
   productScope?: string;   // 'charter' | 'tour-package' | 'ai-plan' — AI 무료쿠폰은 할인 picker 제외용 (P1-②)
+  restoredAt?: unknown;    // Display metadata only; never proof of use eligibility.
+  aiPlanBinding?: unknown;
 }
 
 export interface PointLog {

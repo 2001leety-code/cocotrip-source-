@@ -7,10 +7,10 @@ import { cleanup } from '@testing-library/react';
 
 import { BookingInfoForm } from '../../src/components/booking/BookingInfoForm';
 
-const { authFetch, authState, getAvailableAiCoupon, firestore } = vi.hoisted(() => ({
+const { authFetch, authState, getRequestedAiCoupon, firestore } = vi.hoisted(() => ({
   authFetch: vi.fn(),
   authState: { current: { user: null as { uid: string; email?: string } | null, loading: false } },
-  getAvailableAiCoupon: vi.fn(),
+  getRequestedAiCoupon: vi.fn(),
   firestore: {
     doc: vi.fn((...path: unknown[]) => path),
     collection: vi.fn((...path: unknown[]) => path),
@@ -23,8 +23,8 @@ const { authFetch, authState, getAvailableAiCoupon, firestore } = vi.hoisted(() 
 vi.mock('@/hooks/useAuth', () => ({ useAuth: () => authState.current }));
 vi.mock('firebase/firestore', () => firestore);
 vi.mock('@/lib/authFetch', () => ({ authFetch }));
-vi.mock('@/lib/firebase', () => ({ db: {}, signInWithGoogle: vi.fn(), getAvailableAiCoupon }));
-vi.mock('@/lib/firebase-auth', () => ({ auth: {}, signInWithGoogle: vi.fn() }));
+vi.mock('@/lib/firebase', () => ({ db: {}, signInWithGoogle: vi.fn(), getRequestedAiCoupon }));
+vi.mock('@/lib/firebase-auth', () => ({ auth: { get currentUser() { return authState.current.user; } }, signInWithGoogle: vi.fn() }));
 vi.mock('@/lib/analytics', () => ({
   trackPaidConversion: vi.fn(), trackBeginCheckout: vi.fn(), getAttributionSnapshot: () => null,
 }));
@@ -55,7 +55,7 @@ const props = {
 afterEach(() => {
   cleanup();
   authFetch.mockReset();
-  getAvailableAiCoupon.mockReset();
+  getRequestedAiCoupon.mockReset();
   authState.current = { user: null, loading: false };
   vi.unstubAllEnvs();
   vi.unstubAllGlobals();
@@ -183,8 +183,8 @@ describe('PayPalBookingButton payment handoff', () => {
 describe('PurchaseSection coupon visibility', () => {
   it('drops a departed user coupon and only shows the next user coupon after its own response', async () => {
     authState.current = { user: { uid: 'user-a', email: 'guest@example.com' }, loading: false };
-    const resolvers: Array<(coupon: { code: string; maxDays: number }) => void> = [];
-    getAvailableAiCoupon.mockImplementation(() => new Promise((resolve) => { resolvers.push(resolve); }));
+    const resolvers: Array<(coupon: { state: 'available'; coupon: { code: string; maxDays: number; expiresAt: null } }) => void> = [];
+    getRequestedAiCoupon.mockImplementation(() => new Promise((resolve) => { resolvers.push(resolve); }));
     const p = translations.en.planner;
     const onPaymentSuccess = vi.fn();
     const sectionProps = {
@@ -195,18 +195,18 @@ describe('PurchaseSection coupon visibility', () => {
     };
     const view = render(<MemoryRouter initialEntries={['/planner?coupon=FREE-3']}><PurchaseSection {...sectionProps} /></MemoryRouter>);
 
-    await waitFor(() => expect(getAvailableAiCoupon).toHaveBeenCalledWith('user-a', 3));
+    await waitFor(() => expect(getRequestedAiCoupon).toHaveBeenCalledWith('user-a', 'FREE-3', 3));
 
     authState.current = { user: null, loading: false };
     view.rerender(<MemoryRouter initialEntries={['/planner?coupon=FREE-3']}><PurchaseSection {...sectionProps} /></MemoryRouter>);
-    await act(async () => { resolvers[0]({ code: 'FREE-3', maxDays: 3 }); });
+    await act(async () => { resolvers[0]({ state: 'available', coupon: { code: 'FREE-3', maxDays: 3, expiresAt: null } }); });
 
     authState.current = { user: { uid: 'user-b', email: 'next@example.com' }, loading: false };
     view.rerender(<MemoryRouter initialEntries={['/planner?coupon=FREE-3']}><PurchaseSection {...sectionProps} /></MemoryRouter>);
-    await waitFor(() => expect(getAvailableAiCoupon).toHaveBeenCalledWith('user-b', 3));
+    await waitFor(() => expect(getRequestedAiCoupon).toHaveBeenCalledWith('user-b', 'FREE-3', 3));
     expect(view.queryByText(p.aiCouponApplied)).toBeNull();
 
-    await act(async () => { resolvers[1]({ code: 'FREE-3', maxDays: 3 }); });
+    await act(async () => { resolvers[1]({ state: 'available', coupon: { code: 'FREE-3', maxDays: 3, expiresAt: null } }); });
 
     await waitFor(() => expect(view.getByText(p.aiCouponApplied)).toBeTruthy());
     expect(onPaymentSuccess).not.toHaveBeenCalled();

@@ -394,7 +394,17 @@ describe('purchase area — visual only, money semantics preserved', () => {
   it('the payment gate, the coupon path and the refund notice all survive', () => {
     expect(PURCHASE).toMatch(/guestCheckoutEnabled/);
     expect(PURCHASE).toMatch(/!user && !guestCheckoutEnabled/);
-    expect(PURCHASE).toMatch(/couponApplied/);
+    // Coupon requests now use explicit states, not the old nullable couponApplied flag.
+    expect(PURCHASE).toMatch(/const aiCoupon = couponState\.state === 'available' \? couponState\.coupon : null/);
+    expect(PURCHASE).toMatch(/const couponBlocked = couponState\.state !== 'none' && couponState\.state !== 'available'/);
+    const couponActions = PURCHASE.match(/\{couponBlocked \? \(([\s\S]*?)\) : user && aiCoupon \? \(([\s\S]*?)\) : hasPendingIssuance \?/);
+    expect(couponActions).not.toBeNull();
+    for (const key of ['aiCouponChecking', 'aiCouponReviewTitle', 'aiCouponLookupError', 'aiCouponUnavailable']) {
+      expect(couponActions![1]).toContain(key);
+    }
+    expect(couponActions![1]).not.toMatch(/<PayPalBookingButton|onClick=\{handleCouponProceed\}/);
+    expect(couponActions![2]).toMatch(/aiCouponApplied/);
+    expect(couponActions![2]).toMatch(/onClick=\{handleCouponProceed\}/);
     expect(PURCHASE).toMatch(/onPaymentSuccess\('', aiCoupon\.code\)/);
     expect(PURCHASE).toMatch(/aiPlanNoRefundNotice/);
     expect(PURCHASE).toMatch(/isSending/);
