@@ -6,6 +6,7 @@ import { getWizardI18n } from '@/components/charter/wizard-i18n';
 import { ReviewSubmitModal } from '@/components/ReviewSubmitModal';
 import { BookingStatusTimeline } from '@/components/BookingStatusTimeline';
 import { useAuth } from '@/hooks/useAuth';
+import { needsEmailConnection, requestEmailConnection } from '@/lib/connectEmail';
 import { fillPrice } from '@/lib/aiPlannerPrice';
 import { translations, type Language } from '@/i18n';
 import { authFetch, authDownload } from '@/lib/authFetch';
@@ -199,6 +200,20 @@ export function MyBookingsTab({ userEmail, tier = 'Bronze', language = 'en' }: P
       setCancelReason('');
     }
   };
+
+  // 이메일 없는 회원(전화 가입 등)은 이메일 기준 예약 조회가 안 된다 → 빈 목록·무한 로딩 대신 구글 계정 연결 안내.
+  if (needsEmailConnection(user)) {
+    const ce = translations[language].connectEmail;
+    return (
+      <div role="region" aria-label={ce.region} className="flex flex-col items-center justify-center py-16 text-white/55 text-center customer-bookings-root customer-bookings-connect-email">
+        <Package size={36} className="mb-3 opacity-30" aria-hidden />
+        <p className="text-sm">{ce.body}</p>
+        <button type="button" onClick={requestEmailConnection} className="ec-btn ec-btn-primary ec-btn-sm min-h-[44px] mt-4">
+          {ce.connect}
+        </button>
+      </div>
+    );
+  }
 
   if (loading) {
     return (

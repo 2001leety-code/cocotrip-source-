@@ -118,6 +118,13 @@ export function AuthRequired({ children }: { children: ReactNode }) {
     };
   }, [fixture]);
 
+  // Signing in by any route (including a late phone result after the modal closed) ends the phone flow,
+  // so a later sign-out never reopens a stale modal.
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- the auth subscription (user) ends the phone modal flow
+    if (user) setPhoneModalOpen(false);
+  }, [user]);
+
   const handleGoogle = useCallback(async () => {
     if (fixture) return;
     setError(null);

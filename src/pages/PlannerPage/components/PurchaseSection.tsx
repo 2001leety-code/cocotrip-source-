@@ -25,6 +25,7 @@ import type { PlannerDict } from '../types';
 import { buildPlannerOrderInput } from '../lib/plannerIntent';
 import { TriviaLoadingAnimation } from './TriviaLoadingAnimation';
 import { useAuth } from '@/hooks/useAuth';
+import { blockCouponForMissingEmail } from '@/lib/connectEmail';
 import { signInWithGoogle, getRequestedAiCoupon } from '@/lib/firebase';
 import type { AiCouponPresentation, RequestedAiCouponResult } from '@/lib/aiCouponPresentation';
 import { isGuestAnonEnabled } from '@/lib/guestReader';
@@ -154,6 +155,8 @@ export function PurchaseSection({
   const canStartAiCheckout = () => scopeIsCurrent() && latestScope.current?.code === null
     && !isAiCheckoutHeldInThisTab() && readAiPlanNotices(firebaseAuth.currentUser?.uid).notices.length === 0;
   const handleCouponProceed = () => {
+    // 이메일 없는 회원은 서버 쿠폰 검증을 통과할 수 없다 → 생성 요청 대신 구글 계정 연결 안내.
+    if (aiCoupon && blockCouponForMissingEmail(user)) return;
     if (!aiCoupon || !uid || !scopeIsCurrent() || sendingRef.current || isGeneratingPlan
       || (aiCoupon.expiresAt !== null && aiCoupon.expiresAt <= Date.now())) return;
     sendingRef.current = true;

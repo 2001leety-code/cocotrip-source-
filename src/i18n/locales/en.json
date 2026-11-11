@@ -2693,5 +2693,20 @@
     "bdcSavedMemberMailFailed": "Date changed to {date}. The confirmation email could not be sent — please check this page for your booking details.",
     "bdcIgnored": "Not applied: {fields}",
     "bdcSavedRecovered": "Your date change to {date} is confirmed. You can keep managing your booking on this page."
+  },
+  "connectEmail": {
+    "region": "Connect a Google account",
+    "body": "Connect a Google account to use your coupons and see your bookings.",
+    "connect": "Connect Google account",
+    "connecting": "Connecting...",
+    "dismiss": "Dismiss",
+    "alreadyInUse": "This Google account is already used by another CocoTrip account. Please connect a different Google account.",
+    "connectOther": "Connect a different Google account",
+    "signInGoogle": "Sign in with that Google account",
+    "signInWarning": "If you sign in with that Google account, the coupons and plans in this account won't move over.",
+    "connected": "Your Google account is connected. You can now use your coupons.",
+    "popupBlocked": "The pop-up was blocked. Allow pop-ups in your browser and try again.",
+    "noEmail": "We didn't receive an email address from that Google account. Please try another Google account.",
+    "failed": "We couldn't connect the account. Please try again in a moment."
   }
 }

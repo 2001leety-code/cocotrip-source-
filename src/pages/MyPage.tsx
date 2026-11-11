@@ -30,6 +30,7 @@ const COURSES_TAB_LABEL: Record<string, string> = { ko: '내 코스', en: 'My Co
 import { haptic } from '@/lib/haptic';
 import { Package } from 'lucide-react';
 import { authFetch } from '@/lib/authFetch';
+import { blockCouponForMissingEmail } from '@/lib/connectEmail';
 import { wttrLangParam, pickWeatherDesc, pickWeatherIcon } from '@/lib/weatherDesc';
 import { describePointLog } from '@/lib/pointLogText';
 import { fillPrice } from '@/lib/aiPlannerPrice';
@@ -738,7 +739,15 @@ export default function MyPage() {
                 {/* AI 무료쿠폰(ai-plan)은 쿠폰함 경유로 사용 (2026-06-28): "사용하기" →
                     /planner?coupon=CODE. PurchaseSection 이 URL 코드를 검증 후 0원 적용. */}
                 {c.productScope === 'ai-plan' && !c.isUsed && c.expiresAt > couponClock && (
-                  <Link to={`/planner?coupon=${encodeURIComponent(c.code)}`} onClick={() => haptic('tap')} className="mypage-editorial-coupon-cta">
+                  <Link
+                    to={`/planner?coupon=${encodeURIComponent(c.code)}`}
+                    onClick={(e) => {
+                      // 이메일 없는 회원은 서버 쿠폰 검증을 통과할 수 없다 → 이동 대신 구글 계정 연결 안내.
+                      if (blockCouponForMissingEmail(user)) { e.preventDefault(); return; }
+                      haptic('tap');
+                    }}
+                    className="mypage-editorial-coupon-cta"
+                  >
                     <Sparkles className="w-3.5 h-3.5" aria-hidden />
                     {mp.useAiCoupon || '사용하기'}
                   </Link>

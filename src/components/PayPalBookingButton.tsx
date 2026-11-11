@@ -5,6 +5,7 @@ import { track as posthogTrack } from '@/lib/posthog';
 import { trackPaidConversion, trackBeginCheckout, getAttributionSnapshot } from '@/lib/analytics';
 import { useLoyalty } from '@/hooks/useLoyalty';
 import { useAuth } from '@/hooks/useAuth';
+import { blockCouponForMissingEmail } from '@/lib/connectEmail';
 import { useGuestSignup } from '@/hooks/useGuestSignup';
 import { haptic } from '@/lib/haptic';
 import { authFetch } from '@/lib/authFetch';
@@ -381,6 +382,8 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
 
   async function applyCouponCode(code: string) {
     if (!code.trim()) return;
+    // 이메일 없는 회원은 서버 쿠폰 검증을 통과할 수 없다 → API 대신 구글 계정 연결 안내(금액·주문 로직 무변경).
+    if (blockCouponForMissingEmail(authUser)) return;
     setPromoLoading(true);
     setPromoError(null);
     try {

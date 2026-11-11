@@ -132,6 +132,7 @@ const ChatWidget = lazy(() => import('@/components/ChatWidget').then(m => ({ def
 const PWAUpdatePrompt = lazy(() => import('@/components/PWAUpdatePrompt').then(m => ({ default: m.PWAUpdatePrompt })));
 const CookieBanner = lazy(() => import('@/components/CookieBanner'));
 const OnboardingCouponModal = lazy(() => import('@/components/OnboardingCouponModal').then(m => ({ default: m.OnboardingCouponModal })));
+const ConnectEmailPrompt = lazy(() => import('@/components/ConnectEmailPrompt').then(m => ({ default: m.ConnectEmailPrompt })));
 import { handleRedirectResult } from '@/lib/firebase-auth';
 import { usePageMeta } from '@/hooks/usePageMeta';
 // ChatFAB 제거됨 — 텔레그램 봇으로 대체
@@ -222,6 +223,8 @@ function GlobalWidgets() {
         {isHome && <ChatWidget language={language} hideTrigger={false} />}
         {/* 회원가입 직후 1회 노출 — sessionStorage flag 기반, 어느 페이지서도 노출 */}
         {!isBareLanding && <OnboardingCouponModal />}
+        {/* 이메일 없는 회원(전화 가입 등) → 구글 계정 연결 안내. 대상이 아니면 아무것도 그리지 않음 */}
+        {!isBareLanding && <ConnectEmailPrompt />}
       </Suspense>
     </>
   );

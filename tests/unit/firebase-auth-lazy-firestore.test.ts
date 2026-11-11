@@ -177,7 +177,7 @@ describe('firebase auth stays independent from the Firestore chunk', () => {
   it('keeps the existing-user write and clears guest wishlist only after syncing', async () => {
     vi.doUnmock('../../src/lib/firebase.js');
     vi.resetModules();
-    mocks.getDoc.mockResolvedValue({ exists: () => true });
+    mocks.getDoc.mockResolvedValue({ exists: () => true, data: () => ({ onboardingCouponsIssued: true }) });
     localStorage.setItem('COCO_WISHLIST', JSON.stringify([{ id: 'saved-tour', title: 'Tour' }]));
     const removeItem = vi.spyOn(Storage.prototype, 'removeItem');
     const { saveUserToFirestore } = await import('../../src/lib/firebase.js');
@@ -189,6 +189,7 @@ describe('firebase auth stays independent from the Firestore chunk', () => {
     expect(mocks.setDoc.mock.calls[1][1]).toMatchObject({ id: 'saved-tour', title: 'Tour' });
     expect(removeItem).toHaveBeenCalledWith('COCO_WISHLIST');
     expect(localStorage.getItem('COCO_WISHLIST')).toBeNull();
+    expect(mocks.fetch).not.toHaveBeenCalled(); // 이미 발급된 기존 회원 = 쿠폰 호출 0
   });
 
   it('keeps new-user coupon retry token refresh behavior and finishes profile save', async () => {

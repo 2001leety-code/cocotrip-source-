@@ -8,12 +8,13 @@
  * Uses Firestore client SDK directly — auth context (admin email) is the
  * gate, firestore.rules also enforces (`isAdminEmail()`).
  */
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { collection, query, orderBy, onSnapshot, doc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { Shield, ArrowLeft, FileCheck, Car, CheckCircle2, XCircle, Loader2, ExternalLink, Gift } from 'lucide-react';
 import { db } from '@/lib/firebase';
 import { useAuth } from '@/hooks/useAuth';
+import { useLanguage } from '@/hooks/useLanguage';
 import { inquiryKind, normalizeInquiryStatus, inquiryContact, isServerVerifiedInquiryQuote, REGION_LABELS, type InquiryKind } from '@/lib/inquiryAdmin';
 import InquiryResponsePanel, { type InquiryAckWorkflow, type InquiryResponseWorkflow } from '@/components/admin/InquiryResponsePanel';
 import { RuntimeFlagsPanel } from '@/components/admin/RuntimeFlagsPanel';
@@ -22,6 +23,33 @@ type Tab = 'claims' | 'inquiries';
 type Status = 'pending' | 'approved' | 'rejected' | 'responded' | 'converted' | 'closed';
 type ReviewAction = 'approved' | 'rejected';
 type LoadResult = { requestKey: string; error: boolean };
+
+const COUPON_FIX_COPY = {
+  ko: {
+    summary: '가입 혜택 3장: 차터 5%, 투어 5%, AI 일정 무료 1회(1~3일). 발급일부터 365일간 유효합니다.',
+    warning: '기존 가입쿠폰 이력이 없는 계정인지 먼저 확인하세요. 이 화면은 이력을 검사하지 않습니다.',
+    confirm: '아래 계정에 가입 혜택을 발급하시겠습니까?',
+    promoClosed: '가입 혜택 발급 기간이 종료되어 쿠폰이 발급되지 않았습니다.',
+  },
+  en: {
+    summary: '3 welcome coupons: 5% off Charter, 5% off Tour, and one free AI itinerary (1–3 days). Valid for 365 days from issuance.',
+    warning: 'First verify that this account has no previous welcome coupons. This screen does not check coupon history.',
+    confirm: 'Issue welcome coupons to the account below?',
+    promoClosed: 'The welcome offer has ended. No coupons were issued.',
+  },
+  ja: {
+    summary: '入会特典クーポン3枚：チャーター5%割引、ツアー5%割引、AI旅行プラン無料1回（1〜3日）。発行日から365日間有効です。',
+    warning: '過去の入会特典クーポンがないアカウントであることを先に確認してください。この画面では履歴を確認しません。',
+    confirm: '以下のアカウントに入会特典を発行しますか？',
+    promoClosed: '入会特典の発行期間が終了したため、クーポンは発行されませんでした。',
+  },
+  zh: {
+    summary: '3张注册优惠券：包车95折、旅行团95折、1次免费AI行程（1至3天）。自发放之日起365天内有效。',
+    warning: '请先确认此账户没有以往的注册优惠券。本页面不会检查优惠券记录。',
+    confirm: '要向以下账户发放注册优惠券吗？',
+    promoClosed: '注册优惠活动已结束，未发放优惠券。',
+  },
+};
 
 interface ClaimRow {
   id: string;
@@ -74,6 +102,8 @@ function formatTs(ts?: { toMillis(): number }): string {
 
 export default function AdminClaims() {
   const { user } = useAuth();
+  const { language } = useLanguage();
+  const couponFixCopy = COUPON_FIX_COPY[language];
   const [tab, setTab] = useState<Tab>('claims');
   const [filter, setFilter] = useState<Status | 'all'>('pending');
   // 문의 유형 필터 — 맞춤투어/버스/차터가 한 목록에 섞여 보이던 것 분리 (2026-07-04)
@@ -89,6 +119,7 @@ export default function AdminClaims() {
   // 회원가입 쿠폰 0건 회원 보정 (PR #253 silent fail 사후)
   const [couponFixInput, setCouponFixInput] = useState('');
   const [couponFixBusy, setCouponFixBusy] = useState(false);
+  const couponFixPending = useRef(false);
   const [couponFixResult, setCouponFixResult] = useState<{ kind: 'ok' | 'err'; msg: string } | null>(null);
 
   const isAdmin = user?.email === (import.meta.env.VITE_ADMIN_EMAIL || '2001leety@gmail.com');
@@ -162,7 +193,9 @@ export default function AdminClaims() {
   // 회원가입 쿠폰 0건 회원 보정 — uid 또는 email 입력 → /api/admin-coupon-fix 호출
   const handleCouponFix = useCallback(async () => {
     const input = couponFixInput.trim();
-    if (!input) return;
+    if (!input || couponFixPending.current) return;
+    if (!window.confirm(`${couponFixCopy.confirm}\n\n${input}\n\n${couponFixCopy.summary}\n\n${couponFixCopy.warning}`)) return;
+    couponFixPending.current = true;
     setCouponFixBusy(true);
     setCouponFixResult(null);
     try {
@@ -178,6 +211,10 @@ export default function AdminClaims() {
       const data = await resp.json();
       if (!data.ok) throw new Error(data.error || `HTTP ${resp.status}`);
       const r = data.data;
+      if (r.promoClosed === true) {
+        setCouponFixResult({ kind: 'err', msg: couponFixCopy.promoClosed });
+        return;
+      }
       const msg = r.alreadyIssued
         ? `이미 발급됨 (uid: ${r.uid})`
         : `${r.issued}장 발급 완료 (uid: ${r.uid})`;
@@ -187,9 +224,10 @@ export default function AdminClaims() {
       const m = err instanceof Error ? err.message : 'unknown error';
       setCouponFixResult({ kind: 'err', msg: m });
     } finally {
+      couponFixPending.current = false;
       setCouponFixBusy(false);
     }
-  }, [couponFixInput, user]);
+  }, [couponFixInput, couponFixCopy, user]);
 
   const list = tab === 'claims' ? claims : inquiries;
   const filtered = useMemo(() => {
@@ -273,7 +311,10 @@ export default function AdminClaims() {
             <h2 className="text-sm font-bold">회원가입 쿠폰 보정</h2>
           </div>
           <p className="text-xs sm:text-[11px] text-white/55 mb-3">
-            가입 후 5% 쿠폰 2장(차터·투어)이 발급되지 않은 회원을 1-click 보정. uid 또는 이메일 입력. 멱등 처리 (이미 발급됐으면 재발급 X).
+            {couponFixCopy.summary}
+          </p>
+          <p className="text-xs sm:text-[11px] text-amber-200/80 mb-3">
+            {couponFixCopy.warning}
           </p>
           <div className="flex flex-col sm:flex-row gap-2">
             <input
@@ -283,9 +324,9 @@ export default function AdminClaims() {
               placeholder="uid 또는 이메일"
               disabled={couponFixBusy}
               className="flex-1 px-3 py-2 bg-white/[0.05] border border-white/[0.08] rounded-lg text-sm text-white placeholder:text-white/30 outline-none focus:border-emerald-400/40 disabled:opacity-40 min-h-[44px]"
-              onKeyDown={e => { if (e.key === 'Enter') handleCouponFix(); }}
             />
             <button
+              type="button"
               onClick={handleCouponFix}
               disabled={couponFixBusy || !couponFixInput.trim()}
               className="px-4 py-2 rounded-lg bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-300 text-sm font-semibold disabled:opacity-40 flex items-center justify-center gap-1.5 min-h-[44px]"

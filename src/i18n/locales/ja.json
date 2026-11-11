@@ -2693,5 +2693,20 @@
     "bdcSavedMemberMailFailed": "日程を{date}に変更しました。確認メールを送信できませんでした — ご予約内容はこの画面でご確認ください。",
     "bdcIgnored": "反映されなかった項目: {fields}",
     "bdcSavedRecovered": "{date}への日程変更を確認しました。この画面で引き続きご予約を管理できます。"
+  },
+  "connectEmail": {
+    "region": "Googleアカウント連携のご案内",
+    "body": "クーポンのご利用とご予約の確認のため、Googleアカウントを連携してください。",
+    "connect": "Googleアカウントを連携",
+    "connecting": "連携中...",
+    "dismiss": "閉じる",
+    "alreadyInUse": "このGoogleアカウントは別のCocoTripアカウントで使われています。別のGoogleアカウントを連携してください。",
+    "connectOther": "別のGoogleアカウントを連携",
+    "signInGoogle": "そのGoogleアカウントでログイン",
+    "signInWarning": "そのGoogleアカウントでログインすると、現在のアカウントのクーポンや旅程は引き継がれません。",
+    "connected": "Googleアカウントを連携しました。クーポンをご利用いただけます。",
+    "popupBlocked": "ポップアップがブロックされました。ブラウザでポップアップを許可してから、もう一度お試しください。",
+    "noEmail": "連携したGoogleアカウントからメールアドレスを取得できませんでした。別のGoogleアカウントでお試しください。",
+    "failed": "連携できませんでした。しばらくしてからもう一度お試しください。"
   }
 }
