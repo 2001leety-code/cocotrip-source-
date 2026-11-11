@@ -99,7 +99,7 @@ describe('2. Production 은 Sandbox 웹훅을 절대 받지 않는다', () => {
     process.env.PAYPAL_ENV = 'sandbox';
     expect(resolveIsSandbox()).toBe(true);
     process.env.PAYPAL_ENV = '';
-    expect(resolveIsSandbox()).toBe(false);
+    expect(() => resolveIsSandbox()).toThrow('PREVIEW_PAYPAL_SANDBOX_REQUIRED');
   });
 
   it('🔴 폴백 자체가 없다 — 이 배포의 환경으로 1회만 검증한다', () => {
