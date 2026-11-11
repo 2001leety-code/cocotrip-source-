@@ -122,6 +122,7 @@ export async function saveUserToFirestore(user) {
     const { getDoc: firestoreGetDoc } = await import('firebase/firestore');
     const snap = await firestoreGetDoc(userRef);
     const isNewUser = !snap.exists();
+    const couponsIssued = !isNewUser && (snap.data() || {}).onboardingCouponsIssued === true;
 
     // 2. 유저 프로필 저장/업데이트
     await setDoc(
@@ -145,32 +146,76 @@ export async function saveUserToFirestore(user) {
       { merge: true }
     );
 
-    // 3. 신규 유저 → 서버 endpoint 호출해 쿠폰 2장 발급 (Charter + Tour, 각 5%)
-    //    멱등성은 서버에서 onboardingCouponsIssued flag 로 보장.
-    //    클라이언트 직접 addDoc은 Firestore rules `users/{uid}/coupons write:false`
-    //    로 거부되므로 절대 사용 금지.
-    //    재시도: 최대 2회 (초기 1회 + 1회 retry, 1초 대기) — 네트워크 일시 장애 대비.
+    // 3. 가입 쿠폰: 신규는 기존과 동일(대기). 기존 회원인데 미발급이면 1회만, 로그인 흐름을 기다리게 하지 않는다.
+    if (isNewUser) {
+      await ensureOnboardingCoupons(user, { isNewUser: true });
+    } else if (!couponsIssued) {
+      void ensureOnboardingCoupons(user).catch(() => { /* 로그인 흐름 무영향 */ });
+    }
+
+    // 4. Guest → Login 동기화 (위시리스트 + 최근 본 상품)
+    await syncGuestDataToFirestore(user.uid);
+
+  } catch (e) {
+    console.warn('[firebase] Firestore save failed:', e.message);
+  }
+}
+
+// 기존 회원 자가 복구는 uid 당 세션 1회 (sessionStorage 가 막혀도 이 탭 안에서는 1회).
+const ONBOARDING_RETRY_KEY_PREFIX = 'COCO_ONBOARDING_RETRY_TRIED:';
+const onboardingRetryTried = new Set();
+
+/** 구글 연결 직후 재발급을 막지 않도록 이 uid 의 세션 1회 표시를 지운다(연결 전엔 email 없어 403 이었을 수 있음). */
+export function clearOnboardingRetryMark(uid) {
+  if (!uid) return;
+  onboardingRetryTried.delete(uid);
+  try { sessionStorage.removeItem(ONBOARDING_RETRY_KEY_PREFIX + uid); } catch { /* silent */ }
+}
+
+/**
+ * 가입 쿠폰 발급 요청 (서버 /api/onboarding-coupons — 트랜잭션 멱등 + 프로모 창 게이트).
+ * - isNewUser: GA sign_up + 최대 2회(1초 대기, 두 번째는 토큰 강제 갱신) + 유입 스냅샷 동봉 — 종전과 동일.
+ * - 기존 회원(users/{uid}.onboardingCouponsIssued !== true): 세션당 1회, 재시도·대기·GA sign_up 없음.
+ *   첫 로그인 때 403·프로모 닫힘·네트워크로 실패한 회원이 다시 받을 길이 없던 문제(운영 10명 중 3명) 복구.
+ * 익명 사용자는 호출하지 않는다. 예외를 던지지 않는다.
+ * 클라이언트 직접 addDoc은 Firestore rules `users/{uid}/coupons write:false` 로 거부되므로 절대 사용 금지.
+ */
+export async function ensureOnboardingCoupons(user, { isNewUser = false } = {}) {
+  if (!user || !user.uid || user.isAnonymous) return;
+  // 신규 가입도 표시를 남겨, 같은 세션에서 회원 문서 구독(useLoyalty)이 또 부르지 않게 한다.
+  const key = ONBOARDING_RETRY_KEY_PREFIX + user.uid;
+  if (!isNewUser && onboardingRetryTried.has(user.uid)) return;
+  onboardingRetryTried.add(user.uid);
+  try {
+    if (!isNewUser && sessionStorage.getItem(key)) return;
+    sessionStorage.setItem(key, '1');
+  } catch { /* 시크릿 모드 등 — 위 Set 으로 탭 안 1회 */ }
     if (isNewUser) {
       // GA4 sign_up — 신규 가입을 Google Ads 신규고객 전환으로 카운트(Smart Bidding 최적화).
       //   provider 도출(google.com→google). analytics 실패가 가입/쿠폰 흐름 막지 않게 try/catch.
+      //   기존 회원 복구에서는 쏘지 않는다(가입 전환 중복 집계 금지).
       try {
         const provider = (user.providerData && user.providerData[0] && user.providerData[0].providerId) || 'unknown';
         const { trackSignUp } = await import('./analytics');
         trackSignUp(provider.replace('.com', ''));
       } catch { /* analytics 실패 무시 */ }
-      const MAX_ATTEMPTS = 2;
-      let lastErr = null;
-      for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+    }
+    const MAX_ATTEMPTS = isNewUser ? 2 : 1;
+    let lastErr = null;
+    for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
         try {
           const idToken = await user.getIdToken(/* forceRefresh */ attempt > 1);
           // P1 (2026-07-11): 가입 유입 스냅샷(first/last UTM, PII 없음) 동봉 — 서버가
           // users/{uid}.attribution 에 최초 1회 저장. 실패해도 발급/가입 무영향.
+          // 기존 회원 복구는 지금 세션의 유입을 "가입 유입"으로 남기지 않도록 보내지 않는다.
           let attributionBody = {};
-          try {
-            const { getAttributionSnapshot } = await import('./analytics');
-            const a = getAttributionSnapshot();
-            if (a) attributionBody = { attribution: a };
-          } catch { /* 추적 실패 무시 */ }
+          if (isNewUser) {
+            try {
+              const { getAttributionSnapshot } = await import('./analytics');
+              const a = getAttributionSnapshot();
+              if (a) attributionBody = { attribution: a };
+            } catch { /* 추적 실패 무시 */ }
+          }
           const resp = await fetch('/api/onboarding-coupons', {
             method: 'POST',
             headers: { Authorization: `Bearer ${idToken}`, 'Content-Type': 'application/json' },
@@ -213,14 +258,6 @@ export async function saveUserToFirestore(user) {
         console.error('[firebase] onboarding coupons FAILED after retries:', lastErr?.message);
         // 운영자 보정: api/admin-issue-onboarding-coupons 참고
       }
-    }
-
-    // 4. Guest → Login 동기화 (위시리스트 + 최근 본 상품)
-    await syncGuestDataToFirestore(user.uid);
-
-  } catch (e) {
-    console.warn('[firebase] Firestore save failed:', e.message);
-  }
 }
 
 // Guest localStorage → Firestore 동기화

@@ -85,6 +85,10 @@ export default async function handler(req, res) {
   if (typeof body === 'string') { try { body = JSON.parse(body); } catch { body = {}; } }
   body = body || {};
   let { uid, email } = body;
+  // Non-string identifiers (e.g. {uid:123}) are a bad request, not an unhandled 500.
+  if ((uid != null && typeof uid !== 'string') || (email != null && typeof email !== 'string')) {
+    return json(req, res, 400, _err('uid and email must be strings', 'INVALID_FIELDS'));
+  }
   uid = (uid || '').trim();
   email = (email || '').trim().toLowerCase();
 
@@ -113,7 +117,9 @@ export default async function handler(req, res) {
       return json(req, res, 400, _err('uid resolution failed', 'MISSING_FIELDS'));
     }
 
-    const result = await issueOnboardingCouponsForUid(db, uid);
+    const result = await issueOnboardingCouponsForUid(db, uid, {
+      audit: { callerUid: tokenAuth.uid, callerEmail: tokenAuth.email, action: 'onboarding_coupon_fix' },
+    });
     console.log('[admin-coupon-fix] uid=', uid, 'email=', email || '(via uid)', 'result=', result);
 
     return json(req, res, 200, _ok({ uid, email: email || null, ...result }));

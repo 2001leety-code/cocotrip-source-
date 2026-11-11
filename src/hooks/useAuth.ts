@@ -3,6 +3,7 @@ import type { User } from 'firebase/auth';
 import { onAuthStateChanged } from 'firebase/auth';
 
 import { auth } from '@/lib/firebase-auth';
+import { AUTH_PROFILE_EVENT } from '@/lib/connectEmail';
 
 /**
  * Firebase Auth wrapper.
@@ -46,6 +47,15 @@ export function useAuth() {
     );
 
     return () => unsub();
+  }, []);
+
+  // 구글 연결(linkWithPopup + reload)은 같은 User 객체에 email 을 채우고 onAuthStateChanged 를 울리지 않는다.
+  // 프로필 갱신 이벤트로 다시 렌더해 user.email 을 읽는 화면이 새로고침 없이 갱신되게 한다.
+  const [, setProfileVersion] = useState(0);
+  useEffect(() => {
+    const bump = () => setProfileVersion((v) => v + 1);
+    window.addEventListener(AUTH_PROFILE_EVENT, bump);
+    return () => window.removeEventListener(AUTH_PROFILE_EVENT, bump);
   }, []);
 
   // PR #449 (W-H17): proactive token refresh — periodic + visibility-driven.

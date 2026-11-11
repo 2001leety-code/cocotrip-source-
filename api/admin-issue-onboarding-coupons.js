@@ -9,7 +9,10 @@
  *   - dryRun:true: UID 지정 시 문서 존재 조회, 미지정 시 제한된 후보 조회.
  *   - dryRun:false + uid: Auth 사용자 존재 확인 후 해당 1명만 발급 함수 호출.
  *     UID 없는 실발급은 거부. dryRun은 기존 문서 조회만 수행한다.
- *   - pageSize: UID 없는 조회에만 사용, 정수 1~500 (기본 100).
+ *   - pageSize: UID 없는 조회에만 사용, 정수 1~500 (기본 100). 문서 ID 순으로 pageSize 건을 읽어
+ *     marker(onboardingCouponsIssued)가 true 가 아닌 문서(필드 없음 포함)를 candidateList
+ *     [{ uid, createdAtMs, hasEmail }] 로 돌려준다. 다음 페이지 = nextCursor 를 cursor 로 다시 보냄.
+ *   - 실발급은 같은 트랜잭션에 admin_actions 감사 문서를 남긴다. 발급 예외 = 500 ok:false.
  *
  * 주의: 발급 함수는 marker만 검사한다. 기존 쿠폰 이력 불일치/중복은 별도 검토 필요.
  *
@@ -80,7 +83,7 @@ export default async function handler(req, res) {
   }
 
   if (!body || typeof body !== 'object' || Array.isArray(body)) return badRequest('JSON object body required');
-  if (Object.keys(body).some(key => !['uid', 'dryRun', 'pageSize'].includes(key))) return badRequest('Unknown request field');
+  if (Object.keys(body).some(key => !['uid', 'dryRun', 'pageSize', 'cursor'].includes(key))) return badRequest('Unknown request field');
   if (typeof body.dryRun !== 'boolean') return badRequest('Explicit boolean dryRun required');
   const hasUid = Object.prototype.hasOwnProperty.call(body, 'uid');
   if (hasUid && typeof body.uid !== 'string') return badRequest('uid must be a string');
@@ -92,6 +95,10 @@ export default async function handler(req, res) {
   if (hasPageSize && targetUid) return badRequest('pageSize is only supported for read-only candidate scanning');
   const pageSize = hasPageSize ? body.pageSize : 100;
   if (!Number.isInteger(pageSize) || pageSize < 1 || pageSize > 500) return badRequest('pageSize must be an integer from 1 to 500');
+  const hasCursor = Object.prototype.hasOwnProperty.call(body, 'cursor');
+  if (hasCursor && targetUid) return badRequest('cursor is only supported for read-only candidate scanning');
+  const cursor = hasCursor && typeof body.cursor === 'string' ? body.cursor.trim() : '';
+  if (hasCursor && (!cursor || cursor.length > 128 || cursor.includes('/'))) return badRequest('cursor must be a document id from nextCursor');
 
   try {
     const db = initAdminDb('admin-issue-onboarding-coupons');
@@ -125,26 +132,40 @@ export default async function handler(req, res) {
         const userSnap = await db.collection('users').doc(targetUid).get();
         results.candidates = userSnap.exists ? 1 : 0;
       } else {
-      try {
-        const r = await issueOnboardingCouponsForUid(db, targetUid);
+        // A thrown issuance falls through to the outer catch → 500 ok:false (never 200 with errors).
+        const r = await issueOnboardingCouponsForUid(db, targetUid, {
+          audit: { callerUid: auth.uid, callerEmail: auth.email, action: 'onboarding_coupon_issue' },
+        });
         if (r.alreadyIssued) results.alreadyIssued++;
         else results.issued += r.issued;
-      } catch (err) {
-        results.errors++;
-        results.errorDetails.push({ uid: targetUid, error: err.message });
-      }
+        if (r.promoClosed) results.promoClosed = true;
       }
     } else {
-      // Read-only candidate scan. Missing/null markers are excluded by this query;
-      // this count is not a complete recovery inventory.
-      const snap = await db.collection('users')
-        .where('onboardingCouponsIssued', '!=', true)
-        .limit(pageSize)
-        .get();
+      // Read-only candidate scan in document-id order. A `!= true` query would skip documents
+      // that lack the marker field entirely, so the marker is filtered in code instead.
+      const { FieldPath } = await import('firebase-admin/firestore');
+      let query = db.collection('users').orderBy(FieldPath.documentId());
+      if (cursor) query = query.startAfter(cursor);
+      const snap = await query.limit(pageSize).get();
+      const candidateList = [];
+      for (const doc of snap.docs) {
+        const data = doc.data() || {};
+        if (data.onboardingCouponsIssued === true) continue;
+        const created = data.createdAt;
+        candidateList.push({
+          uid: doc.id,
+          createdAtMs: created && typeof created.toMillis === 'function' ? created.toMillis()
+            : (Number.isFinite(created) ? created : null),
+          hasEmail: typeof data.email === 'string' && data.email.trim() !== '',
+        });
+      }
 
-      console.log(`[admin-issue-onboarding-coupons] scan found ${snap.size} candidates${dryRun === true ? ' (dryRun — 발급 생략)' : ''}`);
+      console.log(`[admin-issue-onboarding-coupons] scanned ${snap.size}, ${candidateList.length} candidates${dryRun === true ? ' (dryRun — 발급 생략)' : ''}`);
 
-      results.candidates = snap.size;
+      results.scanned = snap.size;
+      results.candidates = candidateList.length;
+      results.candidateList = candidateList;
+      results.nextCursor = snap.size === pageSize ? snap.docs[snap.size - 1].id : null;
     }
 
     console.log('[admin-issue-onboarding-coupons] done. results=', results, 'by=', auth.email);

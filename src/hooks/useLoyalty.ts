@@ -128,6 +128,17 @@ export function useLoyalty() {
                 setLoyaltySlot({ uid, value: null });
                 return;
               }
+              // 가입 쿠폰 미발급 회원 자가 복구(세션당 1회, 화면 비차단). 로그인 세션이 남아
+              // saveUserToFirestore 를 다시 타지 않는 회원도 여기서 복구된다. 서버가 멱등·프로모 창 판정.
+              if (data.onboardingCouponsIssued !== true) {
+                void import('@/lib/firebase.js')
+                  .then((m) => {
+                    const current = m.auth.currentUser; // 익명은 ensureOnboardingCoupons 가 거른다
+                    if (current && current.uid === uid) return m.ensureOnboardingCoupons(current);
+                    return undefined;
+                  })
+                  .catch(() => { /* 복구 실패는 화면에 영향 없음 */ });
+              }
               const tier = (data.tier as TierType) || 'Bronze';
               setLoyaltySlot({
                 uid,

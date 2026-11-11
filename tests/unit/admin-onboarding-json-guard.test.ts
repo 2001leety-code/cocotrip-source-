@@ -8,7 +8,8 @@ const state = vi.hoisted(() => ({
   readUser: vi.fn(),
   doc: vi.fn(),
   collection: vi.fn(),
-  where: vi.fn(),
+  orderBy: vi.fn(),
+  startAfter: vi.fn(),
   limit: vi.fn(),
   readCandidates: vi.fn(),
   getAuth: vi.fn(),
@@ -21,8 +22,11 @@ vi.mock('../../api/_shared/firebase-admin.js', () => ({ initAdminDb: state.initD
 vi.mock('../../api/onboarding-coupons.js', () => ({ issueOnboardingCouponsForUid: state.issue }));
 vi.mock('../../api/_shared/sentry.js', () => ({ captureError: state.captureError }));
 vi.mock('firebase-admin/auth', () => ({ getAuth: state.getAuth }));
+vi.mock('firebase-admin/firestore', () => ({ FieldPath: { documentId: () => '__name__' } }));
 
 import handler from '../../api/admin-issue-onboarding-coupons.js';
+
+const AUDIT = { audit: { callerUid: 'synthetic-admin', callerEmail: 'admin@example.invalid', action: 'onboarding_coupon_issue' } };
 
 async function call(body: unknown, method = 'POST') {
   const response = { status: 0, body: {} as Record<string, unknown>, headers: {} as Record<string, string> };
@@ -39,10 +43,11 @@ beforeEach(() => {
   state.verifyAdmin.mockResolvedValue({ ok: true, email: 'admin@example.invalid', uid: 'synthetic-admin' });
   state.readUser.mockResolvedValue({ exists: true });
   state.doc.mockReturnValue({ get: state.readUser });
-  state.readCandidates.mockResolvedValue({ size: 1 });
+  state.readCandidates.mockResolvedValue({ size: 1, docs: [{ id: 'synthetic-candidate', data: () => ({}) }] });
   state.limit.mockReturnValue({ get: state.readCandidates });
-  state.where.mockReturnValue({ limit: state.limit });
-  state.collection.mockReturnValue({ doc: state.doc, where: state.where });
+  state.startAfter.mockReturnValue({ limit: state.limit });
+  state.orderBy.mockReturnValue({ limit: state.limit, startAfter: state.startAfter });
+  state.collection.mockReturnValue({ doc: state.doc, orderBy: state.orderBy });
   state.initDb.mockReturnValue({ collection: state.collection });
   state.issue.mockResolvedValue({ issued: 3, alreadyIssued: false });
   state.getAuth.mockReturnValue({ getUser: state.getUser });
@@ -72,7 +77,7 @@ describe('admin onboarding explicit request contract', () => {
     const result = await call(body);
     expect(result.status).toBe(200);
     expect(result.body).toEqual({ ok: true, results: { issued: 3, alreadyIssued: 0, errors: 0, errorDetails: [] } });
-    expect(state.issue).toHaveBeenCalledExactlyOnceWith(state.initDb.mock.results[0].value, 'synthetic-user');
+    expect(state.issue).toHaveBeenCalledExactlyOnceWith(state.initDb.mock.results[0].value, 'synthetic-user', AUDIT);
     expect(state.collection).not.toHaveBeenCalled();
     expect(state.getUser).toHaveBeenCalledExactlyOnceWith('synthetic-user');
     expect(state.getUser.mock.invocationCallOrder[0]).toBeLessThan(state.issue.mock.invocationCallOrder[0]);
@@ -87,6 +92,9 @@ describe('admin onboarding explicit request contract', () => {
     { dryRun: true, typo: 1 }, { dryRun: true, pageSize: '1' }, { dryRun: true, pageSize: 0 },
     { dryRun: true, pageSize: -1 }, { dryRun: true, pageSize: 1.5 }, { dryRun: true, pageSize: 501 },
     { dryRun: true, pageSize: null }, { dryRun: true, uid: 'synthetic-user', pageSize: 1 },
+    { dryRun: true, cursor: '' }, { dryRun: true, cursor: ' ' }, { dryRun: true, cursor: 1 },
+    { dryRun: true, cursor: 'a/b' }, { dryRun: true, cursor: 'x'.repeat(129) },
+    { dryRun: true, uid: 'synthetic-user', cursor: 'c' }, { dryRun: false, uid: 'synthetic-user', cursor: 'c' },
   ])('rejects absent or ambiguous intent/target before DB access: %j', async body => {
     const result = await call(body);
     expect(result.status).toBe(400);
@@ -109,8 +117,8 @@ describe('admin onboarding explicit request contract', () => {
 
   it('normalizes the explicit UID without widening its target', async () => {
     expect((await call({ uid: ' synthetic-user ', dryRun: false })).status).toBe(200);
-    expect(state.issue).toHaveBeenCalledExactlyOnceWith(state.initDb.mock.results[0].value, 'synthetic-user');
-    expect(state.where).not.toHaveBeenCalled();
+    expect(state.issue).toHaveBeenCalledExactlyOnceWith(state.initDb.mock.results[0].value, 'synthetic-user', AUDIT);
+    expect(state.orderBy).not.toHaveBeenCalled();
     expect(state.getUser).toHaveBeenCalledExactlyOnceWith('synthetic-user');
   });
 
