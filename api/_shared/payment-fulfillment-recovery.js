@@ -142,10 +142,12 @@ export async function verifyBearerUid(authHeader) {
 }
 
 // ── Response shapes ──────────────────────────────────────────────────────────
-export function pendingPaymentResponse({ orderID, flow, paymentStatus, inProgress = false }) {
+export function pendingPaymentResponse({ orderID, flow, paymentStatus, inProgress = false, productType = '' }) {
   const captured = paymentStatus === 'CAPTURED';
   return {
     ok: false, code: 'PAYMENT_RECOVERY_PENDING', orderID, flow,
+    // 2026-10-26 B6-1 r4: 원래 주문의 상품 — 클라이언트가 다른 상품 화면에서 이 주문을 자기 상품으로 저장·확정하지 않게.
+    ...(productType && productType !== 'unknown' ? { productType: String(productType) } : {}),
     paymentStatus: captured ? 'CAPTURED' : 'CAPTURE_UNKNOWN',
     bookingStatus: captured ? 'BOOKING_RECOVERY_PENDING' : 'BOOKING_STATE_UNKNOWN',
     finalized: false, retryable: false, inProgress,
@@ -160,6 +162,28 @@ export function notCapturedResponse({ orderID, flow, reason }) {
     ok: false, code: 'PAYMENT_NOT_CAPTURED', orderID, flow,
     paymentStatus: 'NOT_CAPTURED', finalized: false, retryable: true,
     error: `Payment was not completed (${reason || 'declined'}). You can start a new payment.`,
+  };
+}
+
+/**
+ * r19 void tombstone: the order was proven not captured and can NEVER be captured afterwards (no TTL — deleting it
+ * would reopen payment). No intent, no contact data. Written only for proven nonpayment: an absent record after a
+ * PayPal read (resolveAbsentAttempt) or a discarded attempt (discardAttempt).
+ */
+export const VOID_STATUS = 'void_not_captured';
+export const isVoidTombstone = (lock) => !!lock && lock.status === VOID_STATUS;
+function voidTombstone({ flow, environment, reason, nowMs }) {
+  return omitUndefined({
+    status: VOID_STATUS, captureState: 'not_captured', reason: String(reason || 'not_captured'), flow, environment,
+    voidedAtMs: nowMs, voidedAt: new Date(nowMs).toISOString(), claimUntil: 0,
+  });
+}
+
+/** Same answer for a new capture and a same-order check of a voided order: final nonpayment, never a booking. */
+export function orderVoidedResponse({ orderID, flow }) {
+  return {
+    ...notCapturedResponse({ orderID, flow }), retryable: false, evidence: 'order_voided',
+    error: 'Payment was not completed. You can start a new payment.',
   };
 }
 
@@ -195,7 +219,7 @@ export async function findUnfinishedCheckout({ db, req }) {
     }
     if (!snapshot || !capabilityMatches(proof.secret, snapshot.recoveryDigest)) continue;
     if (!isCheckoutUnresolved(lock, review)) continue;
-    return pendingPaymentResponse({ orderID: proof.orderID, flow, paymentStatus: lockPaymentStatus(lock) });
+    return pendingPaymentResponse({ orderID: proof.orderID, flow, paymentStatus: lockPaymentStatus(lock), productType: snapshot.productType || lock.product });
   }
   return null;
 }
@@ -212,17 +236,23 @@ export function validateIntent(intent) {
 
 /**
  * Transactionally binds (or re-claims) the attempt record for this order.
- * kinds: claimed | finalized | duplicate | in_progress | cross_flow | environment | absent
- * `createIfMissing:false` (same-order reconcile) never starts a new attempt: an absent record is durable
- * evidence that this contract never issued a provider call for the order.
+ * kinds: claimed | finalized | duplicate | in_progress | cross_flow | environment | absent | voided
+ * `createIfMissing:false` (same-order reconcile) never starts a new attempt and writes nothing: an absent record
+ * is only "no attempt at this moment" — the caller decides with resolveAbsentAttempt (r19).
+ * A void tombstone answers 'voided' before every other check (r19): the order can never be captured.
  */
-export async function acquirePaymentAttempt({ db, orderID, flow, environment, requestKey, intent, userEmail = '', product = '', nowMs = Date.now(), createIfMissing = true, allowRecovery = true }) {
+/*
+ * r22 intentProven: stored in the SAME write as the intent — did the request that wrote this input carry same-order proof?
+ *   (missing = false). A same-order check (no input of its own) never replays an unproven input (see capture handlers).
+ */
+export async function acquirePaymentAttempt({ db, orderID, flow, environment, requestKey, intent, userEmail = '', product = '', nowMs = Date.now(), createIfMissing = true, allowRecovery = true, intentProven = false }) {
   if (!db) throw new Error('Firestore unavailable');
   const ref = db.collection(USED_ORDERS_COLLECTION).doc(orderID);
   const claimToken = randomUUID();
   return db.runTransaction(async (tx) => {
     const snap = await tx.get(ref);
     const lock = snap.exists ? snap.data() || {} : null;
+    if (isVoidTombstone(lock)) return { kind: 'voided', lock };
     if (!lock && !createIfMissing) return { kind: 'absent' };
     // Any existing record is a recovery/replay: without positive same-order proof nothing is adopted,
     // re-claimed or revealed (allowRecovery=false => generic 'unauthorized', zero writes).
@@ -230,7 +260,7 @@ export async function acquirePaymentAttempt({ db, orderID, flow, environment, re
     if (!lock) {
       const fresh = {
         status: 'pending', createdAt: new Date(nowMs).toISOString(), createdAtMs: nowMs, userEmail, product: product || 'unknown',
-        flow, environment, requestKey, intent, captureState: 'none', claimToken, claimUntil: nowMs + CLAIM_LEASE_MS, stages: {},
+        flow, environment, requestKey, intent, intentProven: intentProven === true, captureState: 'none', claimToken, claimUntil: nowMs + CLAIM_LEASE_MS, stages: {},
       };
       tx.set(ref, fresh);
       return { kind: 'claimed', attempt: { ref, db, claimToken, lock: fresh, recovering: false } };
@@ -242,7 +272,7 @@ export async function acquirePaymentAttempt({ db, orderID, flow, environment, re
       // Legacy lock (pre-recovery deploy): captured or fresh pending keeps the old duplicate answer.
       const stale = lock.status === 'pending' && lock.createdAtMs && (nowMs - Number(lock.createdAtMs)) > LEGACY_STALE_MS;
       if (lock.status === 'captured' || !stale) return { kind: 'duplicate', lock };
-      const adopted = { ...lock, flow, environment, requestKey, intent, captureState: 'posted', claimToken, claimUntil: nowMs + CLAIM_LEASE_MS, stages: lock.stages || {} };
+      const adopted = { ...lock, flow, environment, requestKey, intent, intentProven: intentProven === true, captureState: 'posted', claimToken, claimUntil: nowMs + CLAIM_LEASE_MS, stages: lock.stages || {} };
       tx.set(ref, adopted, { merge: true });
       return { kind: 'claimed', attempt: { ref, db, claimToken, lock: adopted, recovering: true } };
     }
@@ -250,6 +280,43 @@ export async function acquirePaymentAttempt({ db, orderID, flow, environment, re
     tx.set(ref, { claimToken, claimUntil: nowMs + CLAIM_LEASE_MS }, { merge: true });
     return { kind: 'claimed', attempt: { ref, db, claimToken, lock: { ...lock, claimToken }, recovering: true } };
   });
+}
+
+/**
+ * r19: a verified PayPal CAPTURED webhook for a voided order (the void was wrong — e.g. a lost record). The tombstone is
+ * turned into a review-quarantined captured lock in ONE transaction: no more "not captured" answers, new orders blocked
+ * until the review resolves (isCheckoutUnresolved), the capture evidence kept. Never refunds. Idempotent (a conflict
+ * already recorded answers again so the review write can be retried). Other records / other environment => null.
+ *   r20: the environment is checked FIRST (also for an existing conflict — never overwritten by another environment);
+ *   `alerted` = the operator alert was already sent (voidConflict.alertedAtMs) — markVoidConflictAlerted after sending.
+ * @returns {Promise<null | {flow: string, already: boolean, alerted: boolean}>}
+ */
+export async function quarantineVoidedCapture({ db, orderID, captureID, amountValue, currency, eventId, environment, nowMs = Date.now() }) {
+  const ref = db.collection(USED_ORDERS_COLLECTION).doc(orderID);
+  const otherEnv = (lock) => {
+    const env = lock.environment || (lock.voidConflict && lock.voidConflict.environment);
+    return !!env && !!environment && env !== environment;
+  };
+  const seen = await ref.get(); // common case (no tombstone): one read, no transaction
+  const seenLock = seen.exists ? seen.data() || {} : null;
+  if (!seenLock || otherEnv(seenLock) || !(seenLock.voidConflict || isVoidTombstone(seenLock))) return null;
+  return db.runTransaction(async (tx) => {
+    const snap = await tx.get(ref);
+    const lock = snap.exists ? snap.data() || {} : null;
+    if (!lock || otherEnv(lock)) return null;
+    if (lock.voidConflict) return { flow: lock.flow || 'single', already: true, alerted: !!lock.voidConflict.alertedAtMs };
+    if (!isVoidTombstone(lock)) return null;
+    tx.set(ref, omitUndefined({
+      status: 'captured', captureState: 'captured', reviewQuarantined: true, voidedReason: lock.reason,
+      voidConflict: { captureID: captureID || '', amountValue: amountValue == null ? '' : String(amountValue), currency: currency || '', eventId: eventId || '', environment, detectedAtMs: nowMs },
+    }), { merge: true });
+    return { flow: lock.flow || 'single', already: false, alerted: false };
+  });
+}
+
+/** r20: the void-conflict operator alert went out — later redeliveries of the event do not alert again. */
+export async function markVoidConflictAlerted({ db, orderID, nowMs = Date.now() }) {
+  await db.collection(USED_ORDERS_COLLECTION).doc(orderID).set({ voidConflict: { alertedAtMs: nowMs } }, { merge: true });
 }
 
 export async function updateAttempt(attempt, patch) {
@@ -260,19 +327,106 @@ export async function updateAttempt(attempt, patch) {
   });
 }
 
+/**
+ * r22 S2: a proven request taking over a POST-less record replaces the input WHOLE (tx.update replaces the `intent` field —
+ * set(merge) would merge its sub-fields and keep the previous writer's phone/time/memo). Other fields (stages …) untouched.
+ */
+export async function replaceAttemptIntent(attempt, { intent, userEmail, product, intentProven }) {
+  const COUPON_ID = /^[A-Za-z0-9_-]{1,128}$/;
+  await attempt.db.runTransaction(async (tx) => {
+    const snap = await tx.get(attempt.ref);
+    const lock = snap.exists ? snap.data() || {} : null;
+    if (!lock || lock.claimToken !== attempt.claimToken || lock.captureState !== 'none') throw codedError('Payment claim changed', 'CLAIM_LOST');
+    // r25: the previous input's coupon (single flow only — cart inputs carry none) is released in this same transaction when
+    //   the new input does not keep it and it is still reserved by THIS order — otherwise a success would spend both, a refusal
+    //   would leave the old one locked. Same coupon = untouched (its re-lock is idempotent); malformed ids = no release.
+    const prev = lock.intent && lock.intent.coupon;
+    const next = intent && intent.coupon;
+    const kept = !!next && !!prev && next.couponDocId === prev.couponDocId && next.couponUserId === prev.couponUserId;
+    const prevRef = prev && !kept && COUPON_ID.test(String(prev.couponDocId)) && COUPON_ID.test(String(prev.couponUserId))
+      ? attempt.db.collection('users').doc(prev.couponUserId).collection('coupons').doc(prev.couponDocId) : null;
+    const prevSnap = prevRef ? await tx.get(prevRef) : null;
+    tx.update(attempt.ref, omitUndefined({ intent, userEmail, product, intentProven: intentProven === true }));
+    if (prevSnap && prevSnap.exists && (prevSnap.data() || {}).usedOrderID === attempt.ref.id) {
+      tx.update(prevRef, { isUsed: false, usedAt: null, usedOrderID: null, pendingCapture: false });
+    }
+  });
+}
+
 export async function releaseAttemptClaim(attempt) {
   try { await updateAttempt(attempt, { claimUntil: 0 }); } catch (error) { console.warn('[payment-recovery] claim release skipped:', error.message); }
 }
 
-/** Proven nonpayment only: removes the attempt so the customer can pay again. */
-export async function discardAttempt(attempt) {
+/**
+ * Proven nonpayment only: replaces the attempt with the void tombstone in the claim-checked transaction (r19 — a
+ * deleted record let a stalled capture or a new claim pay later). Full set: intent and contact data are dropped,
+ * the reason is kept. Throws CLAIM_LOST when the claim changed or money/booking evidence exists — callers must then
+ * answer UNKNOWN, never NOT_CAPTURED.
+ *   r20 opts.voidOrder=false: a request WITHOUT same-order proof only deletes its attempt (r18 behaviour) — whoever
+ *     merely knows the orderID must not void someone else's order. The tombstone is for proven requests only.
+ *   r20 opts.releaseCoupon: coupon doc reserved for THIS order — released in the same transaction (only while it is
+ *     still reserved by this orderID), so a voided order can never keep a coupon isUsed/pendingCapture.
+ */
+export async function discardAttempt(attempt, reason = 'not_captured', { voidOrder = true, releaseCoupon = null } = {}) {
   await attempt.db.runTransaction(async (tx) => {
     const snap = await tx.get(attempt.ref);
-    if (!snap.exists) return;
-    const lock = snap.data() || {};
-    if (lock.claimToken !== attempt.claimToken || lock.captureVerified || lock.bookingDurable) throw codedError('Attempt cannot be discarded', 'CLAIM_LOST');
-    tx.delete(attempt.ref);
+    const coupon = releaseCoupon ? await tx.get(releaseCoupon) : null;
+    const lock = snap.exists ? snap.data() || {} : null;
+    if (!lock || lock.claimToken !== attempt.claimToken || lock.captureVerified || lock.bookingDurable || lock.finalized === true) {
+      throw codedError('Attempt cannot be discarded', 'CLAIM_LOST');
+    }
+    if (voidOrder) tx.set(attempt.ref, voidTombstone({ flow: lock.flow, environment: lock.environment, reason, nowMs: Date.now() }));
+    else tx.delete(attempt.ref);
+    if (coupon && coupon.exists && (coupon.data() || {}).usedOrderID === attempt.ref.id) {
+      tx.update(releaseCoupon, { isUsed: false, usedAt: null, usedOrderID: null, pendingCapture: false });
+    }
   });
+}
+
+/**
+ * r19: a same-order check found no attempt record. Absence alone is not proof (lost/legacy records, a capture
+ * about to start), so PayPal is read first (GET — never a capture):
+ *   captured                 → no tombstone; "payment received, do not pay again" (202) + operator check
+ *   approved / not_captured  → tombstone only if the record is STILL absent in the transaction → order_voided (409)
+ *   lookup failed / unknown, or a record appeared meanwhile → UNKNOWN (202), no tombstone
+ * `proven` = same-order proof (cookie/owner). Unproven legacy-open snapshots never write a tombstone.
+ * `lookupOrder()` (handler-supplied: OAuth + fetchPaypalOrder) may throw → unknown.
+ * @returns {Promise<{status:number, body:object, alert?:string}>}
+ */
+export async function resolveAbsentAttempt({ db, orderID, flow, environment, proven, lookupOrder, nowMs = Date.now() }) {
+  const unknown = (reason) => ({ status: 202, body: pendingPaymentResponse({ orderID, flow, paymentStatus: 'CAPTURE_UNKNOWN' }), reason });
+  if (!proven) return { status: 409, body: { ...notCapturedResponse({ orderID, flow, reason: 'no_attempt_record' }), evidence: 'no_attempt_record' } };
+  let lookup;
+  try { lookup = await lookupOrder(); } catch (error) { lookup = { state: 'unknown', reason: `lookup-${(error && error.code) || 'failed'}` }; }
+  const ref = db.collection(USED_ORDERS_COLLECTION).doc(orderID);
+  if (lookup.state === 'captured') {
+    // r20: another tab's capture may have created (and even finalized) the record during the read — answer from that
+    //   record, no "record lost" alert. Only a record still absent is the critical case.
+    let now;
+    try { now = await ref.get(); } catch {
+      // r21: the re-read failed — never a 500 with the Firestore text: payment received (do not pay again) + a conservative alert.
+      return { status: 202, body: pendingPaymentResponse({ orderID, flow, paymentStatus: 'CAPTURED' }), alert: 'reread-failed' };
+    }
+    const lock = now.exists ? now.data() || {} : null;
+    if (lock && lock.finalized === true && lock.finalResponse && lock.finalResponse.body) {
+      return { status: lock.finalResponse.status || 200, body: { ...lock.finalResponse.body, replayed: true } };
+    }
+    if (lock) return { status: 202, body: pendingPaymentResponse({ orderID, flow, paymentStatus: lockPaymentStatus(lock), inProgress: Number(lock.claimUntil) > nowMs }) };
+    return { status: 202, body: pendingPaymentResponse({ orderID, flow, paymentStatus: 'CAPTURED' }), alert: 'captured-without-attempt-record' };
+  }
+  if (lookup.state !== 'approved' && lookup.state !== 'not_captured') return unknown(lookup.reason || 'lookup-unknown');
+  let outcome;
+  try {
+    outcome = await db.runTransaction(async (tx) => {
+      const snap = await tx.get(ref);
+      if (snap.exists) return isVoidTombstone(snap.data() || {}) ? 'voided' : 'exists';
+      tx.set(ref, voidTombstone({ flow, environment, reason: 'no_attempt_record', nowMs }));
+      return 'voided';
+    });
+  } catch {
+    return unknown('void-write-failed'); // r22 S3: never a 500 with Firestore text; nothing written → the next check retries
+  }
+  return outcome === 'voided' ? { status: 409, body: orderVoidedResponse({ orderID, flow }) } : unknown('attempt-appeared');
 }
 
 export async function finalizeAttempt(attempt, patch = {}) {
@@ -323,6 +477,8 @@ export async function fetchPaypalOrder({ baseUrl, accessToken, orderID, timeoutM
     const text = await response.text();
     let body = null;
     try { body = JSON.parse(text); } catch { return { state: 'unknown', reason: `lookup-unparsable-${response.status}` }; }
+    // r26: every lookup failure, 404 included, stays 'unknown' (r25's "404 = nonpayment" reverted — a valid order can answer
+    //   404 under an environment/account mismatch, and a tombstone is written before the environment check).
     if (!response.ok) return { state: 'unknown', reason: `lookup-http-${response.status}` };
     return classifyOrderLookup(body, orderID);
   } catch (error) {
@@ -336,14 +492,23 @@ export async function fetchPaypalOrder({ baseUrl, accessToken, orderID, timeoutM
  *   unknown      keep every reservation; respond 202
  *   not_captured provider proved the order never captured
  * `postCapture()` is supplied by the handler (keeps the PayPal-Request-Id literal there) and returns {status, body, parseError}.
+ * `forbidPost` (a pre-capture refusal was decided): recovery of an already-paid result only — the order is looked up
+ * (or `lookup` is reused) and an APPROVED order answers unknown; postCapture is never called.
  */
-export async function reconcileCapture({ attempt, orderID, baseUrl, accessToken, postCapture }) {
+export async function reconcileCapture({ attempt, orderID, baseUrl, accessToken, postCapture, forbidPost = false, lookup: priorLookup = null }) {
   const lock = attempt.lock || {};
   if (lock.captureVerified) return { state: 'captured', verified: lock.captureVerified, source: 'store' };
-  const lookupFirst = attempt.recovering || lock.captureState === 'posted' || lock.captureState === 'unknown';
+  const lookupFirst = forbidPost || attempt.recovering || lock.captureState === 'posted' || lock.captureState === 'unknown';
   if (lookupFirst) {
-    const lookup = await fetchPaypalOrder({ baseUrl, accessToken, orderID });
+    const lookup = priorLookup || await fetchPaypalOrder({ baseUrl, accessToken, orderID });
+    // r19: after a POST that was (or may have been) sent, CREATED/SAVED/PAYER_ACTION_REQUIRED is not final — a stalled
+    //   old worker may still POST. Only VOIDED is final nonpayment there; everything else stays unknown (no tombstone).
+    const mayHavePosted = lock.captureState === 'posted' || lock.captureState === 'unknown';
+    if (mayHavePosted && lookup.state === 'not_captured' && lookup.reason !== 'order-VOIDED') {
+      return { state: 'unknown', reason: `${lookup.reason || 'not-captured'}-after-post`, source: 'get' };
+    }
     if (lookup.state !== 'approved') return { ...lookup, source: 'get' };
+    if (forbidPost) return { state: 'unknown', reason: 'capture-forbidden-approved', noPost: true, source: 'get' };
   }
   try {
     await updateAttempt(attempt, { captureState: 'posted', capturePostedAtMs: Date.now() });

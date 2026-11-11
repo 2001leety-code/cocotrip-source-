@@ -10,7 +10,7 @@
  * SAFETY-CRITICAL (CLAUDE.md J): dietary 흐름 100% 유지 — block-mode + legacy 양쪽 모두 dietPrefs forward + validateResponse + halal/vegan critical violation throw.
  */
 import { resolveLlmApiKey, adoptLlmMock, enterLlmMockContext } from '../_shared/llm/index.js';
-import { verifyUserToken, resolveGuestAnonOwner, isGuestCheckoutAllowed } from '../_shared/user-auth.js';
+import { verifyUserToken, verifyFirebaseIdentityToken, resolveGuestAnonOwner, isGuestCheckoutAllowed } from '../_shared/user-auth.js';
 import { getSpotContext } from '../_spots_helper.js';
 import { enforceDietaryCoverage, mealCitiesForTrip, buildTripFoodContext } from './dietaryCoverageGate.js';
 import { getAttractionsContext } from '../_attractions_helper.js';
@@ -162,7 +162,8 @@ export default async function handler(req, res) {
     // ── 결제 + 재생성 게이트 (인증된 email 전달) ──────────────────────────
     const couponOwner = body.aiCouponCode && !body.revisionOf ? await resolveGuestAnonOwner(req, body.uid) : null;
     const couponContext = couponOwner ? { ...couponOwner, verifiedHistoryUid: auth.uid } : null;
-    const gate = await withStep('paymentGate', () => enforcePaymentAndRevision(body, adminDb, authenticatedEmail, auth.uid, couponContext));
+    const ownerUid = auth.ok ? auth.uid : ((await verifyFirebaseIdentityToken(req)).uid || null);
+    const gate = await withStep('paymentGate', () => enforcePaymentAndRevision(body, adminDb, authenticatedEmail, auth.uid, couponContext, { ownerUid }));
     if (gate.rejection) {
       const { statusCode, code, message, details } = gate.rejection;
       res.writeHead(statusCode, { ...CORS, 'Content-Type': 'application/json' });
@@ -180,7 +181,7 @@ export default async function handler(req, res) {
     issuance.adopt(gate);  // P0: 게이트가 선점한 발급권 흡수 (유료 PayPal 경로만)
 
     // ── AI 플래너 출발일 검증 (day1=오늘 불가, 내일 이후만). 로직=validateStartDate.js (P129 handlerCore 슬림). ──
-    const tooSoon = checkStartDateTooSoon(body, gate.isRevision);
+    const tooSoon = checkStartDateTooSoon(body, gate.isRevision || gate.prepayVerified === true);
     if (tooSoon) {
       if (consumedCouponInfo) throw Object.assign(new Error('Start date must be tomorrow or later.'), { statusCode: 400, code: 'PLANNER_DATE_TOO_SOON' });
       console.warn('[ai-planner-full] day1 today rejected:', tooSoon.reqStartDate, 'today KST:', tooSoon.todayKST);

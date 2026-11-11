@@ -44,6 +44,8 @@ import {
   ensureFullRefundProof,
 } from './_shared/refund-ledger.js';
 import { releaseSlotForCanceledOrder } from './_shared/slot-capacity.js';
+import { quarantineVoidedCapture, markVoidConflictAlerted } from './_shared/payment-fulfillment-recovery.js';
+import { recordPaymentReview } from './_shared/payment-review.js';
 
 // PR #423 (CZ6): disable Vercel's auto-bodyParser so we receive the raw
 // PayPal-signed bytes. If Vercel parses + we re-stringify (the previous
@@ -695,6 +697,56 @@ export default async function handler(req, res) {
             console.log('[paypal-webhook] PayPal-direct capture ack (no alert):', paypalOrderId);
             res.writeHead(200, JSON_HEADERS);
             return res.end(JSON.stringify({ ok: true, status: 'already_confirmed' }));
+          }
+          // r19: verified CAPTURED for an order we voided (tombstone) — keep the payment evidence, quarantine for review,
+          //   alert. No booking, no refund (the operator decides). Store failure => PayPal retries the event.
+          let conflict = null;
+          try {
+            conflict = await quarantineVoidedCapture({ db: adminDb, orderID: paypalOrderId, captureID: paypalTxId, amountValue: amountUSD, currency, eventId, environment: verifiedEnvironment });
+            if (conflict) {
+              await recordPaymentReview({
+                db: adminDb, serverTimestamp: FieldValue.serverTimestamp(), flow: conflict.flow, orderID: paypalOrderId,
+                verdict: { code: 'CAPTURED_AFTER_VOID', detail: 'PayPal reported a completed capture for an order the server had voided as not captured', captureID: paypalTxId || '' },
+                capture: { status: 'COMPLETED', purchase_units: [{ payments: { captures: [{ id: paypalTxId || '', status: 'COMPLETED', amount: { value: String(amountUSD), currency_code: currency || '' } }] } }] },
+              });
+            }
+          } catch (e) {
+            return respondRetryable(res, 'void_conflict_store_failed', e.message);
+          }
+          if (conflict) {
+            // r20: "alert sent" is recorded apart from "conflict recorded" (voidConflict.alertedAtMs): a redelivery after a
+            //   failed review write (already=true) still alerts once. A failed send = retryable (PayPal redelivers).
+            if (!conflict.alerted) {
+              // r21: notify() 는 실패를 던지지 않고 {ok:false, delivery} 를 돌려준다 — 'sent' 일 때만 발송 기록(booking-processor 와 같은 판정).
+              //   rejected·skipped·unknown = 기록 없이 재시도 응답(unknown 은 중복 알림 감수 — 위험한 쪽은 유실).
+              let sent;
+              try {
+                sent = await notify('admin',
+                  '🚨 <b>PayPal Webhook — 미결제로 닫은 주문에 결제 완료</b>\n\n' +
+                  `PayPal Order: <code>${paypalOrderId}</code>\nPayPal TX: <code>${paypalTxId}</code>\n금액: $${amountUSD} ${currency}\n` +
+                  '→ payment_reviews 격리됨. 예약 미확정 · 자동 환불 없음 — 수동 확정/환불 판단.'
+                );
+              } catch (e) {
+                sent = { ok: false, delivery: 'unknown', error: e.message };
+              }
+              const delivery = (sent && sent.delivery) || (sent && sent.ok ? 'sent' : 'unknown');
+              if (delivery !== 'sent') {
+                return respondRetryable(res, `void_conflict_alert_${delivery}`, (sent && sent.error) || delivery);
+              }
+              await markVoidConflictAlerted({ db: adminDb, orderID: paypalOrderId })
+                .catch((e) => console.warn('[paypal-webhook] void-conflict alert mark failed (a redelivery may alert again):', e.message));
+            }
+            try {
+              await logWebhookEventStrict({
+                db: adminDb, environment: verifiedEnvironment, eventId, eventType,
+                status: 'processed',
+                detail: { reason: 'captured_after_void', paypalOrderId, paypalTxId, amountUSD, currency },
+              });
+            } catch (e) {
+              return respondRetryable(res, 'processed_log_write_failed', e.message);
+            }
+            res.writeHead(200, JSON_HEADERS);
+            return res.end(JSON.stringify({ ok: true, status: 'payment_review' }));
           }
         }
         console.warn('[paypal-webhook] no bookingRef in memo — manual review:', eventId);

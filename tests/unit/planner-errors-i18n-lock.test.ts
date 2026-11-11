@@ -96,7 +96,7 @@ describe('Error localization lock — all 4 locales complete', () => {
   });
 
   it('no extra error codes exist in any locale (no stale keys)', () => {
-    const allCodes = new Set(ERROR_CODES);
+    const allCodes = new Set<string>([...ERROR_CODES, 'DIETARY_COVERAGE_UNAVAILABLE', 'PREPAY_INPUT_MISSING', 'PREPAY_INPUT_MISMATCH', 'PREPAY_INPUT_INVALID', 'PREPAY_DATE_TOO_SOON']);
     for (const key of Object.keys(enErrors)) {
       expect(allCodes.has(key as PlannerErrorCode), `en has unexpected error code: ${key}`).toBe(true);
     }

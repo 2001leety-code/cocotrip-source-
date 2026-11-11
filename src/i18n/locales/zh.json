@@ -612,7 +612,19 @@
       "PAYMENT_NOT_CAPTURED": "付款未成功完成。请在重试前联系客服。",
       "PLAN_GENERATION_IN_PROGRESS": "正在使用此笔付款生成您的行程，请稍候 — 请勿重复付款。",
       "PLAN_ISSUANCE_CHECK_UNAVAILABLE": "目前无法查询行程发放状态，请稍后重试 — 如已付款，请勿重复付款。",
-      "PLAN_ISSUANCE_NEEDS_REVIEW": "正在核实您的行程发放，稍后会通知您 — 请勿重复付款。"
+      "PLAN_ISSUANCE_NEEDS_REVIEW": "正在核实您的行程发放，稍后会通知您 — 请勿重复付款。",
+      "DIETARY_COVERAGE_UNAVAILABLE": "未找到符合所选城市和饮食要求的已验证餐厅。如已付款，请勿重复付款，请联系我们。",
+      "PREPAY_INPUT_MISSING": "订单缺少必要的行程信息。请刷新页面后重试。如已付款，请勿重复付款，请联系我们。",
+      "PREPAY_INPUT_MISMATCH": "所请求的城市、饮食要求或日期与已付款订单不一致。请勿重复付款，请核对订单信息或联系我们。",
+      "PREPAY_INPUT_INVALID": "无法核实行程信息（城市、饮食要求和日期）。请检查输入内容。如已付款，请勿重复付款。",
+      "PREPAY_DATE_TOO_SOON": "出发日期须为明天或之后。如已付款，请勿重复付款，请联系我们。"
+    },
+    "prepayErrors": {
+      "DIETARY_COVERAGE_UNAVAILABLE": "本次行程中有城市暂无符合您饮食选择的已验证餐厅。您尚未被扣款。请更换城市或通过WhatsApp联系我们。",
+      "PREPAY_INPUT_MISSING": "由于缺少行程信息，付款尚未开始。请刷新页面后重试。",
+      "PREPAY_INPUT_MISMATCH": "行程信息（城市、饮食、日期）与已付款订单不一致。请按付款时的行程重试。",
+      "PREPAY_INPUT_INVALID": "无法确认您的行程信息（城市、饮食、日期），因此未开始付款。请检查后重试。",
+      "PREPAY_DATE_TOO_SOON": "出发日期须为明天或之后。您尚未被扣款 — 请更改日期后重试。"
     },
     "retry": "重新尝试",
     "loginRequired": "登录后可付款",

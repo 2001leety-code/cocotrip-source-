@@ -20,7 +20,9 @@
  *     airport,
  *     paymentMethod: 'paypal-me-qr',
  *     paypalMeUrl,
- *     language               // 'ko' | 'en' | 'ja' | 'zh'
+ *     language,              // 'ko' | 'en' | 'ja' | 'zh'
+ *     plannerInput,          // ai_planner_full 필수 — 결제 전 확인(createPaypalOrder 와 같은 검사)
+ *     checkOnly              // true = 송금 안내 전 확인만(쓰기 0)
  *   }
  *
  * Auth: optional (Bearer Firebase token). 비로그인 사용자도 신청 가능 — admin 이
@@ -33,6 +35,7 @@ import { notify } from './_shared/notify.js';
 import { confirmBookingAsPaid } from './_shared/booking-confirm.js';
 import { checkIpRateLimit, getClientIp } from './_shared/ip-rate-limit.js';
 import { USD_TO_KRW } from './_shared/exchange-rate.js';
+import { isPrepayCheckedProduct, checkPlannerOrderInput, normalizePrepayInput, checkPrepayCoverage, loadPrepayFoodIndex, prepaySnapshotFields } from './_shared/prepay-coverage.js';
 
 // ── 어드민 bypass 허용 이메일 목록 ──────────────────────────────────────
 // paymentGate.js / capturePaypalOrder.js 와 동일 패턴.
@@ -103,6 +106,35 @@ export default async function handler(req, res) {
       paypalMeUrl,
       language = 'en',
     } = body;
+
+    // 🔴 2026-10-26 B6-1 r2: AI 플래너(풀) QR(paypal.me) 경로도 결제 전 확인을 거친다.
+    //   QR 패널은 송금 안내(QR·링크)를 보여 주기 **전에** checkOnly 로 이 검사를 통과해야 한다 — 실패면 안내 자체를
+    //   만들지 않는다. 검사 = createPaypalOrder 와 같은 함수(정규화·출발일 > KST 오늘·식이 커버리지). 쓰기 0·rate limit 전.
+    const prepayChecked = isPrepayCheckedProduct(productType);
+    const prepayFoodIndex = prepayChecked ? await loadPrepayFoodIndex() : null;
+    // 송금 신고는 이미 돈이 움직였을 수 있어 출발일 경과로 막지 않는다. QR 안내 전 검사만 미래 날짜를 요구한다.
+    let prepayCheck = null;
+    if (prepayChecked) {
+      prepayCheck = body.checkOnly === true
+        ? checkPlannerOrderInput(body.plannerInput, prepayFoodIndex, language)
+        : normalizePrepayInput(body.plannerInput);
+      if (body.checkOnly !== true && prepayCheck.ok) {
+        const coverage = checkPrepayCoverage(prepayCheck.input, prepayFoodIndex);
+        if (!coverage.ok) prepayCheck = coverage;
+      }
+    }
+    if (body.checkOnly === true) {
+      if (!prepayChecked) {
+        res.writeHead(400, JSON_HEADERS);
+        return res.end(JSON.stringify(_err('checkOnly is for AI planner orders', 'CHECK_NOT_APPLICABLE')));
+      }
+      if (!prepayCheck.ok) {
+        res.writeHead(prepayCheck.status, JSON_HEADERS);
+        return res.end(JSON.stringify({ ..._err(prepayCheck.message, prepayCheck.code), ...(prepayCheck.details ? { details: prepayCheck.details } : {}) }));
+      }
+      res.writeHead(200, JSON_HEADERS);
+      return res.end(JSON.stringify({ ok: true, data: { checked: true } }));
+    }
 
     // 필수 필드 검증
     if (!bookingRef || !BOOKING_REF_PATTERN.test(String(bookingRef))) {
@@ -207,6 +239,11 @@ export default async function handler(req, res) {
       paypalMeUrl: paypalMeUrl || null,
       language,
       userId,
+      // 신고 시점엔 손님이 이미 송금했을 수 있다 — 검사 실패라도 신고를 버리지 않고(돈 기록 유실 금지) 결과를 남겨
+      //   운영자가 입금 확인 전에 본다(옛 번들·안내 뒤 자료 변경). 통과면 createPaypalOrder 와 같은 정규 입력·지문.
+      ...(prepayCheck ? (prepayCheck.ok
+        ? prepaySnapshotFields(prepayCheck.input, prepayFoodIndex)
+        : { prepayCheckFailed: { code: prepayCheck.code, details: prepayCheck.details || null } }) : {}),
       status: 'AWAITING_VERIFICATION',
       createdAt: FieldValue.serverTimestamp(),
       updatedAt: FieldValue.serverTimestamp(),
@@ -279,6 +316,11 @@ export default async function handler(req, res) {
         dateStart ? `<b>날짜:</b> ${dateStart}${dateEnd && dateEnd !== dateStart ? ` ~ ${dateEnd}` : ''}` : null,
         `<b>이메일:</b> ${customerEmail}`,
         customerPhone ? `<b>연락처:</b> ${customerPhone}` : null,
+        prepayCheck && !prepayCheck.ok
+          ? (prepayCheck.code === 'DIETARY_COVERAGE_UNAVAILABLE'
+            ? `⚠️ <b>AI 플래너 신고 시 식이 확인 실패:</b> ${prepayCheck.code}${prepayCheck.details ? ` (${prepayCheck.details})` : ''} — 입금 및 생성 요청의 식이 조건을 확인하세요`
+            : `⚠️ <b>AI 플래너 신고 입력 확인 필요:</b> ${prepayCheck.code} — 결제 확인 후 정규화 가능한 첫 생성 요청이 식이 확인을 통과하면 입력이 고정됩니다`)
+          : null,
         '',
         '🔍 <i>PayPal 거래내역에서 <code>' + bookingRef + '</code> 메모 또는 ' + (customerEmail) + ' 이메일로 매칭 후</i>',
         '✅ <i>admin UI 에서 [입금 확인] 클릭하세요</i>',
