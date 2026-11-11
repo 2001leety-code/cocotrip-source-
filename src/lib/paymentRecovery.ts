@@ -27,7 +27,7 @@ export type CaptureOutcome =
   | { kind: 'not_captured'; message: string }
   | { kind: 'refunded'; message: string; refundID: string }
   | { kind: 'auth_required' }
-  | { kind: 'error'; message: string };
+  | { kind: 'error'; message: string; code?: string };
 
 export const recoveryKey = (flow: PaymentFlow) => `cocotrip:payment-recovery:${flow}`;
 const FLOWS: PaymentFlow[] = ['single', 'cart'];
@@ -93,7 +93,7 @@ export function classifyCaptureResponse(json: Record<string, unknown> | null, or
     return { kind: 'pending', status: json.paymentStatus === 'CAPTURED' ? 'CAPTURED' : 'CAPTURE_UNKNOWN' };
   }
   if (json.code === 'RECOVERY_AUTH_REQUIRED') return { kind: 'auth_required' };
-  return { kind: 'error', message: typeof json.error === 'string' ? json.error : 'Payment failed' };
+  return { kind: 'error', message: typeof json.error === 'string' ? json.error : 'Payment failed', ...(typeof json.code === 'string' ? { code: json.code } : {}) };
 }
 
 /** Same-order check through the existing capture endpoint: body is {orderID, reconcile:true} only. Network errors stay pending. */

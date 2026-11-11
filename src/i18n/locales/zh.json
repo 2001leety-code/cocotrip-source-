@@ -618,7 +618,7 @@
       "PREPAY_INPUT_MISMATCH": "所请求的城市、饮食要求或日期与已付款订单不一致。请勿重复付款，请核对订单信息或联系我们。",
       "PREPAY_INPUT_INVALID": "无法核实行程信息（城市、饮食要求和日期）。请检查输入内容。如已付款，请勿重复付款。",
       "PREPAY_DATE_TOO_SOON": "出发日期须为明天或之后。如已付款，请勿重复付款，请联系我们。",
-      "PREPAY_CHECK_UNAVAILABLE": "目前无法核实旅行信息，请稍后重试。如已付款，请勿重复付款。"
+      "PREPAY_CHECK_UNAVAILABLE": "目前无法核实您的订单。请稍后再次查询同一订单。请勿重复付款。"
     },
     "prepayErrors": {
       "DIETARY_COVERAGE_UNAVAILABLE": "本次行程中有城市暂无符合您饮食选择的已验证餐厅。您尚未被扣款。请更换城市或通过WhatsApp联系我们。",

@@ -21,6 +21,11 @@ export function resolvePrepayErrorMessage(code: string | undefined, errorsDict: 
   return key ? errorsDict?.[key] || null : null;
 }
 
+/** Capture/reconcile uncertainty must never use the prepayment 'not started' copy. */
+export function resolveCaptureErrorMessage(code: string | undefined, errorsDict: PlannerErrorDict | undefined): string | null {
+  return code === 'PREPAY_CHECK_UNAVAILABLE' ? errorsDict?.PREPAY_CHECK_UNAVAILABLE || null : null;
+}
+
 /**
  * Resolves a planner error code to a user-facing message from the i18n dict.
  * Falls back to the raw details string if the dict lacks an entry.

@@ -8,7 +8,7 @@ import en from '../../src/i18n/locales/en.json';
 import ko from '../../src/i18n/locales/ko.json';
 import ja from '../../src/i18n/locales/ja.json';
 import zh from '../../src/i18n/locales/zh.json';
-import { resolveErrorMessage, resolvePrepayErrorMessage } from '../../src/pages/PlannerPage/hooks/errorMessages';
+import { resolveErrorMessage, resolvePrepayErrorMessage, resolveCaptureErrorMessage } from '../../src/pages/PlannerPage/hooks/errorMessages';
 
 // Extract all PlannerErrorCode values from the type. This is the source of truth.
 const ERROR_CODES: PlannerErrorCode[] = [
@@ -59,6 +59,20 @@ const ERROR_CODES: PlannerErrorCode[] = [
 ];
 
 describe('Error localization lock — all 4 locales complete', () => {
+  it.each([
+    ['en', en, 'same order', 'Do not pay again'],
+    ['ko', ko, '같은 주문', '다시 결제하지 마세요'],
+    ['ja', ja, '同じ注文', '再度お支払いしないでください'],
+    ['zh', zh, '同一订单', '请勿重复付款'],
+  ] as const)('%s capture uncertainty uses same-order guidance, never unpaid copy', (_lang, locale, sameOrder, warning) => {
+    const message = resolveCaptureErrorMessage('PREPAY_CHECK_UNAVAILABLE', locale.planner.errors);
+    expect(message).toContain(sameOrder);
+    expect(message).toContain(warning);
+    expect(message).not.toBe(resolvePrepayErrorMessage('PREPAY_CHECK_UNAVAILABLE', locale.planner.prepayErrors));
+    expect(resolveCaptureErrorMessage('PAYMENT_NOT_CAPTURED', locale.planner.errors)).toBeNull();
+    expect(resolveCaptureErrorMessage(undefined, locale.planner.errors)).toBeNull();
+    expect(resolveCaptureErrorMessage('PREPAY_CHECK_UNAVAILABLE', undefined)).toBeNull();
+  });
   it.each([
     ['en', en, 'do not pay again'], ['ko', ko, '다시 결제하지'],
     ['ja', ja, '再度お支払いせず'], ['zh', zh, '请勿重复付款'],

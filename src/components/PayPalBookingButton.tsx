@@ -18,7 +18,7 @@ import { charterCheckoutExpectedUsd, charterUsdFromKrw } from '@/lib/charterUsd'
 import { GuestSignupNudge } from '@/components/GuestSignupNudge';
 import { usePaymentRecovery, reconcilePayment, classifyCaptureResponse, recoveryCopy, recoveryHeadline, type CaptureOutcome } from '@/lib/paymentRecovery';
 import type { Language } from '@/i18n';
-import { resolvePrepayErrorMessage } from '@/pages/PlannerPage/hooks/errorMessages';
+import { resolvePrepayErrorMessage, resolveCaptureErrorMessage } from '@/pages/PlannerPage/hooks/errorMessages';
 import { auth as firebaseAuth } from '@/lib/firebase-auth';
 import { holdAiCheckoutInThisTab } from '@/lib/aiPlanIssuanceNotice';
 import { readAiCheckoutScope, rememberAiCheckoutScope, newAiCheckoutAttemptId, type AiCheckoutScope } from '@/lib/aiCheckoutScope';
@@ -279,7 +279,7 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
     // Generic failure: an error code alone never proves the provider was not called. Keep the pointer; on a
     // fresh request ask the server once for durable evidence (an absent attempt record => NOT_CAPTURED).
     void posthogTrack('payment_failed', { planType: productType, reason: 'capture_rejected' });
-    setError(outcome.message); setShowPaypal(false); buttonsRendered.current = false;
+    setError(resolveCaptureErrorMessage(outcome.code, p.errors as Record<string, string> | undefined) || outcome.message); setShowPaypal(false); buttonsRendered.current = false;
     if (fresh) {
       const evidence = await reconcilePayment('single', orderID);
       if (evidence.kind === 'not_captured') { clearRecovery(orderID); return; }

@@ -618,7 +618,7 @@
       "PREPAY_INPUT_MISMATCH": "The requested cities, dietary requirements or dates differ from your paid order. Do not pay again; check the order details or contact us.",
       "PREPAY_INPUT_INVALID": "We could not verify your travel details (cities, dietary requirements and dates). Please check your input. If you have already paid, do not pay again.",
       "PREPAY_DATE_TOO_SOON": "Your trip must start tomorrow or later. If you have already paid, do not pay again; please contact us.",
-      "PREPAY_CHECK_UNAVAILABLE": "Travel checks are temporarily unavailable. Please try again later. If you have already paid, do not pay again."
+      "PREPAY_CHECK_UNAVAILABLE": "We cannot verify your order right now. Please check the same order again shortly. Do not pay again."
     },
     "prepayErrors": {
       "DIETARY_COVERAGE_UNAVAILABLE": "One of the cities on this trip doesn't have verified restaurants for your dietary choice yet. You have not been charged. Please change the cities or contact us on WhatsApp.",

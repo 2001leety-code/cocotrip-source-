@@ -39,7 +39,7 @@ import type { PlannerFormValues } from '../../src/components/PlannerForm';
 import ko from '../../src/i18n/locales/ko.json';
 import ja from '../../src/i18n/locales/ja.json';
 import zh from '../../src/i18n/locales/zh.json';
-import { recoveryKey } from '../../src/lib/paymentRecovery';
+import { recoveryKey, recoveryCopy, classifyCaptureResponse } from '../../src/lib/paymentRecovery';
 
 type ButtonsConfig = { createOrder: () => string; onApprove: (data: { orderID: string }) => Promise<void> };
 const buttons: ButtonsConfig[] = [];
@@ -132,4 +132,39 @@ it.each(['CAPTURE_UNKNOWN', 'CAPTURED'])('never shows an unpaid hint for a 202 %
   expect(screen.queryByText(translations.en.planner.prepayErrors.PREPAY_INPUT_MISSING)).toBeNull();
   expect(JSON.parse(localStorage.getItem(recoveryKey('single')) || '{}').paymentStatus).toBe(paymentStatus);
   expect(success).not.toHaveBeenCalled();
+});
+
+it.each(['ko', 'en', 'ja', 'zh'] as const)('keeps 503 capture and reconcile on the same order with localized uncertainty: %s', async (lang) => {
+  const p = { ko, en: translations.en, ja, zh }[lang].planner;
+  const unavailable = { ok: false, code: 'PREPAY_CHECK_UNAVAILABLE', error: 'Could not verify the order right now' };
+  expect(classifyCaptureResponse(unavailable, 'ORDER-PREPAY')).toMatchObject({ kind: 'error', code: 'PREPAY_CHECK_UNAVAILABLE' });
+  mocks.authFetch.mockImplementation(async (url: string) => ({
+    ok: url.includes('create'), status: url.includes('create') ? 200 : 503,
+    json: async () => url.includes('create')
+      ? { ok: true, data: { orderID: 'ORDER-PREPAY', usdAmount: '10.00', currentRate: 1300, displayUSD: '$10', displayKRW: '13000' } }
+      : unavailable,
+  }));
+  const success = vi.fn();
+  const props = { productType: 'ai-planner-full', passengers: 1, priceKRW: 1, lang, onPaymentSuccess: success, p: { ...p, paypalBookBtn: 'Book now' } };
+  render(<PayPalBookingButton {...props} />);
+  fireEvent.click(screen.getByText('Book now'));
+  await waitFor(() => expect(buttons).toHaveLength(1));
+  await act(async () => { await buttons[0].onApprove({ orderID: 'ORDER-PREPAY' }); });
+  const assertPending = () => {
+    expect(screen.getByText(p.errors.PREPAY_CHECK_UNAVAILABLE)).toBeVisible();
+    expect(screen.queryByText(p.prepayErrors.PREPAY_CHECK_UNAVAILABLE)).toBeNull();
+    expect(screen.queryByText('Book now')).toBeNull();
+    expect(screen.queryByText('QR PANEL')).toBeNull();
+    expect(JSON.parse(localStorage.getItem(recoveryKey('single')) || '{}')).toMatchObject({ orderID: 'ORDER-PREPAY', paymentStatus: 'CAPTURE_UNKNOWN' });
+    expect(success).not.toHaveBeenCalled();
+    expect(mocks.paid).not.toHaveBeenCalled();
+  };
+  assertPending();
+  cleanup();
+  render(<PayPalBookingButton {...props} />);
+  fireEvent.click(screen.getByText(recoveryCopy(lang).check));
+  await screen.findByText(p.errors.PREPAY_CHECK_UNAVAILABLE);
+  assertPending();
+  const last = mocks.authFetch.mock.calls.at(-1);
+  expect(JSON.parse(last![1].body)).toEqual({ orderID: 'ORDER-PREPAY', reconcile: true });
 });
