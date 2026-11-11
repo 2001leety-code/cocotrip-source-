@@ -115,21 +115,37 @@ export function PhoneSignInModal({ language, onClose, onSuccess }: Props) {
   const [error, setError] = useState<string | null>(null);
   const confirmationRef = useRef<ConfirmationResult | null>(null);
   const verifierRef = useRef<RecaptchaVerifier | null>(null);
+  const sessionRef = useRef<object | null>(null);
+  const attemptRef = useRef<object | null>(null);
 
   // reCAPTCHA verifier 는 mount 시 1회 설정. unmount/재open 시 cleanup.
   useEffect(() => {
+    const session = {};
+    sessionRef.current = session;
     try {
       verifierRef.current = setUpRecaptchaVerifier(RECAPTCHA_CONTAINER_ID);
     } catch (e) {
       console.error('[PhoneSignInModal] verifier setup failed:', e);
     }
     return () => {
+      sessionRef.current = null;
+      attemptRef.current = null;
+      confirmationRef.current = null;
       try { verifierRef.current?.clear(); } catch { /* ignore cleanup errors */ }
       verifierRef.current = null;
     };
   }, []);
 
+  const handleClose = useCallback(() => {
+    // Closing is always allowed; in-flight results see the cleared session and are dropped.
+    if (!sessionRef.current) return;
+    sessionRef.current = null;
+    onClose();
+  }, [onClose]);
+
   const handleSendCode = useCallback(async () => {
+    const session = sessionRef.current;
+    if (!session || attemptRef.current) return;
     setError(null);
     // PR #399: dialCode + nationalNumber → E.164 조합 후 검증.
     // 사용자가 nationalNumber 의 leading 0 (예: 한국 010..., 일본 090...) 입력해도
@@ -144,36 +160,60 @@ export function PhoneSignInModal({ language, onClose, onSuccess }: Props) {
       setError(text.errInvalidPhone);
       return;
     }
+    // Ref lock is synchronous; loading only controls the rendered busy state.
+    const attempt = {};
+    attemptRef.current = attempt;
+    const isCurrentAttempt = () => sessionRef.current === session && attemptRef.current === attempt;
     setLoading(true);
     try {
-      confirmationRef.current = await signInWithPhone(phone, verifierRef.current);
+      const confirmation = await signInWithPhone(phone, verifierRef.current);
+      if (!isCurrentAttempt()) return;
+      confirmationRef.current = confirmation;
       setStep(2);
     } catch (e) {
-      setError(e instanceof Error ? e.message : text.errInvalidPhone);
+      if (isCurrentAttempt()) setError(e instanceof Error ? e.message : text.errInvalidPhone);
     } finally {
-      setLoading(false);
+      if (isCurrentAttempt()) {
+        attemptRef.current = null;
+        setLoading(false);
+      }
     }
   }, [dialCode, nationalNumber, text.errInvalidPhone]);
 
   const handleVerifyCode = useCallback(async () => {
+    const session = sessionRef.current;
+    if (!session || attemptRef.current) return;
     setError(null);
     if (!/^\d{6}$/.test(code) || !confirmationRef.current) {
       setError(text.errInvalidCode);
       return;
     }
+    const attempt = {};
+    attemptRef.current = attempt;
+    const isCurrentAttempt = () => sessionRef.current === session && attemptRef.current === attempt;
     setLoading(true);
     try {
       await verifyPhoneCode(confirmationRef.current, code);
+      // Only gate this modal's callbacks; the provider work is not cancelled.
+      if (!isCurrentAttempt()) return;
       onSuccess?.();
+      if (!isCurrentAttempt()) return;
+      sessionRef.current = null;
+      attemptRef.current = null;
       onClose();
     } catch (e) {
-      setError(e instanceof Error ? e.message : text.errInvalidCode);
+      if (isCurrentAttempt()) setError(e instanceof Error ? e.message : text.errInvalidCode);
     } finally {
-      setLoading(false);
+      if (isCurrentAttempt()) {
+        attemptRef.current = null;
+        setLoading(false);
+      }
     }
   }, [code, text.errInvalidCode, onSuccess, onClose]);
 
   const handleBack = useCallback(() => {
+    if (!sessionRef.current || attemptRef.current) return;
+    confirmationRef.current = null;
     setStep(1);
     setCode('');
     setError(null);
@@ -183,7 +223,7 @@ export function PhoneSignInModal({ language, onClose, onSuccess }: Props) {
     <div
       className="cocotrip-mobile-modal-backdrop fixed inset-0 z-[9999] flex items-center justify-center p-4"
       style={{ background: 'rgba(0,0,0,0.7)' }}
-      onClick={onClose}
+      onClick={handleClose}
     >
       <div
         className="cocotrip-mobile-phone-modal w-full max-w-sm rounded-2xl p-6"
@@ -286,7 +326,7 @@ export function PhoneSignInModal({ language, onClose, onSuccess }: Props) {
 
         <button
           type="button"
-          onClick={onClose}
+          onClick={handleClose}
           disabled={loading}
           className="w-full mt-3 py-2 text-xs text-white/55 hover:text-white/80 disabled:opacity-50 customer-phone-close"
         >

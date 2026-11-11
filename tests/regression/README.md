@@ -386,7 +386,7 @@ endpoint 우회 가능 시 booking 상태 임의 변경, 쿠폰 무한 발급, �
 | B-ADM1 | 일반 사용자 token → admin endpoint = 401/403 | non-admin idToken 으로 admin-issue-onboarding-coupons / admin-quality-summary / admin-booking-action 3종 호출 → 모두 401/403 |
 | B-ADM2 | 위조/만료/빈 token → 401/403 | 4 케이스 (`Bearer invalid.token`, 빈 Bearer, no Authorization, non-Bearer prefix) → 모두 401/403 |
 | B-ADM3 | ADMIN_EMAIL env 단일 source — 순수 hardcode 0건 | 코드 grep 자체검증. 4 카테고리 분류: env / hybridFallback (env \|\| hardcode) / HARDCODED_ADMIN_EMAILS 배열 fallback / **pureHardcode** (env 참조 0건 + 단독 hardcode 비교) |
-| B-ADM4 | admin token + admin-issue-onboarding-coupons → 200 | 정상 admin token + pageSize=1 minimal POST → 200 + `issued`/`alreadyIssued` 숫자 |
+| B-ADM4 | admin token + admin-issue-onboarding-coupons → 200 | `{pageSize:1,dryRun:true}` POST → `ok:true`, `dryRun:true`, `issued/alreadyIssued/errors=0`, candidates 정수 0~1 필수. 구버전 실발급 응답은 실패 |
 | B-ADM5 | admin token + admin-booking-action (sandbox ref) → 비-auth 4xx | sandbox `bookingRef=CT-TEST-AUTH-<ts>` → 404 NOT_FOUND 또는 200 (auth 통과 검증, 401/403/500 fail) |
 
 ### 실행 방법
@@ -482,3 +482,11 @@ voucher 생성 실패 = 결제 직후 핵심 사용자 신뢰 손상 → P0.
 | `VOUCHER_TEST_BOOKING_EMAIL` | 해당 booking 의 customerEmail |
 
 미설정 시 graceful skip + exit 0.
+
+## 가입쿠폰 전화 로그인 인증 회귀 (2026-11-10)
+
+- 원인: 전화번호 전용 가입에도 공통 이메일 필수 인증을 사용해, 프로필 저장 뒤 가입쿠폰 요청이 403으로 끝났다.
+- 수정 경계: 가입쿠폰만 `verifyOnboardingUserToken`을 사용한다. Firebase ID token 서명·폐기 검증을 유지하고, 보호된 `sign_in_provider`가 `phone`인 경우에만 이메일 부재를 허용한다. 익명·provider 누락·잘못된 UID는 거부한다. 결제·예약의 `verifyUserToken`은 변경하지 않는다.
+- 회귀 파일: `tests/unit/onboarding-phone-auth.test.ts`. SDK 인증은 mock으로 검사하며, handler의 허용 경로도 DB-unavailable에서 멈춘다. 실제 DB 객체, 쿠폰 저장 모형, 발급 호출은 만들지 않는다.
+- 검사 범위: 전화/이메일 로그인, 익명 거부, 본문 신원 위조 무시, 폐기·만료·비활성 계정의 SDK 거부, 잘못된 헤더, 기존 결제 인증 유지.
+- 한계: 실제 전화 로그인과 쿠폰 저장 E2E는 별도 검증이다. 과거 누락 계정 재시도, marker/이력 정합성, 중복 복구는 이 수정에 포함하지 않는다. 이 시험 통과를 발급 완료로 보고하지 않는다.

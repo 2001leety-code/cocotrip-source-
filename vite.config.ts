@@ -13,6 +13,7 @@ import { INDEXABLE_ROUTES } from "./src/lib/seoRoutes"
 // 감사를 지나가지 않는다(2026-08-23 검토 지적). 이유는 그 파일 상단에 적혀 있다.
 import { prerenderAuditPlugin } from "./scripts/audit-prerender-artifacts.mjs"
 import { injectBuildIdentifierIntoHtml, resolveBuildIdentifier } from "./src/lib/buildIdentity"
+import { devApiProxyBypass } from "./scripts/lib/dev-api-proxy-bypass.mjs"
 
 // PRERENDER=1 빌드에서만 사용.
 const PRERENDER_ROUTES = [...INDEXABLE_ROUTES];
@@ -46,7 +47,8 @@ export default defineConfig({
         changeOrigin: true,
         // src/ 가 api/_shared/*.js 를 직접 import 하면 dev 모듈 URL 이 /api/_shared/... 가 되어
         // 프록시에 잡혀 prod 로 새어 나간다(2026-10-10 실측, 404). 소스 모듈은 Vite 가 직접 서빙.
-        bypass: (req) => (/^\/api\/_shared\/[^?]+\.js(\?|$)/.test(req.url || '') ? req.url : undefined),
+        // Coupon recovery must never escape a local UI test through this production proxy.
+        bypass: devApiProxyBypass,
       },
     },
   },

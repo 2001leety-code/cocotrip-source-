@@ -8,7 +8,7 @@ import type { PlannerFormValues } from '../../src/components/PlannerForm';
 
 type PaymentProps = { canStartAiCheckout: () => boolean; onPaymentSuccess: (order: string) => void; onVerifiedPayPalFinal: (scope: null, order: string) => boolean; [key: string]: unknown };
 const fake = vi.hoisted(() => ({
-  user: { uid: 'owner-a' } as { uid: string } | null, currentUid: 'owner-a' as string | null,
+  user: { uid: 'owner-a', email: 'owner-a@example.invalid' } as { uid: string; email?: string } | null, currentUid: 'owner-a' as string | null,
   loading: false, pending: false, lookup: vi.fn(), paymentProps: [] as PaymentProps[], mounts: 0,
 }));
 vi.mock('@/hooks/useAuth', () => ({ useAuth: () => ({ user: fake.user, loading: fake.loading }) }));
@@ -49,7 +49,7 @@ function expectBlocked() {
 }
 beforeEach(() => {
   vi.clearAllMocks();
-  fake.user = { uid: 'owner-a' }; fake.currentUid = 'owner-a'; fake.loading = false; fake.pending = false;
+  fake.user = { uid: 'owner-a', email: 'owner-a@example.invalid' }; fake.currentUid = 'owner-a'; fake.loading = false; fake.pending = false;
   fake.paymentProps = []; fake.mounts = 0;
   fake.lookup.mockReset(); fake.lookup.mockResolvedValue(available());
   vi.stubGlobal('fetch', vi.fn(() => Promise.reject(new Error('No network allowed'))));
@@ -121,14 +121,14 @@ describe('explicit requested-coupon UI boundary', () => {
     const resolves: ((value: RequestedAiCouponResult) => void)[] = [];
     fake.lookup.mockImplementation(() => new Promise(resolve => { resolves.push(resolve); }));
     const view = setup();
-    fake.user = { uid: 'owner-b' }; fake.currentUid = 'owner-b'; view.rerender(); expectBlocked();
+    fake.user = { uid: 'owner-b', email: 'owner-b@example.invalid' }; fake.currentUid = 'owner-b'; view.rerender(); expectBlocked();
     await act(async () => { resolves[1](available()); });
     expect(screen.getByText(translations.en.planner.aiCouponApplied)).toBeVisible();
     await act(async () => { resolves[0]({ state: 'review' }); });
     expect(screen.getByText(translations.en.planner.aiCouponApplied)).toBeVisible();
     fake.user = null; fake.currentUid = null; view.rerender(); expectBlocked();
     fake.loading = true; view.rerender(); expectBlocked();
-    fake.user = { uid: 'owner-b' }; fake.currentUid = 'owner-b'; fake.loading = false; view.rerender();
+    fake.user = { uid: 'owner-b', email: 'owner-b@example.invalid' }; fake.currentUid = 'owner-b'; fake.loading = false; view.rerender();
     // A restored auth session must be freshly checked, not reuse B's pre-logout lookup.
     expectBlocked();
   });
@@ -177,9 +177,9 @@ describe('explicit requested-coupon UI boundary', () => {
       expect(oldPayment.canStartAiCheckout()).toBe(false);
       await act(async () => { go('/planner'); });
     } else {
-      fake.user = { uid: 'owner-b' }; fake.currentUid = 'owner-b'; view.rerender();
+      fake.user = { uid: 'owner-b', email: 'owner-b@example.invalid' }; fake.currentUid = 'owner-b'; view.rerender();
       expect(oldPayment.canStartAiCheckout()).toBe(false);
-      fake.user = { uid: 'owner-a' }; fake.currentUid = 'owner-a'; view.rerender();
+      fake.user = { uid: 'owner-a', email: 'owner-a@example.invalid' }; fake.currentUid = 'owner-a'; view.rerender();
     }
     expect(oldPayment.canStartAiCheckout()).toBe(false);
     expect(fake.paymentProps.at(-1)!.canStartAiCheckout()).toBe(true);

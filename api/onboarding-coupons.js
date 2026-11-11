@@ -11,7 +11,7 @@
  *   - 트랜잭션 내에서 flag 검사 + 쿠폰 추가 → 동시 호출도 정확히 1회만 발행됨
  *
  * 보안:
- *   - verifyUserToken (Bearer ID-token) — body 신뢰 X
+ *   - verifyOnboardingUserToken (Bearer ID-token, 비익명 계정) — body 신뢰 X
  *   - 쿠폰 doc은 users/{uid}/coupons (rules: client write false → server only)
  *
  * 클라이언트 호출 (src/lib/firebase.js):
@@ -22,7 +22,7 @@
  *   });
  */
 import { initAdminDb } from './_shared/firebase-admin.js';
-import { verifyUserToken } from './_shared/user-auth.js';
+import { verifyOnboardingUserToken } from './_shared/user-auth.js';
 import { captureError } from './_shared/sentry.js';
 import { sanitizeAttribution } from './_shared/attribution.js';
 
@@ -64,11 +64,14 @@ function randomSuffix(len = 6) {
 }
 
 /**
- * 회원가입 쿠폰 2장 발급 (멱등). admin-coupon-fix.js 가 재사용.
+ * 회원가입 쿠폰 3장 발급 (멱등). admin-coupon-fix.js / admin-issue-onboarding-coupons.js 가 재사용.
+ * options.audit = { callerUid, callerEmail, action } (관리자 복구만): 실제로 3장을 쓰는 분기에서만
+ * 같은 트랜잭션으로 admin_actions 감사 문서 1건을 남긴다. 미지정(가입 경로)이면 기존 동작 그대로.
  * @returns {Promise<{issued:number, alreadyIssued:boolean}>}
  */
-export async function issueOnboardingCouponsForUid(db, uid) {
+export async function issueOnboardingCouponsForUid(db, uid, options = {}) {
   if (!db || !uid) throw new Error('db and uid required');
+  const audit = options && options.audit;
   // 3주 오픈 프로모 창 게이트 — 마감 후 가입자는 WELCOME 쿠폰 미발급 (운영자 2026-06-07).
   if (!isOnboardingPromoOpen()) {
     return { issued: 0, promoClosed: true };
@@ -135,6 +138,18 @@ export async function issueOnboardingCouponsForUid(db, uid) {
       onboardingCouponsIssued: true,
       onboardingAt: now,
     }, { merge: true });
+
+    if (audit) {
+      tx.set(db.collection('admin_actions').doc(), {
+        action: audit.action,
+        callerUid: audit.callerUid || null,
+        callerEmail: audit.callerEmail || null,
+        targetUid: uid,
+        result: { issued: 3 },
+        couponIds: [charterCoupon.id, tourCoupon.id, aiPlanCoupon.id],
+        timestamp: new Date(now).toISOString(),
+      });
+    }
 
     return { issued: 3, alreadyIssued: false };
   });
@@ -222,7 +237,7 @@ export default async function handler(req, res) {
   }
 
   try {
-    const auth = await verifyUserToken(req);
+    const auth = await verifyOnboardingUserToken(req);
     if (!auth.ok) {
       res.writeHead(auth.status, JSON_HEADERS);
       return res.end(JSON.stringify({ ok: false, error: auth.error }));

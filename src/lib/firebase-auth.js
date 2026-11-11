@@ -1,5 +1,6 @@
-import { getAuth, GoogleAuthProvider, OAuthProvider, signInWithPopup, signInWithRedirect, getRedirectResult, signInWithPhoneNumber, RecaptchaVerifier } from 'firebase/auth';
+import { getAuth, GoogleAuthProvider, OAuthProvider, signInWithPopup, signInWithRedirect, getRedirectResult, signInWithPhoneNumber, RecaptchaVerifier, linkWithPopup } from 'firebase/auth';
 import { app } from './firebase-app.js';
+import { AUTH_PROFILE_EVENT } from './connectEmail';
 
 export const auth = getAuth(app);
 export const googleProvider = new GoogleAuthProvider();
@@ -169,6 +170,46 @@ export async function handleRedirectResult() {
   } catch (err) {
     console.error('[firebase] Redirect result error:', err);
     return null;
+  }
+}
+
+const LINK_ERROR_CODES = {
+  'auth/credential-already-in-use': 'already-in-use',
+  'auth/email-already-in-use': 'already-in-use',
+  'auth/popup-closed-by-user': 'cancelled',
+  'auth/cancelled-popup-request': 'cancelled',
+  'auth/popup-blocked': 'popup-blocked',
+};
+
+/**
+ * 이메일 없는 회원(전화 가입·이메일 없는 LINE)에게 같은 계정(uid 유지)으로 구글을 연결한다.
+ * 연결 뒤 토큰에 email 이 생기면 기존 서버 검증(쿠폰·예약 조회 등)을 그대로 통과한다.
+ * Firebase 원문 메시지는 돌려주지 않는다 — 화면은 code 로만 문구를 고른다.
+ * @returns {Promise<{ok: true, email: string} | {ok: false, code: 'already-in-use'|'cancelled'|'popup-blocked'|'no-email'|'failed'}>}
+ */
+export async function linkGoogleAccount() {
+  const current = auth.currentUser;
+  if (!current || current.isAnonymous) return { ok: false, code: 'failed' };
+  try {
+    const result = await linkWithPopup(current, googleProvider);
+    const user = result.user;
+    await user.reload();
+    await user.getIdToken(true);
+    // 연결 전 같은 세션의 복구 시도(email 없어 403 가능)가 남긴 1회 표시를 지워, 아래 저장에서 바로 재발급되게 한다.
+    try {
+      const { clearOnboardingRetryMark } = await import('./firebase.js');
+      if (typeof clearOnboardingRetryMark === 'function') clearOnboardingRetryMark(user.uid);
+    } catch { /* silent */ }
+    // 프로필 email 갱신 + 미발급 가입 쿠폰 재시도(ensureOnboardingCoupons)가 여기서 돈다.
+    await saveUserAfterSignIn(user);
+    const email = typeof user.email === 'string' ? user.email.trim() : '';
+    if (!email) return { ok: false, code: 'no-email' };
+    // 새로고침 없이 useAuth 사용처가 새 email 로 다시 그리게 한다.
+    try { window.dispatchEvent(new CustomEvent(AUTH_PROFILE_EVENT)); } catch { /* SSR */ }
+    return { ok: true, email };
+  } catch (err) {
+    const code = err && typeof err.code === 'string' ? LINK_ERROR_CODES[err.code] : undefined;
+    return { ok: false, code: code || 'failed' };
   }
 }
 

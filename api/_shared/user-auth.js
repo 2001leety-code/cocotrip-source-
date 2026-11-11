@@ -56,6 +56,40 @@ export async function verifyUserToken(req) {
 }
 
 /**
+ * Signup benefits use the verified account uid, including phone-only sign-ins.
+ * Keep verifyUserToken's email requirement unchanged for payments and bookings.
+ * The reserved Firebase sign-in claim must identify a non-anonymous account;
+ * only a verified phone sign-in may omit email. Body identity fields are ignored.
+ * @param {object} req
+ * @returns {Promise<{ok: true, uid: string, email: string|null, emailVerified: boolean} | {ok: false, status: number, error: string}>}
+ */
+export async function verifyOnboardingUserToken(req) {
+  const header = req.headers?.authorization || req.headers?.Authorization || '';
+  const match = typeof header === 'string' ? /^Bearer\s+(\S+)$/.exec(header) : null;
+  if (!match) {
+    return { ok: false, status: 401, error: 'Authorization Bearer token required' };
+  }
+  try {
+    const decoded = await (await getAuthInstance()).verifyIdToken(match[1], true);
+    const uid = decoded.uid;
+    if (typeof uid !== 'string' || !uid.trim() || uid.length > 128 || uid.includes('/')) {
+      return { ok: false, status: 401, error: 'Token has no valid uid claim' };
+    }
+    const provider = decoded.firebase && decoded.firebase.sign_in_provider;
+    if (typeof provider !== 'string' || !provider || provider !== provider.trim() || provider === 'anonymous') {
+      return { ok: false, status: 403, error: 'Signed-in account required' };
+    }
+    const email = typeof decoded.email === 'string' ? decoded.email.toLowerCase().trim() : '';
+    if (!email && provider !== 'phone') {
+      return { ok: false, status: 403, error: 'Token has no email claim' };
+    }
+    return { ok: true, uid, email: email || null, emailVerified: decoded.email_verified === true };
+  } catch (err) {
+    return { ok: false, status: 401, error: `Token verification failed: ${err?.code || 'AUTH_VERIFICATION_FAILED'}` };
+  }
+}
+
+/**
  * 이메일 보유 여부와 무관하게 Firebase ID token의 uid를 검증한다.
  * 채팅처럼 전화 로그인 사용자도 허용하되 body.userId를 신뢰하면 안 되는 경로용이다.
  * Authorization 헤더가 없거나 검증에 실패하면 명시적인 401을 반환한다.
