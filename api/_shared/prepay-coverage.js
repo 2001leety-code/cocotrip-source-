@@ -15,6 +15,7 @@
  * 순수(입력 → 값) + 주입 가능한 foodIndex. Firestore·PayPal·LLM 호출 없음.
  */
 import { createHash } from 'crypto';
+import { readFile } from 'node:fs/promises';
 import { shapeRequest } from '../_ai_core/requestShaper.js';
 import { mealCitiesForTrip, mealCityCode, enforceDietaryCoverage } from '../_ai_core/dietaryCoverageGate.js';
 import { checkStartDateTooSoon } from '../_ai_core/validateStartDate.js';
@@ -178,10 +179,23 @@ export function checkPrepayCoverage(input, foodIndex) {
   }
 }
 
-/** 실제 식당 DB(생성 단계와 같은 로더). 테스트는 foodIndex 를 직접 넘긴다. */
+/** 생성 단계와 같은 식당 파일을 읽되, 결제 전에는 읽기 실패를 빈 자료로 숨기지 않는다. */
+let foodIndexPromise;
 export async function loadPrepayFoodIndex() {
-  const { loadFoodIndex } = await import('../_ai_core/geminiPipeline.js');
-  return loadFoodIndex();
+  if (!foodIndexPromise) {
+    // Cache successful reads only; an unavailable bundle is not zero dietary coverage.
+    foodIndexPromise = readFile(new URL('../_food_index.json', import.meta.url), 'utf8')
+      .then(text => {
+        const rows = JSON.parse(text);
+        if (!Array.isArray(rows) || rows.length === 0) throw new Error('Food index is empty or invalid');
+        return rows;
+      }).catch(() => {
+        foodIndexPromise = null;
+        throw Object.assign(new Error('Travel checks are temporarily unavailable. Please try again later.'),
+          { code: 'PREPAY_CHECK_UNAVAILABLE', status: 503 });
+      });
+  }
+  return foodIndexPromise;
 }
 
 /** 주문 snapshot 에 저장할 필드(정규 입력 자체·버전·서버 지문·검사 시각·자료 크기). */

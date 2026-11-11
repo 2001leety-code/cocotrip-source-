@@ -7,7 +7,7 @@
  *   S2) 입력은 `intent` 필드 통째 교체(이전 입력의 하위 칸이 남지 않음), stages 는 그대로.
  *   S3) 묘비 트랜잭션 실패 = 202 UNKNOWN, 바깥 catch = 고정 문구(원문은 로그만).
  */
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { memoryDb, fakeRes, providerFetch, completedOrder, type MemoryDb } from './helpers/payment-recovery-fixture';
 import { createFakeFirestore } from '../helpers/fake-firestore.js';
 import { newCheckoutCapability, checkoutCookie, replaceAttemptIntent } from '../../api/_shared/payment-fulfillment-recovery.js';
@@ -62,7 +62,10 @@ const posts = () => provider.calls.filter((c) => c.method === 'POST').length;
 
 let db: ReturnType<typeof memoryDb>;
 let provider: ReturnType<typeof providerFetch>;
+afterEach(() => vi.useRealTimers());
 beforeEach(() => {
+  vi.useFakeTimers({ toFake: ['Date'] });
+  vi.setSystemTime(new Date('2026-11-01T03:00:00Z'));
   vi.clearAllMocks();
   effects.discountV2 = false;
   db = memoryDb();

@@ -5,7 +5,7 @@
  *   3) 쿠폰 사업 거절만 최종. 미결제 확정 + 쿠폰 해제 = 한 트랜잭션(실패 = 둘 다 그대로, UNKNOWN) — 묘비 주문에 묶인 쿠폰 0.
  *   6) 확인 GET 이 captured 인데 그 사이 기록이 생겼으면 그 기록 기준 응답·운영자 알림 없음.
  */
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { memoryDb, fakeRes, providerFetch, completedOrder, type MemoryDb } from './helpers/payment-recovery-fixture';
 import { newCheckoutCapability, checkoutCookie, CLAIM_LEASE_MS } from '../../api/_shared/payment-fulfillment-recovery.js';
 
@@ -58,7 +58,10 @@ async function call(b: Record<string, unknown>, headers: Record<string, string> 
 
 let db: ReturnType<typeof memoryDb>;
 let provider: ReturnType<typeof providerFetch>;
+afterEach(() => vi.useRealTimers());
 beforeEach(() => {
+  vi.useFakeTimers({ toFake: ['Date'] });
+  vi.setSystemTime(new Date('2026-11-01T03:00:00Z'));
   vi.clearAllMocks();
   effects.discountV2 = false; effects.prepayOn = false; effects.coverage.mockReturnValue({ ok: true });
   db = memoryDb();

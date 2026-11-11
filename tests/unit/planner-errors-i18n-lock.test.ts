@@ -8,6 +8,7 @@ import en from '../../src/i18n/locales/en.json';
 import ko from '../../src/i18n/locales/ko.json';
 import ja from '../../src/i18n/locales/ja.json';
 import zh from '../../src/i18n/locales/zh.json';
+import { resolveErrorMessage, resolvePrepayErrorMessage } from '../../src/pages/PlannerPage/hooks/errorMessages';
 
 // Extract all PlannerErrorCode values from the type. This is the source of truth.
 const ERROR_CODES: PlannerErrorCode[] = [
@@ -58,6 +59,17 @@ const ERROR_CODES: PlannerErrorCode[] = [
 ];
 
 describe('Error localization lock — all 4 locales complete', () => {
+  it.each([
+    ['en', en, 'do not pay again'], ['ko', ko, '다시 결제하지'],
+    ['ja', ja, '再度お支払いせず'], ['zh', zh, '请勿重复付款'],
+  ] as const)('%s owner mismatch and paid verification failure warn against paying again', (_language, locale, warning) => {
+    for (const code of ['FORBIDDEN', 'PAYMENT_VERIFY_UNAVAILABLE'] as const) {
+      expect(resolveErrorMessage(code, 'Order does not belong', locale.planner.errors).toLowerCase()).toContain(warning.toLowerCase());
+    }
+    const before = resolvePrepayErrorMessage('PREPAY_CHECK_UNAVAILABLE', locale.planner.prepayErrors);
+    expect(before).toBeTruthy();
+    expect(before).not.toBe(locale.planner.errors.PREPAY_CHECK_UNAVAILABLE);
+  });
   const enErrors = en.planner?.errors || {};
   const koErrors = ko.planner?.errors || {};
   const jaErrors = ja.planner?.errors || {};
@@ -96,7 +108,7 @@ describe('Error localization lock — all 4 locales complete', () => {
   });
 
   it('no extra error codes exist in any locale (no stale keys)', () => {
-    const allCodes = new Set<string>([...ERROR_CODES, 'DIETARY_COVERAGE_UNAVAILABLE', 'PREPAY_INPUT_MISSING', 'PREPAY_INPUT_MISMATCH', 'PREPAY_INPUT_INVALID', 'PREPAY_DATE_TOO_SOON']);
+    const allCodes = new Set<string>([...ERROR_CODES, 'DIETARY_COVERAGE_UNAVAILABLE', 'PREPAY_INPUT_MISSING', 'PREPAY_INPUT_MISMATCH', 'PREPAY_INPUT_INVALID', 'PREPAY_DATE_TOO_SOON', 'PREPAY_CHECK_UNAVAILABLE']);
     for (const key of Object.keys(enErrors)) {
       expect(allCodes.has(key as PlannerErrorCode), `en has unexpected error code: ${key}`).toBe(true);
     }

@@ -12,6 +12,7 @@ const PREPAY_ERROR_KEY: Record<string, string> = {
   PREPAY_DATES_MISSING: 'PREPAY_INPUT_INVALID',
   PLANNER_INPUT_CONFLICT: 'PREPAY_INPUT_INVALID',
   PLANNER_DATE_TOO_SOON: 'PREPAY_DATE_TOO_SOON',
+  PREPAY_CHECK_UNAVAILABLE: 'PREPAY_CHECK_UNAVAILABLE',
 };
 
 /** Use only before payment; generation errors must not claim that no payment occurred. */

@@ -353,12 +353,13 @@ export default async function handler(req, res) {
         } else if (tooSoon) {
           preCaptureBlock = { status: 400, code: 'PLANNER_DATE_TOO_SOON', message: 'Start date must be tomorrow or later', details: `Requested: ${tooSoon.reqStartDate}, today KST: ${tooSoon.todayKST}` };
         } else {
-          const coverage = checkPrepayCoverage(_snapPrepayInput, await loadPrepayFoodIndex());
+          const foodIndex = _snapPrepayInput.diets?.length ? await loadPrepayFoodIndex() : null;
+          const coverage = checkPrepayCoverage(_snapPrepayInput, foodIndex);
           if (!coverage.ok) preCaptureBlock = coverage;
         }
       } catch (checkErr) {
         console.error('[capturePaypalOrder] pre-capture check failed (treated as a refusal, retry later):', orderID, checkErr.message);
-        preCaptureBlock = { status: 503, code: 'ORDER_CHECK_UNAVAILABLE', message: 'Could not verify the order right now — please retry', unavailable: true };
+        preCaptureBlock = { status: 503, code: checkErr.code === 'PREPAY_CHECK_UNAVAILABLE' ? checkErr.code : 'ORDER_CHECK_UNAVAILABLE', message: 'Could not verify the order right now — please retry', unavailable: true };
       }
     }
 
@@ -418,6 +419,14 @@ export default async function handler(req, res) {
       return res.end(JSON.stringify(replayBody));
     }
     if (acquired.kind === 'duplicate') {
+      if (acquired.lock.reviewQuarantined === true) {
+        const conflict = acquired.lock.voidConflict;
+        res.writeHead(202, JSON_CORS);
+        return res.end(JSON.stringify(buildPaymentReviewResponse({ orderID,
+          captureID: conflict?.captureID || acquired.lock.captureID,
+          capture: conflict ? { purchase_units: [{ payments: { captures: [{ status: 'COMPLETED' }] } }] } : undefined,
+        })));
+      }
       console.warn('[capturePaypalOrder] duplicate orderID blocked:', orderID);
       res.writeHead(409, JSON_CORS);
       return res.end(JSON.stringify(_err('Order already processed', 'DUPLICATE_ORDER')));

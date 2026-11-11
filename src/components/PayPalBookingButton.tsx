@@ -161,7 +161,7 @@ const TEST_ACCOUNTS: string[] = ['2001leety@gmail.com'];
 function currentUid(): string | null { return firebaseAuth.currentUser?.uid || null; }
 function safeCanStart(fn: () => boolean): boolean { try { return fn() === true; } catch { return false; } }
 
-export function PayPalBookingButton({ productType, passengers, dateStart = '', dateEnd = '', priceKRW: rawPriceKRW, expectedUSD, disabled = false, estimateConsent, p = {}, lang, pickupLocation = '', dropoffLocation = '', vehicleType = '', memo = '', itineraryData, onPaymentSuccess, onVerifiedPayPalFinal, canStartAiCheckout, onAiCheckoutStarted, aiCheckoutBlockedMessage, userEmail = '', airport, customAmountKRW, pickupTime = '', durationDays, originKey, destKey, tripType, vehicle, routeCoords, termsAgreed, marketingConsent, options, tourId, tourSlotId, bookingDate, slotCapacity, plannerInput }: Props) {
+export function PayPalBookingButton({ productType, passengers, dateStart = '', dateEnd = '', priceKRW: rawPriceKRW, expectedUSD, disabled = false, estimateConsent, p = {}, lang, pickupLocation = '', dropoffLocation = '', vehicleType = '', memo = '', itineraryData, onPaymentSuccess, onVerifiedPayPalFinal, canStartAiCheckout, onAiCheckoutStarted, aiCheckoutBlockedMessage, userEmail = '', airport, customAmountKRW, pickupTime = '', durationDays, originKey, destKey, tripType, vehicle, routeCoords, termsAgreed, marketingConsent, plannerInput, options, tourId, tourSlotId, bookingDate, slotCapacity }: Props) {
   // 슬롯 정원 4필드 — create/capture 두 요청에 **같은 값**이 실려야 pending → confirmed 가 이어진다.
   // 한 번만 계산해 두 곳에서 공유(한쪽만 고치는 사고 방지).
   const slotFields = tourSlotBody({ tourId, tourSlotId, bookingDate, slotCapacity });
@@ -794,7 +794,8 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
       }
       if (!res.ok || !json.ok) {
         const hint = resolvePrepayErrorMessage(json.code, p.prepayErrors as Record<string, string> | undefined);
-        throw new Error((hint && qrSession ? rc.warn : hint) || json.error || d?.error || 'Order creation failed');
+        if (hint) throw new Error(qrSession ? rc.warn : hint);
+        throw new Error(json.error || d?.error || 'Order creation failed');
       }
       if (aiScoped) {
         rememberAiCheckoutScope({ uid: checkoutStartUid, attemptId, orderId: d.orderID });

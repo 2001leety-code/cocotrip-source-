@@ -12,7 +12,7 @@ import { fileURLToPath } from 'url';
 import { getPaypalAccessToken, resolveIsSandbox } from './_shared/paypal.js';
 import { isPastCutoff, getCutoffHours } from './_shared/booking-cutoff.js';
 import { checkAiPlannerCouponPolicy, isAiPlannerProduct } from './_shared/ai-planner-policy.js';
-import { checkPlannerOrderInput, loadPrepayFoodIndex, prepaySnapshotFields, isPrepayCheckedProduct } from './_shared/prepay-coverage.js';
+import { checkPlannerOrderInput, normalizePrepayInput, loadPrepayFoodIndex, prepaySnapshotFields, isPrepayCheckedProduct } from './_shared/prepay-coverage.js';
 import { acquireSlotLock, fetchServerSlotCapacity } from './_shared/slot-capacity.js';
 import { initAdminDb } from './_shared/firebase-admin.js';
 import { resolveMultiDayCheckoutKrw, multiDayListBaseKrw, captainPremiumKrw } from './_shared/charter-multiday-price.js';
@@ -227,7 +227,8 @@ export default async function handler(req, res) {
     let prepayFields = null;
     if (isPrepayCheckedProduct(productType)) {
       //   출발일 > KST 오늘(생성 단계와 같은 함수)도 여기서 — 자정을 넘겨 결제된 주문이 생성 단계 400 으로 막히지 않게.
-      const foodIndex = await loadPrepayFoodIndex();
+      const normalized = normalizePrepayInput(body.plannerInput, { requireFutureStart: true });
+      const foodIndex = normalized.ok && normalized.input.diets.length ? await loadPrepayFoodIndex() : null;
       const checked = checkPlannerOrderInput(body.plannerInput, foodIndex, body.language);
       if (!checked.ok) {
         console.warn('[createPaypalOrder] planner input rejected before order → no PayPal order:', checked.code, checked.details || '');
@@ -602,6 +603,10 @@ export default async function handler(req, res) {
     res.end(JSON.stringify(_ok({ orderID: order.id, usdAmount, krwAmount, currentRate: Math.round(usdToKrw), displayKRW: krwAmount.toLocaleString('ko-KR') + '원', displayUSD: '$' + usdAmount + ' USD' })));
   } catch (err) {
     console.error('[createPaypalOrder] Error:', err);
+    if (err.code === 'PREPAY_CHECK_UNAVAILABLE') {
+      res.writeHead(503, JSON_CORS);
+      return res.end(JSON.stringify(_err(err.message, err.code)));
+    }
     res.writeHead(500, JSON_CORS);
     res.end(JSON.stringify(_err(err.message, 'INTERNAL_ERROR')));
   }

@@ -13,7 +13,7 @@ import { createBinding, consumeOrRecover, restoreOrResolve, validateBinding, cou
 import { FieldValue } from 'firebase-admin/firestore';
 import { getPaypalAccessToken, resolveIsSandbox } from '../_shared/paypal.js';
 import { captureError } from '../_shared/sentry.js';
-import { isReviewFulfillable, PAYMENT_REVIEW_RESOLUTION } from '../_shared/payment-review.js';
+import { isReviewFulfillable, PAYMENT_REVIEW_RESOLUTION, buildPaymentReviewDoc } from '../_shared/payment-review.js';
 import { throttledTelegramAlert } from '../_shared/telegram-throttle.js';
 import { isAiPlannerFullProduct } from '../_shared/ai-planner-policy.js';
 import { toMinorUnits, verifyCaptureIntegrity } from '../_shared/paypal-capture-verify.js';
@@ -145,6 +145,7 @@ async function paidCoverageCheck(body, authenticatedEmail, authenticatedUid, loa
     return null;
   } catch (e) {
     if (e && e.code === 'DIETARY_COVERAGE_UNAVAILABLE') return reject(422, e.code, e.message, e.details);
+    if (e && e.code === 'PREPAY_CHECK_UNAVAILABLE') return reject(503, 'PAYMENT_VERIFY_UNAVAILABLE', 'Could not verify the paid order. Do not pay again; please try again later.');
     throw e;
   }
 }
@@ -191,7 +192,7 @@ async function bindPrepayInputBeforeClaim(adminDb, orderId, order, body, authent
   const snapData = order.pinned || {};
   // 소유자 검사가 맨 앞 — 정규화 불가·지문 일치 같은 조기 통과보다 먼저(남의 결제 주문으로 발급·고정 차단).
   if (snapData.ownerUid && snapData.ownerUid !== authenticatedUid) {
-    return reject(403, 'FORBIDDEN', 'Order does not belong to the authenticated user');
+    return reject(403, 'FORBIDDEN', 'Order does not belong to the authenticated user', 'Do not pay again. Sign in with the account used for payment or contact support.');
   }
   const normalized = normalizePrepayInput(body);
   if (!normalized.ok) {
@@ -570,6 +571,17 @@ export async function enforcePaymentAndRevision(body, adminDb, authenticatedEmai
           const attemptDoc = await adminDb.collection('used_paypal_orders').doc(paypalOrderId).get();
           const attempt = attemptDoc.exists ? attemptDoc.data() : null;
           if (!operatorConfirmedPayment && (isVoidTombstone(attempt) || attempt?.reviewQuarantined === true)) {
+            // Create once per order; a concurrent webhook/operator resolution must never be overwritten.
+            const reviewRef = adminDb.collection('payment_reviews').doc(paypalOrderId);
+            await adminDb.runTransaction(async tx => {
+              const existing = await tx.get(reviewRef);
+              if (existing.exists) return;
+              tx.set(reviewRef, {
+                ...buildPaymentReviewDoc({ flow: attempt.flow || 'single', orderID: paypalOrderId,
+                  verdict: { code: 'CAPTURED_AFTER_VOID', detail: 'Paid order blocked by a void or quarantine marker' }, capture: orderData }),
+                createdAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp(),
+              });
+            });
             return reject(403, 'PAYMENT_UNDER_REVIEW', 'Payment is under manual review',
               '결제 확인 중입니다. 확인 후 안내드립니다. 다시 결제하지 마세요.');
           }
@@ -685,7 +697,7 @@ export async function enforcePaymentAndRevision(body, adminDb, authenticatedEmai
         //   발급권 선점(claimPlanIssuance)은 옮기지 않는다(식이 실패 전에 잠기면 정당한 재시도가 막힌다). 조회 실패는 아래 claim 이 판정.
         //   r17: 소유자 검사가 완료 조회보다 먼저 — 다른 UID 에 완료·미완료가 FORBIDDEN 으로 같아야 한다(완료 여부 노출 금지).
         if (snapData.ownerUid && snapData.ownerUid !== ownerUid) {
-          return reject(403, 'FORBIDDEN', 'Order does not belong to the authenticated user');
+          return reject(403, 'FORBIDDEN', 'Order does not belong to the authenticated user', 'Do not pay again. Sign in with the account used for payment or contact support.');
         }
         let alreadyIssued = false;
         try {

@@ -3,7 +3,7 @@
  *   단건과 같은 계약: 확인(absent) → PayPal GET → 여전히 없을 때만 묘비 → order_voided / capture 먼저면 기존 기록 경로 /
  *   충돌 재시도 / 묘비 뒤 provider·OAuth 0회 / captured·조회 실패 = 묘비 없음 / 묘비 쓰기 실패 = UNKNOWN.
  */
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { memoryDb, fakeRes, providerFetch, type MemoryDb } from './helpers/payment-recovery-fixture';
 import { newCheckoutCapability, checkoutCookie, CLAIM_LEASE_MS } from '../../api/_shared/payment-fulfillment-recovery.js';
 
@@ -47,7 +47,10 @@ const approvedFetch = (onGet?: () => void) => vi.fn(async () => { if (onGet) onG
 
 let db: ReturnType<typeof memoryDb>;
 let provider: ReturnType<typeof providerFetch>;
+afterEach(() => vi.useRealTimers());
 beforeEach(() => {
+  vi.useFakeTimers({ toFake: ['Date'] });
+  vi.setSystemTime(new Date('2026-11-01T03:00:00Z'));
   vi.clearAllMocks();
   db = memoryDb(); effects.store.db = db.db;
   db.rows.set(`cart_orders/${ORDER}`, { ...snapshot });
@@ -56,6 +59,15 @@ beforeEach(() => {
 });
 
 describe('r19 cart — tombstone contract', () => {
+  it.each([false, true])('quarantined captured record without intent returns review for capture/reconcile=%s, with no provider call', async reconcile => {
+    db.rows.set(LOCK, { status: 'captured', captureState: 'captured', reviewQuarantined: true, flow: 'cart', environment: 'live', voidConflict: { captureID: 'CAP-LATE' } });
+    const out = await call({ orderID: ORDER, ...(reconcile ? { reconcile: true } : {}) });
+    expect(out).toMatchObject({ status: 202, body: { bookingStatus: 'PAYMENT_REVIEW', paymentStatus: 'CAPTURED', paymentCaptured: true, finalized: false, retryable: false, captureID: 'CAP-LATE' } });
+    expect(provider.calls).toHaveLength(0);
+    expect(effects.token).not.toHaveBeenCalled();
+    expect(effects.processor).not.toHaveBeenCalled();
+    expect((await call({ orderID: ORDER, reconcile: true }, {})).status).toBe(403);
+  });
   it('check first: GET → tombstone → order_voided; then the capture is refused with zero provider and OAuth calls, no booking', async () => {
     provider.push({ method: 'GET', reply: { status: 200, body: { id: ORDER, status: 'APPROVED' } } });
     const check = await call({ orderID: ORDER, reconcile: true });

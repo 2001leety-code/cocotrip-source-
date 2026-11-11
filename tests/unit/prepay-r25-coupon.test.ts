@@ -8,7 +8,7 @@
  *   쿠키만 있는 요청(intent.coupon 계산값 null)은 저장 쿠폰을 그대로 쓴다(main 의 재생과 같음).
  * r26: r25-3(기록 없음 + 404 = 미결제)은 되돌림 — 조회 실패·404 는 전부 UNKNOWN(202).
  */
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { memoryDb, fakeRes, providerFetch, completedOrder, type MemoryDb } from './helpers/payment-recovery-fixture';
 import { newCheckoutCapability, checkoutCookie } from '../../api/_shared/payment-fulfillment-recovery.js';
 
@@ -67,7 +67,10 @@ const posts = () => provider.calls.filter((c) => c.method === 'POST').length;
 
 let db: ReturnType<typeof memoryDb>;
 let provider: ReturnType<typeof providerFetch>;
+afterEach(() => vi.useRealTimers());
 beforeEach(() => {
+  vi.useFakeTimers({ toFake: ['Date'] });
+  vi.setSystemTime(new Date('2026-11-01T03:00:00Z'));
   vi.clearAllMocks();
   db = memoryDb();
   effects.store.db = db.db;

@@ -4,7 +4,7 @@
  *   · 증명 있는 요청 = 기존 202 UNKNOWN(기록 유지).
  *   main 비교: main 은 무증명이어도 'unknown' 으로 남겨, 나중 확인이 그 입력으로 capture·예약했다.
  */
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { memoryDb, fakeRes, providerFetch, type MemoryDb } from './helpers/payment-recovery-fixture';
 import { newCheckoutCapability, checkoutCookie } from '../../api/_shared/payment-fulfillment-recovery.js';
 
@@ -46,7 +46,10 @@ async function call(b: Record<string, unknown>, headers: Record<string, string> 
 
 let db: ReturnType<typeof memoryDb>;
 let provider: ReturnType<typeof providerFetch>;
+afterEach(() => vi.useRealTimers());
 beforeEach(() => {
+  vi.useFakeTimers({ toFake: ['Date'] });
+  vi.setSystemTime(new Date('2026-11-01T03:00:00Z'));
   vi.clearAllMocks();
   db = memoryDb(); effects.store.db = db.db;
   db.rows.set(`cart_orders/${ORDER}`, { ...snapshot });

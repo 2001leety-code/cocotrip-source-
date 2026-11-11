@@ -590,7 +590,7 @@
       "PAYMENT_INCOMPLETE": "支付尚未确认，请稍后重试。",
       "DUPLICATE_ORDER": "此支付已被使用，请查看您之前收到的邮件。",
       "REVISION_EXHAUSTED": "您已使用过免费重新生成。如需再次重新生成，请通过WhatsApp联系我们。",
-      "FORBIDDEN": "访问被拒绝，请联系客服。",
+      "FORBIDDEN": "访问被拒绝。如已付款，请勿重复付款；请使用付款时的账号登录或联系客服。",
       "INTERNAL_ERROR": "服务器出现暂时问题。您的支付是安全的 — 请通过WhatsApp与我们联系。",
       "INVALID_RESPONSE": "服务器返回异常响应，请重试或通过WhatsApp联系我们。",
       "NETWORK_ERROR": "网络连接有问题，请检查网络后重试。",
@@ -603,7 +603,7 @@
       "DIETARY_MEAL_COVERAGE_FAILED": "行程中有一天无法安排必需的用餐。请修改到达时间或行程天数后重新生成。如已付款，请勿重复付款，并通过WhatsApp联系我们。",
       "PAYMENT_UNDER_REVIEW": "已收到您的付款，正在核实。确认后将通过邮件与您联系 — 请勿重复付款。",
       "PAYMENT_VERIFY_FAILED": "无法通过 PayPal 确认您的付款。请稍后重试 — 如已扣款请勿重复付款。",
-      "PAYMENT_VERIFY_UNAVAILABLE": "目前无法确认您的付款，请稍后重试。",
+      "PAYMENT_VERIFY_UNAVAILABLE": "目前无法确认您的付款。请勿重复付款，请稍后重试。",
       "PAYMENT_REVIEW_CHECK_UNAVAILABLE": "目前无法确认您的付款状态，请稍后重试。",
       "ORDER_PROVENANCE_MISSING": "找不到此订单的付款记录。请联系客服 — 请勿重复付款。",
       "ORDER_PRODUCT_MISMATCH": "此订单并非购买 AI 行程规划。其他商品的付款无法发放规划。",
@@ -617,14 +617,16 @@
       "PREPAY_INPUT_MISSING": "订单缺少必要的行程信息。请刷新页面后重试。如已付款，请勿重复付款，请联系我们。",
       "PREPAY_INPUT_MISMATCH": "所请求的城市、饮食要求或日期与已付款订单不一致。请勿重复付款，请核对订单信息或联系我们。",
       "PREPAY_INPUT_INVALID": "无法核实行程信息（城市、饮食要求和日期）。请检查输入内容。如已付款，请勿重复付款。",
-      "PREPAY_DATE_TOO_SOON": "出发日期须为明天或之后。如已付款，请勿重复付款，请联系我们。"
+      "PREPAY_DATE_TOO_SOON": "出发日期须为明天或之后。如已付款，请勿重复付款，请联系我们。",
+      "PREPAY_CHECK_UNAVAILABLE": "目前无法核实旅行信息，请稍后重试。如已付款，请勿重复付款。"
     },
     "prepayErrors": {
       "DIETARY_COVERAGE_UNAVAILABLE": "本次行程中有城市暂无符合您饮食选择的已验证餐厅。您尚未被扣款。请更换城市或通过WhatsApp联系我们。",
       "PREPAY_INPUT_MISSING": "由于缺少行程信息，付款尚未开始。请刷新页面后重试。",
       "PREPAY_INPUT_MISMATCH": "行程信息（城市、饮食、日期）与已付款订单不一致。请按付款时的行程重试。",
       "PREPAY_INPUT_INVALID": "无法确认您的行程信息（城市、饮食、日期），因此未开始付款。请检查后重试。",
-      "PREPAY_DATE_TOO_SOON": "出发日期须为明天或之后。您尚未被扣款 — 请更改日期后重试。"
+      "PREPAY_DATE_TOO_SOON": "出发日期须为明天或之后。您尚未被扣款 — 请更改日期后重试。",
+      "PREPAY_CHECK_UNAVAILABLE": "目前无法核实旅行信息，因此尚未开始付款。请稍后重试。"
     },
     "retry": "重新尝试",
     "loginRequired": "登录后可付款",

@@ -8,7 +8,7 @@
  *   main 비교: main 은 1) 과 같이 재생, 2) 는 S1 이 없어 외부인 입력으로 재생(쿠폰은 사용 처리), 3) 은 'unknown' 으로 남아 소유자
  *   확인 때 외부인 입력이 재생된다(r22 가 약속한 정리 범위).
  */
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { memoryDb, fakeRes, providerFetch, completedOrder, type MemoryDb } from './helpers/payment-recovery-fixture';
 import { newCheckoutCapability, checkoutCookie } from '../../api/_shared/payment-fulfillment-recovery.js';
 
@@ -64,7 +64,10 @@ const failPostedWrite = () => db.failNextMatching((path, value) => path === LOCK
 
 let db: ReturnType<typeof memoryDb>;
 let provider: ReturnType<typeof providerFetch>;
+afterEach(() => vi.useRealTimers());
 beforeEach(() => {
+  vi.useFakeTimers({ toFake: ['Date'] });
+  vi.setSystemTime(new Date('2026-11-01T03:00:00Z'));
   vi.clearAllMocks();
   effects.discountV2 = false;
   db = memoryDb();

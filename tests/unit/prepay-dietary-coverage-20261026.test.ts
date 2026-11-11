@@ -12,7 +12,7 @@ import { createFakeFirestore } from '../helpers/fake-firestore.js';
 
 type Dict = Record<string, unknown>;
 const dbHolder: { db: unknown } = { db: null };
-const foodHolder: { rows: Dict[] } = { rows: [] };
+const foodHolder: { rows: Dict[]; failure?: Error } = { rows: [] };
 const paypalTokenCalls: number[] = [];
 
 vi.mock('../../api/_shared/firebase-admin.js', () => ({ initAdminDb: () => dbHolder.db }));
@@ -20,7 +20,10 @@ vi.mock('../../api/_shared/paypal.js', () => ({
   getPaypalAccessToken: async () => { paypalTokenCalls.push(1); return { accessToken: 'tok', baseUrl: 'https://api.mock' }; },
   resolveIsSandbox: () => true,
 }));
-vi.mock('../../api/_ai_core/geminiPipeline.js', () => ({ loadFoodIndex: async () => foodHolder.rows }));
+vi.mock('../../api/_shared/prepay-coverage.js', async importOriginal => ({
+  ...await importOriginal<typeof import('../../api/_shared/prepay-coverage.js')>(),
+  loadPrepayFoodIndex: async () => { if (foodHolder.failure) throw foodHolder.failure; return foodHolder.rows; },
+}));
 vi.mock('firebase-admin/firestore', () => ({ FieldValue: { serverTimestamp: () => 'TS', increment: (n: number) => ({ __sentinel: 'increment', by: n }) } }));
 vi.mock('../../api/_shared/telegram-throttle.js', () => ({ throttledTelegramAlert: async () => {} }));
 vi.mock('../../api/_shared/operator-alerts.js', () => ({ notifyOperator: async () => {} }));
@@ -90,6 +93,7 @@ function memDb(seed: Record<string, Dict> = {}) {
 beforeEach(() => {
   paypalTokenCalls.length = 0;
   foodHolder.rows = [HALAL_SEOUL];
+  foodHolder.failure = undefined;
 });
 
 describe('normalizePrepayInput / prepayFingerprint (pure)', () => {
@@ -166,6 +170,17 @@ describe('createPaypalOrder — no PayPal order unless the planner input passes'
     expect(fetchSpy).not.toHaveBeenCalled();
     expect(paypalTokenCalls).toHaveLength(0);
     expect(store.has(`paypal_order_snapshots/${ORDER}`)).toBe(false);
+  });
+  it('unavailable index is 503 before any PayPal call; non-dietary customers can still create an order', async () => {
+    foodHolder.failure = Object.assign(new Error('Travel checks are temporarily unavailable'), { code: 'PREPAY_CHECK_UNAVAILABLE' });
+    const blocked = await run({ plannerInput: input() });
+    expect(blocked.res).toMatchObject({ status: 503, body: { code: 'PREPAY_CHECK_UNAVAILABLE' } });
+    expect(blocked.fetchSpy).not.toHaveBeenCalled();
+    expect(paypalTokenCalls).toHaveLength(0);
+    expect(blocked.store.size).toBe(0);
+    const ordinary = await run({ plannerInput: input({ dietaryRestrictions: [] }) });
+    expect(ordinary.res.status).toBe(200);
+    expect(ordinary.fetchSpy).toHaveBeenCalledTimes(1);
   });
   it.each([
     ['missing plannerInput', {}, 'PREPAY_INPUT_MISSING'],
@@ -292,6 +307,38 @@ describe('ai-planner-full gate — retained coupon/revision policy and paid orde
     });
     const r = await enforcePaymentAndRevision({ ...input(), paypalOrderId: ORDER }, db, 'u@e.x', 'uid1', null, { loadFoodIndex: async () => [HALAL_SEOUL] });
     expect(r.rejection).toMatchObject({ code: 'PAYMENT_UNDER_REVIEW' });
+    expect(db._store.has(`plan_issued_orders/${ORDER}`)).toBe(false);
+    const review = db._store.get(`payment_reviews/${ORDER}`);
+    expect(review).toMatchObject({ orderID: ORDER, status: 'PAYMENT_REVIEW', paymentCaptured: true, captureID: 'CAP-1' });
+    await enforcePaymentAndRevision({ ...input(), paypalOrderId: ORDER }, db, 'u@e.x', 'uid1');
+    expect(db._store.get(`payment_reviews/${ORDER}`)).toBe(review);
+    expect(db._calls.tx).toBe(1);
+  });
+  it('review write failure still blocks issuance; a later request repairs the missing record', async () => {
+    paidOrderFetch();
+    const db = memDb({ [`used_paypal_orders/${ORDER}`]: { status: 'void_not_captured', captureState: 'not_captured' } });
+    const runTransaction = db.runTransaction;
+    db.runTransaction = async () => { throw new Error('Synthetic review write failure'); };
+    const first = await enforcePaymentAndRevision({ ...input(), paypalOrderId: ORDER }, db, 'u@e.x', 'uid1');
+    expect(first.rejection).toMatchObject({ statusCode: 503, code: 'PAYMENT_REVIEW_CHECK_UNAVAILABLE' });
+    expect(db._store.has(`plan_issued_orders/${ORDER}`)).toBe(false);
+    expect(db._store.has(`payment_reviews/${ORDER}`)).toBe(false);
+    db.runTransaction = runTransaction;
+    expect((await enforcePaymentAndRevision({ ...input(), paypalOrderId: ORDER }, db, 'u@e.x', 'uid1')).rejection.code).toBe('PAYMENT_UNDER_REVIEW');
+    expect(db._store.get(`payment_reviews/${ORDER}`)).toMatchObject({ paymentCaptured: true });
+  });
+  it('a concurrent operator resolution is preserved when the review appears before the transaction read', async () => {
+    paidOrderFetch();
+    const db = memDb({ [`used_paypal_orders/${ORDER}`]: { status: 'void_not_captured', captureState: 'not_captured' } });
+    const runTransaction = db.runTransaction;
+    const resolution = { resolution: 'MANUALLY_CONFIRMED', resolvedAt: 'TS', resolvedBy: 'operator', auditNote: 'checked' };
+    db.runTransaction = async fn => {
+      db._store.set(`payment_reviews/${ORDER}`, resolution);
+      return runTransaction(fn);
+    };
+    const r = await enforcePaymentAndRevision({ ...input(), paypalOrderId: ORDER }, db, 'u@e.x', 'uid1');
+    expect(r.rejection.code).toBe('PAYMENT_UNDER_REVIEW');
+    expect(db._store.get(`payment_reviews/${ORDER}`)).toEqual(resolution);
     expect(db._store.has(`plan_issued_orders/${ORDER}`)).toBe(false);
   });
   it('operator-confirmed quarantine retains existing authority after provenance checks', async () => {

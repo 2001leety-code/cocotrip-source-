@@ -111,16 +111,23 @@ export default async function handler(req, res) {
     //   QR 패널은 송금 안내(QR·링크)를 보여 주기 **전에** checkOnly 로 이 검사를 통과해야 한다 — 실패면 안내 자체를
     //   만들지 않는다. 검사 = createPaypalOrder 와 같은 함수(정규화·출발일 > KST 오늘·식이 커버리지). 쓰기 0·rate limit 전.
     const prepayChecked = isPrepayCheckedProduct(productType);
-    const prepayFoodIndex = prepayChecked ? await loadPrepayFoodIndex() : null;
+    let prepayFoodIndex = null;
     // 송금 신고는 이미 돈이 움직였을 수 있어 출발일 경과로 막지 않는다. QR 안내 전 검사만 미래 날짜를 요구한다.
     let prepayCheck = null;
     if (prepayChecked) {
-      prepayCheck = body.checkOnly === true
-        ? checkPlannerOrderInput(body.plannerInput, prepayFoodIndex, language)
-        : normalizePrepayInput(body.plannerInput);
-      if (body.checkOnly !== true && prepayCheck.ok) {
-        const coverage = checkPrepayCoverage(prepayCheck.input, prepayFoodIndex);
-        if (!coverage.ok) prepayCheck = coverage;
+      try {
+        const normalized = normalizePrepayInput(body.plannerInput, { requireFutureStart: body.checkOnly === true });
+        if (normalized.ok && normalized.input.diets.length) prepayFoodIndex = await loadPrepayFoodIndex();
+        prepayCheck = body.checkOnly === true
+          ? checkPlannerOrderInput(body.plannerInput, prepayFoodIndex, language)
+          : normalized;
+        if (body.checkOnly !== true && prepayCheck.ok) {
+          const coverage = checkPrepayCoverage(prepayCheck.input, prepayFoodIndex);
+          if (!coverage.ok) prepayCheck = coverage;
+        }
+      } catch (checkErr) {
+        console.error('[manual-payment-request] prepay check unavailable:', checkErr.message);
+        prepayCheck = { ok: false, status: 503, code: 'PREPAY_CHECK_UNAVAILABLE', message: 'Travel checks are temporarily unavailable. Please try again later.' };
       }
     }
     if (body.checkOnly === true) {
@@ -243,7 +250,7 @@ export default async function handler(req, res) {
       //   운영자가 입금 확인 전에 본다(옛 번들·안내 뒤 자료 변경). 통과면 createPaypalOrder 와 같은 정규 입력·지문.
       ...(prepayCheck ? (prepayCheck.ok
         ? prepaySnapshotFields(prepayCheck.input, prepayFoodIndex)
-        : { prepayCheckFailed: { code: prepayCheck.code, details: prepayCheck.details || null } }) : {}),
+        : { prepayCheckFailed: { code: prepayCheck.code, details: prepayCheck.details || null }, operatorReviewRequired: true }) : {}),
       status: 'AWAITING_VERIFICATION',
       createdAt: FieldValue.serverTimestamp(),
       updatedAt: FieldValue.serverTimestamp(),

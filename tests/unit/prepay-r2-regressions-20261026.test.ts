@@ -16,7 +16,7 @@ import { checkPrepayCoverage } from '../../api/_shared/prepay-coverage.js';
 
 type Dict = Record<string, unknown>;
 const dbHolder: { db: unknown } = { db: null };
-const foodHolder: { rows: Dict[] } = { rows: [] };
+const foodHolder: { rows: Dict[]; failure?: Error; checkFailure?: Error } = { rows: [] };
 const paypalTokenCalls: number[] = [];
 
 vi.mock('../../api/_shared/firebase-admin.js', () => ({ initAdminDb: () => dbHolder.db }));
@@ -24,7 +24,16 @@ vi.mock('../../api/_shared/paypal.js', () => ({
   getPaypalAccessToken: async () => { paypalTokenCalls.push(1); return { accessToken: 'tok', baseUrl: 'https://api.mock' }; },
   resolveIsSandbox: () => true,
 }));
-vi.mock('../../api/_ai_core/geminiPipeline.js', () => ({ loadFoodIndex: async () => foodHolder.rows }));
+vi.mock('../../api/_shared/prepay-coverage.js', async importOriginal => {
+  const actual = await importOriginal<typeof import('../../api/_shared/prepay-coverage.js')>();
+  return { ...actual,
+    loadPrepayFoodIndex: async () => { if (foodHolder.failure) throw foodHolder.failure; return foodHolder.rows; },
+    checkPrepayCoverage: (...args: Parameters<typeof actual.checkPrepayCoverage>) => {
+      if (foodHolder.checkFailure) throw foodHolder.checkFailure;
+      return actual.checkPrepayCoverage(...args);
+    },
+  };
+});
 vi.mock('firebase-admin/firestore', () => ({ FieldValue: { serverTimestamp: () => 'TS', increment: (n: number) => ({ __inc: n }) } }));
 const observed = vi.hoisted(() => ({ alerts: [] as string[], errors: [] as string[] }));
 vi.mock('../../api/_shared/telegram-throttle.js', () => ({ throttledTelegramAlert: async (a: { key: string }) => { observed.alerts.push(a.key); } }));
@@ -122,6 +131,8 @@ beforeEach(() => {
   observed.alerts.length = 0;
   observed.errors.length = 0;
   foodHolder.rows = [HALAL_SEOUL];
+  foodHolder.failure = undefined;
+  foodHolder.checkFailure = undefined;
 });
 
 // ── 2 capture 상태기계 ────────────────────────────────────────────────────────
@@ -172,6 +183,27 @@ describe('capture state machine after a pre-capture refusal (adversarial seq + A
     expect(calls).toEqual(['POST']);
     expect(lockOf()).toMatchObject({ captureState: 'unknown' });
   }
+
+  it('missing index before capture returns distinct 503, no capture POST, no tombstone; the same order can retry', async () => {
+    dbHolder.db = memDb({ [`paypal_order_snapshots/${ORDER}`]: snapshot() });
+    const calls = paypal({ post: 'completed' });
+    foodHolder.failure = Object.assign(new Error('index unavailable'), { code: 'PREPAY_CHECK_UNAVAILABLE' });
+    const out = await call({ orderID: ORDER });
+    expect(out).toMatchObject({ status: 503, body: { code: 'PREPAY_CHECK_UNAVAILABLE' } });
+    expect(calls).toEqual([]);
+    expect(lockOf()).toMatchObject({ captureState: 'none', claimUntil: 0 });
+    foodHolder.failure = undefined;
+    expect((await call({ orderID: ORDER })).status).toBe(200);
+    expect(calls).toEqual(['GET', 'POST']);
+  });
+
+  it('non-dietary capture does not load a broken index', async () => {
+    dbHolder.db = memDb({ [`paypal_order_snapshots/${ORDER}`]: { ...snapshot(), prepayInput: norm(input({ dietaryRestrictions: [] })) } });
+    const calls = paypal({ post: 'completed' });
+    foodHolder.failure = Object.assign(new Error('index unavailable'), { code: 'PREPAY_CHECK_UNAVAILABLE' });
+    expect((await call({ orderID: ORDER })).status).toBe(200);
+    expect(calls).toEqual(['POST']);
+  });
 
   it('adversarial seq: unknown → coverage lost → lookup APPROVED inside the window keeps the attempt (202); late COMPLETED then records the payment without a new POST', async () => {
     await unknownAttempt();
@@ -412,6 +444,25 @@ describe('manual-payment-request (QR / paypal.me) — same pre-payment check bef
     expect((await run({ checkOnly: true, productType: 'ai-planner-full', plannerInput: input() })).res).toMatchObject({ status: 200, body: { ok: true, data: { checked: true } } });
   });
   const report = (extra: Dict) => ({ bookingRef: 'CT-20991201-123', productType: 'ai-planner-full', passengers: 1, priceKRW: 14000, customerEmail: 'g@e.x', ...extra });
+  it.each(['index', 'coverage'])('unexpected %s exception still saves a submitted QR report for operator review', async source => {
+    if (source === 'index') foodHolder.failure = new Error('Synthetic read failure');
+    else foodHolder.checkFailure = new Error('Synthetic coverage failure');
+    const { res, store } = await run(report({ plannerInput: input() }));
+    expect(res).toMatchObject({ status: 200, body: { ok: true, data: { status: 'AWAITING_VERIFICATION' } } });
+    expect(store.get('pending_bookings/CT-20991201-123')).toMatchObject({
+      operatorReviewRequired: true, prepayCheckFailed: { code: 'PREPAY_CHECK_UNAVAILABLE' }, status: 'AWAITING_VERIFICATION',
+    });
+    expect(paypalTokenCalls).toHaveLength(0);
+  });
+  it('checkOnly index failure returns 503 and writes nothing; customers without dietary restrictions are unaffected', async () => {
+    foodHolder.failure = Object.assign(new Error('Synthetic read failure'), { code: 'PREPAY_CHECK_UNAVAILABLE' });
+    const blocked = await run({ checkOnly: true, productType: 'ai-planner-full', plannerInput: input() });
+    expect(blocked.res).toMatchObject({ status: 503, body: { code: 'PREPAY_CHECK_UNAVAILABLE' } });
+    expect(blocked.store.size).toBe(0);
+    const ordinary = await run({ checkOnly: true, productType: 'ai-planner-full', plannerInput: input({ dietaryRestrictions: [] }) });
+    expect(ordinary.res).toMatchObject({ status: 200, body: { data: { checked: true } } });
+    expect(ordinary.store.size).toBe(0);
+  });
   it('report after remittance: a failing check is recorded for the operator, never dropped (money may have moved)', async () => {
     foodHolder.rows = realIndex();
     const { res, store } = await run(report({ plannerInput: input({ regions: ['서울', '인천'] }) }));
@@ -454,6 +505,15 @@ describe('r3 B/J/D/F — paid orders: owner → pinned input → coverage → cl
     expect(r.rejection).toMatchObject({ statusCode: 422, code: 'DIETARY_COVERAGE_UNAVAILABLE' });
     expect(observed.alerts).toContain(`paid-dietary-coverage:${ORDER}`);
     expect(observed.errors).toContain('paid_dietary_coverage');
+    expect(claimed(db)).toBe(false);
+  });
+  it('paid order index failure remains a payment verification error with no issuance or new payment guidance', async () => {
+    paidOrderFetch();
+    const db = memDb({ [`paypal_order_snapshots/${ORDER}`]: paidSnap(input(), { ownerUid: 'uid1' }) });
+    const loadFoodIndex = async () => { throw Object.assign(new Error('index unavailable'), { code: 'PREPAY_CHECK_UNAVAILABLE' }); };
+    const r = await enforcePaymentAndRevision({ ...input(), paypalOrderId: ORDER }, db, 'u@e.x', 'uid1', null, { loadFoodIndex });
+    expect(r.rejection).toMatchObject({ statusCode: 503, code: 'PAYMENT_VERIFY_UNAVAILABLE' });
+    expect(r.rejection.message).toContain('Do not pay again');
     expect(claimed(db)).toBe(false);
   });
   it('free coupon is consumed with fifth-argument binding, then dietary failure restores that exact consumption', async () => {

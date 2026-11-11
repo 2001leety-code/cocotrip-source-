@@ -4,7 +4,7 @@
  *   - 트랜잭션 승자 양방향(확인 먼저 / capture 먼저) + 충돌 재시도, 묘비 뒤 capture = provider·OAuth 0회.
  *   - absent + PayPal captured = 묘비 없음(결제 접수 안내), 조회 실패 = UNKNOWN, 묘비 쓰기 실패 = UNKNOWN, posted + CREATED = UNKNOWN.
  */
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { memoryDb, fakeRes, providerFetch, type MemoryDb } from './helpers/payment-recovery-fixture';
 import { newCheckoutCapability, checkoutCookie, CLAIM_LEASE_MS } from '../../api/_shared/payment-fulfillment-recovery.js';
 
@@ -51,7 +51,10 @@ const methods = () => provider.calls.map((c) => c.method);
 
 let db: ReturnType<typeof memoryDb>;
 let provider: ReturnType<typeof providerFetch>;
+afterEach(() => vi.useRealTimers());
 beforeEach(() => {
+  vi.useFakeTimers({ toFake: ['Date'] });
+  vi.setSystemTime(new Date('2026-11-01T03:00:00Z'));
   vi.clearAllMocks();
   db = memoryDb();
   effects.store.db = db.db;
@@ -65,6 +68,15 @@ beforeEach(() => {
 });
 
 describe('A1/A3 — absent record on a same-order check: PayPal read, then tombstone only if still absent', () => {
+  it.each([false, true])('quarantined captured record without intent returns review for capture/reconcile=%s, with no provider call', async reconcile => {
+    db.rows.set(LOCK, { status: 'captured', captureState: 'captured', reviewQuarantined: true, flow: 'single', environment: 'live', voidConflict: { captureID: 'CAP-LATE' } });
+    const out = await call(reconcile ? { orderID: ORDER, reconcile: true } : body);
+    expect(out).toMatchObject({ status: 202, body: { bookingStatus: 'PAYMENT_REVIEW', paymentStatus: 'CAPTURED', paymentCaptured: true, finalized: false, retryable: false, captureID: 'CAP-LATE' } });
+    expect(provider.calls).toHaveLength(0);
+    expect(effects.token).not.toHaveBeenCalled();
+    expect(effects.processor).not.toHaveBeenCalled();
+    expect((await call({ orderID: ORDER, reconcile: true }, {})).status).toBe(403);
+  });
   it('check first: GET APPROVED → tombstone (no intent, no contact data) → 409 order_voided; a later capture is refused with zero provider and OAuth calls', async () => {
     provider.push({ method: 'GET', reply: { status: 200, body: { id: ORDER, status: 'APPROVED' } } });
     const check = await call({ orderID: ORDER, reconcile: true });

@@ -156,6 +156,14 @@ export default async function handler(req, res) {
       return res.end(JSON.stringify({ ...stored.body, replayed: true }));
     }
     if (acquired.kind === 'duplicate') {
+      if (acquired.lock.reviewQuarantined === true) {
+        const conflict = acquired.lock.voidConflict;
+        res.writeHead(202, JSON_CORS);
+        return res.end(JSON.stringify(buildPaymentReviewResponse({ orderID,
+          captureID: conflict?.captureID || acquired.lock.captureID,
+          capture: conflict ? { purchase_units: [{ payments: { captures: [{ status: 'COMPLETED' }] } }] } : undefined,
+        })));
+      }
       res.writeHead(409, JSON_CORS);
       return res.end(JSON.stringify(_err('Order already processed', 'DUPLICATE_ORDER')));
     }
