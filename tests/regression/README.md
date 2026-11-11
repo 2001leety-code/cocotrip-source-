@@ -386,7 +386,7 @@ endpoint 우회 가능 시 booking 상태 임의 변경, 쿠폰 무한 발급, �
 | B-ADM1 | 일반 사용자 token → admin endpoint = 401/403 | non-admin idToken 으로 admin-issue-onboarding-coupons / admin-quality-summary / admin-booking-action 3종 호출 → 모두 401/403 |
 | B-ADM2 | 위조/만료/빈 token → 401/403 | 4 케이스 (`Bearer invalid.token`, 빈 Bearer, no Authorization, non-Bearer prefix) → 모두 401/403 |
 | B-ADM3 | ADMIN_EMAIL env 단일 source — 순수 hardcode 0건 | 코드 grep 자체검증. 4 카테고리 분류: env / hybridFallback (env \|\| hardcode) / HARDCODED_ADMIN_EMAILS 배열 fallback / **pureHardcode** (env 참조 0건 + 단독 hardcode 비교) |
-| B-ADM4 | admin token + admin-issue-onboarding-coupons → 200 | 정상 admin token + pageSize=1 minimal POST → 200 + `issued`/`alreadyIssued` 숫자 |
+| B-ADM4 | admin token + admin-issue-onboarding-coupons → 200 | `{pageSize:1,dryRun:true}` POST → `ok:true`, `dryRun:true`, `issued/alreadyIssued/errors=0`, candidates 정수 0~1 필수. 구버전 실발급 응답은 실패 |
 | B-ADM5 | admin token + admin-booking-action (sandbox ref) → 비-auth 4xx | sandbox `bookingRef=CT-TEST-AUTH-<ts>` → 404 NOT_FOUND 또는 200 (auth 통과 검증, 401/403/500 fail) |
 
 ### 실행 방법

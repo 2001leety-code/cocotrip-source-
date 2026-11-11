@@ -13,7 +13,7 @@
 //   B-ADM1: 일반 사용자 token 으로 admin endpoint 호출 → 401/403
 //   B-ADM2: 위조/만료/빈 token → 401
 //   B-ADM3: ADMIN_BYPASS_EMAILS / ADMIN_EMAIL env 단일 source 검사 (코드 grep 자체검증)
-//   B-ADM4: admin token 으로 admin-issue-onboarding-coupons → 200 + issued/alreadyIssued
+//   B-ADM4: admin token + explicit dryRun → 200 + dryRun:true + zero issuance/errors
 //   B-ADM5: admin token 으로 admin-booking-action mark-paid (sandbox bookingRef) → 200/404
 //
 // Exit code:
@@ -33,6 +33,7 @@
 import { readFileSync, readdirSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
+import { isSafeOnboardingDryRunResponse } from './lib/admin-onboarding-dryrun-result.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const root = join(__dirname, '..');
@@ -150,7 +151,7 @@ async function adminFetch(path, opts = {}) {
 
 // ─── B-ADM1: 일반 사용자 token → admin endpoint = 401/403 ─────
 const adm1Targets = [
-  { method: 'POST', path: '/api/admin-issue-onboarding-coupons', body: '{}' },
+  { method: 'POST', path: '/api/admin-issue-onboarding-coupons', body: '{"dryRun":true,"pageSize":1}' },
   { method: 'GET',  path: '/api/admin-quality-summary?days=7&limit=10' },
   { method: 'POST', path: '/api/admin-booking-action',
     body: JSON.stringify({ bookingRef: 'CT-NOOP-NONADMIN', action: 'mark-paid' }) },
@@ -323,20 +324,11 @@ try {
   const txt = await r.text();
   let body;
   try { body = JSON.parse(txt); } catch { body = { raw: txt.slice(0, 200) }; }
-  const payload = body.results || body.data || body;
-  // 신버전 서버: dryRun echo + candidates + 발급 0 을 강제.
-  // 구버전 서버(이 PR 자신의 CI 가 밟는 과도기): dryRun 미지원 → 기존 셰이프면 통과시키되
-  // actual 에 구버전임을 남긴다. 배포 후엔 항상 신버전 분기를 탄다.
-  const isNewServer = payload.dryRun === true;
-  const nothingIssued = payload.issued === 0 && payload.alreadyIssued === 0;
-  const legacyShapeOk = typeof payload.issued === 'number' || typeof payload.alreadyIssued === 'number';
-  adm4Pass = r.status === 200 && (isNewServer
-    ? (typeof payload.candidates === 'number' && nothingIssued)
-    : legacyShapeOk);
+  const payload = (body && body.results) || {};
+  // No legacy fallback: success requires an explicit, bounded read-only response.
+  adm4Pass = isSafeOnboardingDryRunResponse(r.status, body);
   adm4Detail = r.status === 200
-    ? (isNewServer
-        ? `status=200, dryRun=true, candidates=${payload.candidates}, issued=${payload.issued} (0이어야 정상)`
-        : `status=200, 구버전 서버(dryRun 미지원) — issued=${typeof payload.issued === 'number' ? payload.issued : '?'}, 배포 후 dryRun 강제됨`)
+    ? `status=200, dryRun=${payload.dryRun}, candidates=${payload.candidates}, issued=${payload.issued}, alreadyIssued=${payload.alreadyIssued}, errors=${payload.errors} (strict dryRun validation: ${adm4Pass ? 'PASS' : 'FAIL'})`
     : `status=${r.status}, body=${txt.slice(0, 120)}`;
 } catch (err) {
   adm4Detail = `ERR: ${err.message}`;

@@ -3,6 +3,7 @@
  * POST /api/admin-coupon-fix
  * Headers: Authorization: Bearer <Firebase-ID-token>  (admin only)
  * Body:    { uid?: string, email?: string }
+ * Production only. Other environments are rejected before Firebase modules load.
  *
  * 배경: PR #253 silent fail 후 일부 회원의 onboarding 5% 쿠폰 2장이 발급되지 않음.
  * 운영자가 uid 또는 이메일로 검출 + onboarding-coupons 발급 helper 호출.
@@ -14,9 +15,6 @@
  *   - { ok:true, data:{ uid, issued:0, alreadyIssued:true } }    → 이미 발급됨 (멱등)
  *   - { ok:false, error:... , code: 'AUTH_FAILED' | 'USER_NOT_FOUND' | ... }
  */
-import { verifyAdminToken } from './_shared/admin-auth.js';
-import { initAdminDb } from './_shared/firebase-admin.js';
-import { issueOnboardingCouponsForUid } from './onboarding-coupons.js';
 import { captureError } from './_shared/sentry.js';
 import { buildAdminCors, buildAdminJsonCors } from './_shared/cors.js';
 
@@ -34,8 +32,8 @@ function json(req, res, status, body) {
   return res.end(JSON.stringify(body));
 }
 
-// 이메일 → uid 조회 (firebase-admin auth getUserByEmail).
-async function lookupUidByEmail(email) {
+// 두 입력 경로 모두 Auth 사용자 존재를 확인한다. UID가 있으면 기존 우선순위를 유지한다.
+async function lookupUidFromAuth(uid, email) {
   const { initializeApp, cert, getApps } = await import('firebase-admin/app');
   const { getAuth } = await import('firebase-admin/auth');
   if (!getApps().length) {
@@ -51,7 +49,8 @@ async function lookupUidByEmail(email) {
       throw new Error('Firebase admin credentials missing');
     }
   }
-  const userRecord = await getAuth().getUserByEmail(email);
+  const auth = getAuth();
+  const userRecord = uid ? await auth.getUser(uid) : await auth.getUserByEmail(email);
   return userRecord.uid;
 }
 
@@ -59,6 +58,22 @@ export default async function handler(req, res) {
   if (req.method === 'OPTIONS') { res.writeHead(200, buildAdminCors(req, { methods: CORS_METHODS })); return res.end(); }
   if (req.method !== 'POST') {
     return json(req, res, 405, _err('Method Not Allowed', 'METHOD_NOT_ALLOWED'));
+  }
+
+  if (process.env.VERCEL_ENV !== 'production') {
+    return json(req, res, 503, _err('Coupon recovery is unavailable outside production', 'RECOVERY_PRODUCTION_ONLY'));
+  }
+
+  // Preserve the production bootstrap path without loading it in Preview/local.
+  // onboarding-coupons also imports firebase-admin, so it must stay behind this gate.
+  let verifyAdminToken, initAdminDb, issueOnboardingCouponsForUid;
+  try {
+    ({ verifyAdminToken } = await import('./_shared/admin-auth.js'));
+    ({ initAdminDb } = await import('./_shared/firebase-admin.js'));
+    ({ issueOnboardingCouponsForUid } = await import('./onboarding-coupons.js'));
+  } catch {
+    console.error('[admin-coupon-fix] recovery runtime import failed');
+    return json(req, res, 500, _err('Coupon recovery runtime unavailable', 'RECOVERY_RUNTIME_UNAVAILABLE'));
   }
 
   const tokenAuth = await verifyAdminToken(req);
@@ -83,16 +98,15 @@ export default async function handler(req, res) {
       return json(req, res, 500, _err('Firestore unavailable — check FIREBASE_* env vars', 'DB_UNAVAILABLE'));
     }
 
-    // 이메일 → uid 변환
-    if (!uid && email) {
-      try {
-        uid = await lookupUidByEmail(email);
-      } catch (lookupErr) {
-        if (lookupErr.code === 'auth/user-not-found') {
-          return json(req, res, 404, _err(`User not found for email: ${email}`, 'USER_NOT_FOUND'));
-        }
-        throw lookupErr;
+    // 직접 입력한 UID도 Auth 조회를 통과해야 발급 함수로 전달한다.
+    try {
+      uid = await lookupUidFromAuth(uid, email);
+    } catch (lookupErr) {
+      if (lookupErr.code === 'auth/user-not-found') {
+        const target = uid ? `uid: ${uid}` : `email: ${email}`;
+        return json(req, res, 404, _err(`User not found for ${target}`, 'USER_NOT_FOUND'));
       }
+      throw lookupErr;
     }
 
     if (!uid) {
