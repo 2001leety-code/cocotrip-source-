@@ -18,6 +18,7 @@
  * 수동: GET /api/cron-runner?job=preview-lead-recovery&dryRun=1  (매칭만, 발송 0)
  *   review-request.js 미러 — getDb/dryRun 강제/sendOperatorSummary 동일 패턴.
  */
+import { verifyCronRequest } from '../_shared/cron-auth.js';
 import { initAdminDb } from '../_shared/firebase-admin.js';
 import { sendEmail } from '../_send-email.js';
 import { isNotificationSuppressed, isPreviewSuppressed, operatorSuppressedReceipt } from '../_shared/preview-notification-policy.js';
@@ -198,6 +199,10 @@ const previewLeadRecoveryTask = async (dryRunArg = false) => {
 
 export default async function vercelHandler(req, res) {
   if (req.method === 'OPTIONS') return res.status(200).end();
+  const auth = await verifyCronRequest(req);
+  if (!auth.ok) {
+    return res.status(auth.status).json({ ok: false, code: 'AUTH_REQUIRED', error: auth.error });
+  }
   try {
     const dryRun = req.query?.dryRun === '1' || req.query?.dryRun === 'true';
     const r = await previewLeadRecoveryTask(dryRun);

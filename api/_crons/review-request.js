@@ -1,3 +1,4 @@
+import { verifyCronRequest } from '../_shared/cron-auth.js';
 import { isNotificationSuppressed, isPreviewSuppressed, operatorSuppressedReceipt } from '../_shared/preview-notification-policy.js';
 /**
  * CocoTripKR — 투어 후 리뷰 요청 (Vercel Cron). 자가운영 에이전시 💬 고객 직원 (배치 B).
@@ -202,6 +203,10 @@ const reviewRequestTask = async (dryRunArg = false) => {
 
 export default async function vercelHandler(req, res) {
   if (req.method === 'OPTIONS') return res.status(200).end();
+  const auth = await verifyCronRequest(req);
+  if (!auth.ok) {
+    return res.status(auth.status).json({ ok: false, code: 'AUTH_REQUIRED', error: auth.error });
+  }
   try {
     const dryRun = req.query?.dryRun === '1' || req.query?.dryRun === 'true';
     const r = await reviewRequestTask(dryRun);
