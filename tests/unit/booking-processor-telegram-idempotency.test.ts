@@ -62,7 +62,8 @@ const telegramStep = (r: any) => String(r.body?.data?.steps?.telegram);
 
 beforeEach(() => {
   process.env.INTERNAL_API_TOKEN = 'secret-tok';
-  process.env.VERCEL_ENV = 'preview';
+  // Delivery boundaries are mocked; exercise production idempotency, not Preview suppression.
+  process.env.VERCEL_ENV = 'production';
   process.env.VERCEL_URL = 'preview-host.vercel.app';
   dispatchAlert.mockReset(); dispatchAlert.mockResolvedValue({ ok: true, delivery: 'sent' });
   paymentAlert.mockReset(); paymentAlert.mockResolvedValue({ ok: true, delivery: 'sent' });

@@ -8,6 +8,7 @@
  */
 import { escapeHtml, escapeAttr } from './escape.js';
 import { sendEmail } from '../_send-email.js';
+import { isNotificationSuppressed } from './preview-notification-policy.js';
 
 const COPY = {
   en: {
@@ -166,13 +167,16 @@ export async function sendBookingChangeEmail({
     voucherAttached,
   });
   try {
-    await sendEmail({
+    const receipt = await sendEmail({
       to,
       subject,
       html,
       text,
       attachments: voucherAttached ? [{ filename: 'CocoTripKR_Voucher.pdf', content: pdf, contentType: 'application/pdf' }] : [],
     });
+    if (isNotificationSuppressed(receipt)) {
+      return { ...receipt, sent: false, voucherAttached };
+    }
     return { sent: true, voucherAttached };
   } catch (err) {
     return { sent: false, voucherAttached, error: (err && err.message) || 'SEND_FAILED' };

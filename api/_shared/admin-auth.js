@@ -26,6 +26,7 @@
  *   - 결과를 module 변수에 캐싱 → 요청당 import/init 오버헤드 제거
  *   - 인증 helper 자체가 init 실패 시 명시적 500 + 점검 안내 메시지
  */
+import { initAdminApp } from './firebase-admin.js';
 import { Buffer } from 'buffer';
 import { initializeApp, getApps, cert } from 'firebase-admin/app';
 import { getAuth } from 'firebase-admin/auth';
@@ -34,6 +35,11 @@ let _adminAuth = null;
 let _bootstrapTried = false;
 
 function bootstrapAdminAuth() {
+  if (process.env.VERCEL_ENV === 'preview') {
+    const app = initAdminApp();
+    if (!app) return null;
+    try { return getAuth(app); } catch { return null; }
+  }
   if (_adminAuth) return _adminAuth;
   if (_bootstrapTried && !_adminAuth) {
     // Already tried + failed — don't retry every request, but allow ENV

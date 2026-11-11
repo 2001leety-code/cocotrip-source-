@@ -1,3 +1,4 @@
+import { isPreviewSuppressed, pushSuppressedReceipt } from './preview-notification-policy.js';
 import { randomUUID } from 'node:crypto';
 import { isOwnerAdmin, ownerHash, ownerPayload, validateOwnerSubscription } from './owner-notification-policy.js';
 import { logger } from './log.js';
@@ -12,6 +13,7 @@ const REJECT_CODES = new Set([400, 401, 403, 404, 410, 413]);
 
 /** No customer sender reuse: its legacy error logging includes the response body. */
 export async function sendSingleOwnerPush(subscription, payload, config) {
+  if (isPreviewSuppressed('push')) return { ...pushSuppressedReceipt(), outcome: 'suppressed' };
   try {
     const { default: webpush } = await import('web-push');
     const response = await webpush.sendNotification(subscription, JSON.stringify(payload), {
@@ -65,6 +67,7 @@ export { validStoredEvent as validateOwnerStoredEvent };
 export async function deliverOwnerEvent(services, config, device, id, {
   now = Date.now, send = sendSingleOwnerPush, token = randomUUID(), timeoutMs = 6500,
 } = {}) {
+  if (isPreviewSuppressed('push')) return { ...pushSuppressedReceipt(), code: 'PREVIEW_SUPPRESSED' };
   const { db } = services;
   const ref = db.collection(OWNER_EVENT_COLLECTION).doc(id);
   const claimed = await db.runTransaction(async (tx) => {

@@ -53,7 +53,10 @@ function htmlToDiscord(html) {
     .replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&amp;/g, '&');
 }
 
+import { isPreviewSuppressed, operatorSuppressedReceipt } from './preview-notification-policy.js';
+
 export async function sendDiscord(text) {
+  if (isPreviewSuppressed('discord')) return operatorSuppressedReceipt('discord');
   const url = process.env.DISCORD_WEBHOOK_URL;
   if (!url) return; // 미설정 = no-op (기존 동작 무변화)
   const content = htmlToDiscord(text);
@@ -144,6 +147,7 @@ function resolveToken(channel) {
  *     unknown  = HTTP 5xx·fetch 예외·JSON 파싱 실패 등 — 전달됐는지 모른다(재발송 금지)
  */
 export async function notify(channel, text, options = {}) {
+  if (isPreviewSuppressed('telegram')) return operatorSuppressedReceipt('telegram', channel);
   // 디스코드 미러: DISCORD_WEBHOOK_URL 설정 시 텔레그램과 "병렬"로 디스코드에도 전송(미설정=no-op).
   // 병렬 시작(await 안 함) → 텔레그램이 디스코드를 기다리지 않음(지연 0) → finally 에서 완료 보장(서버리스 drop 방지).
   const discordText = discordMirrorText(channel, text);
@@ -230,6 +234,7 @@ export async function notify(channel, text, options = {}) {
  * 긴 메시지 4096자 분할 전송.
  */
 export async function notifyLong(channel, text, options = {}) {
+  if (isPreviewSuppressed('telegram')) return operatorSuppressedReceipt('telegram', channel);
   const MAX = 4096;
   if (text.length <= MAX) return notify(channel, text, options);
 

@@ -19,7 +19,17 @@
 
 const PROD_ORIGIN = 'https://cocotripkr.com';
 
+function isolatedPreviewOrigin() {
+  const hostname = (process.env.VERCEL_URL || '').trim();
+  if (!/^[a-z0-9][a-z0-9-]*\.vercel\.app$/i.test(hostname)
+    || hostname === 'cocotripkr.vercel.app') {
+    throw new Error('PREVIEW_INTERNAL_ORIGIN_UNAVAILABLE');
+  }
+  return 'https://' + hostname;
+}
+
 export function internalApiBase() {
+  if (process.env.VERCEL_ENV === 'preview') return isolatedPreviewOrigin();
   if (process.env.VERCEL_ENV === 'production') return PROD_ORIGIN;
   return process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : PROD_ORIGIN;
 }
@@ -45,6 +55,7 @@ export function vercelBypassHeaders() {
  * @returns {string|null}
  */
 export function internalMoneyApiBase() {
+  if (process.env.VERCEL_ENV === 'preview') return isolatedPreviewOrigin();
   if (process.env.VERCEL_ENV === 'production') return PROD_ORIGIN;
   const url = (process.env.VERCEL_URL || '').trim();
   return url ? `https://${url}` : null;
@@ -55,6 +66,7 @@ export function internalMoneyApiBase() {
  * 운영 = 운영 도메인, 프리뷰 = 그 배포 URL(프리뷰 토큰이 운영 페이지로 가지 않게), 그 외 = 운영 도메인.
  */
 export function publicSiteOrigin() {
+  if (process.env.VERCEL_ENV === 'preview') return isolatedPreviewOrigin();
   if (process.env.VERCEL_ENV === 'production') return PROD_ORIGIN;
   return process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : PROD_ORIGIN;
 }

@@ -178,6 +178,7 @@ export function parseUploadId(uploadId, secret, now = Date.now()) {
 }
 
 function productionBucket() {
+  if (process.env.VERCEL_ENV === 'preview') throw new SocialMediaUploadError(503, 'PREVIEW_UPLOAD_DISABLED');
   // Reuse the established Firebase Admin bootstrap. Calling it also applies the
   // repository's preview/production Firebase environment guard.
   initAdminDb('social-media-upload');

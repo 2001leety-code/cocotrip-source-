@@ -24,6 +24,7 @@
 
 import { sendEmail } from '../_send-email.js';
 import { notify } from './notify.js';
+import { isPreviewSuppressed, isNotificationSuppressed, emailSuppressedReceipt } from './preview-notification-policy.js';
 
 const RETRY_COLLECTION = 'pending_email_retries';
 const MAX_BODY_LOG = 200;
@@ -39,6 +40,11 @@ const MAX_BODY_LOG = 200;
  * @returns {Promise<{ok: true} | {ok: false, reason: string}>}
  */
 export async function sendCustomerEmailWithAlert({ db, to, subject, html, text, context = {} }) {
+  // Preview email suppression: runs before validation, logging, or any other prework. Not a success and not retryable.
+  if (isPreviewSuppressed('email')) {
+    return { ok: false, ...emailSuppressedReceipt() };
+  }
+
   if (!to || !subject) {
     console.warn('[customer-email] invalid args:', { to, hasSubject: !!subject });
     return { ok: false, reason: 'invalid-args' };
@@ -47,7 +53,11 @@ export async function sendCustomerEmailWithAlert({ db, to, subject, html, text, 
   const ctxStr = JSON.stringify(context).slice(0, MAX_BODY_LOG);
 
   try {
-    await sendEmail({ to, subject, html, text });
+    const sendReceipt = await sendEmail({ to, subject, html, text });
+    // Defensive: sendEmail may suppress on its own. Not a success; no retry is persisted and no alert is sent.
+    if (isNotificationSuppressed(sendReceipt)) {
+      return { ok: false, ...emailSuppressedReceipt() };
+    }
     console.log(`[customer-email] ok to=${to} ${ctxStr}`);
     return { ok: true };
   } catch (e) {

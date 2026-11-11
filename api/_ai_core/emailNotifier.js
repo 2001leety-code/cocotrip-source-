@@ -2,8 +2,10 @@
  * Email notification + Google Sheets lead recording.
  * Extracted verbatim from api/ai-planner-full.js L544-578, L1254-1271.
  */
+import { isPreviewSuppressed, emailSuppressedReceipt, sheetsSuppressedReceipt } from '../_shared/preview-notification-policy.js';
 
 export async function sendNotificationEmail({ email, guestName, tourTitle, planId, planUrl }) {
+  if (isPreviewSuppressed('email')) return emailSuppressedReceipt();
   const gmailUser = (process.env.GMAIL_USER || '').trim();
   const gmailPass = (process.env.GMAIL_APP_PASSWORD || '').trim();
   if (!gmailUser || !gmailPass || !email) return;
@@ -39,6 +41,7 @@ export async function sendNotificationEmail({ email, guestName, tourTitle, planI
 }
 
 export async function recordLeadToSheets({ email, guestName, area, styles, pax, planId }) {
+  if (isPreviewSuppressed('sheets')) return sheetsSuppressedReceipt('lead_append');
   if (!email) return;
   try {
     const { google } = await import('googleapis');

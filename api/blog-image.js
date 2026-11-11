@@ -1,6 +1,6 @@
 import { getApps } from 'firebase-admin/app';
 import { getStorage } from 'firebase-admin/storage';
-import { initAdminDb } from './_shared/firebase-admin.js';
+import { initAdminDb, initAdminApp } from './_shared/firebase-admin.js';
 
 const YEAR_RE = /^20\d{2}$/;
 const NAME_RE = /^[a-z0-9](?:[a-z0-9-]{0,90}[a-z0-9])?-[a-f0-9]{12}\.webp$/;
@@ -31,8 +31,10 @@ function resolveBucketName() {
 
 async function loadBlogImage(path) {
   const db = initAdminDb('blog-image');
-  const app = getApps()[0];
-  const bucketName = resolveBucketName();
+  const app = process.env.VERCEL_ENV === 'preview' ? initAdminApp() : getApps()[0];
+  const bucketName = process.env.VERCEL_ENV === 'preview'
+    ? (app ? `${app.options.projectId}.firebasestorage.app` : '')
+    : resolveBucketName();
   if (!db || !app || !bucketName) {
     const err = new Error('blog image storage unavailable');
     err.statusCode = 503;

@@ -31,7 +31,7 @@
  * confirms the issue is real before escalating.
  */
 
-import { vercelBypassHeaders } from './internal-base-url.js';
+import { internalApiBase, vercelBypassHeaders } from './internal-base-url.js';
 
 const RETRY_COLLECTION = 'pending_ai_planner_retries';
 const DEFAULT_TIMEOUT_MS = 60_000;
@@ -65,7 +65,12 @@ export async function triggerAiPlanner({
   const tid = setTimeout(() => controller.abort(), timeoutMs);
   let result;
   try {
+    // Never forward preview payloads or service tokens to another deployment.
+    if (process.env.VERCEL_ENV === 'preview' && siteUrl !== internalApiBase()) {
+      throw new Error('PREVIEW_INTERNAL_ORIGIN_MISMATCH');
+    }
     const r = await fetch(`${siteUrl}/api/ai-planner-full`, {
+      ...(process.env.VERCEL_ENV === 'preview' ? { redirect: 'error' } : {}),
       method: 'POST',
       headers: { 'Content-Type': 'application/json', ...vercelBypassHeaders() },
       body: JSON.stringify(payload),

@@ -9,6 +9,7 @@
  */
 import { Timestamp } from 'firebase-admin/firestore';
 import { initAdminDb } from '../_shared/firebase-admin.js';
+import { isNotificationSuppressed } from '../_shared/preview-notification-policy.js';
 import { notifyOperatorLong } from '../_shared/operator-alerts.js';
 import { getUsdToKrwRaw } from '../_exchange-rate.js';
 import {
@@ -191,6 +192,7 @@ export async function morningBriefingTask(options = {}) {
 
   const msg = buildMessage(briefing.agg, rate, marketing, briefing.decisions, apiCost, failed, briefing.ops);
   const result = await notifyOperatorLong('todo', msg, { skipPrefix: true });
+  if (isNotificationSuppressed(result)) return { statusCode: 200, body: 'suppressed', notification: result };
   if (!result.ok) {
     console.error('[morning-briefing] 텔레그램 발송 실패:', result.error);
     return { statusCode: 500, body: `send-fail:${result.error || 'unknown'}` };
@@ -206,7 +208,7 @@ export default async function vercelHandler(req, res) {
   }
   try {
     const r = await morningBriefingTask();
-    return res.status(r.statusCode || 200).json({ ok: (r.statusCode || 200) < 400, body: r.body });
+    return res.status(r.statusCode || 200).json({ ok: (r.statusCode || 200) < 400, body: r.body, ...(isNotificationSuppressed(r.notification) ? { notification: r.notification } : {}) });
   } catch (e) {
     console.error('[morning-briefing] 실패:', e && e.message);
     return res.status(500).json({ error: e && e.message });

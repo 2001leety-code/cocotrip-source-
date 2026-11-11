@@ -17,11 +17,18 @@ import { FieldValue } from 'firebase-admin/firestore';
 import { notify } from '../_shared/notify.js';
 import { sendEmail } from '../_send-email.js';
 import { PENDING_EMAIL_RETRIES_COLLECTION } from '../_shared/customer-email-trigger.js';
+import { isPreviewSuppressed, isNotificationSuppressed, emailSuppressedReceipt } from '../_shared/preview-notification-policy.js';
 
 const MAX_ATTEMPTS = 5;
 const MAX_BATCH = 10;
 
 export default async function handler(req, res) {
+  // Preview email suppression: runs before any DB init or query. ok:true means the cron handled the run, not that anything was delivered.
+  if (isPreviewSuppressed('email')) {
+    res.status(200).json({ ok: true, swept: 0, ...emailSuppressedReceipt() });
+    return;
+  }
+
   try {
     const db = initAdminDb('email-retry-sweep');
     if (!db) {
@@ -43,6 +50,7 @@ export default async function handler(req, res) {
     let ok = 0;
     let failed = 0;
     let escalated = 0;
+    let suppressedCount = 0;
 
     for (const doc of snap.docs) {
       const data = doc.data() || {};
@@ -59,12 +67,17 @@ export default async function handler(req, res) {
       }
 
       try {
-        await sendEmail({
+        const sendReceipt = await sendEmail({
           to: data.to,
           subject: data.subject,
           html: data.html,
           text: data.text,
         });
+        // Defensive: a suppressed send is neither a success nor a failure. No doc mutation and no alert.
+        if (isNotificationSuppressed(sendReceipt)) {
+          suppressedCount++;
+          continue;
+        }
         await doc.ref.update({
           status: 'done',
           attempts: attempts + 1,
@@ -105,7 +118,11 @@ export default async function handler(req, res) {
     }
 
     console.log(`[cron:email-retry-sweep] swept ok=${ok} fail=${failed} escalated=${escalated} of ${snap.size}`);
-    res.status(200).json({ ok: true, swept: snap.size, succeeded: ok, retryAgain: failed, escalated });
+    const body = { ok: true, swept: snap.size, succeeded: ok, retryAgain: failed, escalated };
+    if (suppressedCount > 0) {
+      body.suppressedCount = suppressedCount;
+    }
+    res.status(200).json(body);
   } catch (err) {
     console.error('[cron:email-retry-sweep] error:', err);
     res.status(500).json({ ok: false, error: err.message });

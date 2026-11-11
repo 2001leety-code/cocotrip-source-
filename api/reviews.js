@@ -41,6 +41,12 @@ export const maxDuration = 15;
 export const config = { runtime: 'nodejs' };
 
 async function getFirestore() {
+  if (process.env.VERCEL_ENV === 'preview') {
+    const { initAdminDb } = await import('./_shared/firebase-admin.js');
+    const db = initAdminDb('reviews');
+    if (!db) throw new Error('PREVIEW_FIREBASE_UNAVAILABLE');
+    return { db };
+  }
   const { initializeApp, cert, getApps } = await import('firebase-admin/app');
   const { getFirestore: gfs } = await import('firebase-admin/firestore');
   if (!getApps().length) {

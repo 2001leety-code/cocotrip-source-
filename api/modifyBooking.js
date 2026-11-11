@@ -26,6 +26,7 @@ import { evaluateRefundPolicy } from './_refund-policy.js';
 import { initAdminDb } from './_shared/firebase-admin.js';
 import { FieldValue } from 'firebase-admin/firestore';
 import { captureError } from './_shared/sentry.js';
+import { isPreviewSuppressed, operatorSuppressedReceipt, isNotificationSuppressed } from './_shared/preview-notification-policy.js';
 import { sendDiscord } from './_shared/notify.js';
 import {
   resolveBookingAccess, isGuestManagedBooking, verifyGuestManageToken, matchGuestEnvironment,
@@ -90,6 +91,7 @@ function getDb() {
 }
 
 async function notifyTelegram(msg) {
+  if (isPreviewSuppressed('telegram')) return operatorSuppressedReceipt('telegram', 'telegram');
   const discordMirror = sendDiscord(msg); // 디스코드 미러 (병렬 — 텔레그램/예약수정 응답 지연 0)
   try {
     const token  = process.env.TELEGRAM_BOT_TOKEN;
@@ -491,7 +493,7 @@ export default async function handler(req, res) {
         } catch (markErr) {
           console.warn('[modifyBooking] manageLinkPending clear failed (non-fatal):', markErr.message);
         }
-      } else {
+      } else if (!isNotificationSuppressed(mail)) {
         throttledTelegramAlert({
           key: `manage-link-mail-failed-${bookingID}-${nextVersion}`,
           channel: 'admin',
@@ -500,7 +502,7 @@ export default async function handler(req, res) {
           context: { bookingID, version: nextVersion, error: mail.error || null },
         }).catch(() => {});
       }
-    } else if (!mail.sent) {
+    } else if (!mail.sent && !isNotificationSuppressed(mail)) {
       console.warn('[modifyBooking] change email failed (member):', mail.error);
     }
 

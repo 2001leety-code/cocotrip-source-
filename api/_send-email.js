@@ -19,6 +19,7 @@
 import nodemailer from 'nodemailer';
 import { escapeHtml, escapeAttr } from './_shared/escape.js';
 import { checkGmailQuota, incrementGmailSentCount, GMAIL_QUOTA_EXCEEDED } from './_shared/gmail-quota.js';
+import { isPreviewSuppressed, emailSuppressedReceipt } from './_shared/preview-notification-policy.js';
 
 // ── Gmail Transporter ──────────────────────────────────────────────────
 function createTransporter() {
@@ -48,6 +49,8 @@ export function maskEmailForLog(value) {
  * @returns {object} Nodemailer 응답
  */
 export async function sendEmail({ to, subject, html, text, attachments = [] }) {
+  // Preview opt-in suppression: return before the quota check, credentials, transporter, or SMTP.
+  if (isPreviewSuppressed('email')) return emailSuppressedReceipt();
   // PR #447 (Audit Z-H8): pre-check daily Gmail quota. If we're past 96%
   // throw GMAIL_QUOTA_EXCEEDED so the caller (customer-email-trigger /
   // PR #439) routes the message into pending_email_retries for next-day
@@ -103,6 +106,7 @@ export async function sendEmail({ to, subject, html, text, attachments = [] }) {
  * @param {{url: string, language?: string}|null} manage - 게스트 예약 관리(취소) 링크 (2026-10-23, ②a)
  */
 export async function sendBookingConfirmation(toEmail, emailContent, voucherText, pdfBuffer = null, walletUrl = null, manage = null) {
+  if (isPreviewSuppressed('email')) return emailSuppressedReceipt();
   const attachments = [];
 
   if (pdfBuffer) {

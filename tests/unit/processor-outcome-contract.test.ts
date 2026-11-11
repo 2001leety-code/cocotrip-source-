@@ -88,7 +88,8 @@ function mockLoyalty(status: number) {
 
 beforeEach(() => {
   process.env.INTERNAL_API_TOKEN = 'secret-tok';
-  process.env.VERCEL_ENV = 'preview';
+  // External effects are fully mocked; exercise their production outcome contract.
+  process.env.VERCEL_ENV = 'production';
   process.env.VERCEL_URL = 'preview-host.vercel.app';
   process.env.GOOGLE_SHEETS_SPREADSHEET_ID = 'S';
   appendBooking.mockClear();
@@ -162,6 +163,7 @@ describe('정상 경로 — 세 단계가 다 끝나야 completed', () => {
 
 describe('적립 실패 주입', () => {
   it('🔴 Preview 자기호출 401 → retryable (성공으로 보고하지 않는다)', async () => {
+    process.env.VERCEL_ENV = 'preview';
     mockLoyalty(401);
     const r = await run();
     expect(r.body.data.stepStatus.loyalty).toBe(STEP.RETRYABLE);
@@ -184,6 +186,7 @@ describe('적립 실패 주입', () => {
   });
 
   it('🔴 주소를 못 잡으면(프리뷰 VERCEL_URL 없음) 운영으로 안 부르고 retryable', async () => {
+    process.env.VERCEL_ENV = 'preview';
     delete process.env.VERCEL_URL;
     const fetchSpy = vi.fn();
     global.fetch = fetchSpy as never;

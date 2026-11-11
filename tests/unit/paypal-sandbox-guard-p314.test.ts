@@ -34,16 +34,16 @@ describe('P314 — resolveIsSandbox prod 격리 가드', () => {
     expect(resolveIsSandbox()).toBe(true);
   });
 
-  it('preview + PAYPAL_ENV 미설정 → false (명시 안 하면 live)', () => {
+  it('preview + PAYPAL_ENV 미설정 → 차단 (live 대체 금지)', () => {
     vi.stubEnv('VERCEL_ENV', 'preview');
     vi.stubEnv('PAYPAL_ENV', '');
-    expect(resolveIsSandbox()).toBe(false);
+    expect(() => resolveIsSandbox()).toThrow('PREVIEW_PAYPAL_SANDBOX_REQUIRED');
   });
 
-  it('preview + PAYPAL_ENV=live → false', () => {
+  it('preview + PAYPAL_ENV=live → 차단', () => {
     vi.stubEnv('VERCEL_ENV', 'preview');
     vi.stubEnv('PAYPAL_ENV', 'live');
-    expect(resolveIsSandbox()).toBe(false);
+    expect(() => resolveIsSandbox()).toThrow('PREVIEW_PAYPAL_SANDBOX_REQUIRED');
   });
 
   it('development + PAYPAL_ENV=sandbox → true (로컬 dev e2e)', () => {

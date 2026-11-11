@@ -11,6 +11,7 @@
 //   - throttled operator alert (1시간당 1회) — VAPID 회전 misconfig 감지
 import webpush from 'web-push';
 import { throttledTelegramAlert } from './_shared/telegram-throttle.js';
+import { isPreviewSuppressed, pushSuppressedReceipt, pushBulkSuppressedReceipt } from './_shared/preview-notification-policy.js';
 
 const VAPID_PUBLIC = process.env.VAPID_PUBLIC_KEY;
 const VAPID_PRIVATE = process.env.VAPID_PRIVATE_KEY;
@@ -37,6 +38,7 @@ function ensureConfigured() {
  * @returns {Promise<{ok: boolean, statusCode?: number, expired?: boolean, authFailed?: boolean}>}
  */
 export async function sendPush(subscription, payload) {
+  if (isPreviewSuppressed('push')) return pushSuppressedReceipt();
   ensureConfigured();
   try {
     await webpush.sendNotification(subscription, JSON.stringify(payload));
@@ -67,6 +69,8 @@ export async function sendPush(subscription, payload) {
  * @param {{title: string, body: string, url?: string, tag?: string}} payload
  */
 export async function sendPushToUser(firestore, uid, payload) {
+  // Return before the subscription lookup in Firestore, VAPID config, the send, counter writes, and the operator alert.
+  if (isPreviewSuppressed('push')) return pushBulkSuppressedReceipt();
   const snap = await firestore.collection('push_subscriptions').where('uid', '==', uid).get();
   const results = [];
   const expiredDocs = [];      // 410/404 — 즉시 삭제

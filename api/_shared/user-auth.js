@@ -19,6 +19,13 @@
 import { Buffer } from 'buffer';
 
 async function getAuthInstance() {
+  if (process.env.VERCEL_ENV === 'preview') {
+    const { initAdminApp } = await import('./firebase-admin.js');
+    const app = initAdminApp();
+    if (!app) throw new Error('PREVIEW_FIREBASE_UNAVAILABLE');
+    const { getAuth } = await import('firebase-admin/auth');
+    return getAuth(app);
+  }
   const { initializeApp, cert, getApps } = await import('firebase-admin/app');
   const { getAuth } = await import('firebase-admin/auth');
   if (!getApps().length) {

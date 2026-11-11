@@ -5,6 +5,7 @@ import { notify } from './notify.js';
 import { buildManualPaymentEmail } from './manual-payment-emails.js';
 import { triggerBookingProcessor } from './booking-processor-trigger.js';
 import { sendCustomerEmailWithAlert } from './customer-email-trigger.js';
+import { isNotificationSuppressed } from './preview-notification-policy.js';
 import { triggerAiPlanner } from './ai-planner-trigger.js';
 import { internalApiBase } from './internal-base-url.js';
 import { throttledTelegramAlert } from './telegram-throttle.js';
@@ -70,6 +71,14 @@ async function sendCustomerConfirmEmail(pendingRef, pending, bookingRef) {
     const content = buildManualPaymentEmail('confirmed', pending);
     // db:null — no automatic pending_email_retries entry: an ambiguous send must not be auto-resent.
     const sent = await sendCustomerEmailWithAlert({ db: null, to: pending.customerEmail, ...content, context: { bookingRef, emailType: 'manual-payment-confirmed' } });
+    if (isNotificationSuppressed(sent)) {
+      try {
+        await pendingRef.update({ confirmationEmailState: 'suppressed' });
+      } catch {
+        console.warn('[booking-confirm] suppression receipt persistence failed');
+      }
+      return;
+    }
     if (!sent || sent.ok !== true) throw new Error((sent && sent.reason) || 'send-failed');
     await pendingRef.update({ confirmationEmailState: 'completed' });
   } catch (error) {

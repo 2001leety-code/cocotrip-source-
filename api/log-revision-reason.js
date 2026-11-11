@@ -119,8 +119,11 @@ export default async function handler(req, res) {
       try {
         const { getAuth } = await import('firebase-admin/auth');
         const { getApps } = await import('firebase-admin/app');
-        if (getApps().length > 0) {
-          const decoded = await getAuth().verifyIdToken(tokenMatch[1]);
+        const app = process.env.VERCEL_ENV === 'preview'
+          ? (await import('./_shared/firebase-admin.js')).initAdminApp()
+          : undefined;
+        if (process.env.VERCEL_ENV === 'preview' ? !!app : getApps().length > 0) {
+          const decoded = await getAuth(app).verifyIdToken(tokenMatch[1]);
           userId = decoded.uid;
         }
       } catch (e) {
