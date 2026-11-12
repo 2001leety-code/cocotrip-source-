@@ -106,7 +106,7 @@ export function LoyaltyBadge() {
                   >
                     <span className="text-xs text-white/70">{formatCouponLabel(c, language)}</span>
                     <span className="text-xs font-semibold text-[#7C5CFC]">
-                      {formatCouponValue(c, language)}
+                      {formatCouponValue(c, language)}{c.type === 'percent' ? ' OFF' : ''}
                     </span>
                   </div>
                 ))}

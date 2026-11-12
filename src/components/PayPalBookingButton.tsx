@@ -303,6 +303,7 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
   // SDK 차단/로드 실패 시 사용자가 paypal.me QR fallback 으로 전환 가능. error 발생 시
   // [QR 로 결제] 버튼 노출 → 클릭 시 PayPalQrPanel 렌더.
   const [useFallback, setUseFallback] = useState(false);
+  const [qrDiscountCleared, setQrDiscountCleared] = useState(false);
   // Keep the reporting reference after a QR link may already have been paid.
   const [qrSession, setQrSession] = useState<{ bookingRef: string } | null>(null);
 
@@ -329,6 +330,7 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
   // P1-②: AI 무료쿠폰(productScope='ai-plan')은 이 할인 picker 에서 제외 — 할인 적용 대상이 아니라
   //   PurchaseSection 의 "무료 쿠폰으로 받기"(0원) 버튼 전용. (MyPage 쿠폰함에는 그대로 노출.)
   const discountCoupons = activeCoupons.filter(c => {
+    if (c.type === 'free') return false;
     if (c.productScope === 'ai-plan') return false; // AI 무료쿠폰 제외(위)
     // 상품 스코프 불일치 쿠폰 숨김 — 투어 전용 쿠폰을 차터/공항/콤보 결제에 노출 X.
     // (서버 applyPromoCode 도 reject 하지만 프론트 picker 가 안 맞는 쿠폰을 보여주던 UX 갭 fix.)
@@ -339,6 +341,7 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
 
   const PROMO_LABELS: Record<string, Record<string, string>> = {
     ko: {
+      qrDiscount: '쿠폰 할인은 PayPal 결제에서만 적용됩니다. QR 송금은 할인 전 금액으로 진행됩니다.',
       label: '\ucfe0\ud3f0 \ucf54\ub4dc', apply: '\uc801\uc6a9', success: '\ud560\uc778 \uc801\uc6a9\ub428',
       invalid: '\uc720\ud6a8\ud558\uc9c0 \uc54a\uc740 \ucf54\ub4dc', expired: '\ud504\ub85c\ubaa8\uc158 \uc885\ub8cc',
       pickerOpen: '\ucfe0\ud3f0 \uc0ac\uc6a9\ud558\uae30',
@@ -349,6 +352,7 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
       saved: '\uc808\uc57d', expires: '\ub9cc\ub8cc',
     },
     en: {
+      qrDiscount: 'Coupon discounts apply only to PayPal checkout. QR transfers use the full price.',
       label: 'Promo code', apply: 'Apply', success: 'Discount applied',
       invalid: 'Invalid code', expired: 'Promotion ended',
       pickerOpen: 'Use a coupon',
@@ -359,6 +363,7 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
       saved: 'Saved', expires: 'Expires',
     },
     ja: {
+      qrDiscount: 'クーポン割引はPayPal決済でのみ適用されます。QR送金は割引前の金額となります。',
       label: '\u30af\u30fc\u30dd\u30f3\u30b3\u30fc\u30c9', apply: '\u9069\u7528', success: '\u5272\u5f15\u9069\u7528',
       invalid: '\u7121\u52b9\u306a\u30b3\u30fc\u30c9', expired: '\u30d7\u30ed\u30e2\u7d42\u4e86',
       pickerOpen: '\u30af\u30fc\u30dd\u30f3\u3092\u4f7f\u3046',
@@ -369,6 +374,7 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
       saved: '\u7bc0\u7d04', expires: '\u6709\u52b9\u671f\u9650',
     },
     zh: {
+      qrDiscount: '优惠券折扣仅适用于PayPal结账。QR转账按折扣前的金额进行。',
       label: '\u4f18\u60e0\u5238\u7801', apply: '\u5e94\u7528', success: '\u6298\u6263\u5df2\u5e94\u7528',
       invalid: '\u65e0\u6548\u4ee3\u7801', expired: '\u4fc3\u9500\u5df2\u7ed3\u675f',
       pickerOpen: '\u4f7f\u7528\u4f18\u60e0\u5238',
@@ -1023,6 +1029,8 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
 
   if (useFallback) {
     return (
+      <div className="space-y-3">
+      {qrDiscountCleared && <p role="status" className="text-xs text-amber-200">{pl.qrDiscount}</p>}
       <Suspense
         fallback={
           <div className="flex items-center justify-center gap-2 py-4 text-sm text-white/55">
@@ -1036,8 +1044,8 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
           passengers={passengers}
           dateStart={dateStart}
           dateEnd={dateEnd}
-          priceKRW={effectiveKRW}
-          priceUSD={checkoutAmountUSD}
+          priceKRW={priceKRW}
+          priceUSD={typeof expectedUSD === 'number' && expectedUSD > 0 ? expectedUSD : charterUsdFromKrw(priceKRW)}
           pickupLocation={pickupLocation}
           dropoffLocation={dropoffLocation}
           vehicleType={vehicleType}
@@ -1059,6 +1067,7 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
           }}
         />
       </Suspense>
+      </div>
     );
   }
 
@@ -1311,7 +1320,21 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
           </div>
           <button
             type="button"
-            onClick={() => { setError(null); setUseFallback(true); }}
+            disabled={promoLoading}
+            onClick={() => {
+              setQrDiscountCleared(promoApplied);
+              setPromoCode('');
+              setPromoApplied(false);
+              setPromoError(null);
+              setDiscountedKRW(null);
+              setSavedAmount(0);
+              setDiscountRate(null);
+              setCouponDocId(null);
+              setCouponUserId(null);
+              setPickerOpen(false);
+              setError(null);
+              setUseFallback(true);
+            }}
             className="w-full text-xs text-white/85 border border-white/25 hover:border-white/40 hover:bg-white/[0.04] px-3 py-2 rounded-lg transition-colors"
           >
             {lang === 'ko' ? 'QR 로 결제 (PayPal 본 사이트 직접)'

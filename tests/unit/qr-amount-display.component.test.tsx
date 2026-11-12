@@ -8,7 +8,7 @@ import { AI_PLANNER_FULL_USD, AI_PLANNER_REFERENCE_KRW } from '../../src/lib/aiP
 import { charterUsdFromKrw } from '../../src/lib/charterUsd';
 import type { Coupon } from '../../src/hooks/useLoyalty';
 
-const fixture = vi.hoisted(() => ({ coupons: [] as Coupon[], language: 'en', user: null as { uid: string; email: string } | null }));
+const fixture = vi.hoisted(() => ({ coupons: [] as Coupon[], language: 'en', user: null as { uid: string; email: string; getIdToken?: () => Promise<string> } | null }));
 vi.mock('@/hooks/useAuth', () => ({ useAuth: () => ({ user: fixture.user }) }));
 vi.mock('@/hooks/useLoyalty', () => ({ useLoyalty: () => ({
   activeCoupons: fixture.coupons, loading: false, coinsToUSD: () => '0.00',
@@ -65,35 +65,96 @@ it('localizes the checkout picker and membership coupons, keeps free AI coupons 
   fireEvent.click(checkout.getByRole('button', { name: /쿠폰 사용하기/ }));
   expect(checkout.getByText('가입 환영 — 차터 5% 할인')).toBeVisible();
   expect(checkout.getByText('5%')).toBeVisible();
-  expect(checkout.getByText('무료')).toBeVisible();
+  expect(checkout.queryByText('무료')).toBeNull();
   expect(checkout.queryByText('가입 환영 — 무료 AI 일정 (1~3일)')).toBeNull();
   const membership = within(screen.getByRole('region', { name: 'membership' }));
   fireEvent.click(membership.getByRole('button'));
   expect(membership.getByText('가입 환영 — 차터 5% 할인')).toBeVisible();
   expect(membership.getByText('가입 환영 — 무료 AI 일정 (1~3일)')).toBeVisible();
   expect(membership.getAllByText('무료')).toHaveLength(2);
+  expect(membership.getByText('5% OFF')).toBeVisible();
   expect(view.container.textContent).not.toContain('$100');
 });
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); vi.unstubAllEnvs(); });
 
-it('passes the already-discounted checkout amount to QR without recalculating a coupon', async () => {
+it('blocks QR switching until a pending coupon validation settles', async () => {
   vi.stubEnv('VITE_FEATURE_DISCOUNT_V2', 'true');
+  fixture.user = { uid: 'offline-guest', email: 'guest@example.test' };
   fixture.coupons = [{
-    id: 'discount', code: 'SAVED', type: 'percent', value: 5, currency: 'USD', label: 'Saved discount',
+    id: 'pending', code: 'PENDING', type: 'percent', value: 5, currency: 'USD', label: 'Pending discount',
     minOrderUSD: 0, isUsed: false, expiresAt: Date.UTC(2099, 0, 1), createdAt: 0,
   }];
-  fetchMock.mockResolvedValueOnce({ ok: true, json: async () => ({ data: {
-    valid: true, discountedPrice: 118560, savedAmount: 6240, discountRate: 0.05,
-  } }) });
+  let finishValidation!: (response: unknown) => void;
+  fetchMock.mockReturnValueOnce(new Promise(resolve => { finishValidation = resolve; }));
   render(<MemoryRouter><PayPalBookingButton productType="airport_seoul_central" passengers={1}
     priceKRW={124800} expectedUSD={92} lang="en" p={{ paypalBookBtn: 'Book now' }} /></MemoryRouter>);
+  const qrButton = await screen.findByRole('button', { name: /Pay via QR/ });
+  fireEvent.click(screen.getByRole('button', { name: /Use a coupon/ }));
+  fireEvent.click(screen.getByRole('button', { name: /Pending discount/ }));
+  expect(qrButton).toBeDisabled();
+  fireEvent.click(qrButton);
+  expect(screen.queryByRole('link', { name: 'QR not working? Open link directly' })).toBeNull();
+  finishValidation({ ok: true, json: async () => ({ data: {
+    valid: true, discountedPrice: 118560, savedAmount: 6240, discountRate: 0.05,
+  } }) });
+  await waitFor(() => expect(qrButton).toBeEnabled());
+  expect(screen.getByText(/Discount applied/)).toBeVisible();
+  fireEvent.click(qrButton);
+  expect(await screen.findByRole('link', { name: 'QR not working? Open link directly' }))
+    .toHaveAttribute('href', 'https://paypal.me/offline-test/92.00USD');
+  expect(screen.getByText('≈ ₩124,800')).toBeVisible();
+});
+
+it.each([
+  { productType: 'airport_seoul_central', priceKRW: 124800, expectedUSD: 92, discountedPrice: 118560, discountedUSD: '$88 USD' },
+  { productType: 'ai-planner-full', priceKRW: AI_PLANNER_REFERENCE_KRW, expectedUSD: AI_PLANNER_FULL_USD, discountedPrice: 6600, discountedUSD: '$9.9 USD' },
+].flatMap(props => ['back', 'report'].map(action => ({ ...props, action }))))('clears the applied coupon for full-price QR and permits reapplying it: $productType $action', async ({ action, ...props }) => {
+  vi.stubEnv('VITE_FEATURE_DISCOUNT_V2', 'true');
+  fixture.user = { uid: 'offline-guest', email: 'guest@example.test', getIdToken: async () => 'offline-token' };
+  const coupon: Coupon = Object.freeze({
+    id: 'discount', code: 'SAVED', type: 'percent', value: 5, currency: 'USD', label: 'Saved discount',
+    minOrderUSD: 0, isUsed: false, expiresAt: Date.UTC(2099, 0, 1), createdAt: 0,
+  });
+  fixture.coupons = [coupon];
+  const originalCoupon = { ...coupon };
+  fetchMock.mockImplementation(async (url) => ({ ok: true, json: async () => url === '/api/applyPromoCode'
+    ? { data: { valid: true, discountedPrice: props.discountedPrice, savedAmount: 6240, discountRate: 0.05,
+      couponDocId: 'discount', userId: 'offline-guest' } }
+    : { ok: true, data: {} } }));
+  const checkout = (productType: string) => <MemoryRouter><PayPalBookingButton {...props} productType={productType} passengers={1} lang="en"
+    userEmail="guest@example.test" plannerInput={{ city: 'seoul' }} p={{ paypalBookBtn: 'Book now' }} /></MemoryRouter>;
+  const view = render(checkout('airport_seoul_central'));
   fireEvent.click(screen.getByRole('button', { name: /Use a coupon/ }));
   fireEvent.click(screen.getByRole('button', { name: /Saved discount/ }));
-  await waitFor(() => expect(screen.getByRole('button', { name: /Book now/ })).toHaveTextContent('$88 USD'));
+  await waitFor(() => expect(screen.getByText(/Discount applied/)).toBeVisible());
+  view.rerender(checkout(props.productType));
+  expect(screen.getByRole('button', { name: /Book now/ })).toHaveTextContent(props.discountedUSD);
   fireEvent.click(await screen.findByRole('button', { name: /Pay via QR/ }));
-  expect(await screen.findByRole('link', { name: 'QR not working? Open link directly' }))
-    .toHaveAttribute('href', 'https://paypal.me/offline-test/88.00USD');
-  expect(screen.getByText('≈ ₩118,560')).toBeVisible();
+  const url = `https://paypal.me/offline-test/${props.expectedUSD.toFixed(2)}USD`;
+  expect(await screen.findByRole('link', { name: 'QR not working? Open link directly' })).toHaveAttribute('href', url);
+  expect(screen.getByText(`≈ ₩${props.priceKRW.toLocaleString('ko-KR')}`)).toBeVisible();
+  expect(screen.getByText('Coupon discounts apply only to PayPal checkout. QR transfers use the full price.')).toBeVisible();
+  expect(screen.queryByText(/Discount applied/)).toBeNull();
+  if (action === 'back') {
+    fireEvent.click(screen.getByRole('button', { name: 'Back' }));
+    expect(screen.getByRole('button', { name: /Book now/ })).toHaveTextContent(`$${props.expectedUSD.toLocaleString('en-US')} USD`);
+    expect(screen.queryByText(/Discount applied/)).toBeNull();
+    view.rerender(checkout('airport_seoul_central'));
+    fireEvent.click(screen.getByRole('button', { name: /Use a coupon/ }));
+    fireEvent.click(screen.getByRole('button', { name: /Saved discount/ }));
+    await waitFor(() => expect(screen.getByText(/Discount applied/)).toBeVisible());
+  } else {
+    fireEvent.click(screen.getByRole('button', { name: 'Report payment complete' }));
+    const reports = () => fetchMock.mock.calls.filter(([url]) => url === '/api/manual-payment-request').map(([, init]) => JSON.parse(init.body)).filter(body => body.priceUSD);
+    await waitFor(() => expect(reports()).toHaveLength(1));
+    expect(reports()[0]).toMatchObject({ priceUSD: props.expectedUSD.toFixed(2), priceKRW: props.priceKRW, paypalMeUrl: url });
+    expect(reports()[0]).not.toHaveProperty('couponDocId');
+    expect(reports()[0]).not.toHaveProperty('promoCode');
+  }
+  expect(coupon).toEqual(originalCoupon);
+  expect(fixture.coupons).toEqual([originalCoupon]);
+  expect(fetchMock.mock.calls.filter(([url]) => url === '/api/applyPromoCode')).toHaveLength(action === 'back' ? 2 : 1);
+  expect(fetchMock.mock.calls.filter(([url]) => !['/api/applyPromoCode', '/api/manual-payment-request', '/api/prepay/prepare'].includes(url))).toHaveLength(0);
 });
 
 it.each([
