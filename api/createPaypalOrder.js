@@ -12,6 +12,7 @@ import { fileURLToPath } from 'url';
 import { getPaypalAccessToken, resolveIsSandbox } from './_shared/paypal.js';
 import { isPastCutoff, getCutoffHours } from './_shared/booking-cutoff.js';
 import { checkAiPlannerCouponPolicy, isAiPlannerProduct } from './_shared/ai-planner-policy.js';
+import { checkPlannerOrderInput, normalizePrepayInput, loadPrepayFoodIndex, prepaySnapshotFields, isPrepayCheckedProduct } from './_shared/prepay-coverage.js';
 import { acquireSlotLock, fetchServerSlotCapacity } from './_shared/slot-capacity.js';
 import { initAdminDb } from './_shared/firebase-admin.js';
 import { resolveMultiDayCheckoutKrw, multiDayListBaseKrw, captainPremiumKrw } from './_shared/charter-multiday-price.js';
@@ -219,6 +220,23 @@ export default async function handler(req, res) {
     }
     const checkoutCapability = newCheckoutCapability();
     const ownerUid = await verifyBearerUid(req.headers && req.headers.authorization);
+
+    // 🔴 2026-10-26 B6-1: AI 플래너(풀) — 결제 전 식이 커버리지 서버 확인. 플래너 입력을 서버가 다시 정규화하고
+    //   생성 단계와 같은 게이트로 검사한다. 실패하면 PayPal 주문을 만들지 않는다(돈이 움직이기 전, 재시도 안전).
+    //   통과한 정규 입력·지문은 아래 snapshot 에 저장 → capture 직전 재검사·ai-planner-full 입력 대조의 근거.
+    let prepayFields = null;
+    if (isPrepayCheckedProduct(productType)) {
+      //   출발일 > KST 오늘(생성 단계와 같은 함수)도 여기서 — 자정을 넘겨 결제된 주문이 생성 단계 400 으로 막히지 않게.
+      const normalized = normalizePrepayInput(body.plannerInput, { requireFutureStart: true });
+      const foodIndex = normalized.ok && normalized.input.diets.length ? await loadPrepayFoodIndex() : null;
+      const checked = checkPlannerOrderInput(body.plannerInput, foodIndex, body.language);
+      if (!checked.ok) {
+        console.warn('[createPaypalOrder] planner input rejected before order → no PayPal order:', checked.code, checked.details || '');
+        res.writeHead(checked.status, JSON_CORS);
+        return res.end(JSON.stringify({ ..._err(checked.message, checked.code), ...(checked.details ? { details: checked.details } : {}) }));
+      }
+      prepayFields = prepaySnapshotFields(checked.input, foodIndex);
+    }
 
     // PR-R (2026-05-08): 예약 마감 정책 검증 — 값의 SSOT = _shared/booking-cutoff.js
     // (2026-07-28 운영자: 상품군 분리 — 전세차량 1h / 투어 8h. 옛 "전 상품 12h 통일"은 폐기)
@@ -571,6 +589,8 @@ export default async function handler(req, res) {
         //   this browser only, plus the verified owner uid (guest = null). Never the secret itself.
         recoveryDigest: checkoutCapability.digest,
         ownerUid: ownerUid || null,
+        // 🔴 B6-1: AI 플래너 결제 전 검사를 통과한 서버 정규 입력·지문(다른 상품은 필드 없음).
+        ...(prepayFields || {}),
         createdAt: new Date().toISOString(),
       });
     } catch (_snapErr) {
@@ -583,6 +603,10 @@ export default async function handler(req, res) {
     res.end(JSON.stringify(_ok({ orderID: order.id, usdAmount, krwAmount, currentRate: Math.round(usdToKrw), displayKRW: krwAmount.toLocaleString('ko-KR') + '원', displayUSD: '$' + usdAmount + ' USD' })));
   } catch (err) {
     console.error('[createPaypalOrder] Error:', err);
+    if (err.code === 'PREPAY_CHECK_UNAVAILABLE') {
+      res.writeHead(503, JSON_CORS);
+      return res.end(JSON.stringify(_err(err.message, err.code)));
+    }
     res.writeHead(500, JSON_CORS);
     res.end(JSON.stringify(_err(err.message, 'INTERNAL_ERROR')));
   }

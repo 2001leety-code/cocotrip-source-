@@ -22,6 +22,7 @@ import {
 import { PayPalBookingButton } from '@/components/PayPalBookingButton';
 import type { PlannerFormValues } from '@/components/PlannerForm';
 import type { PlannerDict } from '../types';
+import { buildPlannerOrderInput } from '../lib/plannerIntent';
 import { TriviaLoadingAnimation } from './TriviaLoadingAnimation';
 import { useAuth } from '@/hooks/useAuth';
 import { blockCouponForMissingEmail } from '@/lib/connectEmail';
@@ -419,6 +420,7 @@ export function PurchaseSection({
                 expectedUSD={AI_PLANNER_FULL_USD}
                 memo={`Full itinerary for: ${userEmail}`}
                 itineraryData={resultQuick}
+                plannerInput={lastValues.current ? buildPlannerOrderInput(lastValues.current, language) : undefined}
                 onPaymentSuccess={onPaymentSuccess}
                 onVerifiedPayPalFinal={onVerifiedPayPalFinal}
                 canStartAiCheckout={canStartAiCheckout}

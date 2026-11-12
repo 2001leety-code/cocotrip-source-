@@ -29,7 +29,7 @@ const safetyDietsOf = (dietaryAll) => [...new Set((dietaryAll || []).map((d) => 
 // ko/en/ja/zh 별칭)로 정규화. 별칭에 없는 도시는 소문자 원문 그대로(서울로 바꾸지 않는다 — 아래 검사가 차단).
 // 공용 목록 resolver(resolveCityCode)가 다른 도시로 묶는 도시(인천·수원 → seoul)는 그 도시 목록을 만들 수 없으므로
 // 사전 검사와 목록 주입 모두 차단한다(listUnavailable).
-function mealCityCode(token) {
+export function mealCityCode(token) {
   // 2026-10-24 (r3): 기존 지역 키의 '_' 접미(seoul_city — requestShaper 기본 area, busan_haeundae 류)를 떼고 본다 —
   //   food-name-match.js cityKey 와 같은 규칙. 안 떼면 seoul_city 가 서울이 아닌 도시로 판정돼 422.
   const t = String(token || '').toLowerCase().trim().split('_')[0].trim();

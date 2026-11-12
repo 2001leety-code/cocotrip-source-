@@ -139,7 +139,14 @@
       "includeFiles": "fonts/**"
     },
     "api/capturePaypalOrder.js": {
-      "maxDuration": 60
+      "maxDuration": 60,
+      "includeFiles": "api/_food_index.json"
+    },
+    "api/createPaypalOrder.js": {
+      "includeFiles": "api/_food_index.json"
+    },
+    "api/manual-payment-request.js": {
+      "includeFiles": "api/_food_index.json"
     },
     "api/modifyBooking.js": {
       "maxDuration": 60

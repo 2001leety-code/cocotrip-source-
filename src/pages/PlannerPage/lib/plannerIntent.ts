@@ -31,6 +31,7 @@
  * reintroduced here.
  */
 import type { PlannerFormValues } from '@/components/PlannerForm';
+import { cityNameToAreaKey } from './formatters';
 
 export const PLANNER_INTENT_VERSION = 1 as const;
 export const PLANNER_INTENT_KEY = 'planner_intent_v1' as const;
@@ -272,4 +273,15 @@ export function buildFullPlannerIntentPayload(
   const plannerIntentV1 = buildPlannerIntentV1(values, language, revision);
   const flat = flattenPlannerIntentV1(plannerIntentV1, values);
   return { plannerIntentV1, flat };
+}
+
+/** Match the existing full-generation request's travel fields before creating a paid order. */
+export function buildPlannerOrderInput(values: PlannerFormValues, language: string): Record<string, unknown> {
+  const { flat } = buildFullPlannerIntentPayload(values, language);
+  return {
+    area: cityNameToAreaKey((values.regions || ['Seoul'])[0]),
+    arrival_city: values.arrival_city || undefined,
+    departure_city: values.departure_city || undefined,
+    ...flat,
+  };
 }

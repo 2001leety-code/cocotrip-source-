@@ -205,6 +205,8 @@ describe('capturePaypalOrder — cross-flow 가드 (행위)', () => {
     // 상품·USD·KRW provenance 를 제공하고, 나머지 검사는 capture 진입까지 이어지는지 본다.
     dbHolder.db = captureDb({ cartExists: false, orderSnapshot: {
       productType: 'ai-planner-full', expectedUSD: '9.90', expectedCurrency: 'USD', expectedKRW: 14000,
+      // 2026-10-26 B6-1: 새 AI 플래너 주문은 결제 전 검사를 통과한 정규 입력을 snapshot 에 갖는다.
+      prepayInputVersion: 1, prepayInput: { version: 1, cities: ['seoul'], diets: [], startDate: '2026-12-01', durationDays: 3 },
     } });
     const res = mockRes();
     await captureHandler({ method: 'POST', body: { orderID: PAYPAL_ORDER }, headers: {} }, res);

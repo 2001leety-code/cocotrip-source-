@@ -13,11 +13,15 @@ import { createBinding, consumeOrRecover, restoreOrResolve, validateBinding, cou
 import { FieldValue } from 'firebase-admin/firestore';
 import { getPaypalAccessToken, resolveIsSandbox } from '../_shared/paypal.js';
 import { captureError } from '../_shared/sentry.js';
-import { isReviewFulfillable, PAYMENT_REVIEW_RESOLUTION } from '../_shared/payment-review.js';
+import { isReviewFulfillable, PAYMENT_REVIEW_RESOLUTION, buildPaymentReviewDoc } from '../_shared/payment-review.js';
 import { throttledTelegramAlert } from '../_shared/telegram-throttle.js';
 import { isAiPlannerFullProduct } from '../_shared/ai-planner-policy.js';
 import { toMinorUnits, verifyCaptureIntegrity } from '../_shared/paypal-capture-verify.js';
-import { claimPlanIssuance, PLAN_ISSUANCE_CODE } from '../_shared/plan-issuance.js';
+import { claimPlanIssuance, isPlanIssuanceComplete, PLAN_ISSUANCE_CODE } from '../_shared/plan-issuance.js';
+import { isVoidTombstone } from '../_shared/payment-fulfillment-recovery.js';
+import { shapeRequest } from './requestShaper.js';
+import { enforceDietaryCoverage, hasSafetyDiet } from './dietaryCoverageGate.js';
+import { normalizePrepayInput, prepayFingerprint, prepayInputSummary, loadPrepayFoodIndex } from '../_shared/prepay-coverage.js';
 
 // Audit P0-#2 (2026-05-04): TEST_ACCOUNTS hardcoded admin email 제거.
 // 인증: caller (ai-planner-full.js) 에서 verifyUserToken 으로 검증된 email 을 authenticatedEmail
@@ -130,7 +134,121 @@ export async function restoreAiPlanCoupon(adminDb, uid, code, consumptionId, bin
   return result;
 }
 
-export async function enforcePaymentAndRevision(body, adminDb, authenticatedEmail, authenticatedUid, couponContext = null) {
+/** Paid orders use the generation coverage check before claiming issuance. */
+async function paidCoverageCheck(body, authenticatedEmail, authenticatedUid, loadFoodIndex) {
+  let shaped;
+  try { shaped = shapeRequest(body, authenticatedEmail, false, authenticatedUid); } catch { return null; }
+  const dietaryAll = [...(shaped.dietPrefs || []), ...(shaped.dietaryRestrictions || [])].filter((d) => d && d !== 'None');
+  if (!hasSafetyDiet(dietaryAll)) return null;
+  try {
+    enforceDietaryCoverage({ foodIndex: await loadFoodIndex(), regions: shaped.regions, area: shaped.area, dietaryAll, arrivalCity: shaped.arrivalCity, departureCity: shaped.departureCity });
+    return null;
+  } catch (e) {
+    if (e && e.code === 'DIETARY_COVERAGE_UNAVAILABLE') return reject(422, e.code, e.message, e.details);
+    if (e && e.code === 'PREPAY_CHECK_UNAVAILABLE') return reject(503, 'PAYMENT_VERIFY_UNAVAILABLE', 'Could not verify the paid order. Do not pay again; please try again later.');
+    throw e;
+  }
+}
+
+/**
+ * 2026-10-26 B6-1 r3: 결제된 주문(PayPal·MANUAL)의 커버리지 거부 — 소유자·고정 입력 대조 **뒤**에 돌리고(409 복원이 먼저),
+ *   거부되면 운영자 알림(주문 키 스로틀) + Sentry. 예전 생성 단계 throw 경로와 같은 관측성 — 결제됐는데 플랜 0개가 조용히 남지 않게.
+ */
+async function paidCoverageRejection(body, authenticatedEmail, authenticatedUid, loadFoodIndex, orderId) {
+  const rejection = await paidCoverageCheck(body, authenticatedEmail, authenticatedUid, loadFoodIndex);
+  if (!rejection) return null;
+  const details = rejection.rejection.details || '';
+  console.warn('[planner] 결제된 주문 식이 커버리지 거부 → 발급 보류:', orderId, details);
+  await throttledTelegramAlert({
+    key: `paid-dietary-coverage:${orderId}`, channel: 'admin', severity: 'high',
+    message: ['🔴 <b>결제된 AI 플래너 주문 — 식이 커버리지로 생성 거부</b>', '', `<b>order:</b> <code>${orderId}</code>`, `<b>detail:</b> ${details}`, '', '→ 고객은 결제했으나 플랜 없음. 식당 자료 확인 후 생성 지원 또는 환불.'].join('\n'),
+    context: { orderId, details },
+  }).catch(() => {});
+  await captureError(new Error(`paid order dietary coverage rejected: ${details}`), { route: 'paymentGate', step: 'paid_dietary_coverage', orderId });
+  return rejection;
+}
+
+/**
+ * 결제된 주문 409 — 소유자 확인 후 고정 입력 요약을 반환한다. 고객 지원에서 결제 조건을 확인할 수 있으며,
+ * 현재 클라이언트의 발급 보류 장치를 유지한다. 입력을 자동 복원하는 클라이언트 기능은 포함하지 않는다.
+ */
+function paidInputMismatch(pinnedInput) {
+  const summary = prepayInputSummary(pinnedInput);
+  return reject(409, 'PREPAY_INPUT_MISMATCH', 'Trip details differ from the paid order — do not pay again',
+    { paidOrder: true, ...(summary ? { pinnedInput: summary } : {}) });
+}
+
+/**
+ * 2026-10-26 B6-1: 결제된 주문 ↔ 요청 입력 바인딩(발급권 선점 전). PayPal(snapshot)·MANUAL(pending_bookings) 공통.
+ *   순서(r3): 소유자 → 고정 입력 대조(불일치 = 409 + pinnedInput) → (호출부) 커버리지 → 발급권.
+ *   - 새 주문(prepayFingerprint 있음): 요청을 같은 규칙으로 정규화한 지문이 주문 지문과 같아야 한다.
+ *   - 이미 결제된 옛 주문(지문 없음): 원입력 증명 불가 — 결제·소유자 확인 뒤 **최초 요청 입력을 트랜잭션으로 1회 고정**.
+ *     이미 고정됐으면 그 지문과 비교한다.
+ *   prepayVerified = 지문 일치·고정(생성 단계 출발일 재검사 면제의 근거 — 출발일은 결제 전 create·capture 가 검사했다).
+ * @param {{ref: object, pinned: {prepayFingerprint?: string, prepayInput?: object, ownerUid?: string|null}}} order
+ * @returns {Promise<ReturnType<typeof reject> | {prepayVerified: boolean}>}
+ */
+async function bindPrepayInputBeforeClaim(adminDb, orderId, order, body, authenticatedUid) {
+  const snapData = order.pinned || {};
+  // 소유자 검사가 맨 앞 — 정규화 불가·지문 일치 같은 조기 통과보다 먼저(남의 결제 주문으로 발급·고정 차단).
+  if (snapData.ownerUid && snapData.ownerUid !== authenticatedUid) {
+    return reject(403, 'FORBIDDEN', 'Order does not belong to the authenticated user', 'Do not pay again. Sign in with the account used for payment or contact support.');
+  }
+  const normalized = normalizePrepayInput(body);
+  if (!normalized.ok) {
+    // 새 주문(지문 있음)은 예외 없이 거부. 옛 결제 주문은 돈이 이미 들어왔다 — 고정할 수 없는 요청이라도 막지 않는다
+    //   (전환 정책: 고정은 정규화 가능한 첫 요청에서만). 커버리지는 다음 단계·생성 단계가 그대로 검사한다.
+    if (!snapData.prepayFingerprint) {
+      console.warn('[planner] 옛 결제 주문 — 요청 입력 정규화 불가로 고정 생략:', orderId, normalized.code);
+      return { prepayVerified: false };
+    }
+    return reject(normalized.status, normalized.code, normalized.message, normalized.details);
+  }
+  const fingerprint = prepayFingerprint(normalized.input);
+  if (snapData.prepayFingerprint) {
+    if (snapData.prepayFingerprint === fingerprint) return { prepayVerified: true };
+    console.warn('[planner] 결제 주문과 요청 입력 불일치 → 발급 거부:', orderId);
+    return paidInputMismatch(snapData.prepayInput);
+  }
+  // r4: 옛 주문의 1회 고정은 **식이 커버리지 통과 뒤**(발급권 선점 직전 마지막 단계)에 호출부가 commitPin 으로 실행한다 —
+  //   먼저 고정하면 커버리지로 거부될 입력(서울+인천 할랄)이 영구히 묶여 도시를 바꿔도 409, 고정 입력은 다시 422 가 됐다.
+  const ref = order.ref;
+  const commitPin = async () => {
+    const outcome = await adminDb.runTransaction(async (tx) => {
+      const fresh = await tx.get(ref);
+      const cur = (fresh.exists && fresh.data()) || {};
+      if (cur.prepayFingerprint) return cur.prepayFingerprint === fingerprint ? 'match' : { pinnedInput: cur.prepayInput };
+      tx.update(ref, {
+        prepayInput: normalized.input, prepayInputVersion: normalized.input.version, prepayFingerprint: fingerprint,
+        prepayPinnedAt: new Date().toISOString(), prepayPinnedFrom: 'legacy_paid_first_use', prepayPinnedUid: authenticatedUid || null,
+      });
+      return 'pinned';
+    });
+    if (outcome && typeof outcome === 'object') return paidInputMismatch(outcome.pinnedInput);
+    if (outcome === 'pinned') console.log('[planner] 옛 결제 주문 입력 1회 고정:', orderId);
+    return null;
+  };
+  return { prepayVerified: true, commitPin };
+}
+
+/** MANUAL 주문 사용 표시(소비) — 트랜잭션 안에서 없을 때만 create. 이미 있거나 동시 create 가 이기면 false(= DUPLICATE). */
+async function markManualOrderUsed(adminDb, usedRef, data) {
+  try {
+    return await adminDb.runTransaction(async (tx) => {
+      const snap = await tx.get(usedRef);
+      if (snap.exists) return false;
+      tx.create(usedRef, data);
+      return true;
+    });
+  } catch (e) {
+    if (e && (e.code === 6 || /ALREADY_EXISTS/i.test(String(e.message || '')))) return false;
+    throw e;
+  }
+}
+
+export async function enforcePaymentAndRevision(body, adminDb, authenticatedEmail, authenticatedUid, couponContext = null, { loadFoodIndex = loadPrepayFoodIndex, ownerUid = authenticatedUid } = {}) {
+  let prepayVerified = false;
+
   const revisionOf = body.revisionOf;
   const revisionToken = body.revisionToken;
   let isRevision = false;
@@ -331,7 +449,19 @@ export async function enforcePaymentAndRevision(body, adminDb, authenticatedEmai
         if (usedDoc.exists) {
           return reject(403, 'DUPLICATE_ORDER', 'AI plan already generated for this booking');
         }
-        await usedRef.set({ usedAt: new Date().toISOString(), status: 'CONFIRMED', provider: 'manual', bookingRef });
+        // 🔴 B6-1 r3 (K): QR 주문도 PayPal 과 같은 입력 고정 — 신고 때 저장한 지문(manual-payment-request), 없으면 첫 요청 1회 고정.
+        //   소유자는 위에서 uid·이메일로 확인했다(ownerUid 대조 생략). 그 뒤 커버리지, 마지막에 used 기록(소비).
+        const bound = await bindPrepayInputBeforeClaim(adminDb, paypalOrderId,
+          { ref: pendingDoc.ref || adminDb.collection('pending_bookings').doc(bookingRef), pinned: { prepayFingerprint: pending.prepayFingerprint, prepayInput: pending.prepayInput } },
+          body, authenticatedUid);
+        if (bound.rejection) return bound;
+        const manualCoverage = await paidCoverageRejection(body, authenticatedEmail, authenticatedUid, loadFoodIndex, paypalOrderId);
+        if (manualCoverage) return manualCoverage;
+        if (bound.commitPin) { const pinRejection = await bound.commitPin(); if (pinRejection) return pinRejection; }
+        prepayVerified = bound.prepayVerified === true;
+        // r4: 소비 원자화 — 존재 확인(위) 뒤 bind·커버리지로 경합 창이 넓어졌다. 트랜잭션 create 로 동시 2요청 = 1 통과 + 1 DUPLICATE.
+        const usedNow = await markManualOrderUsed(adminDb, usedRef, { usedAt: new Date().toISOString(), status: 'CONFIRMED', provider: 'manual', bookingRef });
+        if (!usedNow) return reject(403, 'DUPLICATE_ORDER', 'AI plan already generated for this booking');
       } catch (e) {
         console.error('[planner] Manual mode verify failed:', e.message);
         await captureError(e, { route: 'paymentGate', step: 'manual_verify', orderId: paypalOrderId });
@@ -436,6 +566,24 @@ export async function enforcePaymentAndRevision(body, adminDb, authenticatedEmai
               console.warn('[planner] payment_review MANUALLY_CONFIRMED — capture 판정 우회(운영자 확정):',
                 paypalOrderId, '| by:', rv.resolvedBy || '(unknown)');
             }
+          }
+          // Webhook quarantine commits before its review document; either marker must block issuance.
+          const attemptDoc = await adminDb.collection('used_paypal_orders').doc(paypalOrderId).get();
+          const attempt = attemptDoc.exists ? attemptDoc.data() : null;
+          if (!operatorConfirmedPayment && (isVoidTombstone(attempt) || attempt?.reviewQuarantined === true)) {
+            // Create once per order; a concurrent webhook/operator resolution must never be overwritten.
+            const reviewRef = adminDb.collection('payment_reviews').doc(paypalOrderId);
+            await adminDb.runTransaction(async tx => {
+              const existing = await tx.get(reviewRef);
+              if (existing.exists) return;
+              tx.set(reviewRef, {
+                ...buildPaymentReviewDoc({ flow: attempt.flow || 'single', orderID: paypalOrderId,
+                  verdict: { code: 'CAPTURED_AFTER_VOID', detail: 'Paid order blocked by a void or quarantine marker' }, capture: orderData }),
+                createdAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp(),
+              });
+            });
+            return reject(403, 'PAYMENT_UNDER_REVIEW', 'Payment is under manual review',
+              '결제 확인 중입니다. 확인 후 안내드립니다. 다시 결제하지 마세요.');
           }
         } catch (reviewErr) {
           // 조회 실패를 "격리 없음" 으로 간주해 유료 콘텐츠를 발급하지 않는다.
@@ -543,6 +691,50 @@ export async function enforcePaymentAndRevision(body, adminDb, authenticatedEmai
         //   claim 이 이 위치인 이유: 위의 payment_review·provenance·상품·금액·capture 무결성 검증이
         //   전부 끝난 뒤여야 한다. 검증 실패 주문이 발급권을 선점한 채 reject 되면 정당한 재시도가
         //   DUPLICATE 로 막히는 self-DoS 가 된다.
+        // 🔴 B6-1: 발급권 선점 전에 결제 주문 ↔ 요청 입력 바인딩(새 주문 = 지문 대조, 옛 결제 주문 = 1회 고정).
+        //   r3: 소유자 → 고정 입력 대조 → 커버리지(거부 시 운영자 알림) → 발급권. ownerUid = createPaypalOrder 와 같은 신원 기준.
+        // 🔴 B6-1 r16: 완료 전용 조회를 입력 대조·식이 검사보다 먼저(결제 검증은 위에서 끝남) — 이미 발급된 주문은 DUPLICATE_ORDER.
+        //   발급권 선점(claimPlanIssuance)은 옮기지 않는다(식이 실패 전에 잠기면 정당한 재시도가 막힌다). 조회 실패는 아래 claim 이 판정.
+        //   r17: 소유자 검사가 완료 조회보다 먼저 — 다른 UID 에 완료·미완료가 FORBIDDEN 으로 같아야 한다(완료 여부 노출 금지).
+        if (snapData.ownerUid && snapData.ownerUid !== ownerUid) {
+          return reject(403, 'FORBIDDEN', 'Order does not belong to the authenticated user', 'Do not pay again. Sign in with the account used for payment or contact support.');
+        }
+        let alreadyIssued = false;
+        try {
+          alreadyIssued = await isPlanIssuanceComplete(adminDb, paypalOrderId);
+        } catch (doneErr) {
+          console.warn('[planner] issuance completion pre-check 실패 → claim 단계가 판정:', doneErr.message);
+        }
+        if (alreadyIssued) {
+          return reject(403, 'DUPLICATE_ORDER', 'Order already used', 'This payment has already been used to generate a plan.');
+        }
+        let bound;
+        try {
+          bound = await bindPrepayInputBeforeClaim(adminDb, paypalOrderId,
+            { ref: adminDb.collection('paypal_order_snapshots').doc(paypalOrderId), pinned: snapData }, body, ownerUid);
+        } catch (bindErr) {
+          console.error('[planner] prepay input bind 실패 → 발급 거부(fail-closed):', bindErr.message);
+          await captureError(bindErr, { route: 'paymentGate', step: 'prepay_input_bind', orderId: paypalOrderId });
+          return reject(503, 'PAYMENT_VERIFY_UNAVAILABLE', 'Could not verify order details',
+            '일시적인 오류입니다. 잠시 후 다시 시도해주세요.');
+        }
+        if (bound.rejection) return bound;
+        const paidCoverage = await paidCoverageRejection(body, authenticatedEmail, authenticatedUid, loadFoodIndex, paypalOrderId);
+        if (paidCoverage) return paidCoverage;
+        if (bound.commitPin) {
+          let pinRejection;
+          try {
+            pinRejection = await bound.commitPin();
+          } catch (pinErr) {
+            console.error('[planner] prepay input pin 실패 → 발급 거부(fail-closed):', pinErr.message);
+            await captureError(pinErr, { route: 'paymentGate', step: 'prepay_input_pin', orderId: paypalOrderId });
+            return reject(503, 'PAYMENT_VERIFY_UNAVAILABLE', 'Could not verify order details',
+              '일시적인 오류입니다. 잠시 후 다시 시도해주세요.');
+          }
+          if (pinRejection) return pinRejection;
+        }
+        prepayVerified = bound.prepayVerified === true;
+
         let claimResult;
         try {
           claimResult = await claimPlanIssuance(adminDb, paypalOrderId, { uid: authenticatedUid });
@@ -600,5 +792,5 @@ export async function enforcePaymentAndRevision(body, adminDb, authenticatedEmai
   console.log('[planner] ✅ Auth passed:', isRevision ? `REVISION of ${revisionOf}` : paypalOrderId);
   // planClaim 은 유료 PayPal 경로에서만 실린다 — 여기는 revision/admin-bypass/TEST-/MANUAL-/유료가
   // 합류하는 지점이라 무조건 실으면 claim 하지 않은 경로도 attemptId 를 갖게 된다. 조건부 spread 유지.
-  return { isRevision, isAdminBypass, ...(planClaim ? { planClaim } : {}) };
+  return { isRevision, isAdminBypass, ...(planClaim ? { planClaim } : {}), ...(prepayVerified ? { prepayVerified: true } : {}) };
 }

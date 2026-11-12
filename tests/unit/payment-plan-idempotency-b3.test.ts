@@ -52,7 +52,7 @@ beforeEach(() => {
 // 여기 tx 는 **직렬 실행**만 모델링한다 — 이 파일의 목적은 "어느 컬렉션을 읽고 쓰는가" 라는
 // 경계 계약이지 경합이 아니다. 실제 race 증명(version 대조 + Promise.all)은
 // payment-p0-atomic-issuance.test.ts 가 helpers/fakeFirestore.ts 로 담당한다.
-function mockDb(opts: { issuedExists?: boolean; issuedData?: Record<string, unknown> } = {}) {
+function mockDb(opts: { issuedExists?: boolean; issuedData?: Record<string, unknown>; captureData?: Record<string, unknown> } = {}) {
   const writes: Array<{ collection: string; id: string; data: unknown }> = [];
   const reads: Array<{ collection: string; id: string }> = [];
   const store = new Map<string, Record<string, unknown>>();
@@ -63,6 +63,9 @@ function mockDb(opts: { issuedExists?: boolean; issuedData?: Record<string, unkn
     // 스냅샷이 없으면 ORDER_PROVENANCE_MISSING 으로 거부되므로 정상 주문을 모델링한다.
     if (name === 'paypal_order_snapshots') {
       return { exists: true, data: () => ({ productType: 'ai-planner-full', expectedUSD: '9.90', expectedCurrency: 'USD' }) };
+    }
+    if (name === 'used_paypal_orders' && opts.captureData) {
+      return { exists: true, data: () => opts.captureData };
     }
     if (name === 'plan_issued_orders') {
       const seeded = store.get(`${name}/${id}`);
@@ -124,13 +127,18 @@ describe('B3 (P311) — paymentGate plan-발급 멱등성 분리', () => {
     expect(result.isRevision).toBe(false);
   });
 
-  it('⭐ 출시 blocker fix: paymentGate 가 plan_issued_orders 를 검사 (used_paypal_orders 아님)', async () => {
-    const db = mockDb({ issuedExists: false });
-    await enforcePaymentAndRevision({ paypalOrderId: PAYPAL_ORDER }, db, 'user@example.com');
-    // plan_issued_orders 를 읽어야 함.
+  it('⭐ 출시 blocker fix: 정상 capture 기록은 발급 중복이 아니며 plan_issued_orders 에 발급권을 선점한다', async () => {
+    const captureData = { status: 'captured', captureState: 'captured' };
+    const db = mockDb({ issuedExists: false, captureData });
+    const result = await enforcePaymentAndRevision({ paypalOrderId: PAYPAL_ORDER }, db, 'user@example.com');
+    expect(result.rejection).toBeUndefined();
+    expect(result.planClaim).toMatchObject({ orderId: PAYPAL_ORDER });
     expect(db._reads.some(r => r.collection === 'plan_issued_orders' && r.id === PAYPAL_ORDER)).toBe(true);
-    // used_paypal_orders 는 읽지 않아야 함 (capture 멱등성 영역).
-    expect(db._reads.some(r => r.collection === 'used_paypal_orders')).toBe(false);
+    expect(db._peekIssued(PAYPAL_ORDER)).toMatchObject({ status: 'ISSUING', planId: result.planClaim.planId });
+    // 묘비·격리 확인은 읽기 전용이며 정상 capture 기록을 중복 발급으로 취급하지 않는다.
+    expect(db._reads.some(r => r.collection === 'used_paypal_orders' && r.id === PAYPAL_ORDER)).toBe(true);
+    expect(db._writes.some(w => w.collection === 'used_paypal_orders')).toBe(false);
+    expect(captureData).toEqual({ status: 'captured', captureState: 'captured' });
   });
 
   it('⭐ capture 멱등성 불변: paymentGate 가 used_paypal_orders 에 절대 write 안 함', async () => {
