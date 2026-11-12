@@ -116,6 +116,24 @@ afterEach(() => {
 });
 
 describe('정상 경로 — 세 단계가 다 끝나야 completed', () => {
+  it('replaying a completed booking repeats neither points nor email nor sheet rows', async () => {
+    expect((await run()).body.outcome).toBe(OUTCOME.COMPLETED);
+    expect((await run()).body.outcome).toBe(OUTCOME.COMPLETED);
+    expect(appendBooking).toHaveBeenCalledTimes(1);
+    expect(sendBookingConfirmation).toHaveBeenCalledTimes(1);
+    expect(global.fetch).toHaveBeenCalledTimes(1);
+  });
+
+  it('logs the final outcome only after loyalty settles, without the earlier completion claim', async () => {
+    const log = vi.spyOn(console, 'log');
+    mockLoyalty(500);
+    const result = await run();
+    const summary = log.mock.calls.filter(([message]) => message === '[booking-processor] 예약 처리 결과:');
+    expect(summary).toEqual([['[booking-processor] 예약 처리 결과:', { outcome: result.body.outcome, stepStatus: result.body.data.stepStatus }]]);
+    expect(result.body.outcome).toBe(OUTCOME.RETRYABLE);
+    expect(log.mock.calls.some(([message]) => message === '[booking-processor] 예약 처리 완료:')).toBe(false);
+  });
+
   it('전부 성공하면 outcome=completed, ok=true', async () => {
     const r = await run();
     expect(r.body.outcome).toBe(OUTCOME.COMPLETED);

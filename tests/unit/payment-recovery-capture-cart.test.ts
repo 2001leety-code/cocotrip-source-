@@ -67,8 +67,8 @@ describe('captureCartOrder — parent + every stable child + each intent commit 
     expect(retry.status).toBe(200);
     expect(retry.body).toMatchObject({ ok: true, finalized: true, data: { orderID: ORDER, lineCount: 2, amount: '150.00' } });
     expect(provider.calls).toHaveLength(1);
-    expect(db.rows.get(`bookings/${ORDER}__L0`)).toMatchObject({ parentOrderID: ORDER, lineId: 'L0', amountUSD: '100.00', memo: 'LINE0', captureID: 'CAP-1', createdAt: TS });
-    expect(db.rows.get(`bookings/${ORDER}__L1`)).toMatchObject({ parentOrderID: ORDER, lineId: 'L1', amountUSD: '50.00', memo: 'LINE1' });
+    expect(db.rows.get(`bookings/${ORDER}__L0`)).toMatchObject({ parentOrderID: ORDER, lineId: 'L0', amountUSD: '100.00', memo: 'LINE0', captureID: 'CAP-1', createdAt: TS, paymentVerified: true });
+    expect(db.rows.get(`bookings/${ORDER}__L1`)).toMatchObject({ parentOrderID: ORDER, lineId: 'L1', amountUSD: '50.00', memo: 'LINE1', paymentVerified: true });
     expect(db.rows.get(`bookings/${ORDER}__L0`).userEmail).toBeUndefined(); // cart-child refund guard preserved
     expect(db.rows.get(`pending_processor_retries/${ORDER}__L0`)).toMatchObject({ status: 'done', retryDocId: `${ORDER}__L0`, payload: { orderID: `${ORDER}__L0`, userEmail: 'buyer@example.invalid' } });
     expect(db.rows.get(`pending_processor_retries/${ORDER}__L1`)).toMatchObject({ status: 'done' });
@@ -124,5 +124,67 @@ describe('captureCartOrder — parent + every stable child + each intent commit 
     expect((await call({ orderID: ORDER, reconcile: true })).body).toMatchObject({ code: 'PAYMENT_NOT_CAPTURED', evidence: 'order_voided' });
     expect((await call({ orderID: ORDER })).body).toMatchObject({ code: 'PAYMENT_NOT_CAPTURED', evidence: 'order_voided' });
     expect(provider.calls).toHaveLength(1);
+    expect(db.rows.has(`bookings/${ORDER}__L0`)).toBe(false);
+    expect(effects.processor).not.toHaveBeenCalled();
+  });
+
+  it.each(['COMPLETED', 'PENDING'])('verified %s capture marks every child, preserving single-booking settlement policy', async (captureStatus) => {
+    provider.push({ method: 'POST', reply: { status: 201, body: completedOrder(ORDER, '150.00', 'CAP-1', captureStatus) } });
+    expect((await call({ orderID: ORDER, paymentVerified: false })).status).toBe(200);
+    for (const lineId of ['L0', 'L1']) {
+      expect(db.rows.get(`bookings/${ORDER}__${lineId}`)).toMatchObject({ paymentVerified: true, captureID: 'CAP-1' });
+      expect(db.rows.get(`bookings/${ORDER}__${lineId}`).uid).toBeUndefined();
+      expect(db.rows.get(`bookings/${ORDER}__${lineId}`).userEmail).toBeUndefined();
+    }
+    expect(effects.processor).toHaveBeenCalledTimes(2);
+    expect((await call({ orderID: ORDER, reconcile: true })).body).toMatchObject({ replayed: true });
+    expect(effects.processor).toHaveBeenCalledTimes(2);
+    expect(provider.calls).toHaveLength(1);
+  });
+
+  it.each(['amount', 'currency', 'status'])('invalid %s remains PAYMENT_REVIEW with no child or verified marker, even if requested', async (field) => {
+    const capture = completedOrder(ORDER, field === 'amount' ? '149.00' : '150.00', 'CAP-1', field === 'status' ? 'DECLINED' : 'COMPLETED');
+    if (field === 'currency') capture.purchase_units[0].payments.captures[0].amount.currency_code = 'EUR';
+    provider.push({ method: 'POST', reply: { status: 201, body: capture } });
+    const result = await call({ orderID: ORDER, paymentVerified: true });
+    expect(result.status).toBe(202);
+    expect(result.body).toMatchObject({ bookingStatus: 'PAYMENT_REVIEW' });
+    expect(db.rows.get(LOCK)).toMatchObject({ reviewQuarantined: true });
+    for (const lineId of ['L0', 'L1']) expect(db.rows.has(`bookings/${ORDER}__${lineId}`)).toBe(false);
+    expect(effects.processor).not.toHaveBeenCalled();
+  });
+
+  it('unverified capture remains unknown without children despite a client paymentVerified flag', async () => {
+    provider.push({ method: 'POST', throwName: 'TimeoutError' });
+    expect((await call({ orderID: ORDER, paymentVerified: true })).body).toMatchObject({ paymentStatus: 'CAPTURE_UNKNOWN' });
+    expect(db.rows.has(`bookings/${ORDER}__L0`)).toBe(false);
+    expect(effects.processor).not.toHaveBeenCalled();
+  });
+
+  it.each(['quarantined-lock', 'payment_review', 'PAYMENT_REVIEW'])('repair never grants a verified marker for %s despite stored capture proof', async (guard) => {
+    provider.push({ method: 'POST', reply: { status: 201, body: completedOrder(ORDER, '150.00') } });
+    db.failNext('carts/'); db.failNext('carts/'); db.failNext('carts/');
+    expect((await call({ orderID: ORDER })).status).toBe(202);
+    if (guard === 'quarantined-lock') db.rows.set(LOCK, { ...db.rows.get(LOCK), reviewQuarantined: true });
+    else db.rows.set(`cart_orders/${ORDER}`, { ...snapshot, status: guard });
+    await call({ orderID: ORDER, reconcile: true });
+    for (const lineId of ['L0', 'L1']) expect(db.rows.get(`bookings/${ORDER}__${lineId}`)?.paymentVerified).not.toBe(true);
+    expect(provider.calls).toHaveLength(1);
+  });
+
+  it('repair preserves an existing unverified child and closed intent instead of backfilling historical bookings', async () => {
+    provider.push({ method: 'POST', reply: { status: 201, body: completedOrder(ORDER, '150.00') } });
+    db.failNext('carts/'); db.failNext('carts/'); db.failNext('carts/');
+    expect((await call({ orderID: ORDER })).status).toBe(202);
+    const child = { orderID: `${ORDER}__L0`, parentOrderID: ORDER, captureID: 'CAP-1', amountUSD: '100.00', status: 'CONFIRMED' };
+    const intent = { status: 'permanent-failure', attempts: 3, outcome: 'failed_permanent', payload: { orderID: `${ORDER}__L0` } };
+    db.rows.set(`bookings/${ORDER}__L0`, child);
+    db.rows.set(`pending_processor_retries/${ORDER}__L0`, intent);
+    expect((await call({ orderID: ORDER, reconcile: true })).status).toBe(200);
+    expect(db.rows.get(`bookings/${ORDER}__L0`)).toEqual(child);
+    expect(db.rows.get(`pending_processor_retries/${ORDER}__L0`)).toEqual(intent);
+    expect(db.rows.get(`bookings/${ORDER}__L1`)).toMatchObject({ paymentVerified: true });
+    expect(effects.processor).toHaveBeenCalledTimes(1);
+    expect(effects.processor.mock.calls[0][0].retryDocId).toBe(`${ORDER}__L1`);
   });
 });

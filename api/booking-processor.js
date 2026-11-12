@@ -776,8 +776,6 @@ const originalHandler = async (event) => {
     }).catch(() => {});
   }
 
-  console.log('[booking-processor] 예약 처리 완료:', results);
-
   // ── 로열티 포인트 자동 적립 ──────────────────────────────────────────
   let verifiedLedger = null;
   try {
@@ -903,6 +901,7 @@ const originalHandler = async (event) => {
     if (!results.stepStatus[k]) results.stepStatus[k] = STEP.RETRYABLE;
   }
   const outcome = overallOutcome(results.stepStatus);
+  console.log('[booking-processor] 예약 처리 결과:', { outcome, stepStatus: results.stepStatus });
   return respond(200, {
     ok: outcome === 'completed',
     outcome,
