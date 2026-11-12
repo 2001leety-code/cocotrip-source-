@@ -17,6 +17,7 @@ vi.mock('@/hooks/useLoyalty', () => ({ useLoyalty: () => ({
 vi.mock('@/hooks/useGuestSignup', () => ({ useGuestSignup: () => ({}) }));
 vi.mock('@/hooks/useLanguage', () => ({ useLanguage: () => ({ language: fixture.language, t: en }) }));
 vi.mock('@/lib/firebase-auth', () => ({ auth: { currentUser: null } }));
+vi.mock('@/lib/firebase', () => ({ auth: {}, db: {} }));
 vi.mock('@/lib/analytics', () => ({ trackPaidConversion: vi.fn(), trackBeginCheckout: vi.fn(), getAttributionSnapshot: () => null }));
 vi.mock('@/lib/posthog', () => ({ track: vi.fn() }));
 vi.mock('@/lib/haptic', () => ({ haptic: vi.fn() }));
