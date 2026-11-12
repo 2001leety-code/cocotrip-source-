@@ -4,6 +4,7 @@ import { Link } from 'react-router-dom';
 import { track as posthogTrack } from '@/lib/posthog';
 import { trackPaidConversion, trackBeginCheckout, getAttributionSnapshot } from '@/lib/analytics';
 import { useLoyalty } from '@/hooks/useLoyalty';
+import { formatCouponLabel, formatCouponValue } from '@/lib/couponPresentation';
 import { useAuth } from '@/hooks/useAuth';
 import { blockCouponForMissingEmail } from '@/lib/connectEmail';
 import { useGuestSignup } from '@/hooks/useGuestSignup';
@@ -1035,7 +1036,8 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
           passengers={passengers}
           dateStart={dateStart}
           dateEnd={dateEnd}
-          priceKRW={priceKRW}
+          priceKRW={effectiveKRW}
+          priceUSD={checkoutAmountUSD}
           pickupLocation={pickupLocation}
           dropoffLocation={dropoffLocation}
           vehicleType={vehicleType}
@@ -1128,7 +1130,7 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
               ) : (
                 <ul className="space-y-2">
                   {discountCoupons.map(c => {
-                    const valueLabel = c.type === 'percent' ? `${c.value}%` : (c.currency === 'KRW' ? `₩${c.value.toLocaleString()}` : `$${c.value}`);
+                    const valueLabel = formatCouponValue(c, lang);
                     const expDate = new Date(c.expiresAt).toLocaleDateString();
                     return (
                       <li key={c.id}>
@@ -1142,7 +1144,7 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
                             <Tag className="w-3.5 h-3.5 text-[#B668FC]" />
                           </div>
                           <div className="flex-1 min-w-0">
-                            <p className="text-[13px] font-bold text-white truncate">{c.label}</p>
+                            <p className="text-[13px] font-bold text-white truncate">{formatCouponLabel(c, lang)}</p>
                             <p className="text-[10.5px] text-white/45 mt-0.5 customer-paypal-coupon-meta">{pl.expires}: {expDate}</p>
                           </div>
                           <span className="text-[14px] font-black text-[#B668FC] shrink-0">{valueLabel}</span>
