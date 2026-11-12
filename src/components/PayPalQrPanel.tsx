@@ -14,7 +14,6 @@
 //
 // 환경변수 (frontend exposed - VITE_ prefix):
 //   VITE_PAYPAL_ME_USERNAME   paypal.me username (필수, 예: 'cocotripkr')
-//   VITE_USD_KRW_RATE         (옵션) hardcoded 환율, 미설정 시 1380
 import { useState, useEffect, useRef } from 'react';
 import { Smartphone, Copy, Check, Loader2, AlertCircle, Mail, Phone, ExternalLink } from 'lucide-react';
 import QRCode from 'qrcode';
@@ -28,6 +27,7 @@ interface Props {
   dateStart?: string;
   dateEnd?: string;
   priceKRW: number;
+  priceUSD: number;
   pickupLocation?: string;
   dropoffLocation?: string;
   vehicleType?: string;
@@ -208,7 +208,7 @@ function generateBookingRef(): string {
 
 export function PayPalQrPanel({
   productType, passengers, dateStart = '', dateEnd = '',
-  priceKRW, pickupLocation = '', dropoffLocation = '', vehicleType = '', memo = '',
+  priceKRW, priceUSD, pickupLocation = '', dropoffLocation = '', vehicleType = '', memo = '',
   itineraryData, airport,
   onPaymentReported, onBack,
   customerEmail = '', customerPhone = '', plannerInput,
@@ -229,7 +229,6 @@ export function PayPalQrPanel({
   const [memoCopied, setMemoCopied] = useState(false);
 
   const username = (import.meta.env.VITE_PAYPAL_ME_USERNAME as string | undefined)?.trim() || '';
-  const usdRate = Number((import.meta.env.VITE_USD_KRW_RATE as string | undefined) || '1380');
 
   // Admin TEST 모드 — 로그인한 사용자 email 이 ADMIN_EMAIL 과 일치 시 결제 우회 + 즉시
   // confirm. 백엔드 (api/manual-payment-request) 가 토큰의 authenticatedEmail 검증해서
@@ -277,8 +276,8 @@ export function PayPalQrPanel({
     if (prepayState === 'ok' && qrShownRef.current && needsPrepay && !qrShown && onQrShown) onQrShown(bookingRef);
   }, [prepayState, needsPrepay, qrShown, onQrShown, bookingRef]);
 
-  // KRW → USD 환산 (정수, 소수 둘째 자리). PayPal.Me 는 USD 권장 — KRW 직접 미지원.
-  const usdAmount = (priceKRW / usdRate).toFixed(2);
+  // 결제 버튼의 USD를 그대로 사용 — 참고 KRW를 다시 환산하면 청구액과 달라진다.
+  const usdAmount = priceUSD.toFixed(2);
   const prepayReady = !needsPrepay || qrShownRef.current;
   const paypalUrl = username && prepayReady ? `https://paypal.me/${username}/${usdAmount}USD` : '';
 

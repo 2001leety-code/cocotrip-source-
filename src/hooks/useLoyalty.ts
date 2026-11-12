@@ -42,6 +42,8 @@ export interface Coupon {
   expiresAt: number;
   createdAt: number;
   productScope?: string;   // 'charter' | 'tour-package' | 'ai-plan' — AI 무료쿠폰은 할인 picker 제외용 (P1-②)
+  source?: string;
+  maxDays?: number;
   restoredAt?: unknown;    // Display metadata only; never proof of use eligibility.
   aiPlanBinding?: unknown;
 }

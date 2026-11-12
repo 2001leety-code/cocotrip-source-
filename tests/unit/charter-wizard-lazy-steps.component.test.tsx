@@ -138,4 +138,32 @@ describe('CharterWizard deferred steps', () => {
       { termsAgreed: true, marketingConsent: false },
     );
   });
+  it.each([
+    ['ICN', 'T1', true],
+    ['ICN', undefined, false],
+    ['GMP', undefined, true],
+  ])('allows an omitted flight number but preserves required terminal/consent: %s %s', async (origin, terminal, allowed) => {
+    fixture.snapshot = {
+      values: {
+        state: {
+          origin, service: 'airport_transfer', destinationKey: 'seoul-central',
+          startDate: '2099-09-01', pickupTime: '09:00', customerName: 'Fixture Guest',
+          customerPhone: '+821012345678', paxCount: 2, vehicle: 'staria', airport: { terminal },
+        },
+        manualKm: null,
+      },
+      step: 5,
+    };
+    renderWizard();
+    fireEvent.click(screen.getByRole('button', { name: 'Continue saved charter' }));
+    await screen.findByText('Step 5 guest: Fixture Guest');
+    const next = screen.getByRole('button', { name: 'Next' });
+    expect(next).toBeDisabled();
+    fireEvent.click(screen.getByRole('button', { name: 'Agree to terms' }));
+    expect(next.hasAttribute('disabled')).toBe(!allowed);
+    if (allowed) {
+      fireEvent.click(next);
+      expect(await screen.findByText('Step 6 quote')).toBeTruthy();
+    }
+  });
 });

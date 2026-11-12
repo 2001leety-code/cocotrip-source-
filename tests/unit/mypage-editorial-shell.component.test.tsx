@@ -117,6 +117,24 @@ describe('/mypage editorial shell', () => {
     testState.authFetch.mockReset();
   });
 
+  it.each([
+    ['ko', '무료', '가입 환영 — 무료 AI 일정 (1~3일)'],
+    ['en', 'FREE', 'Welcome — Free AI Plan (1~3 days)'],
+    ['ja', '無料', '新規登録特典 — 無料AIプラン（1〜3日）'],
+    ['zh', '免费', '新用户礼遇 — 免费AI行程（1~3天）'],
+  ])('shows a free coupon and localized title instead of a monetary value (%s)', (language, value, label) => {
+    testState.language = language;
+    testState.coupons = [{
+      id: 'welcome-ai', code: 'WELCOME-AI', source: 'onboarding', productScope: 'ai-plan', maxDays: 3,
+      label: 'Welcome — Free AI Plan (1~3 days)', type: 'free', value: 100,
+      currency: 'USD', minOrderUSD: 0, isUsed: false, createdAt: 0, expiresAt: Date.UTC(2099, 0, 1),
+    } as Coupon];
+    const view = renderPage('/mypage?tab=coupons');
+    expect(view.container.querySelector('.mypage-editorial-coupon-value')).toHaveTextContent(value);
+    expect(view.container.querySelector('.mypage-editorial-coupon-label')).toHaveTextContent(label);
+    expect(view.container.textContent).not.toContain('$100');
+  });
+
   it('renders the editorial paper shell, not the legacy dark shell', () => {
     const { container } = renderPage();
     expect(container.querySelector('.mypage-editorial')).toBeTruthy();
