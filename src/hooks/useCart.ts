@@ -13,7 +13,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from './useAuth';
 import { stripUndefined, type CartItem } from '@/lib/cart-types';
 import {
-  getLocalCart, addToLocalCart, removeFromLocalCart, clearLocalCart, mergeGuestCart,
+  getLocalCart, addToLocalCart, removeFromLocalCart, clearLocalCart, mergeGuestCart, subscribeLocalCart,
 } from '@/lib/cart-storage';
 
 export function useCart() {
@@ -32,7 +32,7 @@ export function useCart() {
 
   // ── Firestore 실시간 구독 (로그인) / localStorage (게스트) ──
   useEffect(() => {
-    if (!userId) return;
+    if (!userId) return subscribeLocalCart(() => setItems(getLocalCart()));
     const uid = userId;
     let cancelled = false;
     let unsubscribe: (() => void) | undefined;

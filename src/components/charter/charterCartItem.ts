@@ -6,6 +6,7 @@
 //    백엔드 분기: charter_transfer=originKey/destKey/tripType/vehicle · charter_multiday=+durationDays ·
 //    tour_hourly=originKey/destKey/vehicle · airport_*/charter_*(day)/kpop/combo=productType/passengers/durationDays.
 import { isAiPlannerProduct, type CartItemBooking } from '@/lib/cart-types';
+import { charterUsdFromKrw } from '@/lib/charterUsd';
 import type { ResolvedPayment } from './resolveProductType';
 import type { WizardState } from './types';
 
@@ -14,6 +15,7 @@ export interface CharterCartItem {
   booking: CartItemBooking;
   displayName: string;
   priceKRW: number;
+  priceUSD: number;
 }
 
 /**
@@ -84,5 +86,5 @@ export function buildCharterCartItem(state: WizardState, resolved: ResolvedPayme
   const id = `charter-${resolved.productType}-${origin}-${dest}-${state.startDate || ''}-${state.paxCount || ''}-${vehicle || ''}-${resolved.tripType || ''}-${durationDays || ''}-${optSig}`;
   const displayName = state.startDate ? `${routeLabel} (${state.startDate})` : routeLabel;
 
-  return { id, booking, displayName, priceKRW: resolved.priceKRW };
+  return { id, booking, displayName, priceKRW: resolved.priceKRW, priceUSD: charterUsdFromKrw(resolved.priceKRW) };
 }

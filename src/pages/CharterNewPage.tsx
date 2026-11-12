@@ -378,6 +378,7 @@ function PaymentPanel({
             booking={cartItem.booking}
             displayName={cartItem.displayName}
             priceKRW={cartItem.priceKRW}
+            priceUSD={cartItem.priceUSD}
             className="charter-funnel-action-secondary w-full inline-flex items-center justify-center gap-1.5 py-3 mt-2 rounded-xl text-[13px] font-semibold bg-white/[0.05] text-white/75 border border-white/12 hover:bg-white/[0.09] transition-colors"
           />
         )}

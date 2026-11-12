@@ -13,6 +13,7 @@ import { useCart } from '@/hooks/useCart';
 import { useAuth } from '@/hooks/useAuth';
 import { useLanguage } from '@/hooks/useLanguage';
 import { isCartEnabled, type CartItemBooking } from '@/lib/cart-types';
+import { cartDisplayUsd } from '@/lib/cart-display';
 // CartCheckout 는 결제 진입(showCheckout) 시에만 필요 → lazy split (main 번들 환원, size-limit 130KB).
 const CartCheckout = lazy(() => import('./CartCheckout').then((m) => ({ default: m.CartCheckout })));
 
@@ -185,8 +186,8 @@ function CartPanelInner({ onOpen }: { onOpen?: () => void }) {
                       <div className="flex-1 min-w-0">
                         <p className="text-white text-sm font-medium truncate customer-cart-item-name">{item.displayName}</p>
                         <div className="flex items-center gap-2 mt-1.5">
-                          {item.priceUSD ? (
-                            <span className="text-[#C4956A] font-semibold text-sm customer-cart-price">${item.priceUSD}</span>
+                          {cartDisplayUsd(item) !== null ? (
+                            <span className="text-[#C4956A] font-semibold text-sm customer-cart-price">${cartDisplayUsd(item)}</span>
                           ) : null}
                           <span className="text-white/55 text-[10px] uppercase tracking-wider customer-cart-meta">
                             {item.booking ? item.booking.productType : ''}

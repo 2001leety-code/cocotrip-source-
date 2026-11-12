@@ -8,6 +8,21 @@
 import type { CartItem } from './cart-types';
 
 export const CART_LS_KEY = 'COCO_CART';
+const CART_CHANGED_EVENT = 'cocotrip:cart-changed';
+
+/** Same-tab writers and other tabs must refresh every mounted guest cart hook. */
+export function subscribeLocalCart(onChange: () => void): () => void {
+  const onStorage = (event: StorageEvent) => {
+    if (event.storageArea && event.storageArea !== localStorage) return;
+    if (event.key === CART_LS_KEY || event.key === null) onChange();
+  };
+  window.addEventListener(CART_CHANGED_EVENT, onChange);
+  window.addEventListener('storage', onStorage);
+  return () => {
+    window.removeEventListener(CART_CHANGED_EVENT, onChange);
+    window.removeEventListener('storage', onStorage);
+  };
+}
 
 export function getLocalCart(): CartItem[] {
   try {
@@ -18,10 +33,14 @@ export function getLocalCart(): CartItem[] {
 
 export function setLocalCart(items: CartItem[]) {
   localStorage.setItem(CART_LS_KEY, JSON.stringify(items));
+  window.dispatchEvent(new Event(CART_CHANGED_EVENT));
 }
 
 export function clearLocalCart() {
-  try { localStorage.removeItem(CART_LS_KEY); } catch { /* noop */ }
+  try {
+    localStorage.removeItem(CART_LS_KEY);
+    window.dispatchEvent(new Event(CART_CHANGED_EVENT));
+  } catch { /* noop */ }
 }
 
 /** 게스트 담기 — 중복 id 무시. @returns 갱신된 목록 */
