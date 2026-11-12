@@ -84,12 +84,12 @@ function CartAddButtonInner({ id, booking, displayName, thumbnailUrl, priceKRW, 
 }
 
 // ── 장바구니 사이드 패널 (헤더 아이콘 + 슬라이드) ──
-export function CartPanel() {
+export function CartPanel({ onOpen }: { onOpen?: () => void } = {}) {
   if (!isCartEnabled()) return null;
-  return <CartPanelInner />;
+  return <CartPanelInner onOpen={onOpen} />;
 }
 
-function CartPanelInner() {
+function CartPanelInner({ onOpen }: { onOpen?: () => void }) {
   const { items, remove, clear, loading } = useCart();
   const { user } = useAuth();
   const { t } = useLanguage();
@@ -112,7 +112,7 @@ function CartPanelInner() {
     <>
       {/* 트리거 (헤더 아이콘) */}
       <button
-        onClick={() => setIsOpen(true)}
+        onClick={() => { onOpen?.(); setIsOpen(true); }}
         className="relative inline-flex min-w-[44px] min-h-[44px] items-center justify-center rounded-ec-sm text-ec-ink-2 transition-colors hover:text-ec-ink hover:bg-ec-page"
         aria-label={c.title || 'Cart'}
       >
@@ -127,18 +127,19 @@ function CartPanelInner() {
       {/* 슬라이드 패널 — createPortal 로 document.body 렌더: 헤더의 transform/filter(브랜드 글로우) 조상에
           position:fixed 가 갇혀 화면 전체를 못 덮고 본문이 잘리던 사고 방지 (2026-06-11). */}
       {isOpen && createPortal(
-        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm">
+        // Use the existing full-screen modal layer, above header and mobile booking chrome.
+        <div className="fixed inset-0 z-[10000] bg-black/50 backdrop-blur-sm">
           <div
             ref={panelRef}
             className="absolute right-0 top-0 h-full w-full max-w-sm bg-[#0c1220] border-l border-white/10 shadow-2xl animate-slide-in-right overflow-y-auto customer-cart-panel"
           >
-            <div className="sticky top-0 bg-[#0c1220]/95 backdrop-blur-sm border-b border-white/10 p-4 flex items-center justify-between customer-cart-header">
+            <div className="sticky top-0 z-10 bg-[#0c1220]/95 backdrop-blur-sm border-b border-white/10 p-4 flex items-center justify-between customer-cart-header">
               <div className="flex items-center gap-2">
                 <ShoppingCart size={18} className="text-[#7C5CFC] customer-cart-icon" />
                 <h2 className="text-white font-semibold text-lg customer-cart-title">{c.title || 'Cart'}</h2>
                 <span className="text-white/55 text-sm">({items.length})</span>
               </div>
-              <button onClick={() => setIsOpen(false)} className="p-1.5 rounded-lg hover:bg-white/10">
+              <button onClick={() => setIsOpen(false)} aria-label={t.a11y?.close || 'Close'} className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center p-1.5 rounded-lg hover:bg-white/10">
                 <X size={18} className="text-white/50" />
               </button>
             </div>

@@ -391,7 +391,7 @@ export function Header({ language, t, onLanguageChange }: HeaderProps) {
 
             {/* Wishlist + Cart — 공유 제안서(고객)에선 숨김 (앱 내부 요소). */}
             {!isPublicView && <WishlistPanel />}
-            {!isPublicView && <CartPanel />}
+            {!isPublicView && <CartPanel onOpen={() => setIsMobileMenuOpen(false)} />}
 
             {/* Admin Home (desktop, admin only) */}
             {isAdmin && !isMobile && (
