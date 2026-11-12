@@ -1,1 +1,3 @@
 android-owner/gradlew text eol=lf
+scripts/db-maintenance/naver-reconcile.mjs text eol=lf
+scripts/db-maintenance/append-pinned-rows.mjs text eol=lf

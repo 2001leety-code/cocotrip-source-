@@ -13,7 +13,8 @@ import { useState, useEffect, useRef } from 'react';
 import { useCart } from '@/hooks/useCart';
 import { useAuth } from '@/hooks/useAuth';
 import { useLanguage } from '@/hooks/useLanguage';
-import type { CartItemBooking } from '@/lib/cart-types';
+import type { CartItem, CartItemBooking } from '@/lib/cart-types';
+import { cartDisplayUsd, cartDisplayTotalUsd } from '@/lib/cart-display';
 import { SLOT_REJECT_LABELS } from '@/lib/tourSlotBooking';
 import { authFetch } from '@/lib/authFetch';
 import { useGuestSignup } from '@/hooks/useGuestSignup';
@@ -78,6 +79,7 @@ export function CartCheckout({ onClose, onBack }: { onClose: () => void; onBack?
   const { t, language } = useLanguage();
   const c = (t as { cart?: Record<string, string> }).cart || {};
   const lng = pickLang(language);
+  const [submittedItems, setSubmittedItems] = useState<CartItem[] | null>(null);
   const [orderID, setOrderID] = useState<string | null>(null);
   const [total, setTotal] = useState<{ usd: string; krw: number } | null>(null);
   const [status, setStatus] = useState<Status>('idle');
@@ -129,6 +131,7 @@ export function CartCheckout({ onClose, onBack }: { onClose: () => void; onBack?
   async function createOrder() {
     if (orderRequestInFlight.current || recovery) return;
     orderRequestInFlight.current = true;
+    setSubmittedItems(items);
     setStatus('creating'); setError(null);
     try {
       const res = await authFetch('/api/createCartOrder', {
@@ -290,8 +293,9 @@ export function CartCheckout({ onClose, onBack }: { onClose: () => void; onBack?
     );
   }
 
-  const displaySumUSD = items.reduce((s, it) => s + (Number(it.priceUSD) || 0), 0);
-  const displaySumKRW = items.reduce((s, it) => s + (Number(it.priceKRW) || 0), 0);
+  // The payable order is fixed at submission even if another tab edits the guest cart.
+  const reviewItems = submittedItems && (status === 'creating' || status === 'ready' || status === 'processing') ? submittedItems : items;
+  const displaySumUSD = cartDisplayTotalUsd(reviewItems);
 
   return (
     <div className="cocotrip-mobile-cart-checkout p-5 customer-checkout-default">
@@ -303,11 +307,11 @@ export function CartCheckout({ onClose, onBack }: { onClose: () => void; onBack?
 
       {/* 항목별 전체 내역 (검수) */}
       <div className="space-y-2.5 mb-4">
-        {items.map((item) => (
+        {reviewItems.map((item) => (
           <div key={item.id} className="bg-white/[0.04] rounded-xl p-3 border border-white/5 customer-checkout-item">
             <div className="flex items-baseline justify-between gap-2">
               <p className="text-white text-sm font-medium break-words">{item.displayName}</p>
-              {item.priceUSD ? <span className="text-[#C4956A] text-sm font-semibold shrink-0">${item.priceUSD}</span> : null}
+              {cartDisplayUsd(item) !== null ? <span className="text-[#C4956A] text-sm font-semibold shrink-0">${cartDisplayUsd(item)}</span> : null}
             </div>
             <div className="mt-2 space-y-1.5">
               {formatBookingDetails(item.booking, language).map((row, i) => (
@@ -340,12 +344,10 @@ export function CartCheckout({ onClose, onBack }: { onClose: () => void; onBack?
       <div className="mb-4 flex items-baseline justify-between border-t border-white/10 pt-3">
         <span className="text-white/70 text-sm">{c.total || 'Total'}</span>
         <span className="text-white font-bold text-lg">
-          {total ? (
+          {total && (status === 'ready' || status === 'processing') ? (
             <>${total.usd}<span className="text-white/55 text-xs"> ({total.krw.toLocaleString('ko-KR')}원)</span></>
-          ) : displaySumUSD > 0 ? (
+          ) : displaySumUSD !== null ? (
             <>${displaySumUSD.toFixed(2)}</>
-          ) : displaySumKRW > 0 ? (
-            <>{displaySumKRW.toLocaleString('ko-KR')}원</>
           ) : (
             <span className="text-white/55 text-sm font-normal">{REVIEW_TEXT.totalPending[lng]}</span>
           )}

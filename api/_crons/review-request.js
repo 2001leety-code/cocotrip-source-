@@ -1,3 +1,5 @@
+import { verifyCronRequest } from '../_shared/cron-auth.js';
+import { isNotificationSuppressed, isPreviewSuppressed, operatorSuppressedReceipt } from '../_shared/preview-notification-policy.js';
 /**
  * CocoTripKR — 투어 후 리뷰 요청 (Vercel Cron). 자가운영 에이전시 💬 고객 직원 (배치 B).
  *
@@ -18,6 +20,13 @@ import { sendEmail } from '../_send-email.js';
 import { sendDiscord } from '../_shared/notify.js';
 
 async function getDb() {
+  if (process.env.VERCEL_ENV === 'preview') {
+    const { initAdminDb } = await import('../_shared/firebase-admin.js');
+    const { FieldValue } = await import('firebase-admin/firestore');
+    const db = initAdminDb();
+    if (!db) throw new Error('PREVIEW_FIREBASE_UNAVAILABLE');
+    return { db, FieldValue };
+  }
   const { initializeApp, cert, getApps } = await import('firebase-admin/app');
   const { getFirestore, FieldValue } = await import('firebase-admin/firestore');
   if (!getApps().length) {
@@ -132,6 +141,7 @@ function buildReviewEmail(booking, lang) {
 }
 
 async function sendOperatorSummary({ targetDate, sentCount, skippedCount, errorCount, dryRun }) {
+  if (isPreviewSuppressed('telegram')) return operatorSuppressedReceipt('telegram', 'operator-summary');
   try {
     const token = process.env.TELEGRAM_BOT_TOKEN;
     const chatId = process.env.TELEGRAM_CHAT_ID;
@@ -161,6 +171,7 @@ const reviewRequestTask = async (dryRunArg = false) => {
     .get();
 
   let sentCount = 0, skippedCount = 0, errorCount = 0;
+  let suppressedCount = 0, emailNotification = null, operatorNotification = null;
   const matched = [];
   for (const doc of snap.docs) {
     const b = doc.data();
@@ -170,7 +181,12 @@ const reviewRequestTask = async (dryRunArg = false) => {
     try {
       const lang = detectLanguage(b.payerEmail, b.payerName || '');
       const email = buildReviewEmail(b, lang);
-      await sendEmail({ to: b.payerEmail, subject: email.subject, html: email.html, text: email.text });
+      const emailResult = await sendEmail({ to: b.payerEmail, subject: email.subject, html: email.html, text: email.text });
+      if (isNotificationSuppressed(emailResult)) {
+        suppressedCount++;
+        emailNotification = emailResult;
+        continue;
+      }
       await doc.ref.update({ reviewRequestSent: FieldValue.serverTimestamp(), reviewRequestLang: lang });
       sentCount++;
     } catch (err) {
@@ -180,13 +196,17 @@ const reviewRequestTask = async (dryRunArg = false) => {
   }
 
   if (sentCount > 0 || errorCount > 0 || (dryRun && matched.length > 0)) {
-    await sendOperatorSummary({ targetDate: target, sentCount, skippedCount, errorCount, dryRun });
+    operatorNotification = await sendOperatorSummary({ targetDate: target, sentCount, skippedCount, errorCount, dryRun });
   }
-  return { statusCode: 200, body: { enabled, dryRun, targetDate: target, totalMatched: snap.size, sentCount, skippedCount, errorCount, matched } };
+  return { statusCode: 200, body: { enabled, dryRun, targetDate: target, totalMatched: snap.size, sentCount, skippedCount, errorCount, matched, ...(suppressedCount > 0 ? { suppressedCount, emailNotification } : {}), ...(operatorNotification && isNotificationSuppressed(operatorNotification) ? { operatorNotification } : {}) } };
 };
 
 export default async function vercelHandler(req, res) {
   if (req.method === 'OPTIONS') return res.status(200).end();
+  const auth = await verifyCronRequest(req);
+  if (!auth.ok) {
+    return res.status(auth.status).json({ ok: false, code: 'AUTH_REQUIRED', error: auth.error });
+  }
   try {
     const dryRun = req.query?.dryRun === '1' || req.query?.dryRun === 'true';
     const r = await reviewRequestTask(dryRun);

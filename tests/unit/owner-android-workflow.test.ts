@@ -61,6 +61,7 @@ describe('PR Owner Android unsigned compile workflow', () => {
   it('POSIX gradlew는 Git 실행 비트가 잠겨 있다', () => {
     const stage = execFileSync('git', ['ls-files', '--stage', 'android-owner/gradlew'], { encoding: 'utf8' });
     expect(stage).toMatch(/^100755\s/);
-    expect(readFileSync('.gitattributes', 'utf8').trim()).toBe('android-owner/gradlew text eol=lf');
+    const eol = execFileSync('git', ['check-attr', 'eol', '--', 'android-owner/gradlew'], { encoding: 'utf8' });
+    expect(eol.trim()).toBe('android-owner/gradlew: eol: lf');
   });
 });

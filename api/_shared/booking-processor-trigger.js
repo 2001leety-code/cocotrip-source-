@@ -32,7 +32,7 @@
  * (every 5 minutes — see api/_crons/processor-retry-sweep.js).
  */
 
-import { vercelBypassHeaders } from './internal-base-url.js';
+import { internalApiBase, vercelBypassHeaders } from './internal-base-url.js';
 import {
   outcomeFromResponseBody, isSemanticallyDone, needsManualIntervention,
   shouldRetry, retryDocStatusFor, RETRY_DOC_STATUS, OUTCOME,
@@ -129,7 +129,12 @@ export async function triggerBookingProcessor({
   const tid = setTimeout(() => controller.abort(), timeoutMs);
   let result;
   try {
+    // Never forward preview payloads or service tokens to another deployment.
+    if (process.env.VERCEL_ENV === 'preview' && siteUrl !== internalApiBase()) {
+      throw new Error('PREVIEW_INTERNAL_ORIGIN_MISMATCH');
+    }
     const r = await fetch(`${siteUrl}/api/booking-processor`, {
+      ...(process.env.VERCEL_ENV === 'preview' ? { redirect: 'error' } : {}),
       method: 'POST',
       // booking-processor 는 내부 전용(2026-07-29 인증 게이트) — 서비스 토큰 동봉 필수.
       headers: {

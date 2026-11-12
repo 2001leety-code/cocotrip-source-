@@ -1,3 +1,5 @@
+import { verifyCronRequest } from '../_shared/cron-auth.js';
+import { isNotificationSuppressed, isPreviewSuppressed, operatorSuppressedReceipt } from '../_shared/preview-notification-policy.js';
 /**
  * CocoTripKR — Free Cancellation Deadline Reminder (Vercel Cron)
  *
@@ -22,6 +24,13 @@ import { sendDiscord } from '../_shared/notify.js';
 
 // ── Firebase Admin 초기화 (daily-report.js 패턴 — FIREBASE_* / GOOGLE_SERVICE_ACCOUNT_KEY fallback) ──
 async function getDb() {
+  if (process.env.VERCEL_ENV === 'preview') {
+    const { initAdminDb } = await import('../_shared/firebase-admin.js');
+    const { FieldValue } = await import('firebase-admin/firestore');
+    const db = initAdminDb();
+    if (!db) throw new Error('PREVIEW_FIREBASE_UNAVAILABLE');
+    return { db, FieldValue };
+  }
   const { initializeApp, cert, getApps } = await import('firebase-admin/app');
   const { getFirestore, FieldValue } = await import('firebase-admin/firestore');
   if (!getApps().length) {
@@ -265,6 +274,7 @@ function buildReminderEmail(booking, lang) {
 
 // ── Telegram 운영자 알림 (best-effort) ────────────────────────────────
 async function sendOperatorSummary({ targetDate, sentCount, skippedCount, errorCount }) {
+  if (isPreviewSuppressed('telegram')) return operatorSuppressedReceipt('telegram', 'operator-summary');
   try {
     const token = process.env.TELEGRAM_BOT_TOKEN;
     const chatId = process.env.TELEGRAM_CHAT_ID;
@@ -300,6 +310,7 @@ const refundReminderTask = async (dryRun = false) => {
     .get();
 
   let sentCount = 0;
+  let suppressedCount = 0, emailNotification = null, operatorNotification = null;
   let skippedCount = 0;
   let errorCount = 0;
   const matched = [];
@@ -322,7 +333,12 @@ const refundReminderTask = async (dryRun = false) => {
     try {
       const lang = detectLanguage(b.payerEmail, b.payerName || '');
       const email = buildReminderEmail(b, lang);
-      await sendEmail({ to: b.payerEmail, subject: email.subject, html: email.html, text: email.text });
+      const emailResult = await sendEmail({ to: b.payerEmail, subject: email.subject, html: email.html, text: email.text });
+      if (isNotificationSuppressed(emailResult)) {
+        suppressedCount++;
+        emailNotification = emailResult;
+        continue;
+      }
       await doc.ref.update({
         freeCancelReminderSent: FieldValue.serverTimestamp(),
         freeCancelReminderLang: lang,
@@ -336,17 +352,21 @@ const refundReminderTask = async (dryRun = false) => {
   }
 
   if (!dryRun && (sentCount > 0 || errorCount > 0)) {
-    await sendOperatorSummary({ targetDate: target, sentCount, skippedCount, errorCount });
+    operatorNotification = await sendOperatorSummary({ targetDate: target, sentCount, skippedCount, errorCount });
   }
 
   return {
     statusCode: 200,
-    body: { dryRun, targetDate: target, totalMatched: snap.size, sentCount, skippedCount, errorCount, matched },
+    body: { dryRun, targetDate: target, totalMatched: snap.size, sentCount, skippedCount, errorCount, matched, ...(suppressedCount > 0 ? { suppressedCount, emailNotification } : {}), ...(operatorNotification && isNotificationSuppressed(operatorNotification) ? { operatorNotification } : {}) },
   };
 };
 
 export default async function vercelHandler(req, res) {
   if (req.method === 'OPTIONS') return res.status(200).end();
+  const auth = await verifyCronRequest(req);
+  if (!auth.ok) {
+    return res.status(auth.status).json({ ok: false, code: 'AUTH_REQUIRED', error: auth.error });
+  }
   try {
     const dryRun = req.query?.dryRun === '1' || req.query?.dryRun === 'true';
     const r = await refundReminderTask(dryRun);

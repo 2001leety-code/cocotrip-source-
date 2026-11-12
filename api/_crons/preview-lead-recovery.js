@@ -18,8 +18,10 @@
  * 수동: GET /api/cron-runner?job=preview-lead-recovery&dryRun=1  (매칭만, 발송 0)
  *   review-request.js 미러 — getDb/dryRun 강제/sendOperatorSummary 동일 패턴.
  */
+import { verifyCronRequest } from '../_shared/cron-auth.js';
 import { initAdminDb } from '../_shared/firebase-admin.js';
 import { sendEmail } from '../_send-email.js';
+import { isNotificationSuppressed, isPreviewSuppressed, operatorSuppressedReceipt } from '../_shared/preview-notification-policy.js';
 import { sendDiscord } from '../_shared/notify.js';
 import { isMarketingOptedOut, buildUnsubscribeUrl } from '../_shared/marketing-optout.js';
 
@@ -113,6 +115,7 @@ export function buildRecoveryEmail(lead, unsubscribeUrl) {
 }
 
 async function sendOperatorSummary({ matchedCount, sentCount, optOutSkipCount, convertedCount, errorCount, dryRun }) {
+  if (isPreviewSuppressed('telegram')) return operatorSuppressedReceipt('telegram', 'operator-summary');
   try {
     const token = process.env.TELEGRAM_BOT_TOKEN;
     const chatId = process.env.TELEGRAM_CHAT_ID;
@@ -154,6 +157,7 @@ const previewLeadRecoveryTask = async (dryRunArg = false) => {
     .slice(0, MAX_PER_RUN);
 
   let sentCount = 0, optOutSkipCount = 0, convertedCount = 0, errorCount = 0;
+  let suppressedCount = 0, emailNotification = null, operatorNotification = null;
   const matched = [];
   for (const lead of candidates) {
     matched.push({ id: lead.id, language: lead.language });
@@ -173,7 +177,12 @@ const previewLeadRecoveryTask = async (dryRunArg = false) => {
         continue;
       }
       const email = buildRecoveryEmail(lead, unsubscribeUrl);
-      await sendEmail({ to: lead.emailLower, subject: email.subject, html: email.html, text: email.text });
+      const emailResult = await sendEmail({ to: lead.emailLower, subject: email.subject, html: email.html, text: email.text });
+      if (isNotificationSuppressed(emailResult)) {
+        suppressedCount++;
+        emailNotification = emailResult;
+        continue;
+      }
       await lead.ref.update({ recoveryEmailSentAtMs: now });
       sentCount++;
     } catch (err) {
@@ -183,13 +192,17 @@ const previewLeadRecoveryTask = async (dryRunArg = false) => {
   }
 
   if (sentCount > 0 || errorCount > 0 || (dryRun && matched.length > 0)) {
-    await sendOperatorSummary({ matchedCount: matched.length, sentCount, optOutSkipCount, convertedCount, errorCount, dryRun });
+    operatorNotification = await sendOperatorSummary({ matchedCount: matched.length, sentCount, optOutSkipCount, convertedCount, errorCount, dryRun });
   }
-  return { statusCode: 200, body: { enabled, dryRun, totalCandidates: matched.length, sentCount, optOutSkipCount, convertedCount, errorCount, matched } };
+  return { statusCode: 200, body: { enabled, dryRun, totalCandidates: matched.length, sentCount, optOutSkipCount, convertedCount, errorCount, matched, ...(suppressedCount > 0 ? { suppressedCount, emailNotification } : {}), ...(operatorNotification && isNotificationSuppressed(operatorNotification) ? { operatorNotification } : {}) } };
 };
 
 export default async function vercelHandler(req, res) {
   if (req.method === 'OPTIONS') return res.status(200).end();
+  const auth = await verifyCronRequest(req);
+  if (!auth.ok) {
+    return res.status(auth.status).json({ ok: false, code: 'AUTH_REQUIRED', error: auth.error });
+  }
   try {
     const dryRun = req.query?.dryRun === '1' || req.query?.dryRun === 'true';
     const r = await previewLeadRecoveryTask(dryRun);

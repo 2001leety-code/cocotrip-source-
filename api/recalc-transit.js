@@ -18,6 +18,7 @@
  *   7. Return { ok: true, recalculated: N }
  */
 
+import { initAdminDb } from './_shared/firebase-admin.js';
 import { initializeApp, cert, getApps } from 'firebase-admin/app';
 import { getFirestore, FieldValue } from 'firebase-admin/firestore';
 import { checkIpRateLimit, getClientIp } from './_shared/ip-rate-limit.js';
@@ -34,7 +35,7 @@ export const maxDuration = 60;
 export const config = { runtime: 'nodejs' };
 
 // ── Firebase Admin (reuse singleton) ──
-if (!getApps().length) {
+if (process.env.VERCEL_ENV !== 'preview' && !getApps().length) {
   const raw = process.env.FIREBASE_SERVICE_ACCOUNT_KEY;
   if (raw) {
     try { initializeApp({ credential: cert(JSON.parse(raw)) }); }
@@ -43,9 +44,10 @@ if (!getApps().length) {
     initializeApp();
   }
 }
-const db = getFirestore();
+const db = process.env.VERCEL_ENV === 'preview' ? initAdminDb('recalc-transit') : getFirestore();
 
 export default async function handler(req, res) {
+  if (!db) return res.status(503).json({ error: 'Firestore unavailable' });
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
   }

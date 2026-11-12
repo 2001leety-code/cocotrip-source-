@@ -16,8 +16,11 @@ export async function verifyUidFromAuthHeader(authHeader) {
   try {
     const { getAuth } = await import('firebase-admin/auth');
     const { getApps } = await import('firebase-admin/app');
-    if (!getApps().length) return null;
-    const decoded = await getAuth().verifyIdToken(m[1], true);
+    const app = process.env.VERCEL_ENV === 'preview'
+      ? (await import('./firebase-admin.js')).initAdminApp()
+      : undefined;
+    if (process.env.VERCEL_ENV === 'preview' ? !app : !getApps().length) return null;
+    const decoded = await getAuth(app).verifyIdToken(m[1], true);
     return decoded.uid || null;
   } catch {
     return null;

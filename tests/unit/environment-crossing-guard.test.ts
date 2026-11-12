@@ -48,10 +48,10 @@ describe('1. 돈 API 자기호출 주소 — 운영 도메인 하드코딩 금�
     expect(internalMoneyApiBase()).not.toContain('cocotripkr.com');
   });
 
-  it('🔴 주소를 특정할 수 없으면 운영으로 폴백하지 않고 null (적립 보류)', () => {
+  it('🔴 Preview 주소 누락은 예외로 차단하고 로컬은 null (운영 폴백 금지)', () => {
     process.env.VERCEL_ENV = 'preview';
     delete process.env.VERCEL_URL;
-    expect(internalMoneyApiBase()).toBeNull();
+    expect(() => internalMoneyApiBase()).toThrow('PREVIEW_INTERNAL_ORIGIN_UNAVAILABLE');
 
     // 로컬(환경변수 없음)도 마찬가지 — 로컬 테스트가 운영 원장을 건드리면 안 된다.
     delete process.env.VERCEL_ENV;
@@ -99,7 +99,7 @@ describe('2. Production 은 Sandbox 웹훅을 절대 받지 않는다', () => {
     process.env.PAYPAL_ENV = 'sandbox';
     expect(resolveIsSandbox()).toBe(true);
     process.env.PAYPAL_ENV = '';
-    expect(resolveIsSandbox()).toBe(false);
+    expect(() => resolveIsSandbox()).toThrow('PREVIEW_PAYPAL_SANDBOX_REQUIRED');
   });
 
   it('🔴 폴백 자체가 없다 — 이 배포의 환경으로 1회만 검증한다', () => {

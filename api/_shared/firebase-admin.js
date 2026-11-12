@@ -16,9 +16,79 @@ import { logger } from './log.js';
 import { assertFirebaseEnvMatch } from './firebase-env-guard.js';
 
 let _adminDb = null;
+let _adminApp = null;
+let _previewState = { isolated: false, projectId: null };
+
+export function isIsolatedPreview() {
+  return process.env.VERCEL_ENV === 'preview';
+}
+
+export const PREVIEW_FIREBASE_PROJECT = 'cocotrip-preview-2026';
+
+function assertPreviewProject(projectId) {
+  if (projectId !== PREVIEW_FIREBASE_PROJECT
+    || projectId === process.env.FIREBASE_PRODUCTION_PROJECT_ID) {
+    throw new Error('PREVIEW_FIREBASE_TARGET_MISMATCH');
+  }
+}
+
+function assertPreviewCredential(credential) {
+  assertPreviewProject(credential && credential.projectId);
+  if (!credential.clientEmail || !credential.clientEmail.endsWith('@' + PREVIEW_FIREBASE_PROJECT + '.iam.gserviceaccount.com')) {
+    throw new Error('PREVIEW_FIREBASE_CREDENTIAL_MISMATCH');
+  }
+}
+
+function bootstrapPreview() {
+  assertPreviewProject(process.env.FIREBASE_PROJECT_ID);
+  if (process.env.FIREBASE_EMULATOR_HOST || process.env.FIRESTORE_EMULATOR_HOST
+    || process.env.FIREBASE_AUTH_EMULATOR_HOST) {
+    throw new Error('PREVIEW_FIREBASE_EMULATOR_FORBIDDEN');
+  }
+  let app = getApps().find((candidate) => candidate.name === '[DEFAULT]');
+  if (!app) {
+    const projectId = process.env.FIREBASE_PROJECT_ID;
+    const clientEmail = process.env.FIREBASE_CLIENT_EMAIL || '';
+    const privateKey = (process.env.FIREBASE_PRIVATE_KEY || '').replace(/\\n/g, '\n');
+    let serviceAccount;
+    if (projectId && clientEmail && privateKey) {
+      serviceAccount = { projectId, clientEmail, privateKey };
+    } else if (process.env.GOOGLE_SERVICE_ACCOUNT_KEY) {
+      const raw = JSON.parse(Buffer.from(process.env.GOOGLE_SERVICE_ACCOUNT_KEY, 'base64').toString('utf8'));
+      serviceAccount = { projectId: raw.project_id || raw.projectId, clientEmail: raw.client_email || raw.clientEmail, privateKey: raw.private_key || raw.privateKey };
+    } else {
+      throw new Error('PREVIEW_FIREBASE_CREDENTIAL_MISSING');
+    }
+    assertPreviewCredential(serviceAccount);
+    const credential = cert(serviceAccount);
+    assertPreviewCredential(credential);
+    app = initializeApp({ credential, projectId: PREVIEW_FIREBASE_PROJECT });
+  }
+  assertPreviewProject(app.options && app.options.projectId);
+  assertPreviewCredential(app.options && app.options.credential);
+  const db = getAdminFirestore(app);
+  assertPreviewProject(db.projectId);
+  db.settings({ ignoreUndefinedProperties: true });
+  _adminApp = app;
+  _adminDb = db;
+  _previewState = { isolated: true, projectId: db.projectId };
+  logger.info('[firebase-admin] Preview isolation verified', _previewState);
+}
+
+export function initAdminApp() {
+  return _adminApp;
+}
+
+export function previewFirebaseState() {
+  return { ..._previewState };
+}
 
 (function bootstrap() {
   try {
+    if (isIsolatedPreview()) {
+      bootstrapPreview();
+      return;
+    }
     assertFirebaseEnvMatch('firebase-admin');
     const projectId = process.env.FIREBASE_PROJECT_ID || '';
     const clientEmail = process.env.FIREBASE_CLIENT_EMAIL || '';
@@ -45,6 +115,7 @@ let _adminDb = null;
 
     if (credential) {
       const adminApp = getApps().length ? getApps()[0] : initializeApp({ credential });
+      _adminApp = adminApp;
       _adminDb = getAdminFirestore(adminApp);
       _adminDb.settings({ ignoreUndefinedProperties: true });
       logger.debug(`[firebase-admin] initialized OK`);
@@ -52,7 +123,9 @@ let _adminDb = null;
       logger.warn(`[firebase-admin] keys missing or cert() failed — Firestore disabled`);
     }
   } catch (e) {
-    logger.error(`[firebase-admin] bootstrap failed: ${e.message}`);
+    _adminDb = null;
+    _adminApp = null;
+    logger.error(isIsolatedPreview() ? '[firebase-admin] Preview isolation blocked' : `[firebase-admin] bootstrap failed: ${e.message}`);
   }
 })();
 

@@ -9,7 +9,9 @@
  *  - Exchange Rate API → 환율
  */
 
+import { verifyCronRequest } from '../_shared/cron-auth.js';
 import { getYesterdayBookings, getTodayTours, getWeekSummary } from '../_google-sheets.js';
+import { isNotificationSuppressed } from '../_shared/preview-notification-policy.js';
 import { sendLongMessage, sendErrorAlert } from '../_telegram.js';
 import { throttledTelegramAlert } from '../_shared/telegram-throttle.js';
 import { USD_TO_KRW } from '../_shared/exchange-rate.js';
@@ -40,6 +42,12 @@ function geminiCostPerCall(type) {
 
 // ── Firebase Admin 초기화 ────────────────────────────────────────────
 async function getFirestoreAdmin() {
+  if (process.env.VERCEL_ENV === 'preview') {
+    const { initAdminDb } = await import('../_shared/firebase-admin.js');
+    const db = initAdminDb('daily-report');
+    if (!db) throw new Error('PREVIEW_FIREBASE_UNAVAILABLE');
+    return db;
+  }
   const { initializeApp, cert, getApps } = await import('firebase-admin/app');
   const { getFirestore } = await import('firebase-admin/firestore');
 
@@ -251,7 +259,8 @@ const dailyReportTask = async () => {
 
     msg += `\n\n🌐 cocotripkr.com`;
 
-    await sendLongMessage(msg);
+    const notifyResult = await sendLongMessage(msg);
+    if (isNotificationSuppressed(notifyResult)) return { statusCode: 200, body: 'suppressed', notification: notifyResult };
     console.log('[daily-report] 전송 완료');
     return { statusCode: 200, body: '모닝 리포트 전송 완료' };
   } catch (err) {
@@ -270,6 +279,10 @@ const dailyReportTask = async () => {
 
 export default async function vercelHandler(req, res) {
   if (req.method === 'OPTIONS') return res.status(200).end();
+  const auth = await verifyCronRequest(req);
+  if (!auth.ok) {
+    return res.status(auth.status).json({ ok: false, code: 'AUTH_REQUIRED', error: auth.error });
+  }
   try {
     const r = await dailyReportTask();
     return res.status(r.statusCode || 200).json(r);

@@ -13,6 +13,10 @@
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
+vi.mock('../../api/_shared/cron-auth.js', () => ({
+  verifyCronRequest: vi.fn().mockResolvedValue({ ok: true, source: 'vercel-cron' }),
+}));
+
 const sendEmailMock = vi.fn();
 vi.mock('../../api/_send-email.js', () => ({ sendEmail: (...a: any[]) => sendEmailMock(...a) }));
 

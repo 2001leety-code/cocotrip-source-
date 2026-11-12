@@ -2,6 +2,7 @@
  * GET /api/plan-status?planId=xxx
  * Returns plan status from Firestore
  */
+import { initAdminDb } from './_shared/firebase-admin.js';
 import { initializeApp, getApps, cert } from 'firebase-admin/app';
 import { getFirestore as getAdminFirestore } from 'firebase-admin/firestore';
 
@@ -13,6 +14,9 @@ export const config = { runtime: 'nodejs' };
 
 let adminDb = null;
 try {
+  if (process.env.VERCEL_ENV === 'preview') {
+    adminDb = initAdminDb('plan-status');
+  } else {
   const projectId = process.env.FIREBASE_PROJECT_ID || '';
   const clientEmail = process.env.FIREBASE_CLIENT_EMAIL || '';
   const privateKey = (process.env.FIREBASE_PRIVATE_KEY || '').replace(/\\n/g, '\n');
@@ -21,6 +25,7 @@ try {
       credential: cert({ projectId, clientEmail, privateKey }),
     });
     adminDb = getAdminFirestore(adminApp);
+  }
   }
 } catch (e) { console.warn('[plan-status] Firebase init error:', e.message); }
 

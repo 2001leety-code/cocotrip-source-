@@ -25,6 +25,7 @@
  *   await notifyOperator('refund', `BK-XXXX user@email 환불 요청`);
  */
 
+import { isPreviewSuppressed, operatorSuppressedReceipt } from './preview-notification-policy.js';
 import { sendDiscord } from './notify.js';
 
 const TELEGRAM_API = 'https://api.telegram.org';
@@ -51,6 +52,7 @@ const VALID_CATEGORIES = new Set(Object.keys(CATEGORY_LABELS));
  * @returns {Promise<{ ok: boolean, category: string, error?: string, messageId?: number }>}
  */
 export async function notifyOperator(category, body, options = {}) {
+  if (isPreviewSuppressed('telegram')) return operatorSuppressedReceipt('telegram', category);
   if (!VALID_CATEGORIES.has(category)) {
     console.error(`[operator-alerts] unknown category: ${category}`);
     return { ok: false, category, error: 'invalid_category' };
@@ -103,6 +105,7 @@ export async function notifyOperator(category, body, options = {}) {
  * 4096자 초과 시 분할 송신 (텔레그램 한도).
  */
 export async function notifyOperatorLong(category, body, options = {}) {
+  if (isPreviewSuppressed('telegram')) return operatorSuppressedReceipt('telegram', category);
   const MAX = 4000; // prefix 100자 여유
   if (body.length <= MAX) return notifyOperator(category, body, options);
 

@@ -13,14 +13,23 @@
 //      항상 'production' → 운영자가 PAYPAL_ENV 를 어떻게 두든 코드상 무조건 live.
 //      (sentry.js 가 이미 VERCEL_ENV 로 환경 구분 = 작동 확인됨.)
 //   2. SOFT: PAYPAL_ENV === 'sandbox' — preview 안에서도 명시해야만 sandbox.
-//      미설정 preview 는 live 유지.
+//      Preview 에서 미설정/다른 값은 live로 대체하지 않고 결제를 차단한다.
 // → prod 실 결제 흐름에 코드 경로상 0 영향. preview 배포에서만 sandbox 가능.
 export function resolveIsSandbox() {
-  return process.env.VERCEL_ENV !== 'production'
-    && (process.env.PAYPAL_ENV || '').trim().toLowerCase() === 'sandbox';
+  const sandboxConfigured = (process.env.PAYPAL_ENV || '').trim().toLowerCase() === 'sandbox';
+  if (process.env.VERCEL_ENV === 'preview' && !sandboxConfigured) {
+    throw new Error('PREVIEW_PAYPAL_SANDBOX_REQUIRED');
+  }
+  return process.env.VERCEL_ENV !== 'production' && sandboxConfigured;
 }
 
 export function getPaypalCredentials(isSandbox) {
+  // Check at the credential boundary too: callers must not bypass the resolver
+  // with a stored booking flag or a direct false/undefined argument in Preview.
+  if (process.env.VERCEL_ENV === 'preview'
+    && (isSandbox !== true || !resolveIsSandbox())) {
+    throw new Error('PREVIEW_PAYPAL_SANDBOX_REQUIRED');
+  }
   const clientId = (isSandbox
     ? process.env.PAYPAL_SANDBOX_CLIENT_ID
     : process.env.PAYPAL_CLIENT_ID || '').trim();
