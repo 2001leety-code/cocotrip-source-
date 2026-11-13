@@ -371,6 +371,9 @@ export default async function handler(req, res) {
         orderID: child.childOrderID, payload: child.processorPayload, source: 'captureCartOrder',
         doc: {
           ...child.bookingDoc, rawCapturePayload,
+          // Match single capture proof; replay must never grant it to an already quarantined order.
+          paymentVerified: !!(verdict.ok || verdict.pending) && attempt.lock.reviewQuarantined !== true
+            && String(snapshot.status || '').toUpperCase() !== 'PAYMENT_REVIEW',
           // 🔴 2026-07-29: 이 예약이 어느 PayPal 환경에서 만들어졌는지 (환경 교차 웹훅 차단 근거).
           paypalEnvironment: isSandbox ? 'sandbox' : 'live',
           createdAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp(),

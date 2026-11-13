@@ -10,7 +10,7 @@ vi.mock('qrcode', () => ({ default: { toDataURL: vi.fn(async () => 'data:image/p
 import { PayPalQrPanel } from '../../src/components/PayPalQrPanel';
 
 const fetchMock = vi.fn();
-const props = { productType: 'ai-planner-full', passengers: 1, priceKRW: 13000 };
+const props = { productType: 'ai-planner-full', passengers: 1, priceKRW: 13000, priceUSD: 9.90 };
 const ok = { ok: true, json: async () => ({ ok: true }) };
 beforeEach(() => {
   fetchMock.mockReset();

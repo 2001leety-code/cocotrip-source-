@@ -301,7 +301,6 @@ export function CharterWizard({ initialState, onComplete, language = 'en' }: Cha
         // 2026-06-30 트립닷컴식 예약정보 (SMS 인증 제거 운영자): 결제 직전 약관 동의 필수.
         if (!termsAgreed) return false;
         if (state.service === 'airport_transfer') {
-          if (!state.airport?.flightNumber || state.airport.flightNumber.length < 3) return false;
           if (state.origin === 'ICN' && !state.airport?.terminal) return false;
         }
         if (state.service === 'multi_day') {

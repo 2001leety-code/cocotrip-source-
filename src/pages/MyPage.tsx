@@ -15,6 +15,7 @@ import { db } from '@/lib/firebase';
 import { useAuth } from '@/hooks/useAuth';
 import { useLoyalty, type Coupon, type LoyaltyInfo, type PointLog, type TierType } from '@/hooks/useLoyalty';
 import { needsAiCouponReview } from '@/lib/aiCouponPresentation';
+import { formatCouponLabel, formatCouponValue } from '@/lib/couponPresentation';
 import { useWishlist, type WishlistItem } from '@/hooks/useWishlist';
 import { slugForTourId } from '@/data/tours';
 import { useLanguage } from '@/hooks/useLanguage';
@@ -648,7 +649,7 @@ export default function MyPage() {
                 <p className="ec-body-sm text-ec-ink-2">{mp.aiCouponReviewBody}</p>
                 {reviewCoupons.map(c => (
                   <div key={c.id} className="mypage-editorial-coupon">
-                    <p className="mypage-editorial-coupon-label">{c.label}</p>
+                    <p className="mypage-editorial-coupon-label">{formatCouponLabel(c, languageKey)}</p>
                     <p className="mypage-editorial-coupon-expiry">
                       {uiCopy.expires}: {new Date(c.expiresAt).toLocaleDateString(DATE_LOCALE[languageKey])}
                     </p>
@@ -715,14 +716,14 @@ export default function MyPage() {
               <div key={c.id} className={`mypage-editorial-coupon${c.isUsed || c.expiresAt < couponClock ? ' is-inactive' : ''}`}>
                 <div className="mypage-editorial-coupon-row">
                   <div>
-                    <p className="mypage-editorial-coupon-label">{fixture ? fixtureCopy.coupon : c.label}</p>
+                    <p className="mypage-editorial-coupon-label">{fixture ? fixtureCopy.coupon : formatCouponLabel(c, languageKey)}</p>
                     <p className="mypage-editorial-coupon-expiry">
                       {uiCopy.expires}: {new Date(c.expiresAt).toLocaleDateString(DATE_LOCALE[languageKey])}
                     </p>
                   </div>
                   <div className="flex items-center gap-2">
                     <span className="mypage-editorial-coupon-value">
-                      {c.type === 'percent' ? `${c.value}%` : `$${c.value}`}
+                      {formatCouponValue(c, languageKey)}
                     </span>
                     {!c.isUsed && c.expiresAt > couponClock && (
                       <button onClick={() => handleCopy(c.code)} className="mypage-editorial-coupon-copy" aria-label={uiCopy.copyCode}>

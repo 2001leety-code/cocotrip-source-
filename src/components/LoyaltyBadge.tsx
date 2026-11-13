@@ -5,6 +5,8 @@
 import { Coins, Gift, ChevronRight } from 'lucide-react';
 import { useLoyalty, type TierType } from '@/hooks/useLoyalty';
 import { useAuth } from '@/hooks/useAuth';
+import { useLanguage } from '@/hooks/useLanguage';
+import { formatCouponLabel, formatCouponValue } from '@/lib/couponPresentation';
 import { useState } from 'react';
 
 const TIER_CONFIG: Record<TierType, { icon: string; color: string; bg: string; glow: string }> = {
@@ -16,6 +18,7 @@ const TIER_CONFIG: Record<TierType, { icon: string; color: string; bg: string; g
 
 export function LoyaltyBadge() {
   const { user } = useAuth();
+  const { language } = useLanguage();
   const { loyalty, activeCoupons, coinsToUSD, loading } = useLoyalty();
   const [expanded, setExpanded] = useState(false);
 
@@ -101,9 +104,9 @@ export function LoyaltyBadge() {
                     key={c.id}
                     className="flex items-center justify-between px-3 py-2 rounded-lg bg-[#7C5CFC]/5 border border-[#7C5CFC]/10"
                   >
-                    <span className="text-xs text-white/70">{c.label}</span>
+                    <span className="text-xs text-white/70">{formatCouponLabel(c, language)}</span>
                     <span className="text-xs font-semibold text-[#7C5CFC]">
-                      {c.type === 'percent' ? `${c.value}% OFF` : `$${c.value}`}
+                      {formatCouponValue(c, language)}{c.type === 'percent' ? ' OFF' : ''}
                     </span>
                   </div>
                 ))}

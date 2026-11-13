@@ -151,7 +151,7 @@ export async function triggerBookingProcessor({
       //   booking-processor 는 내부 단계가 실패해도 200 을 준다(PayPal/Vercel 재시도 제어 목적).
       //   본문의 outcome 이 진실이다. completed 가 아니면 retry 큐를 유지한다.
       let body = null;
-      try { body = JSON.parse((await r.text()).slice(0, MAX_BODY_LOG * 4)); } catch { /* 본문 못 읽음 */ }
+      try { body = JSON.parse(await r.text()); } catch { /* 본문 못 읽음 */ }
       const outcome = outcomeFromResponseBody(body);
       if (isSemanticallyDone(outcome)) {
         result = { ok: true, status: r.status, outcome };
