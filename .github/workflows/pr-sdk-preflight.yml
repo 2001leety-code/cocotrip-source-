@@ -11,7 +11,9 @@ name: PR SDK Preflight
 
 on:
   pull_request:
-    types: [opened, synchronize, reopened]
+    # 2026-11-15: ready_for_review 추가. Draft 에선 job 이 skipped 로 끝나 필수 검사가 통과로 보이는데,
+    #   기본 types(opened·synchronize·reopened)엔 Draft→Ready 이벤트가 없어 Ready 로 바꿔도 다시 안 돌았다.
+    types: [opened, synchronize, reopened, ready_for_review]
     branches: [main]
   # docs/test/yml-only PR 도 통과시키되, scripts/sdk-urls-manifest.json 또는
   # src/components/PayPalBookingButton.tsx 변경 시는 반드시 실행되도록 paths-ignore 사용 안 함.
