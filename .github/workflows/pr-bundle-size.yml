@@ -6,6 +6,9 @@ name: PR Bundle Size
 
 on:
   pull_request:
+    # 2026-11-15: ready_for_review 추가. Draft 에선 job 이 skipped 로 끝나 필수 검사가 통과로 보이는데,
+    #   기본 types(opened·synchronize·reopened)엔 Draft→Ready 이벤트가 없어 Ready 로 바꿔도 다시 안 돌았다.
+    types: [opened, synchronize, reopened, ready_for_review]
     branches: [main]
     # 2026-05-13 PR #398: paths → paths-ignore 전환.
     # 배경: branch protection 의 required check 가 'bundle-size' 인데, 기존
