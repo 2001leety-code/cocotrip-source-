@@ -498,7 +498,9 @@ function _verifyAirportStation(inputAirportKey, stationName) {
  *   출국 안내는 지하철역에서 끝났다(운영 시험 11/16 — 인천 매번, 부산은 역까지 틀림).
  *   blockMode 가 넣은 출국 stop(_departure_airport_stop — 바로 그 출국 공항 코드로 넣었다)은 지도 조회 결과와 상관없이 고정한다.
  *   모델이 쓴 공항 stop 은 안내 점 10km 안일 때만 — 밖이면 다른 공항(예: 출국은 인천인데 김포 stop)이거나 모르는 곳이라 둔다.
- *   좌표가 없어도 둔다.
+ *   좌표가 없으면(지도 조회 실패) 고정한다 — 운영 시나리오 11/16: 식이 손님(legacy) plan 의 'Incheon International Airport' 는
+ *   주소 지도 조회가 못 찾아 좌표가 없었고, 두면 마지막 구간이 "차로 25분·5km" 기본값이 됐다(출국 안내는 73분).
+ *   비교할 좌표가 없으니 이름만 본다 — 이름이 다른 공항(예: '김포국제공항', '(GMP)')이면 둔다.
  * @returns {boolean} 고정했으면 true
  */
 export function pinDepartureAirportStop(places, airportKey) {
@@ -507,7 +509,9 @@ export function pinDepartureAirportStop(places, airportKey) {
     if (!ap || !isAirportStop(last)) return false;
     if (last._departure_airport_stop !== true) {
         const cur = finiteCoordPair(last.lat, last.lng);
-        if (!cur || _haversineKmPure(cur.lat, cur.lng, ap.lat, ap.lng) > 10) return false;
+        if (cur && _haversineKmPure(cur.lat, cur.lng, ap.lat, ap.lng) > 10) return false;
+        const named = cur ? null : lookupStationCoord(String(last.name || last.display_name || ''))?.airport;
+        if (named && named.split('_')[0] !== String(airportKey).split('_')[0]) return false;
     }
     last.lat = ap.lat;
     last.lng = ap.lng;

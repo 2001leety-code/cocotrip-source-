@@ -96,11 +96,12 @@ describe('pinDepartureAirportStop — 출국일 마지막 공항 stop 만, 같�
       expect(at(places[1] as never)).toEqual(at(AIRPORT_STATION_COORDS.PUS));
     }
   });
-  it('다른 공항(출국은 인천, stop 은 김포 — 30km+)·좌표 없는 모델 stop·공항 아닌 마지막 stop·모르는 공항은 그대로', () => {
+  it('다른 공항(출국은 인천, stop 은 김포 — 30km+, 또는 좌표 없이 이름이 김포)·공항 아닌 마지막 stop·모르는 공항은 그대로', () => {
     const gimpo = { category: 'travel', name: 'Gimpo International Airport', ...at(AIRPORT_STATION_COORDS.GMP) };
     const cases: Array<[Stop[], string]> = [
       [[{ ...hotel }, { ...gimpo }], 'ICN_T1'],
-      [[{ ...hotel }, { category: 'airport', name: 'Incheon International Airport', lat: null, lng: null }], 'ICN_T1'],
+      [[{ ...hotel }, { category: 'airport', name: '김포국제공항', lat: null, lng: null }], 'ICN_T1'],
+      [[{ ...hotel }, { category: 'airport', name: 'Gimpo Airport (GMP)' }], 'ICN'],
       [[{ ...hotel }, { category: 'food', name: 'Lunch', lat: 37.5, lng: 126.9 }], 'ICN_T1'],
       [[{ ...hotel }, { category: 'airport', name: 'Airport', ...at(AIRPORT_COORDS.ICN_T1) }, { ...hotel }], 'ICN_T1'],
       [[{ ...hotel }, { category: 'airport', name: 'Airport', ...at(AIRPORT_COORDS.ICN_T1) }], 'ALREADY'],
@@ -109,6 +110,21 @@ describe('pinDepartureAirportStop — 출국일 마지막 공항 stop 만, 같�
       const before = JSON.stringify(places);
       expect(pinDepartureAirportStop(places, key)).toBe(false);
       expect(JSON.stringify(places)).toBe(before);
+    }
+  });
+  // 운영 시나리오 11/16: 식이 손님(legacy) plan 의 'Incheon International Airport' 는 주소 지도 조회가 못 찾아 좌표가 없었다
+  //   → 마지막 구간이 "차로 25분·5km" 기본값(출국 안내는 73분). 비교할 좌표가 없으니 이름이 다른 공항일 때만 둔다.
+  it('좌표 없는 모델 stop(지도 조회 실패 — 영어 이름 등)은 안내 점에 고정 — 같은 공항의 다른 터미널 이름도 출국 안내 점으로', () => {
+    const cases: Array<[Stop, string]> = [
+      [{ category: 'airport', name: 'Incheon International Airport', address: 'Incheon International Airport', lat: null, lng: null }, 'ICN_T1'],
+      [{ category: 'airport', name: '인천국제공항 T2' }, 'ICN_T1'],
+      [{ category: 'travel', name: 'Jeju Airport' }, 'CJU'],
+    ];
+    for (const [stop, key] of cases) {
+      const places: Stop[] = [{ ...hotel }, { ...stop }];
+      expect(pinDepartureAirportStop(places, key), String(stop.name)).toBe(true);
+      expect(at(places[1] as never)).toEqual(at(airportPoint(key)));
+      expect(places[1]._geocoded).toBe(true);
     }
   });
 });
@@ -154,6 +170,19 @@ describe('RouteAgent 실행 — 출국일 마지막 구간·숙소 복귀', () =
       { category: 'food', name: 'Brunch', start_time: '10:00', stay_min: 60, lat: 37.57, lng: 126.98 },
     ]);
     expect(it3.days[1].last_to_lodging).toBeTruthy();
+  });
+
+  it('식이 손님(legacy) 모양 — 좌표 없는 영어 공항 stop 도 안내 점에 고정, 마지막 구간은 진짜 조회(25분·5km 기본값 아님)', async () => {
+    const it4 = await run([
+      { category: 'lodging', name: 'Seoul Mock Hotel', start_time: '05:30', ...P },
+      { category: 'airport', name: 'Incheon International Airport', address: 'Incheon International Airport', start_time: '07:00', stay_min: 0 },
+    ]);
+    const last = it4.days[1].stops[it4.days[1].stops.length - 1] as Stop & { transit_from_prev?: Record<string, unknown> };
+    const station = at(AIRPORT_STATION_COORDS.ICN_T1);
+    expect(at(last as never)).toEqual(station);
+    expect(transitSpy.mock.calls.some(([, curr]) => (curr as Stop).lat === station.lat && (curr as Stop).lng === station.lng)).toBe(true);
+    expect(last.transit_from_prev?.distance_km).not.toBe(5);
+    expect(it4.days[1].last_to_lodging).toBeUndefined();
   });
 });
 
