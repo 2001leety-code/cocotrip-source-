@@ -9,7 +9,7 @@
 //     자동완성 확인 시 아래 텍스트 input 에 주소 자동 채움. 사용자가 직접 타이핑하면 자동완성 coord 초기화.
 //   externalArrivalTime prop - 호출처(Step5DateOptions)가 /api/flight-status 조회 결과를 전달하면
 //     arrivalTime 입력에 자동 채움(HH:mm 형식). 사용자가 직접 수정 시 input 을 덮어쓰지 않음(isTouched guard).
-import { useEffect, useId, useState } from 'react';
+import { useId, useLayoutEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { DEFAULT_DIAL_BY_LANG, parsePhoneValue, normalizeNationalNumber, composePhoneValue, type DialLang } from '@/lib/country-dials';
 import { CountryDialPicker } from '@/components/booking/CountryDialPicker';
@@ -417,8 +417,12 @@ export function BookingInfoForm(props: BookingInfoFormProps) {
   };
 
   // 폼 입력값 변화를 호출처로 emit (메모/미팅장소 등 결제 payload 반영용).
+  // 2026-11-16 (#185): layout effect 다. passive effect(useEffect)면 키마다 부모 갱신이 다음 매크로태스크로 밀려
+  //   키가 쉬지 않고 들어올 때(자동 입력·느린 기기) React 가 중첩 갱신으로 세다가 51번째에 #185 를 던졌다
+  //   (글자 1개 빠짐, Sentry 11/12). layout effect 의 부모 갱신은 같은 커밋 안에서 바로 끝나 매번 0 으로 돌아간다.
+  //   시험 = tests/unit/booking-info-form-burst-typing.component.test.tsx.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  useEffect(() => { props.onFieldsChange?.(f); }, [f]);
+  useLayoutEffect(() => { props.onFieldsChange?.(f); }, [f]);
 
   // 약관 SSOT 외부 제어 — externalAgreeAll 제공 시 단일 동의 상태(호출처)와 동기.
   const externallyControlledTerms = props.externalAgreeAll !== undefined;
