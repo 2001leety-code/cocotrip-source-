@@ -227,6 +227,10 @@ export async function enrichItineraryWithRoute(itinerary, { apiKey, body, langua
         // PR2 r2: 배치가 stop 을 뺀 날은 결과가 0곳이어도 그대로 반영한다 — 건너뛰면 원본(자정 넘김 관광 등)이 되살아났다.
         const placementRemoved = Number(enrichedDay._routePlacementRemoved) > 0;
         if (itinerary.days[i] && enrichedDay._routeMealRemoved === true) itinerary.days[i]._routeMealRemoved = true; // 종단 게이트 필수 끼니 검사 표식
+        if (itinerary.days[i] && Array.isArray(enrichedDay.exempt_meals)) {
+          itinerary.days[i].exempt_meals = [...enrichedDay.exempt_meals];
+          itinerary.days[i].exempt_meal_basis = { ...(enrichedDay.exempt_meal_basis || {}) };
+        }
         if (itinerary.days[i] && (enrichedStops.length > 0 || placementRemoved)) {
           const odsayCount = enrichedStops.filter((p) => p.transit_from_prev?.source === 'odsay').length;
           const geoCount = enrichedStops.filter((p) => p.lat != null).length;

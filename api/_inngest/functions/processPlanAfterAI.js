@@ -448,6 +448,7 @@ export const processPlanAfterAI = inngest.createFunction(
         departureTime: ctx.body?.departureTime || ctx.body?.departure_time,
         arrivalTime: ctx.body?.arrivalTime || ctx.body?.arrival_time,
         arrivalAirport: ctx.arrival_airport || ctx.body?.arrival_airport || ctx.body?.arrivalAirport,
+        departureAirport: ctx.departure_airport || ctx.body?.departure_airport || ctx.body?.departureAirport,
         area: ctx.area || ctx.body?.area,
         regions: ctx.regions,
         tourEndTime: resolveTourEndTime(ctx.body || {}), // 2026-10-26: 종료 시각 SSOT(camel 우선 + snake)

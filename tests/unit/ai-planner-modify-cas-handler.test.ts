@@ -144,7 +144,7 @@ vi.mock('../../api/_ai_core/blockMode.js', () => ({
   fetchAvailableBlocks: async () => [], expandBlocksToItinerary: () => ({ days: [] }),
   matchFoodPlaceholder: () => null, markReturnToAirport: () => {},
 }));
-vi.mock('../../api/_ai_core/planPersister.js', () => ({ backfillStopEndTimes: () => {}, applyArrivalRestNote: () => {} }));
+vi.mock('../../api/_ai_core/planPersister.js', () => ({ backfillStopEndTimes: () => {}, applyArrivalRestNote: () => {}, applyDepartureMealNote: () => {} }));
 vi.mock('../../api/_ai_core/responseValidator.js', () => ({
   validatePatternStructure: () => [], arrivalRestDayCityKey: () => 'synthetic', mealWindowsFromRequest: () => null,
 }));

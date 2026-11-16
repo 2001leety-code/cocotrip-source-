@@ -3,6 +3,7 @@ import { createHash, webcrypto } from 'node:crypto';
 import { canonicalSource } from '../../src/lib/planEditCanonical.js';
 import { ARRIVAL_REST_NOTE } from '../../src/lib/arrivalRestNote.js';
 import { DEPARTURE_BREAKFAST_NOTE } from '../../src/lib/departureBreakfastNote.js';
+import { departureMealNote } from '../../src/lib/departureMealNote.js';
 
 const boundary = vi.hoisted(() => ({ verify: vi.fn(), init: vi.fn() }));
 vi.mock('../../api/_shared/user-auth.js', () => ({ verifyFirebaseIdentityToken: boundary.verify }));
@@ -233,6 +234,27 @@ describe('actual owner-edit API with versioned atomic simulation, no live servic
     expect((await call(command(h, 'last-day', lastDayAdd))).status).toBe(200);
     expect(h.rows.get('plans/plan-a').itinerary.days[1].stops[0].tip).toBe('Keep breakfast tip');
     expect(h.rows.get('plans/plan-a').itinerary.days[1].stops[0]).not.toHaveProperty('breakfast_note');
+  });
+
+  it('lifts a departure-day meal exemption and its airport note only when a meal lands in that window', async () => {
+    const p = fixture();
+    const note = departureMealNote('en', ['dinner']);
+    Object.assign(p.itinerary.days[0], { exempt_meals: ['dinner'], exempt_meal_basis: { dinner: { from: '17:00', stay: 130, name: 'Removed dinner', source_block_id: '' } } });
+    p.itinerary.days[0].stops.push({ name: 'Airport', category: 'travel', order: 3, _departure_airport_stop: true,
+      tip: `Keep airport tip ${note}`, departure_meal_note: note, departure_meal_roles: ['dinner'], _departure_meal_note: true });
+    const h = database(p); boundary.init.mockReturnValue(h.db);
+    expect((await call(command(h))).status).toBe(200); // 12:00 restaurant = lunch window — the dinner exemption stays
+    let day = h.rows.get('plans/plan-a').itinerary.days[0];
+    expect(day.exempt_meals).toEqual(['dinner']);
+    expect(day.stops.find(s => s.name === 'Airport').departure_meal_note).toBe(note);
+    const dinner = add(); Object.assign(dinner.stop, { name: 'Dinner', display_name: 'Dinner', start_time: '18:00' });
+    expect((await call(command(h, 'request-dinner', dinner))).status).toBe(200);
+    day = h.rows.get('plans/plan-a').itinerary.days[0];
+    expect(day).not.toHaveProperty('exempt_meals');
+    expect(day).not.toHaveProperty('exempt_meal_basis');
+    const airport = day.stops.find(s => s.name === 'Airport');
+    expect(airport.tip).toBe('Keep airport tip');
+    expect(airport).not.toHaveProperty('departure_meal_note');
   });
 
   it('rejects client attempts to supply trust or whole days before any transaction', async () => {

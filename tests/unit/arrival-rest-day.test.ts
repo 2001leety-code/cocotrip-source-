@@ -408,9 +408,10 @@ describe('wiring (source)', () => {
   it('all execution paths pass airport / area / tour end to the gate', () => {
     const post = read('api/_ai_core/postResponsePipeline.js');
     expect(post).toMatch(/arrivalAirport: ctx\.arrival_airport \|\| ctx\.body\?\.arrival_airport \|\| ctx\.body\?\.arrivalAirport,/);
-    expect(post).toMatch(/area: ctx\.area \|\| ctx\.body\?\.area,\s*regions: ctx\.regions,\s*tourEndTime: ctx\.tourEndTime \|\| resolveTourEndTime\(ctx\.body \|\| \{\}\),/);
-    expect(read('api/_ai_core/handlerCore.js')).toContain('tripTimes: tripTimesFrom({ departureTime, arrivalTime, arrivalAirport: arrival_airport, area, regions, tourEndTime, arrival_rest_day: arrivalRestDay })');
-    expect(read('api/_inngest/functions/processPlanAfterAI.js')).toMatch(/tripTimes: tripTimesFrom\(\{\s*departureTime: ctx\.body\?\.departureTime \|\| ctx\.body\?\.departure_time,\s*arrivalTime: ctx\.body\?\.arrivalTime \|\| ctx\.body\?\.arrival_time,\s*arrivalAirport: ctx\.arrival_airport \|\| ctx\.body\?\.arrival_airport \|\| ctx\.body\?\.arrivalAirport,\s*area: ctx\.area \|\| ctx\.body\?\.area,\s*regions: ctx\.regions,\s*tourEndTime: resolveTourEndTime\(ctx\.body \|\| \{\}\),[^\n]*\n\s*arrival_rest_day: arrivalRestDayFromCtx\(ctx\),/);
+    // PR3 r7: 출국 공항도 같이(1일 출국일 면제 끼니 마감 재판정 — RouteAgent 와 같은 공항).
+    expect(post).toMatch(/departureAirport: ctx\.departure_airport \|\| ctx\.body\?\.departure_airport \|\| ctx\.body\?\.departureAirport,\s*area: ctx\.area \|\| ctx\.body\?\.area,\s*regions: ctx\.regions,\s*tourEndTime: ctx\.tourEndTime \|\| resolveTourEndTime\(ctx\.body \|\| \{\}\),/);
+    expect(read('api/_ai_core/handlerCore.js')).toContain('tripTimes: tripTimesFrom({ departureTime, arrivalTime, arrivalAirport: arrival_airport, departureAirport: departure_airport, area, regions, tourEndTime, arrival_rest_day: arrivalRestDay })');
+    expect(read('api/_inngest/functions/processPlanAfterAI.js')).toMatch(/tripTimes: tripTimesFrom\(\{\s*departureTime: ctx\.body\?\.departureTime \|\| ctx\.body\?\.departure_time,\s*arrivalTime: ctx\.body\?\.arrivalTime \|\| ctx\.body\?\.arrival_time,\s*arrivalAirport: ctx\.arrival_airport \|\| ctx\.body\?\.arrival_airport \|\| ctx\.body\?\.arrivalAirport,\s*departureAirport: ctx\.departure_airport \|\| ctx\.body\?\.departure_airport \|\| ctx\.body\?\.departureAirport,\s*area: ctx\.area \|\| ctx\.body\?\.area,\s*regions: ctx\.regions,\s*tourEndTime: resolveTourEndTime\(ctx\.body \|\| \{\}\),[^\n]*\n\s*arrival_rest_day: arrivalRestDayFromCtx\(ctx\),/);
   });
   it('applyArrivalRestNote runs right after applyTourEndCap', () => {
     const post = read('api/_ai_core/postResponsePipeline.js');

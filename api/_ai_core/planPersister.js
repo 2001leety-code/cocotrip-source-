@@ -14,6 +14,7 @@ import { beginPlanCommit, finalizePlanIssuance } from '../_shared/plan-issuance.
 import { validateBinding, rootFieldsFor } from '../_shared/ai-coupon-persistence.js';
 import { commitGenerationRoot, repairGenerationListing, guardGenerationPatch } from '../_shared/plan-persistence-guard.js';
 import { departureBreakfastNote } from '../../src/lib/departureBreakfastNote.js';
+import { departureMealNote, stripDepartureMealNote, stripDepartureMealExemptionIfMealAdded } from '../../src/lib/departureMealNote.js';
 import { arrivalRestNote, stripArrivalRestNote, hasArrivalRestNote } from '../../src/lib/arrivalRestNote.js';
 
 /**
@@ -288,6 +289,46 @@ export function applyDepartureBreakfastNote(itinerary, { departureTime, language
   target.breakfast_note = note;
   target._breakfast_note = true;
   return true;
+}
+
+/**
+ * 2026-11-02 (운영자 결정 ③ — PR3): 1일 출국일에 남은 시간 안에 못 들어간 필수 끼니(day.exempt_meals — RouteAgent·blockMode 가
+ *   출국 활동 마감 때문에 못 넣은 끼니만 기록)가 있으면 그날 출국 stop(공항·블록 출국 이동 travel, 없으면 마지막 stop) tip 끝에
+ *   그 끼니를 밝힌 공항 식사 안내 1문장 + departure_meal_note·departure_meal_roles. 출국 조식 안내(applyDepartureBreakfastNote)와
+ *   같은 방식. 면제 근거에 기록된 식당 자체가 일정에 남아 있으면 안내하지 않는다.
+ *   매번 떼고 다시 판정 — 면제가 바뀌거나 없어지면 안내도 따라간다(멱등).
+ * @returns {boolean} 붙였으면 true
+ */
+export function applyDepartureMealNote(itinerary, { language } = {}) {
+  // 면제한 끼니 시간대에 식당이 실제로 남았으면(종전 경로가 넣은 경우 등) 면제를 푼다 — "일정에 넣지 않았습니다" 안내가 틀리지 않게.
+  stripDepartureMealExemptionIfMealAdded(itinerary);
+  let added = false;
+  for (const day of Array.isArray(itinerary?.days) ? itinerary.days : []) {
+    const stops = Array.isArray(day?.stops) ? day.stops : [];
+    for (const s of stops) stripDepartureMealNote(s);
+    const roles = Array.isArray(day?.exempt_meals) ? day.exempt_meals.filter((r) => r === 'lunch' || r === 'dinner') : [];
+    if (!roles.length) continue;
+    const absentRoles = roles.filter((role) => {
+      const source = day.exempt_meal_basis?.[role];
+      // Match the removed restaurant itself, not an unrelated count of restaurants.
+      return !source?.name || !stops.some((s) => s.category === 'food' && s.name === source.name
+        && (!source.source_block_id || s.source_block_id === source.source_block_id));
+    });
+    if (!absentRoles.length) continue;
+    const reversed = [...stops].reverse();
+    const target = reversed.find((s) => s?._departure_airport_stop === true)
+      || reversed.find((s) => s?.category === 'airport')
+      || stops[stops.length - 1];
+    if (!target || typeof target !== 'object') continue;
+    const note = departureMealNote(language, absentRoles);
+    const tip = typeof target.tip === 'string' ? target.tip.trim() : '';
+    target.tip = tip ? `${tip} ${note}` : note;
+    target.departure_meal_note = note;
+    target.departure_meal_roles = absentRoles;
+    target._departure_meal_note = true;
+    added = true;
+  }
+  return added;
 }
 
 // 2026-10-24 검증 식당 재방문 정책 — 재방문 stop 안내(R6). 구현은 revisitPolicy(순수 모듈 — 이 파일을 모킹하는

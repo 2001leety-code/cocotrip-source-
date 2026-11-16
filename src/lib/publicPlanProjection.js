@@ -3,6 +3,7 @@
  * Known private-string filtering supplements the schema; it cannot detect paraphrases.
  */
 import { departureBreakfastNote, hasBreakfastNote, stripBreakfastNoteText } from './departureBreakfastNote.js';
+import { departureMealNote, hasDepartureMealNote, stripDepartureMealNoteText } from './departureMealNote.js';
 import { arrivalRestNote, hasArrivalRestNote, stripArrivalRestText } from './arrivalRestNote.js';
 import { revisitNote, stripRevisitNote } from './revisitNote.js';
 import { strictHHMMToMin, REST_DAY_LATE_ARRIVAL_MIN } from './arrivalRestRules.js';
@@ -181,6 +182,12 @@ function projectStop(stop, privateEndpoint, language, terms) {
       result.breakfast_note = departureBreakfastNote(language);
       notes.push(result.breakfast_note);
     }
+    // 2026-11-02 (PR3 결정 ③): 1일 출국일 공항 식사 안내 — 같은 방식(보는 사람 언어 고정 문구).
+    if (hasDepartureMealNote(stop)) {
+      result.departure_meal_roles = (Array.isArray(stop.departure_meal_roles) ? stop.departure_meal_roles : []).filter((r) => r === 'lunch' || r === 'dinner');
+      result.departure_meal_note = departureMealNote(language, result.departure_meal_roles);
+      notes.push(result.departure_meal_note);
+    }
     if (notes.length) result.tip = notes.join(' ');
     return result;
   }
@@ -199,10 +206,13 @@ function projectStop(stop, privateEndpoint, language, terms) {
   {
     const rest = hasArrivalRestNote(stop);
     const breakfast = hasBreakfastNote(stop);
-    if (rest || breakfast) {
-      let body = stripBreakfastNoteText(stripArrivalRestText(typeof result.tip === 'string' ? result.tip : '', stop.arrival_rest_note), stop.breakfast_note);
+    const depMeal = hasDepartureMealNote(stop); // 2026-11-02 PR3 결정 ③ — 공항 stop 에 붙는 공항 식사 안내
+    if (rest || breakfast || depMeal) {
+      let body = stripDepartureMealNoteText(stripBreakfastNoteText(stripArrivalRestText(typeof result.tip === 'string' ? result.tip : '', stop.arrival_rest_note), stop.breakfast_note), stop.departure_meal_note);
       if (rest) { result.arrival_rest_note = arrivalRestNote(language); body = body ? `${body} ${result.arrival_rest_note}` : result.arrival_rest_note; }
       if (breakfast) { result.breakfast_note = departureBreakfastNote(language); body = body ? `${body} ${result.breakfast_note}` : result.breakfast_note; }
+      if (depMeal) { result.departure_meal_roles = (Array.isArray(stop.departure_meal_roles) ? stop.departure_meal_roles : []).filter((r) => r === 'lunch' || r === 'dinner');
+      result.departure_meal_note = departureMealNote(language, result.departure_meal_roles); body = body ? `${body} ${result.departure_meal_note}` : result.departure_meal_note; }
       result.tip = body;
     }
   }

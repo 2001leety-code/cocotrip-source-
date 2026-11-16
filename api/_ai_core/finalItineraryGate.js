@@ -143,7 +143,7 @@ export function failureDetailsOf(error) {
  * 운영 호출부용 — body/shaped 어느 쪽이든 필수 끼니 판정 입력을 snake 키로.
  *   departure_time / arrival_time / tour_end_time: HH:MM(앞 5자). arrival_airport: 그대로. area: area 또는 regions[0].
  *   2026-10-26: 도착 휴식일(constants.arrivalRestDayInfo) 판정에 공항·도시·투어 종료 시각이 필요하다.
- * @returns {{departure_time?: string, arrival_time?: string, arrival_airport?: string, area?: string, tour_end_time?: string}}
+ * @returns {{departure_time?: string, arrival_time?: string, arrival_airport?: string, departure_airport?: string, area?: string, tour_end_time?: string}}
  */
 export function tripTimesFrom(source) {
   const s = source && typeof source === 'object' ? source : {};
@@ -153,6 +153,7 @@ export function tripTimesFrom(source) {
     departure_time: hhmm(s.departure_time || s.departureTime),
     arrival_time: hhmm(s.arrival_time || s.arrivalTime),
     arrival_airport: str(s.arrival_airport || s.arrivalAirport),
+    departure_airport: str(s.departure_airport || s.departureAirport), // PR3 결정 ③: 1일 출국일 면제 끼니 마감 재판정(RouteAgent·blockMode 와 같은 공항)
     area: str(s.area || (Array.isArray(s.regions) ? s.regions[0] : undefined)),
     tour_end_time: hhmm(s.tour_end_time || s.tourEndTime),
     // 2026-10-26: 호출부가 요청 입력으로 계산한 휴식일 여부(boolean 일 때만) — validatePatternStructure 의 플래그 우선 경로.
