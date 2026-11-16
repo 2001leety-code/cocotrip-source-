@@ -47,8 +47,10 @@ vi.mock('../../api/_shared/llm/index.js', () => ({ createLlmModel: () => { throw
 
 import modifyHandler from '../../api/ai-planner-modify.js';
 import { applyDepartureMealNote } from '../../api/_ai_core/planPersister.js';
-import { checkRequiredMeals, validatePatternStructure } from '../../api/_ai_core/responseValidator.js';
+import { checkRequiredMeals, validatePatternStructure, mealWindowsFromRequest, mealWindowsFromCtx } from '../../api/_ai_core/responseValidator.js';
 import { departureActivityDeadlineMin } from '../../api/_ai_core/constants.js';
+import { applyRecommendedRestaurants } from '../../api/_ai_core/postResponsePipeline.js';
+import { shapeRequest } from '../../api/_ai_core/requestShaper.js';
 import { departureMealNote, stripDepartureMealExemptionIfMealAdded } from '../../src/lib/departureMealNote.js';
 
 type AnyRec = Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
@@ -174,6 +176,7 @@ describe('zero-travel proof and sightseeing preservation', () => {
     expect(stops).toEqual([sight]);
     expect(meta.exempt_meals).toEqual(['dinner']);
     expect(meta.exempt_meal_basis.dinner).toMatchObject({ name: 'Real dinner', stay: 90, from: '18:00' });
+    expect(meta).not.toHaveProperty('_routeMealRemoved'); // main: 출국 cap 이 표식 없이 뺀 식당 — 게이트가 보는 날은 main 그대로
   });
   it('block cafe / breakfast placeholders are never an exemption basis', () => {
     const cafe = { category: 'food', name: 'Block cafe', start_time: '20:00', stay_min: 90 };
@@ -197,6 +200,7 @@ describe('zero-travel proof and sightseeing preservation', () => {
       expect(itin.days[0].stops.map((x: AnyRec) => x.name)).not.toContain('Long dinner');
       expect(itin.days[0].exempt_meals).toEqual(['dinner']);
       expect(itin.days[0].exempt_meal_basis.dinner).toMatchObject({ from: '18:00', stay: 90, name: 'Long dinner' });
+      expect(itin.days[0]._routeMealRemoved).toBe(true); // removeStop 이 켠다(main 그대로) — 게이트가 면제를 재판정한다
       const blank: AnyRec = { days: [{ day: 1, city: 'busan', stops: [
         { name: 'Long visit', category: 'sightseeing', start_time: '15:20', stay_min: 90, lat: 35.1631, lng: 129.1635 },
         { name: 'Possible dinner', category: 'food', start_time: '17:00', stay_min: 90, lat: 35.164, lng: 129.164 },
@@ -277,4 +281,86 @@ it('empty-airport block proof uses the earlier route bound, not immigration esti
   const c = departureMealContext({ durationDays: 1, arrival_time: '15:20', arrival_airport: '', departure_time: '23:00', departure_airport: 'PUS' }, 'busan');
   expect(proveDepartureMealExemption('dinner', 90, c)).toBeNull();
   expect(proveDepartureMealExemption('dinner', 150, c)).toEqual({ from: '17:00', stay: 150 });
+});
+
+describe('r8 — the final gate re-proves with the departure airport the generator used', () => {
+  // 일반(비블록) 경로: RouteAgent 가 면제 끼니를 빼면 removeStop 이 _routeMealRemoved 를 켠다(main 과 같은 표식) → 일반 손님도 게이트가
+  //   그날 필수 끼니를 재판정한다. 그 재판정 공항이 생성기와 다르면(도착 공항 마감) 정상 면제 플랜이 422 — 리뷰 P1.
+  const body = (arrival_airport: string, departureTime: string, extra: AnyRec = {}) => ({ area: 'seoul', regions: ['seoul'], durationDays: 1, pax: 2, language: 'en',
+    arrivalTime: '09:00', departureTime, tourStartTime: '09:00', tourEndTime: '21:00', arrival_airport, ...extra });
+  // handlerCore.js finalGate call — exactly these keys; mealWindows = handlerCore mealWindowsFromRequest(shaped).
+  const syncCtx = (shaped: AnyRec, blockModeUsed: boolean): AnyRec => {
+    const { area, regions, arrivalTime, departureTime, arrival_airport, departure_airport, tourEndTime } = shaped;
+    return { area, dietPrefs: [], regions, blockModeUsed, language: 'en', styles: [], avoidStopNames: [], departureTime, arrivalTime,
+      arrival_airport, departure_airport, tourEndTime, arrivalRestDay: false, mealWindows: mealWindowsFromRequest(shaped) };
+  };
+  // 실제 RouteAgent(runRouteEnrichment 와 같은 입력: raw body + shaped 공항), 이동 20분 고정·외부 호출 없음.
+  const routeDay = async (raw: AnyRec, shaped: AnyRec, stay: number) => {
+    const spies = [
+      vi.spyOn(RouteAgent.prototype as AnyRec, '_getTransitData').mockImplementation((async (_p: unknown, _c: unknown, _a: unknown, _b: unknown, index: number) => ({ index, durationMin: 20, distanceKm: 2, publicTransit: null, drivingMin: null })) as never),
+      vi.spyOn(RouteAgent.prototype as AnyRec, '_routeAirportHotel').mockImplementation((async () => null) as never),
+      ...['log', 'warn', 'error', 'info'].map((k) => vi.spyOn(console, k as 'log').mockImplementation(() => {})),
+    ];
+    const old = process.env.ROUTE_TSP_ENABLED; process.env.ROUTE_TSP_ENABLED = 'false';
+    try {
+      const itin: AnyRec = { days: [{ day: 1, city: 'seoul', stops: [
+        { name: 'Sight A', category: 'culture', start_time: '09:30', stay_min: 90, lat: 37.5636, lng: 126.9827 },
+        { name: 'Lunch place', category: 'food', start_time: '12:00', stay_min: 60, lat: 37.564, lng: 126.985 },
+        { name: 'Sight B', category: 'culture', start_time: '14:00', stay_min: 90, lat: 37.566, lng: 126.978 },
+        { name: 'Dinner place', category: 'food', start_time: '17:00', stay_min: stay, lat: 37.565, lng: 126.984 },
+      ] }] };
+      await enrichItineraryWithRoute(itin, { body: raw, language: 'en', arrival_airport: shaped.arrival_airport, departure_airport: shaped.departure_airport, pax: 2 });
+      return itin;
+    } finally {
+      spies.forEach((s) => s.mockRestore());
+      if (old === undefined) delete process.env.ROUTE_TSP_ENABLED; else process.env.ROUTE_TSP_ENABLED = old;
+    }
+  };
+
+  it.each([['ALREADY', 'ICN_T1', '22:50', 90], ['GMP', 'ICN_T1', '23:00', 100]])('sync %s → %s %s, %i-min dinner, no dietary: RouteAgent exempts it and the inline gate saves; without departure_airport it is rejected', async (arr, dep, depTime, stay) => {
+    const raw = body(arr, depTime, { departure_airport: dep });
+    const shaped: AnyRec = shapeRequest(raw, 'probe@example.invalid');
+    const itin = await routeDay(raw, shaped, stay);
+    expect(itin.days[0].exempt_meals).toEqual(['dinner']);
+    expect(itin.days[0]._routeMealRemoved).toBe(true); // removeStop 표식(main 그대로) — 일반 손님도 게이트가 그날을 본다
+    expect(itin.days[0].stops.map((s: AnyRec) => s.name)).toContain('Lunch place');
+    const ctx = syncCtx(shaped, false);
+    await expect(applyRecommendedRestaurants(structuredClone(itin), ctx)).resolves.toEqual(expect.any(Array));
+    const before: AnyRec = { ...ctx }; delete before.departure_airport; // c1cf0b6d 의 sync 호출 모양
+    await expect(applyRecommendedRestaurants(structuredClone(itin), before)).rejects.toMatchObject({ code: 'DIETARY_MEAL_COVERAGE_FAILED' });
+  });
+
+  it('worker: the shaped departure airport (departure city → ICN) wins over a raw body that left it empty', async () => {
+    const raw = body('GMP', '23:00', { departure_city: 'seoul' });
+    const shaped: AnyRec = shapeRequest(raw, 'probe@example.invalid');
+    expect(shaped.departure_airport).toBe('ICN'); // requestShaper 추론 — raw body 에는 없다
+    const itin = await routeDay(raw, shaped, 100); // worker runRouteEnrichment 도 ctx.departure_airport(shaped)
+    expect(itin.days[0].exempt_meals).toEqual(['dinner']);
+    // processPlanAfterAI.js recommendedRestaurants step — these keys (mealWindows = worker mealWindowsFromCtx(ctx)).
+    const mealWindows = mealWindowsFromCtx({ area: 'seoul', regions: ['seoul'], durationDays: 1, body: raw, arrival_airport: shaped.arrival_airport, departure_airport: shaped.departure_airport });
+    const ctx: AnyRec = { area: 'seoul', dietPrefs: [], regions: ['seoul'], language: 'en', styles: [], avoidStopNames: [], blockModeUsed: false, body: raw,
+      arrival_airport: shaped.arrival_airport, departure_airport: shaped.departure_airport, arrivalRestDay: false, mealWindows };
+    await expect(applyRecommendedRestaurants(structuredClone(itin), ctx)).resolves.toEqual(expect.any(Array));
+    const before: AnyRec = { ...ctx }; delete before.departure_airport; // 고치기 전 worker 모양(raw body 만)
+    await expect(applyRecommendedRestaurants(structuredClone(itin), before)).rejects.toMatchObject({ code: 'DIETARY_MEAL_COVERAGE_FAILED' });
+  });
+
+  it('blockMode exemption keeps the days the general gate checks as on main (band scan: 276 plans main saves)', async () => {
+    // main: 블록 출국 cap 이 이 식당을 표식 없이 뺐다 → 일반 손님 게이트는 그날을 보지 않는다. 면제가 _routeMealRemoved 를 켜면
+    //   (c1cf0b6d) 파이프라인이 이미 뺀 다른 끼니(예: ALREADY 13:00 → PUS 21:55 의 점심) 때문에 main 이 저장하던 플랜이 422 였다.
+    const shaped: AnyRec = shapeRequest(body('ALREADY', '22:50', { departure_airport: 'ICN_T1' }), 'probe@example.invalid');
+    const userInput = { durationDays: 1, arrival_time: shaped.arrivalTime, departure_time: shaped.departureTime, tour_start_time: shaped.tourStartTime,
+      tour_end_time: shaped.tourEndTime, arrival_airport: shaped.arrival_airport, departure_airport: shaped.departure_airport };
+    const dinner = { category: 'food', name: 'Block dinner', start_time: '17:00', stay_min: 90, source_block_id: 'B' };
+    const stops: AnyRec[] = [{ category: 'culture', name: 'Sight A', start_time: '09:30', stay_min: 90 }, dinner];
+    const meta: AnyRec = exemptImpossibleDepartureMeals(stops, departureMealContext(userInput, 'seoul', 1), new Map([[dinner, 'dinner']]));
+    expect(meta.exempt_meals).toEqual(['dinner']);
+    expect(meta).not.toHaveProperty('_routeMealRemoved');
+    const day = { day: 1, city: 'seoul', ...meta, stops: [{ category: 'lodging', name: 'Hotel', start_time: '08:30', stay_min: 0 }, ...stops,
+      { category: 'travel', name: 'Airport', start_time: '19:00', stay_min: 0, _departure_airport_stop: true }] }; // 점심 없음(main 도 같은 stop)
+    const ctx = syncCtx(shaped, true);
+    await expect(applyRecommendedRestaurants({ days: [structuredClone(day)] }, ctx)).resolves.toEqual(expect.any(Array));
+    await expect(applyRecommendedRestaurants({ days: [{ ...structuredClone(day), _routeMealRemoved: true }] }, ctx))
+      .rejects.toMatchObject({ code: 'DIETARY_MEAL_COVERAGE_FAILED' }); // c1cf0b6d 모양 — 점심 누락으로 거절
+  });
 });

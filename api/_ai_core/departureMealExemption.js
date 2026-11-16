@@ -35,7 +35,9 @@ export function proveDepartureMealExemption(role, stayValue, context) {
 }
 
 export function recordDepartureMealExemption(day, role, basis, stop) {
-  day._routeMealRemoved = true;
+  // r8: _routeMealRemoved(일반 손님 종단 게이트의 끼니 검사 표식)는 켜지 않는다 — 검사하는 날은 main 과 같다.
+  //   RouteAgent 는 removeStop 이 식당을 빼며 스스로 켜고(main 그대로), blockMode 의 이 식당은 main 에서 출국 cap 이 표식 없이 뺐다
+  //   (켜면 이미 빠진 다른 끼니 때문에 main 이 저장하던 1일 플랜이 422 — 인라인 게이트 밴드 스캔 276건).
   day.exempt_meals = [...new Set([...(Array.isArray(day.exempt_meals) ? day.exempt_meals : []), role])];
   day.exempt_meal_basis = { ...(day.exempt_meal_basis || {}), [role]: { ...basis,
     ...(stop ? { name: stop.name || stop.display_name || '', source_block_id: stop.source_block_id || '' } : {}) } };

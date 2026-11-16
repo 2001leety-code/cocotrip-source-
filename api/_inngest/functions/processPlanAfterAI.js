@@ -361,6 +361,8 @@ export const processPlanAfterAI = inngest.createFunction(
         blockModeUsed: ctx.plannerMode === 'block_mode',
         body: ctx.body, // 2026-10-24: 종단 게이트 필수 끼니 판정의 출국·도착 시각(departureTime 은 ctx 에 없어 body 에서)
         arrival_airport: ctx.arrival_airport, // 2026-10-26: 도착 휴식일 판정 — shaped 공항(sync 경로와 같은 값)
+        // PR3 결정 ③ r8: shaped 출국 공항(생성기와 같은 값) — raw body 는 비어 있으면 출국 도시로 추론한 공항과 달라 면제 재판정이 틀린다.
+        departure_airport: ctx.departure_airport,
         arrivalRestDay,
         mealWindows, // 2026-10-26 (첫날 도착 PR1): 1일 끼니 창(sync 경로와 같은 값)
       });
