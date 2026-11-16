@@ -6,7 +6,7 @@ import { formatTransitSummary, getSubwayStationInfo, getSubwayTimetable } from "
 import { searchTransit } from "../../_transit_provider.js";
 // BUGHUNT-LOW (2026-06-14): AREX 직통 HERO 합성을 ODsay 일 때만 발동시키는 게이트용 (TMAP native 급행 보존).
 import { getTransitProvider } from "../../_transit_provider.js";
-import { AIRPORT_COORDS, AIRPORT_STATION_COORDS, AIRPORT_NAMES, CITY_CENTER_COORDS, airportPoint, lookupZoneCoord, SCHEDULE_BUFFER_MIN, DEFAULT_LEG_MIN, arrivalReadyMinutes, hhmmToMin, resolveTourStartTime, resolveTourEndTime, resolveArrivalTime, singleDayMealWindows } from "../constants.js";
+import { AIRPORT_COORDS, AIRPORT_NAMES, CITY_CENTER_COORDS, airportPoint, lookupZoneCoord, SCHEDULE_BUFFER_MIN, DEFAULT_LEG_MIN, arrivalReadyMinutes, hhmmToMin, resolveTourStartTime, resolveTourEndTime, resolveArrivalTime, singleDayMealWindows } from "../constants.js";
 // P-launch (2026-05-31): 한글 regions('부산') → 영문 키('busan') 정규화 (멀티시티 departure city 해석용).
 import { normalizeRegionKey, regionCityKey, departureCityKey } from "../responseValidator.js";
 import { isAirportStop } from "../../../src/lib/airportStop.js"; // 2026-11-16: 공항 stop 판정 — 화면(DayTimeline)과 같은 규칙
@@ -24,6 +24,7 @@ import { resolveNcpKeys } from "../../_shared/mood-route.js";
 // KTX/Air/Bus 의 from_station/to_station 좌표 — RouteAgent 가 city-change day
 // 의 hotel→station + station→new_hotel bookend transit 계산할 때 사용.
 // UI 도 intercity 전후 segment 표시 가능.
+const airportStation = (key, label) => { const p = airportPoint(key); return { lat: p.lat, lng: p.lng, label }; };
 export const STATION_COORDS = {
   // ── KTX/SRT 주요역 ─────────────────────────────────
   '서울역':         { lat: 37.5547, lng: 126.9706, label: '서울역' },
@@ -42,11 +43,13 @@ export const STATION_COORDS = {
   // prod alert 다수 발생 ("신경주역 미등록" intercity bookend silent fail).
   '신경주역':       { lat: 35.7976, lng: 129.1338, label: '신경주역' },
   // ── 공항 ──────────────────────────────────────────
-  '김포국제공항':   { lat: 37.5589, lng: 126.7906, label: '김포국제공항' },
-  '인천국제공항':   { lat: 37.4602, lng: 126.4407, label: '인천국제공항' },
-  '김해국제공항':   { lat: 35.1795, lng: 128.9381, label: '김해국제공항' },
-  '제주국제공항':   { lat: 33.5113, lng: 126.4929, label: '제주국제공항' },
-  '대구국제공항':   { lat: 35.8980, lng: 128.6593, label: '대구국제공항' },
+  // 2026-11-16: 좌표 = airportPoint(도착·출국 안내와 같은 점 — 지하철역, 없으면 여객터미널). 예전 값은 공항 기준점
+  //   (인천은 T1·T2 사이, 제주는 활주로 한가운데)이라 항공 구간 앞뒤 숙소↔공항 경로가 활주로에서 시작·끝났다.
+  '김포국제공항':   airportStation('GMP', '김포국제공항'),
+  '인천국제공항':   airportStation('ICN', '인천국제공항'),
+  '김해국제공항':   airportStation('PUS', '김해국제공항'),
+  '제주국제공항':   airportStation('CJU', '제주국제공항'),
+  '대구국제공항':   airportStation('TAE', '대구국제공항'),
   // ── 고속/시외버스 터미널 ───────────────────────────
   '서울고속버스터미널':   { lat: 37.5044, lng: 127.0048, label: '서울고속버스터미널' },
   '부산종합버스터미널':   { lat: 35.2117, lng: 129.0871, label: '부산종합버스터미널' },
@@ -1015,8 +1018,8 @@ export class RouteAgent extends BaseAgent {
             // P275 Phase B (2026-05-29): ODsay 호출 시 station 좌표 우선 사용 (strict match).
             // SAFETY-CRITICAL — AIRPORT_COORDS (lobby) 사용 시 T1↔T2 ~260m 인접 → ODsay 임의 station
             // 추천 (prod plan 696b273d 사건). AIRPORT_STATION_COORDS (subway station) = T1↔T2 ~2.6km
-            // 떨어진 strict station match. fallback: AIRPORT_COORDS (CJU/TAE/MWX/YNY 지하철 없음).
-            const ap = AIRPORT_STATION_COORDS[arrivalAirportKey] || AIRPORT_COORDS[arrivalAirportKey];
+            // 떨어진 strict station match. 2026-11-16: airportPoint = 역, 지하철 없는 공항은 여객터미널.
+            const ap = airportPoint(arrivalAirportKey);
             const { coord: arrFromCoord, source: arrFromSource, label: arrFromLabel } = await this._resolveHotelOrFallback({
                 hotelLat,
                 hotelLng,
@@ -1170,8 +1173,8 @@ export class RouteAgent extends BaseAgent {
         // geocode → 도시 중심 좌표. 모두 실패해도 _failed=true 객체를 셋해서
         // 프론트가 graceful 메시지를 띄울 수 있게 한다.
         if (departureAirportKey && AIRPORT_COORDS[departureAirportKey] && rawItinerary.departure_guide) {
-            // P275 Phase B: station 좌표 우선 사용 (arrival 측과 동일 패턴).
-            const ap = AIRPORT_STATION_COORDS[departureAirportKey] || AIRPORT_COORDS[departureAirportKey];
+            // P275 Phase B: station 좌표 우선 사용 (arrival 측과 동일 패턴 — airportPoint).
+            const ap = airportPoint(departureAirportKey);
             // ── P-launch (2026-05-31): 멀티시티 departure origin fix (비행기 놓침 risk) ──
             //   departure_guide 는 마지막 도시 호텔에서 출발해야 한다. plan a8b96f91 처럼 부산서 끝나는데
             //   "명동 출발 85분" 안내 → 부산 손님이 비행기 시간 오해(부산→ICN 4-5h). regions[마지막]=출발도시
@@ -1678,8 +1681,9 @@ export class RouteAgent extends BaseAgent {
                 let prevHotelEffective = prevDayHotelCoord;
                 const isDay1 = (dayPlan.day === 1 || dayPlan.day_index === 1);
                 if (isDay1 && (!prevHotelEffective || !prevHotelEffective.lat || !prevHotelEffective.lng)
-                    && arrivalAirportKey && AIRPORT_COORDS[arrivalAirportKey]) {
-                    const ap = AIRPORT_COORDS[arrivalAirportKey];
+                    && arrivalAirportKey && airportPoint(arrivalAirportKey)) {
+                    // 2026-11-16: 공항의 길찾기 점(airportPoint) — 예전 AIRPORT_COORDS 는 공항 기준점(인천은 T1·T2 사이)이었다.
+                    const ap = airportPoint(arrivalAirportKey);
                     prevHotelEffective = {
                         lat: ap.lat, lng: ap.lng,
                         label: ap.label || arrivalAirportKey,

@@ -4,6 +4,7 @@
  *   ② 부산 안내가 공항역이 아니라 한 정거장 옆(서부산유통지구, 1.5km)으로 갔다.
  *   ③ 지하철 없는 공항(제주 등) 안내가 활주로 한가운데에서 시작했다(제주 도착 "걸어서 49분").
  *   ④ 출국일 공항 stop 뒤에 "숙소로 돌아가기" 카드가 붙었다(부산·제주 — 공항이 숙소 50km 안).
+ * 시간 계산 입력(AIRPORT_COORDS)은 그대로 둔다 — 1분만 움직여도 저장된 1일 끼니 면제가 수정 때 막힌다(검토 11/16).
  * 실제 RouteAgent 오프라인 실행: axios·transit·ODsay·transitCache·텔레그램·LLM 전부 mock, 구간 이동 20분 고정.
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
@@ -15,9 +16,11 @@ vi.mock('../../api/_ai_core/transitCache.js', () => ({ lookupTransitCache: vi.fn
 vi.mock('../../api/_shared/telegram-throttle.js', () => ({ throttledTelegramAlert: vi.fn(async () => {}) }));
 vi.mock('../../api/_shared/llm/index.js', () => ({ createLlmModel: () => { throw new Error('no LLM in tests'); }, resolveLlmModel: () => 'mock' }));
 
+import { readFileSync } from 'node:fs';
 import { AIRPORT_COORDS, AIRPORT_STATION_COORDS, airportPoint, haversineKm } from '../../api/_ai_core/constants.js';
+import { mealWindowsFromRequest, validatePatternStructure } from '../../api/_ai_core/responseValidator.js';
 import { isAirportStop } from '../../src/lib/airportStop.js';
-import { RouteAgent, pinDepartureAirportStop } from '../../api/_ai_core/agents/RouteAgent.js';
+import { RouteAgent, lookupStationCoord, pinDepartureAirportStop } from '../../api/_ai_core/agents/RouteAgent.js';
 import { enrichItineraryWithRoute } from '../../api/_ai_core/routeEnrichment.js';
 import { applyDepartureDayFlightCap } from '../../api/_ai_core/blockMode.js';
 
@@ -25,13 +28,25 @@ type Stop = Record<string, unknown>;
 const at = (p: { lat: number; lng: number } | null | undefined) => ({ lat: p!.lat, lng: p!.lng });
 
 describe('airportPoint — 안내 경로와 같은 점, 지도 자료와 300m 안', () => {
-  it('모든 공항 키에서 RouteAgent 안내 식(AIRPORT_STATION_COORDS[key] || AIRPORT_COORDS[key])과 같다', () => {
+  it('지하철역이 있으면 역, 없으면 같은 공항 여객터미널(기준점 3km 안)', () => {
     for (const key of Object.keys(AIRPORT_COORDS)) {
-      const guide = AIRPORT_STATION_COORDS[key as keyof typeof AIRPORT_STATION_COORDS] || AIRPORT_COORDS[key as keyof typeof AIRPORT_COORDS] || null;
-      expect(airportPoint(key), key).toEqual(guide);
+      const ref = AIRPORT_COORDS[key as keyof typeof AIRPORT_COORDS];
+      if (!ref) { expect(airportPoint(key), key).toBeNull(); continue; }
+      const station = AIRPORT_STATION_COORDS[key as keyof typeof AIRPORT_STATION_COORDS];
+      if (station) expect(airportPoint(key), key).toBe(station);
+      else expect(haversineKm(airportPoint(key), ref)!, key).toBeLessThan(3);
     }
     expect(airportPoint('XXX')).toBeNull();
     expect(airportPoint(undefined)).toBeNull();
+  });
+
+  it('RouteAgent 는 공항 길찾기 점을 airportPoint 로만 얻는다(도착·출국 안내, 첫날 도시 이동, 항공 구간 앞뒤)', () => {
+    const src = readFileSync(new URL('../../api/_ai_core/agents/RouteAgent.js', import.meta.url), 'utf8');
+    expect(src).not.toMatch(/AIRPORT_STATION_COORDS\[/);
+    expect(src).not.toMatch(/=\s*AIRPORT_COORDS\[/);
+    for (const [name, key] of [['김포국제공항', 'GMP'], ['인천국제공항', 'ICN'], ['김해국제공항 (PUS)', 'PUS'], ['CJU', 'CJU'], ['대구국제공항', 'TAE']]) {
+      expect(at(lookupStationCoord(name)), name).toEqual(at(airportPoint(key)));
+    }
   });
 
   // OpenStreetMap 대조(2026-11-16): 여객터미널(aeroway=terminal)·부산김해경전철 공항역 노드.
@@ -139,6 +154,27 @@ describe('RouteAgent 실행 — 출국일 마지막 구간·숙소 복귀', () =
       { category: 'food', name: 'Brunch', start_time: '10:00', stay_min: 60, lat: 37.57, lng: 126.98 },
     ]);
     expect(it3.days[1].last_to_lodging).toBeTruthy();
+  });
+});
+
+describe('시간 계산 입력(AIRPORT_COORDS)은 그대로 — 저장된 1일 끼니 면제가 수정 때 막히지 않게', () => {
+  it('공항 기준점 값이 #1503(11/16 오전) 때와 같다', () => {
+    expect(AIRPORT_COORDS).toMatchObject({
+      CJU: { lat: 33.5113, lng: 126.4928 }, TAE: { lat: 35.8941, lng: 128.6588 }, KWJ: { lat: 35.1264, lng: 126.8089 },
+      MWX: { lat: 34.9914, lng: 126.3829 }, YNY: { lat: 38.0613, lng: 128.6694 },
+    });
+  });
+  it('대구 출도착·서울 1일 플랜에 저장된 점심 면제 근거(11:04 부터 75분)가 수정 API 와 같은 요청으로 다시 검사를 통과한다', () => {
+    const input = { arrival_time: '06:05', departure_time: '18:35', arrival_airport: 'TAE', departure_airport: 'TAE', regions: ['seoul'], arrival_city: 'seoul', durationDays: 1 };
+    const req = { regions: ['seoul'], arrival_airport: 'TAE', departure_airport: 'TAE', durationDays: 1, arrival_rest_day: false,
+      meal_windows: mealWindowsFromRequest(input), exempt_meal_departure_time: '18:35' };
+    const day = { day: 1, city: 'seoul', exempt_meals: ['lunch'], exempt_meal_basis: { lunch: { from: '11:04', stay: 75 } }, stops: [
+      { name: 'Gyeongbokgung Palace', category: 'attraction', start_time: '11:10', end_time: '12:10', lat: 37.5796, lng: 126.977 },
+      { name: 'Bukchon Hanok Village', category: 'attraction', start_time: '12:20', end_time: '13:00', lat: 37.5826, lng: 126.983 },
+      { name: 'Daegu International Airport', category: 'airport', start_time: '15:35', end_time: '15:35', lat: 35.8997, lng: 128.6381 },
+    ] };
+    const errors = validatePatternStructure({ days: [day] } as never, req as never).map(String);
+    expect(errors.filter((e) => e.includes('B-MEAL-LUNCH'))).toEqual([]);
   });
 });
 

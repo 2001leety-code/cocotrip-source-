@@ -270,23 +270,24 @@ export function arrivalReadyHHMM(arrivalHHMM, airport, cityKey) {
   return `${String(Math.floor(w / 60)).padStart(2, '0')}:${String(w % 60).padStart(2, '0')}`;
 }
 
-// ── 공항 좌표 (lat/lng) — RouteAgent의 ODsay 호출용 ────────────────────────
+// ── 공항 좌표 (lat/lng) — 공항 기준점 ─────────────────────────────────────────
 // 출처: 각 공항 운영사 공식 좌표. Terminal별 좌표가 다르면 도보 5분+ 차이.
+// 2026-11-16: 길찾기 점은 airportPoint()(지하철역 → 여객터미널). 이 표는 공항 키 목록과 시간 계산
+//   (estimateAirportTransitMinFrom → 1일 끼니 창·출국 마감) 입력으로 남는다.
+//   🔴 값 바꾸지 말 것: 시간 계산이 1분만 움직여도 저장된 1일 플랜의 끼니 면제 근거(day.exempt_meal_basis)가
+//   수정 요청 때 다시 검사에서 떨어져(responseValidator departureExemptMeals 의 from <= expectedFrom) 수정이 422 로 막힌다.
+//   시험 = tests/unit/airport-point-departure-pin-20261116.test.ts.
 export const AIRPORT_COORDS = {
   ICN_T1: { lat: 37.4602, lng: 126.4407 },
   ICN_T2: { lat: 37.4583, lng: 126.4424 },
   ICN:    { lat: 37.4602, lng: 126.4407 },
   GMP:    { lat: 37.5587, lng: 126.7905 },
   PUS:    { lat: 35.1795, lng: 128.9381 },
-  // 2026-11-16: 아래 5곳 = 여객터미널 앞. 예전 값은 공항 기준점(활주로 한가운데)이라 지하철역이 없는 이 공항들의
-  //   도착·출국 안내가 활주로 안에서 시작했다(운영 시험 11/16: 제주 도착 안내 "걸어서 49분").
-  //   출처 = OpenStreetMap 여객터미널(aeroway=terminal) — CJU 33.5063/126.4926 · TAE 35.8997/128.6385 대조.
-  //   도시-공항 거리 보정(estimateAirportTransitMinFrom)은 60km 넘는 먼 도시만 ±1분 바뀐다(80쌍 중 33쌍).
-  CJU:    { lat: 33.5064, lng: 126.4923 },
-  TAE:    { lat: 35.8997, lng: 128.6381 },
-  KWJ:    { lat: 35.1400, lng: 126.8108 },
-  MWX:    { lat: 34.9936, lng: 126.3876 },
-  YNY:    { lat: 38.0589, lng: 128.6628 },
+  CJU:    { lat: 33.5113, lng: 126.4928 },
+  TAE:    { lat: 35.8941, lng: 128.6588 },
+  KWJ:    { lat: 35.1264, lng: 126.8089 },
+  MWX:    { lat: 34.9914, lng: 126.3829 },
+  YNY:    { lat: 38.0613, lng: 128.6694 },
   ALREADY: null,
 };
 
@@ -303,7 +304,7 @@ export const AIRPORT_COORDS = {
 //   - GMP station: 김포공항역 (5호선/9호선/공항철도/김포골드라인)
 //   - PUS station: 공항역 (부산김해경전철)
 //
-// CJU/TAE/MWX/YNY = 지하철 없음 → undefined (RouteAgent 가 AIRPORT_COORDS fallback)
+// CJU/TAE/MWX/YNY = 지하철 없음 → undefined (airportPoint 가 아래 여객터미널 좌표로 대신)
 // KWJ = 광주1호선 단일 노선 → 효과 제한적, 현재 미적용
 export const AIRPORT_STATION_COORDS = {
   ICN_T1: { lat: 37.4475, lng: 126.4528, station_name: '인천공항1터미널역' },
@@ -314,15 +315,26 @@ export const AIRPORT_STATION_COORDS = {
   PUS:    { lat: 35.1720, lng: 128.9490, station_name: '공항역(부산김해경전철)' },
 };
 
+// 2026-11-16: 지하철역 없는 공항의 길찾기 점 = 여객터미널 앞. AIRPORT_COORDS(공항 기준점, 활주로 한가운데)로
+//   길을 찾으면 안내가 활주로 안에서 시작했다(운영 시험 11/16: 제주 도착 안내 "걸어서 49분").
+//   출처 = OpenStreetMap 여객터미널(aeroway=terminal) — CJU 33.5063/126.4926 · TAE 35.8997/128.6385 대조.
+const AIRPORT_TERMINAL_COORDS = {
+  CJU: { lat: 33.5064, lng: 126.4923 },
+  TAE: { lat: 35.8997, lng: 128.6381 },
+  KWJ: { lat: 35.1400, lng: 126.8108 },
+  MWX: { lat: 34.9936, lng: 126.3876 },
+  YNY: { lat: 38.0589, lng: 128.6628 },
+};
+
 /**
- * 2026-11-16: 공항의 "한 점" — 지하철역이 있으면 역, 없으면 여객터미널(AIRPORT_COORDS).
- *   출국일 공항 stop(RouteAgent.pinDepartureAirportStop)과 blockMode 가 넣는 출국 stop 이 쓴다.
- *   RouteAgent 도착·출국 안내(arrival_guide·departure_guide)의 `AIRPORT_STATION_COORDS[key] || AIRPORT_COORDS[key]` 와
- *   같은 식이어야 한다 — 다르면 하루 마지막 구간과 출국 안내가 서로 다른 곳에서 끝난다(운영 시험 11/16, 인천 매번).
- *   시험 = tests/unit/airport-point-departure-pin-20261116.test.ts.
+ * 2026-11-16: 공항의 길찾기 점 — 지하철역이 있으면 역, 없으면 여객터미널.
+ *   RouteAgent 도착·출국 안내, 출국일 공항 stop 고정(pinDepartureAirportStop), 첫날 바로 도시 이동할 때의 출발점,
+ *   항공 구간 앞뒤(RouteAgent STATION_COORDS 공항 항목), blockMode 가 넣는 출국 stop 이 모두 이 점을 쓴다 —
+ *   점이 다르면 하루 마지막 구간과 출국 안내가 서로 다른 곳에서 끝난다(운영 시험 11/16, 인천 매번).
+ *   시간 계산은 AIRPORT_COORDS 그대로(위 🔴). 시험 = tests/unit/airport-point-departure-pin-20261116.test.ts.
  */
 export function airportPoint(key) {
-  return AIRPORT_STATION_COORDS[key] || AIRPORT_COORDS[key] || null;
+  return AIRPORT_STATION_COORDS[key] || AIRPORT_TERMINAL_COORDS[key] || AIRPORT_COORDS[key] || null;
 }
 
 // ── 도시 중심 좌표 (Hotel/Zone 좌표 모두 없을 때 fallback) ─────────────────

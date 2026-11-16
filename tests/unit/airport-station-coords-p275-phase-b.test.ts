@@ -9,14 +9,15 @@
  *   - ICN_T1 station: 37.4475, 126.4528 (인천공항1터미널역)
  *   - ICN_T2 station: 37.4677, 126.4341 (인천공항2터미널역) — T1↔T2 station ~2.6km 떨어짐
  *   - GMP station: 37.5625, 126.8008 (김포공항역)
- *   - PUS station: 35.1667, 128.9514 (공항역 부산김해경전철)
+ *   - PUS station: 35.1720, 128.9490 (공항역 부산김해경전철 — 2026-11-16 OSM 대조로 고침, 예전 35.1667/128.9514 는 옆 역 쪽)
  *
  * 회귀 시: AIRPORT_COORDS (lobby) 사용 회귀 → T1↔T2 ~260m 인접 → ODsay 임의 station = 비행기 놓침.
+ * 2026-11-16: 역 우선 식은 constants.airportPoint() 한 곳으로 모였다(역 → 여객터미널 → 기준점). RouteAgent 호출 site 는 airportPoint 를 부른다.
  */
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { AIRPORT_COORDS, AIRPORT_STATION_COORDS } from '../../api/_ai_core/constants.js';
+import { AIRPORT_COORDS, AIRPORT_STATION_COORDS, airportPoint } from '../../api/_ai_core/constants.js';
 
 describe('P275 Phase B — AIRPORT_STATION_COORDS 자동 fix (ODsay strict match)', () => {
   const routeAgentPath = resolve(__dirname, '../../api/_ai_core/agents/RouteAgent.js');
@@ -59,7 +60,7 @@ describe('P275 Phase B — AIRPORT_STATION_COORDS 자동 fix (ODsay strict match
     expect(AIRPORT_STATION_COORDS.ICN.lng).toBe(AIRPORT_STATION_COORDS.ICN_T1.lng);
   });
 
-  it('CJU / TAE / MWX / YNY = STATION_COORDS undefined (지하철 없음, AIRPORT_COORDS fallback)', () => {
+  it('CJU / TAE / MWX / YNY = STATION_COORDS undefined (지하철 없음 — airportPoint 는 여객터미널)', () => {
     expect(AIRPORT_STATION_COORDS.CJU).toBeUndefined();
     expect(AIRPORT_STATION_COORDS.TAE).toBeUndefined();
     expect(AIRPORT_STATION_COORDS.MWX).toBeUndefined();
@@ -71,16 +72,19 @@ describe('P275 Phase B — AIRPORT_STATION_COORDS 자동 fix (ODsay strict match
 
   // ── RouteAgent.js — STATION_COORDS 우선 사용 ──────────────────────────────────
 
-  it('RouteAgent — AIRPORT_STATION_COORDS import 추가', () => {
-    expect(routeAgentSrc).toMatch(/import\s*\{[^}]*AIRPORT_STATION_COORDS[^}]*\}\s*from\s*["']\.\.\/constants\.js["']/);
+  it('RouteAgent — airportPoint import, airportPoint 는 역이 있는 공항에서 역을 준다', () => {
+    expect(routeAgentSrc).toMatch(/import\s*\{[^}]*\bairportPoint\b[^}]*\}\s*from\s*["']\.\.\/constants\.js["']/);
+    for (const key of Object.keys(AIRPORT_STATION_COORDS)) {
+      expect(airportPoint(key), key).toBe(AIRPORT_STATION_COORDS[key as keyof typeof AIRPORT_STATION_COORDS]);
+    }
   });
 
-  it('RouteAgent — arrival 호출 site 가 STATION_COORDS 우선 + AIRPORT_COORDS fallback', () => {
-    expect(routeAgentSrc).toMatch(/AIRPORT_STATION_COORDS\[arrivalAirportKey\]\s*\|\|\s*AIRPORT_COORDS\[arrivalAirportKey\]/);
+  it('RouteAgent — arrival 호출 site 가 airportPoint(역 우선)', () => {
+    expect(routeAgentSrc).toMatch(/const ap = airportPoint\(arrivalAirportKey\)/);
   });
 
-  it('RouteAgent — departure 호출 site 가 STATION_COORDS 우선 + AIRPORT_COORDS fallback', () => {
-    expect(routeAgentSrc).toMatch(/AIRPORT_STATION_COORDS\[departureAirportKey\]\s*\|\|\s*AIRPORT_COORDS\[departureAirportKey\]/);
+  it('RouteAgent — departure 호출 site 가 airportPoint(역 우선)', () => {
+    expect(routeAgentSrc).toMatch(/const ap = airportPoint\(departureAirportKey\)/);
   });
 
   it('P275 Phase B reference + SAFETY-CRITICAL 명시', () => {
