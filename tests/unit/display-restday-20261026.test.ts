@@ -92,7 +92,7 @@ describe('D5① — stale arrival rest note is removed', () => {
   });
   it('modify API: one rest-day flag (stored boolean first) for validation and a re-judge right before saving', () => {
     const src = read('api/ai-planner-modify.js');
-    expect(src).toContain("import { backfillStopEndTimes, applyArrivalRestNote } from './_ai_core/planPersister.js';");
+    expect(src).toContain("import { backfillStopEndTimes, applyArrivalRestNote, applyDepartureMealNote } from './_ai_core/planPersister.js';");
     expect(src).toMatch(/const arrivalRestDay = typeof planData\.input\?\.arrival_rest_day === 'boolean'\s*\? planData\.input\.arrival_rest_day/);
     expect(src).toContain('arrival_rest_day: arrivalRestDay,');
     const dup = src.indexOf('runDuplicateStopGate(itinerary, revisitCtx)');

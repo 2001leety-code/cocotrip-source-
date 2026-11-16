@@ -1,3 +1,4 @@
+import { departureMealContext, exemptImpossibleDepartureMeals } from './departureMealExemption.js';
 /**
  * blockMode.js — zone_courses 기반 block-mode planner pipeline (P128, 2026-05-21).
  *
@@ -1417,6 +1418,7 @@ export function expandBlocksToItinerary(blockSelections, blocks, userInput) {
 
     // stops expand
     const stops = [];
+    const departureMealRoles = new Map();
     const blockStops = Array.isArray(block.stops) ? block.stops : [];
     // #arrival-needle (운영자 신고): 밤도착 → 짧은 저녁 window 에 큐레이션 "첫 stop" 이 숙소에서 멀면
     //   (예: 명동 호텔 ↔ 조계사 1.2km) 호텔→먼stop→호텔 왕복 needle 패턴. 도착일에 한해, stop 좌표와
@@ -1535,7 +1537,11 @@ export function expandBlocksToItinerary(blockSelections, blocks, userInput) {
         source_block_id: block.id,
         // P112: end_time backfill 은 planPersister 가 처리 — 여기서는 skip.
       });
+      const departureRole = /^verified_(lunch|dinner|cafe|breakfast)$/.exec(String(bs.placeholder || ''))?.[1];
+      if (departureRole) departureMealRoles.set(stops[stops.length - 1], departureRole);
     }
+
+    const departureMealMeta = exemptImpossibleDepartureMeals(stops, departureMealContext(userInput, block.city || area, totalDays), departureMealRoles);
 
     // 일별 tour_end_time cap + Day1(도착일) late-arrival 새벽 cutoff + 휴식일
     //   (2026-06-05 운영자: 종료시간 정확 설정 / 2026-06-02 plan 4d214e83 새벽 cascade 신고):
@@ -1595,6 +1601,7 @@ export function expandBlocksToItinerary(blockSelections, blocks, userInput) {
       city: block.city || area,
       lodging: undefined, // planPersister.backfillDayLodging 가 stops[] 의 lodging 으로 채움
       stops,
+      ...departureMealMeta,
       // block-mode trace — admin dashboard 분석용
       source_block_id: block.id,
       source_block_zone: block.zone,
@@ -2129,6 +2136,7 @@ export function expandBlocksToItineraryMultiCity(blockSelections, cityBlocksList
 
     // stops expand (단도시 expandBlocksToItinerary 와 동일 로직)
     const stops = [];
+    const departureMealRoles = new Map();
     const blockStops = Array.isArray(block.stops) ? block.stops : [];
     // 2026-06-10: 식당 placeholder 근접 앵커 — 단도시 expandBlocksToItinerary 와 동일.
     //   다도시(서울+부산 등)는 본 함수를 타므로 여기에도 적용해야 식당이 동선 위에 온다
@@ -2223,7 +2231,11 @@ export function expandBlocksToItineraryMultiCity(blockSelections, cityBlocksList
           : `Pre-curated ${block.zone} block — ${block.theme}`,
         source_block_id: block.id,
       });
+      const departureRole = /^verified_(lunch|dinner|cafe|breakfast)$/.exec(String(bs.placeholder || ''))?.[1];
+      if (departureRole) departureMealRoles.set(stops[stops.length - 1], departureRole);
     }
+
+    const departureMealMeta = exemptImpossibleDepartureMeals(stops, departureMealContext(userInput, dayCityKey || block.city, totalDays), departureMealRoles);
 
     // 일별 tour_end_time cap + Day1(도착일) late-arrival 새벽 cutoff + 휴식일 (2026-06-05 운영자: 종료시간
     //   정확 설정 / 2026-06-02 plan 4d214e83 새벽 cascade 신고 20:29 도착→02:16 북촌). 모든 날 tour_end_time
@@ -2283,6 +2295,7 @@ export function expandBlocksToItineraryMultiCity(blockSelections, cityBlocksList
       city: dayCityKey || block.city,
       lodging: lodgingHint ? { name: lodgingHint } : undefined,
       stops,
+      ...departureMealMeta,
       source_block_id: block.id,
       source_block_zone: block.zone,
       source_block_intensity: block.intensity,

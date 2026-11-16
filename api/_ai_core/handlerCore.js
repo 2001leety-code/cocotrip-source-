@@ -426,7 +426,9 @@ export default async function handler(req, res) {
 
     // ── Must-visit 맛집 추천 ──────────────────────────────────────────────
     // 저장 전 마지막 식이/식사 게이트; avoidStopNames 는 재생성에만 적용한다.
-    const foodIndexForQuality = await withStep('finalGate', () => applyRecommendedRestaurants(itinerary, { area, dietPrefs: dietaryAll, regions, blockModeUsed, language, styles, avoidStopNames, departureTime, arrivalTime, arrival_airport, tourEndTime, arrivalRestDay, mealWindows }));
+    //   PR3 결정 ③ r8: departure_airport — 게이트가 면제 끼니를 생성기(blockMode·RouteAgent)와 같은 shaped 출국 공항으로 재판정한다
+    //   (빠지면 도착 공항 마감으로 떨어져 정상 면제 플랜이 422). 형제 Pass3 tripTimes(아래)와 같은 값.
+    const foodIndexForQuality = await withStep('finalGate', () => applyRecommendedRestaurants(itinerary, { area, dietPrefs: dietaryAll, regions, blockModeUsed, language, styles, avoidStopNames, departureTime, arrivalTime, arrival_airport, departure_airport, tourEndTime, arrivalRestDay, mealWindows }));
 
     // ── 예상 여행비 (판매가 아님) — 화면·PDF 표시용. 결제/적립/환불에 절대 넘기지 말 것.
     //    원장은 결제 검증된 booking.amountUSD 만 본다(booking-processor readVerifiedLedgerBasis).
@@ -456,7 +458,7 @@ export default async function handler(req, res) {
 
     // ── P168/P170/P171/P172/P173: Pass3 background trigger (fire-and-forget; backgroundPipelines.js 추출; gate.isAdminBypass 명시 전달)
     //   2026-08-24: dietary/styles 전달 — background enrich 결과가 종단 검증을 통과할 때만 Firestore 를 덮어쓴다.
-    triggerPass3BackgroundIfPending({ adminDb, planId, language, apiKey, itinerary, isAdminBypass: !!gate.isAdminBypass, identifierForBucketing, dietary: dietaryAll, styles, mealWindows, tripTimes: tripTimesFrom({ departureTime, arrivalTime, arrivalAirport: arrival_airport, area, regions, tourEndTime, arrival_rest_day: arrivalRestDay }), avoidStopNames });
+    triggerPass3BackgroundIfPending({ adminDb, planId, language, apiKey, itinerary, isAdminBypass: !!gate.isAdminBypass, identifierForBucketing, dietary: dietaryAll, styles, mealWindows, tripTimes: tripTimesFrom({ departureTime, arrivalTime, arrivalAirport: arrival_airport, departureAirport: departure_airport, area, regions, tourEndTime, arrival_rest_day: arrivalRestDay }), avoidStopNames });
 
     // ── JSON 응답 ────────────────────────────────────────────────────────
     // P169: streaming 모드에서는 이미 early response 전송 완료 → skip.

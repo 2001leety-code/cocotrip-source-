@@ -1,3 +1,4 @@
+import { departureMealContext, proveDepartureMealExemption, recordDepartureMealExemption } from '../departureMealExemption.js';
 import axios from "axios";
 import { BaseAgent } from "./BaseAgent.js";
 import { formatTransitSummary, getSubwayStationInfo, getSubwayTimetable } from "../../_odsay_helper.js";
@@ -810,7 +811,7 @@ export function stitchStartMins(places, { firstMin, legMins = [], buffer = SCHED
                 // 구제 식당(_blockMealRole)의 원래 시각(자정 넘김 01:30 등)은 선호값으로 쓰지 않는다 — 창 안 가장 이른 자리.
                 const pref = Number.isFinite(origin) && !blockRole ? origin : lo;
                 starts.push(Math.max(lo, Math.min(pref, w.to)));
-                meals.push({ i, infeasible: lo > w.to, noWindow: false });
+                meals.push({ i, infeasible: lo > w.to, noWindow: false, role });
                 continue;
             }
             starts.push(applyMealFloor(base, origin));
@@ -1583,7 +1584,9 @@ export class RouteAgent extends BaseAgent {
                     ...(daysList.length === 1 ? { departureTime: data.departure_time, departureAirport: data.departure_airport } : {}),
                 }) || {};
                 const range = (x) => (x ? { from: this._parseTime(x.from), to: this._parseTime(x.to) } : null);
-                day1 = { R, pref: Math.max(R, modelFirst), tourEndMin: this._parseTime(tourEndTime), meal: { lunch: range(w.lunch), dinner: range(w.dinner) } };
+                const departureProofContext = departureMealContext({ ...data, tourStartTime: resolveTourStartTime(data), tourEndTime }, day1CityKey, daysList.length);
+                const departureContext = departureProofContext ? { ...departureProofContext, windows: w } : null;
+                day1 = { R, pref: Math.max(R, modelFirst), tourEndMin: this._parseTime(tourEndTime), meal: { lunch: range(w.lunch), dinner: range(w.dinner) }, departureContext };
                 dayPlan._p239TourStartMin = day1.pref; // 진단용 표식(옛 P239 이름 유지)
                 console.log(`  [Route] Day 1: P239 first-activity floor = ${this._formatTime(day1.pref)} (R=${this._formatTime(R)}, tour start=${this._formatTime(safeTourStartMin)}, arrival_ready=${this._formatTime(arrivalReady)}, meal windows=${JSON.stringify(w)})`);
             }
@@ -2032,6 +2035,18 @@ export class RouteAgent extends BaseAgent {
                     bookedAddress: effectiveBookedAddress(data), // r7/r12: 예약 숙소(또는 권역) 주소 — 재계산·품질 집계와 같은 함수
                 });
                 extraMealIdx = new Set(candidate.meals.filter((m) => m.extra).map((m) => m.i));
+                // Preserve main placement. Only remove a meal proven impossible even without any travel or visits.
+                //   Not a basis: an extra same-role meal (cafe/dessert) or a block-sourced meal (blockMode proves those before its cap).
+                const impossibleMeal = day1?.departureContext && candidate.meals.find((m) => !m.extra
+                    && !places[m.i]?.source_block_id
+                    && proveDepartureMealExemption(m.role, stayOf(places[m.i]), day1.departureContext));
+                if (impossibleMeal) {
+                    const stop = places[impossibleMeal.i];
+                    const basis = proveDepartureMealExemption(impossibleMeal.role, stayOf(stop), day1.departureContext);
+                    recordDepartureMealExemption(dayPlan, impossibleMeal.role, basis, stop);
+                    await removeStop(impossibleMeal.i, 'meal-exempt');
+                    continue;
+                }
                 const v = findStitchViolation(places, candidate, { day1TourEndMin: day1 ? day1.tourEndMin : null, lastReturnMin: dayPlan.last_to_lodging?.est_min });
                 if (!v) { stitched = candidate; break; }
                 if (v.kind === 'order') throw routeDayInfeasibleError([`Day ${dayPlan.day || dayIdx + 1}: stop times would run backwards`]);

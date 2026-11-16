@@ -5,12 +5,14 @@ import { createEditService, EditError } from './_shared/plan-edit-service.js';
 import { canonicalJson, canonicalSource } from '../src/lib/planEditCanonical.js';
 import { stripArrivalRestNoteIfDay1Active } from '../src/lib/arrivalRestNote.js';
 import { stripBreakfastNoteIfLastDayHasMeal } from '../src/lib/departureBreakfastNote.js';
+import { stripDepartureMealExemptionIfMealAdded } from '../src/lib/departureMealNote.js';
 
 export const config = { runtime: 'nodejs' };
 export const maxDuration = 30;
 function cleanDays(days) {
   stripArrivalRestNoteIfDay1Active({ days });
   stripBreakfastNoteIfLastDayHasMeal({ days });
+  stripDepartureMealExemptionIfMealAdded({ days }); // PR3 결정 ③: 면제 끼니 시간대에 식당이 생기면 면제·안내 제거
   return days;
 }
 export default async function handler(req, res) {

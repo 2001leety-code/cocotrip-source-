@@ -5,7 +5,7 @@
  *   식당 검증 기준(신뢰·식이 판정, 정상일 점심+저녁 필수)은 그대로. 실호출 0.
  */
 import { describe, it, expect } from 'vitest';
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { arrivalRestDayInfo, arrivalReadyHHMM, resolveTourEndTime, REST_DAY_LATE_ARRIVAL_MIN, REST_DAY_TOUR_END_MARGIN_MIN, DEFAULT_TOUR_END_MIN } from '../../api/_ai_core/constants.js';
 import { shapeRequest } from '../../api/_ai_core/requestShaper.js';
@@ -408,9 +408,20 @@ describe('wiring (source)', () => {
   it('all execution paths pass airport / area / tour end to the gate', () => {
     const post = read('api/_ai_core/postResponsePipeline.js');
     expect(post).toMatch(/arrivalAirport: ctx\.arrival_airport \|\| ctx\.body\?\.arrival_airport \|\| ctx\.body\?\.arrivalAirport,/);
-    expect(post).toMatch(/area: ctx\.area \|\| ctx\.body\?\.area,\s*regions: ctx\.regions,\s*tourEndTime: ctx\.tourEndTime \|\| resolveTourEndTime\(ctx\.body \|\| \{\}\),/);
-    expect(read('api/_ai_core/handlerCore.js')).toContain('tripTimes: tripTimesFrom({ departureTime, arrivalTime, arrivalAirport: arrival_airport, area, regions, tourEndTime, arrival_rest_day: arrivalRestDay })');
-    expect(read('api/_inngest/functions/processPlanAfterAI.js')).toMatch(/tripTimes: tripTimesFrom\(\{\s*departureTime: ctx\.body\?\.departureTime \|\| ctx\.body\?\.departure_time,\s*arrivalTime: ctx\.body\?\.arrivalTime \|\| ctx\.body\?\.arrival_time,\s*arrivalAirport: ctx\.arrival_airport \|\| ctx\.body\?\.arrival_airport \|\| ctx\.body\?\.arrivalAirport,\s*area: ctx\.area \|\| ctx\.body\?\.area,\s*regions: ctx\.regions,\s*tourEndTime: resolveTourEndTime\(ctx\.body \|\| \{\}\),[^\n]*\n\s*arrival_rest_day: arrivalRestDayFromCtx\(ctx\),/);
+    // PR3 r7: 출국 공항도 같이(1일 출국일 면제 끼니 마감 재판정 — RouteAgent 와 같은 공항).
+    expect(post).toMatch(/departureAirport: ctx\.departure_airport \|\| ctx\.body\?\.departure_airport \|\| ctx\.body\?\.departureAirport,\s*area: ctx\.area \|\| ctx\.body\?\.area,\s*regions: ctx\.regions,\s*tourEndTime: ctx\.tourEndTime \|\| resolveTourEndTime\(ctx\.body \|\| \{\}\),/);
+    expect(read('api/_ai_core/handlerCore.js')).toContain('tripTimes: tripTimesFrom({ departureTime, arrivalTime, arrivalAirport: arrival_airport, departureAirport: departure_airport, area, regions, tourEndTime, arrival_rest_day: arrivalRestDay })');
+    expect(read('api/_inngest/functions/processPlanAfterAI.js')).toMatch(/tripTimes: tripTimesFrom\(\{\s*departureTime: ctx\.body\?\.departureTime \|\| ctx\.body\?\.departure_time,\s*arrivalTime: ctx\.body\?\.arrivalTime \|\| ctx\.body\?\.arrival_time,\s*arrivalAirport: ctx\.arrival_airport \|\| ctx\.body\?\.arrival_airport \|\| ctx\.body\?\.arrivalAirport,\s*departureAirport: ctx\.departure_airport \|\| ctx\.body\?\.departure_airport \|\| ctx\.body\?\.departureAirport,\s*area: ctx\.area \|\| ctx\.body\?\.area,\s*regions: ctx\.regions,\s*tourEndTime: resolveTourEndTime\(ctx\.body \|\| \{\}\),[^\n]*\n\s*arrival_rest_day: arrivalRestDayFromCtx\(ctx\),/);
+  });
+  it('PR3 r8: every final-gate caller passes the shaped departure airport the generator used', () => {
+    // sync 인라인(handlerCore finalGate)·Inngest worker — 게이트가 면제 끼니를 이 공항으로 재판정한다(빠지면 도착 공항 마감 → 422).
+    expect(read('api/_ai_core/handlerCore.js')).toMatch(/applyRecommendedRestaurants\(itinerary, \{[^}]*\barrival_airport, departure_airport, tourEndTime\b[^}]*\}\)/);
+    expect(read('api/_inngest/functions/processPlanAfterAI.js')).toMatch(/applyRecommendedRestaurants\(itinAfterBackfill, \{[^}]*\n\s*departure_airport: ctx\.departure_airport,\n[^}]*\}\)/);
+    // 새 호출처도 — api/ 전체 호출을 훑는다(sync 호출만 빠지고 형제 Pass3 tripTimes 에는 있던 사례).
+    const calls = (readdirSync(resolve(process.cwd(), 'api'), { recursive: true }) as string[]).filter((f) => f.endsWith('.js'))
+      .flatMap((f) => [...read(`api/${f}`).matchAll(/applyRecommendedRestaurants\(\w+, \{([^}]*)\}\)/g)].map((m) => [f, m[1]] as const));
+    expect(calls.length).toBeGreaterThanOrEqual(2);
+    for (const [f, args] of calls) expect(args, f).toMatch(/\bdeparture_airport\b/);
   });
   it('applyArrivalRestNote runs right after applyTourEndCap', () => {
     const post = read('api/_ai_core/postResponsePipeline.js');

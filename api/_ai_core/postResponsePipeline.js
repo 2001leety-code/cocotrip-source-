@@ -27,6 +27,7 @@ import {
   selfHealLodgingBookend,
   applyDepartureBreakfastNote,
   applyArrivalRestNote,
+  applyDepartureMealNote,
 } from './planPersister.js';
 import { pickRecommendedRestaurantsByStyle } from './recommendedRestaurants.js';
 import { loadFoodIndex } from './geminiPipeline.js';
@@ -393,6 +394,8 @@ export function applyBackfillsAndTmoney(itinerary, ctx) {
     tourEndTime: resolveTourEndTime(ctx.body || {}),
     language: ctx.language,
   });
+  // 2026-11-02 (운영자 결정 ③ — PR3): 1일 출국일에 출국 활동 마감 때문에 못 넣은 끼니(day.exempt_meals, RouteAgent 기록) → 공항 식사 안내.
+  applyDepartureMealNote(itinerary, { language: ctx.language });
 
   // ── T-money 서버 계산 ─────────────────────────────────────────────────
   calculateTmoney(itinerary);
@@ -411,6 +414,7 @@ export async function applyRecommendedRestaurants(itinerary, ctx) {
     departureTime: ctx.departureTime || ctx.body?.departureTime || ctx.body?.departure_time,
     arrivalTime: ctx.arrivalTime || ctx.body?.arrivalTime || ctx.body?.arrival_time,
     arrivalAirport: ctx.arrival_airport || ctx.body?.arrival_airport || ctx.body?.arrivalAirport,
+    departureAirport: ctx.departure_airport || ctx.body?.departure_airport || ctx.body?.departureAirport,
     area: ctx.area || ctx.body?.area,
     regions: ctx.regions,
     tourEndTime: ctx.tourEndTime || resolveTourEndTime(ctx.body || {}),

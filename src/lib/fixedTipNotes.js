@@ -6,6 +6,7 @@
 import { stripRevisitNote } from './revisitNote.js';
 import { arrivalRestNote, hasArrivalRestNote, stripArrivalRestText } from './arrivalRestNote.js';
 import { departureBreakfastNote, hasBreakfastNote, stripBreakfastNoteText } from './departureBreakfastNote.js';
+import { departureMealNote, hasDepartureMealNote, stripDepartureMealNoteText } from './departureMealNote.js';
 
 /**
  * 번역 입력용 tip — 고정 안내를 뗀 본문. 원본 무변. 재방문 문장은 종전대로 항상 떼고(번역 후 applyRevisitNotes 가 판정),
@@ -17,6 +18,7 @@ export function stripFixedTipNotes(tip, stop = {}) {
   let out = stripRevisitNote(tip, stop.revisit_note);
   if (hasArrivalRestNote(stop)) out = stripArrivalRestText(out, stop.arrival_rest_note);
   if (hasBreakfastNote(stop)) out = stripBreakfastNoteText(out, stop.breakfast_note);
+  if (hasDepartureMealNote(stop)) out = stripDepartureMealNoteText(out, stop.departure_meal_note); // 2026-11-02 PR3 결정 ③
   return out;
 }
 
@@ -29,10 +31,12 @@ export function reattachFixedTipNotes(itinerary, language) {
     for (const stop of Array.isArray(day?.stops) ? day.stops : []) {
       const rest = hasArrivalRestNote(stop);
       const breakfast = hasBreakfastNote(stop);
-      if (!rest && !breakfast) continue;
-      let tip = stripBreakfastNoteText(stripArrivalRestText(typeof stop.tip === 'string' ? stop.tip : '', stop.arrival_rest_note), stop.breakfast_note);
+      const depMeal = hasDepartureMealNote(stop);
+      if (!rest && !breakfast && !depMeal) continue;
+      let tip = stripDepartureMealNoteText(stripBreakfastNoteText(stripArrivalRestText(typeof stop.tip === 'string' ? stop.tip : '', stop.arrival_rest_note), stop.breakfast_note), stop.departure_meal_note);
       if (rest) { const n = arrivalRestNote(language); tip = tip ? `${tip} ${n}` : n; stop.arrival_rest_note = n; stop._arrival_rest_note = true; }
       if (breakfast) { const n = departureBreakfastNote(language); tip = tip ? `${tip} ${n}` : n; stop.breakfast_note = n; stop._breakfast_note = true; }
+      if (depMeal) { const n = departureMealNote(language, stop.departure_meal_roles); tip = tip ? `${tip} ${n}` : n; stop.departure_meal_note = n; stop._departure_meal_note = true; }
       stop.tip = tip;
     }
   }
