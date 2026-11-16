@@ -491,6 +491,19 @@ function _verifyAirportStation(inputAirportKey, stationName) {
     return { match: true, reason: 'no_terminal_check' };
 }
 
+// 좌표 없는 공항 stop 이 출국 공항인지 이름으로 본다(pinDepartureAirportStop) — 공항 코드 앞부분별 도시 이름(영·한)·코드.
+//   여기 없는 공항은 고정하지 않는다(예전처럼 둔다).
+const DEPARTURE_AIRPORT_NAME_RE = {
+    ICN: /incheon|인천|\bICN\b/i,
+    GMP: /gimpo|김포|\bGMP\b/i,
+    PUS: /gimhae|김해|\bPUS\b/i,
+    CJU: /jeju|제주|\bCJU\b/i,
+    TAE: /daegu|대구|\bTAE\b/i,
+    KWJ: /gwangju|광주|\bKWJ\b/i,
+    MWX: /muan|무안|\bMWX\b/i,
+    YNY: /yangyang|양양|\bYNY\b/i,
+};
+
 // ── Haversine helper (module-level pure fn) ─────────────────────────────
 /**
  * 2026-11-16: 출국일 마지막 공항 stop 을 출국 안내(departure_guide)와 같은 점(airportPoint)에 둔다.
@@ -498,9 +511,10 @@ function _verifyAirportStation(inputAirportKey, stationName) {
  *   출국 안내는 지하철역에서 끝났다(운영 시험 11/16 — 인천 매번, 부산은 역까지 틀림).
  *   blockMode 가 넣은 출국 stop(_departure_airport_stop — 바로 그 출국 공항 코드로 넣었다)은 지도 조회 결과와 상관없이 고정한다.
  *   모델이 쓴 공항 stop 은 안내 점 10km 안일 때만 — 밖이면 다른 공항(예: 출국은 인천인데 김포 stop)이거나 모르는 곳이라 둔다.
- *   좌표가 없으면(지도 조회 실패) 고정한다 — 운영 시나리오 11/16: 식이 손님(legacy) plan 의 'Incheon International Airport' 는
- *   주소 지도 조회가 못 찾아 좌표가 없었고, 두면 마지막 구간이 "차로 25분·5km" 기본값이 됐다(출국 안내는 73분).
- *   비교할 좌표가 없으니 이름만 본다 — 이름이 다른 공항(예: '김포국제공항', '(GMP)')이면 둔다.
+ *   좌표가 없으면(지도 조회 실패) 이름에 출국 공항(도시 이름 영·한 또는 공항 코드)이 있을 때만 고정 — 운영 시나리오 11/16:
+ *   식이 손님(legacy) plan 의 'Incheon International Airport' 는 주소 지도 조회가 못 찾아 좌표가 없었고, 두면 마지막 구간이
+ *   "차로 25분·5km" 기본값이 됐다(출국 안내는 73분). 다른 공항('김포국제공항')이나 이름으로 모르는 곳
+ *   (도심 탑승 수속 'Seoul Station City Airport Terminal')은 둔다 — 공항으로 옮기면 시내 정류장에 공항까지 구간이 붙는다.
  * @returns {boolean} 고정했으면 true
  */
 export function pinDepartureAirportStop(places, airportKey) {
@@ -509,9 +523,8 @@ export function pinDepartureAirportStop(places, airportKey) {
     if (!ap || !isAirportStop(last)) return false;
     if (last._departure_airport_stop !== true) {
         const cur = finiteCoordPair(last.lat, last.lng);
-        if (cur && _haversineKmPure(cur.lat, cur.lng, ap.lat, ap.lng) > 10) return false;
-        const named = cur ? null : lookupStationCoord(String(last.name || last.display_name || ''))?.airport;
-        if (named && named.split('_')[0] !== String(airportKey).split('_')[0]) return false;
+        const named = DEPARTURE_AIRPORT_NAME_RE[String(airportKey).split('_')[0]]?.test(`${last.name || ''} ${last.display_name || ''}`);
+        if (cur ? _haversineKmPure(cur.lat, cur.lng, ap.lat, ap.lng) > 10 : !named) return false;
     }
     last.lat = ap.lat;
     last.lng = ap.lng;

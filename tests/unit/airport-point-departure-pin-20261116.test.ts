@@ -96,12 +96,14 @@ describe('pinDepartureAirportStop — 출국일 마지막 공항 stop 만, 같�
       expect(at(places[1] as never)).toEqual(at(AIRPORT_STATION_COORDS.PUS));
     }
   });
-  it('다른 공항(출국은 인천, stop 은 김포 — 30km+, 또는 좌표 없이 이름이 김포)·공항 아닌 마지막 stop·모르는 공항은 그대로', () => {
+  it('다른 공항(출국은 인천, stop 은 김포 — 30km+, 또는 좌표 없이 이름이 김포)·좌표도 이름도 출국 공항이 아닌 stop·공항 아닌 마지막 stop·모르는 공항은 그대로', () => {
     const gimpo = { category: 'travel', name: 'Gimpo International Airport', ...at(AIRPORT_STATION_COORDS.GMP) };
     const cases: Array<[Stop[], string]> = [
       [[{ ...hotel }, { ...gimpo }], 'ICN_T1'],
       [[{ ...hotel }, { category: 'airport', name: '김포국제공항', lat: null, lng: null }], 'ICN_T1'],
       [[{ ...hotel }, { category: 'airport', name: 'Gimpo Airport (GMP)' }], 'ICN'],
+      // 도심 탑승 수속(서울역) — 좌표가 없다고 인천으로 옮기면 시내 정류장에 공항까지 구간이 붙는다
+      [[{ ...hotel }, { category: 'airport_transfer', name: 'Seoul Station City Airport Terminal', lat: null, lng: null }], 'ICN_T1'],
       [[{ ...hotel }, { category: 'food', name: 'Lunch', lat: 37.5, lng: 126.9 }], 'ICN_T1'],
       [[{ ...hotel }, { category: 'airport', name: 'Airport', ...at(AIRPORT_COORDS.ICN_T1) }, { ...hotel }], 'ICN_T1'],
       [[{ ...hotel }, { category: 'airport', name: 'Airport', ...at(AIRPORT_COORDS.ICN_T1) }], 'ALREADY'],
