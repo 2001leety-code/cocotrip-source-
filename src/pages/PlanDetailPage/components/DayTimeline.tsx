@@ -25,6 +25,7 @@ import { getPlanDetailDict } from '../types';
 import type { TransitFromPrev } from '@/types/plan';
 import { dayLabelParts, formatDayLabel } from '../lib/dayLabel';
 import { hasArrivalRestNote, isArrivalRestDay1, nextDayStartTime } from '@/lib/arrivalRestNote.js';
+import { isAirportStop } from '@/lib/airportStop.js';
 
 interface DayTimelineProps {
   day: PlanDay;
@@ -461,7 +462,9 @@ export function DayTimeline({ day, dayIndex, editMode, isRecalculating, onDelete
           P141 (2026-05-22): 마지막 stop 자체가 lodging stop (취침 복귀 호텔) 이면
           day-level BookEnd 는 hotel→hotel redundant → skip. lodging stop card 가
           이미 호텔 표시 + 'return' badge. */}
-      {day.last_to_lodging && stops.length > 0 && stops[stops.length - 1]?.category !== 'lodging' && (
+      {/* 2026-11-16: 마지막 날이 공항에서 끝나면 복귀 카드 없음(옛 plan 에 남은 값 포함) — 서버 RouteAgent 와 같은 규칙. */}
+      {day.last_to_lodging && stops.length > 0 && stops[stops.length - 1]?.category !== 'lodging'
+        && !(dayIndex === planDays.length - 1 && isAirportStop(stops[stops.length - 1])) && (
         <LodgingBookend
           transit={day.last_to_lodging as TransitFromPrev}
           variant="return"

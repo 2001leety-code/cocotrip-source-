@@ -6,9 +6,10 @@ import { formatTransitSummary, getSubwayStationInfo, getSubwayTimetable } from "
 import { searchTransit } from "../../_transit_provider.js";
 // BUGHUNT-LOW (2026-06-14): AREX 직통 HERO 합성을 ODsay 일 때만 발동시키는 게이트용 (TMAP native 급행 보존).
 import { getTransitProvider } from "../../_transit_provider.js";
-import { AIRPORT_COORDS, AIRPORT_STATION_COORDS, AIRPORT_NAMES, CITY_CENTER_COORDS, lookupZoneCoord, SCHEDULE_BUFFER_MIN, DEFAULT_LEG_MIN, arrivalReadyMinutes, hhmmToMin, resolveTourStartTime, resolveTourEndTime, resolveArrivalTime, singleDayMealWindows } from "../constants.js";
+import { AIRPORT_COORDS, AIRPORT_STATION_COORDS, AIRPORT_NAMES, CITY_CENTER_COORDS, airportPoint, lookupZoneCoord, SCHEDULE_BUFFER_MIN, DEFAULT_LEG_MIN, arrivalReadyMinutes, hhmmToMin, resolveTourStartTime, resolveTourEndTime, resolveArrivalTime, singleDayMealWindows } from "../constants.js";
 // P-launch (2026-05-31): 한글 regions('부산') → 영문 키('busan') 정규화 (멀티시티 departure city 해석용).
 import { normalizeRegionKey, regionCityKey, departureCityKey } from "../responseValidator.js";
+import { isAirportStop } from "../../../src/lib/airportStop.js"; // 2026-11-16: 공항 stop 판정 — 화면(DayTimeline)과 같은 규칙
 import { throttledTelegramAlert } from "../../_shared/telegram-throttle.js";
 // Phase 3 (2026-05-27): zone_courses Firestore transit_matrix cache — ODsay 호출 절감.
 import { lookupTransitCache, getTransitCacheStats } from "../transitCache.js";
@@ -481,6 +482,29 @@ function _verifyAirportStation(inputAirportKey, stationName) {
 }
 
 // ── Haversine helper (module-level pure fn) ─────────────────────────────
+/**
+ * 2026-11-16: 출국일 마지막 공항 stop 을 출국 안내(departure_guide)와 같은 점(airportPoint)에 둔다.
+ *   지도 조회(Phase 1)가 모델 글·공항 주소로 활주로 안 같은 다른 점을 잡아, 하루 마지막 구간은 그 점에서,
+ *   출국 안내는 지하철역에서 끝났다(운영 시험 11/16 — 인천 매번, 부산은 역까지 틀림).
+ *   blockMode 가 넣은 출국 stop(_departure_airport_stop — 바로 그 출국 공항 코드로 넣었다)은 지도 조회 결과와 상관없이 고정한다.
+ *   모델이 쓴 공항 stop 은 안내 점 10km 안일 때만 — 밖이면 다른 공항(예: 출국은 인천인데 김포 stop)이거나 모르는 곳이라 둔다.
+ *   좌표가 없어도 둔다.
+ * @returns {boolean} 고정했으면 true
+ */
+export function pinDepartureAirportStop(places, airportKey) {
+    const ap = airportPoint(airportKey);
+    const last = Array.isArray(places) ? places[places.length - 1] : null;
+    if (!ap || !isAirportStop(last)) return false;
+    if (last._departure_airport_stop !== true) {
+        const cur = finiteCoordPair(last.lat, last.lng);
+        if (!cur || _haversineKmPure(cur.lat, cur.lng, ap.lat, ap.lng) > 10) return false;
+    }
+    last.lat = ap.lat;
+    last.lng = ap.lng;
+    last._geocoded = true;
+    return true;
+}
+
 // _haversineKm 은 RouteAgent 인스턴스 메서드라 reorderStopsByProximity 의
 // pure helper 호출을 위해 module-level 복제. 동일 공식 (R=6371 km).
 function _haversineKmPure(lat1, lng1, lat2, lng2) {
@@ -1434,6 +1458,11 @@ export class RouteAgent extends BaseAgent {
             //
             // 2026-05-13 PR #412 env flag (P40 일환): `ROUTE_TSP_ENABLED=false` 시 skip.
             // 운영자 비상 circuit breaker — TSP 재정렬이 의도 깨면 일시 비활성.
+            // 2026-11-16: 출국일 마지막 공항 stop = 출국 안내와 같은 점(pinDepartureAirportStop) — 지도 조회(Phase 1) 뒤, 순서 정리 앞
+            //   (순서 정리가 마지막 stop 좌표를 기준점으로 쓴다).
+            if (dayIdx === daysList.length - 1 && pinDepartureAirportStop(places, departureAirportKey)) {
+                console.log(`  [Route] Day ${dayPlan.day || dayIdx + 1}: departure airport stop pinned to ${departureAirportKey} guide point`);
+            }
             const tspEnabled = process.env.ROUTE_TSP_ENABLED !== 'false';
             const beforeReorder = places.map((p, i) => `${i}:${p.name || p.display_name || '?'}`).join(' → ');
             const reorderedPlaces = tspEnabled ? reorderStopsByProximity(places) : places;
@@ -1921,6 +1950,9 @@ export class RouteAgent extends BaseAgent {
             // PR2: 클로저 — B단계가 마지막 stop 을 빼면 새 마지막 stop 으로 다시 계산한다(rerun 이면 옛 값을 지운다).
             const runLastToLodging = async (rerun = false) => {
             if (rerun) delete dayPlan.last_to_lodging;
+            // 2026-11-16: 출국일이 공항에서 끝나면 숙소로 돌아가지 않는다 — 복귀 카드를 만들지 않는다(화면 DayTimeline 도 같은 규칙).
+            //   예전엔 공항→숙소 50km 안(부산·제주, 고정 뒤의 인천)이면 "숙소로 돌아가기" 카드가 공항 뒤에 붙었다.
+            if (dayIdx === daysList.length - 1 && isAirportStop(places[places.length - 1])) { delete dayPlan.last_to_lodging; return; }
             const lastPlaceCheck = places[places.length - 1];
             const lastDistKm = (lastPlaceCheck?.lat && lastPlaceCheck?.lng && dayHotel.lat && dayHotel.lng)
                 ? this._haversineKm(lastPlaceCheck.lat, lastPlaceCheck.lng, dayHotel.lat, dayHotel.lng)

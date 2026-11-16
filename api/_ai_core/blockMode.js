@@ -34,7 +34,7 @@ import { departureMealContext, exemptImpossibleDepartureMeals } from './departur
 
 import { createLlmModel, resolveLlmModel } from '../_shared/llm/index.js';
 import {
-  AIRPORT_NAMES, AIRPORT_NAMES_KO, AIRPORT_ADDRESSES, AIRPORT_COORDS,
+  AIRPORT_NAMES, AIRPORT_NAMES_KO, AIRPORT_ADDRESSES, airportPoint,
   AIRPORT_ARRIVE_BEFORE_MIN,
   // 도착·출국 계산 — buildPrompt(Gemini 경로)와 같은 값을 쓰기 위해 constants 로 옮겼다.
   // 거리 보정판(estimateAirportTransitMinFrom)은 출국일에만 배선돼 있었는데 도착일도
@@ -844,7 +844,8 @@ export function applyDepartureDayFlightCap(stops, departureTime, departureAirpor
   const airportStops = stops.filter((s) => s.category === 'airport' || s.category === 'travel');
   const nameKo = AIRPORT_NAMES_KO[code];
   const address = AIRPORT_ADDRESSES[code];
-  const coord = AIRPORT_COORDS[code];
+  // 2026-11-16: 출국 안내(RouteAgent departure_guide)와 같은 점 — 지하철역 있으면 역, 없으면 여객터미널.
+  const coord = airportPoint(code);
   if (airportStops.length && airportArriveMin >= 0) {
     const fixedHHMM = addMinutesToHHMM(departureTime, -AIRPORT_ARRIVE_BEFORE_MIN);
     for (const s of airportStops) {

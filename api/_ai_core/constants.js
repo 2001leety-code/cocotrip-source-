@@ -278,11 +278,15 @@ export const AIRPORT_COORDS = {
   ICN:    { lat: 37.4602, lng: 126.4407 },
   GMP:    { lat: 37.5587, lng: 126.7905 },
   PUS:    { lat: 35.1795, lng: 128.9381 },
-  CJU:    { lat: 33.5113, lng: 126.4928 },
-  TAE:    { lat: 35.8941, lng: 128.6588 },
-  KWJ:    { lat: 35.1264, lng: 126.8089 },
-  MWX:    { lat: 34.9914, lng: 126.3829 },
-  YNY:    { lat: 38.0613, lng: 128.6694 },
+  // 2026-11-16: 아래 5곳 = 여객터미널 앞. 예전 값은 공항 기준점(활주로 한가운데)이라 지하철역이 없는 이 공항들의
+  //   도착·출국 안내가 활주로 안에서 시작했다(운영 시험 11/16: 제주 도착 안내 "걸어서 49분").
+  //   출처 = OpenStreetMap 여객터미널(aeroway=terminal) — CJU 33.5063/126.4926 · TAE 35.8997/128.6385 대조.
+  //   도시-공항 거리 보정(estimateAirportTransitMinFrom)은 60km 넘는 먼 도시만 ±1분 바뀐다(80쌍 중 33쌍).
+  CJU:    { lat: 33.5064, lng: 126.4923 },
+  TAE:    { lat: 35.8997, lng: 128.6381 },
+  KWJ:    { lat: 35.1400, lng: 126.8108 },
+  MWX:    { lat: 34.9936, lng: 126.3876 },
+  YNY:    { lat: 38.0589, lng: 128.6628 },
   ALREADY: null,
 };
 
@@ -306,8 +310,20 @@ export const AIRPORT_STATION_COORDS = {
   ICN_T2: { lat: 37.4677, lng: 126.4341, station_name: '인천공항2터미널역' },
   ICN:    { lat: 37.4475, lng: 126.4528, station_name: '인천공항1터미널역' }, // generic = T1 alias
   GMP:    { lat: 37.5625, lng: 126.8008, station_name: '김포공항역' },
-  PUS:    { lat: 35.1667, lng: 128.9514, station_name: '공항역(부산김해경전철)' },
+  // 2026-11-16: 예전 35.1667/128.9514 는 한 정거장 옆 서부산유통지구역 쪽(1.5km)이었다 — OSM 공항역 35.1719/128.9486 대조.
+  PUS:    { lat: 35.1720, lng: 128.9490, station_name: '공항역(부산김해경전철)' },
 };
+
+/**
+ * 2026-11-16: 공항의 "한 점" — 지하철역이 있으면 역, 없으면 여객터미널(AIRPORT_COORDS).
+ *   출국일 공항 stop(RouteAgent.pinDepartureAirportStop)과 blockMode 가 넣는 출국 stop 이 쓴다.
+ *   RouteAgent 도착·출국 안내(arrival_guide·departure_guide)의 `AIRPORT_STATION_COORDS[key] || AIRPORT_COORDS[key]` 와
+ *   같은 식이어야 한다 — 다르면 하루 마지막 구간과 출국 안내가 서로 다른 곳에서 끝난다(운영 시험 11/16, 인천 매번).
+ *   시험 = tests/unit/airport-point-departure-pin-20261116.test.ts.
+ */
+export function airportPoint(key) {
+  return AIRPORT_STATION_COORDS[key] || AIRPORT_COORDS[key] || null;
+}
 
 // ── 도시 중심 좌표 (Hotel/Zone 좌표 모두 없을 때 fallback) ─────────────────
 // 호텔→공항 경로를 무조건 표시하기 위한 last-resort fallback. 정확하진 않지만
