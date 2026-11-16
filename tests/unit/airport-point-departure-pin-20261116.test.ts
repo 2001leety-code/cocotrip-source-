@@ -118,6 +118,10 @@ describe('pinDepartureAirportStop — 출국일 마지막 공항 stop 만, 같�
       [[{ category: 'lodging', name: 'Busan Hotel', lat: 35.1631, lng: 129.1635 }, { category: 'airport', name: 'Incheon International Airport' }], 'ICN_T1'],
       // 그날 좌표 있는 앞 stop 이 하나도 없으면 판단 못 한다
       [[{ category: 'lodging', name: 'Hotel' }, { category: 'airport', name: 'Incheon International Airport' }], 'ICN_T1'],
+      // 괄호 안이 진짜 장소(명동 리무진 정류장)면 공항 그 자체가 아니다
+      [[{ ...hotel }, { category: 'airport_transfer', name: 'Incheon Airport (Myeongdong limousine bus stop)' }], 'ICN_T1'],
+      // 가장 가까운 앞 좌표 stop 이 먼 곳(부산 타워)이면 — 그날 첫 숙소가 서울이어도
+      [[{ ...hotel }, { category: 'culture', name: 'Busan Tower', lat: 35.1007, lng: 129.0323 }, { category: 'airport', name: 'Incheon International Airport' }], 'ICN_T1'],
     ];
     for (const [places, key] of cases) {
       const before = JSON.stringify(places);
@@ -138,7 +142,17 @@ describe('pinDepartureAirportStop — 출국일 마지막 공항 stop 만, 같�
       // 앞 stop 이 좌표 없는 관광지여도 그 앞 숙소로 본다
       [[{ ...hotel }, { category: 'culture', name: 'Hongdae Mural Street', lat: null, lng: null }, { category: 'airport', name: 'Incheon International Airport' }], 'ICN_T1'],
       [[{ ...busan }, { category: 'airport', name: 'Gimhae International Airport (Busan)' }], 'PUS'],
+      [[{ ...busan }, { category: 'airport', name: '김해공항 국제선' }], 'PUS'],
       [[{ ...jeju }, { category: 'travel', name: 'Jeju Airport' }], 'CJU'],
+      [[{ ...hotel }, { category: 'airport', name: 'Incheon Airport Terminal 2' }], 'ICN_T1'],
+      [[{ ...hotel }, { category: 'airport', name: '인천국제공항 제1여객터미널' }], 'ICN_T1'],
+      [[{ ...hotel }, { category: 'airport', name: '仁川国際空港（第1ターミナル）' }], 'ICN_T1'],
+      [[{ ...hotel }, { category: 'airport', name: '仁川国际机场T1航站楼' }], 'ICN_T1'],
+      [[{ ...hotel }, { category: 'airport', name: 'Seoul Incheon International Airport' }], 'ICN_T1'],
+      [[{ ...hotel }, { category: 'airport', display_name: 'Incheon International Airport' }], 'ICN_T1'],
+      [[{ ...hotel }, { category: 'airport', name_ko: '인천국제공항' }], 'ICN_T1'],
+      // 부산 숙소 → KTX(좌표 없음) → 서울 점심(좌표) → 인천: 가장 가까운 앞 좌표 stop 은 서울 점심
+      [[{ ...busan }, { category: 'travel', name: 'KTX to Seoul' }, { category: 'food', name: 'Seoul Lunch', lat: 37.5547, lng: 126.9706 }, { category: 'airport', name: 'Incheon International Airport' }], 'ICN_T1'],
     ];
     for (const [places, key] of cases) {
       const last = places[places.length - 1];
@@ -160,7 +174,7 @@ describe('RouteAgent 실행 — 출국일 마지막 구간·숙소 복귀', () =
 
   const P = { lat: 37.5636, lng: 126.9826 };
   // 명동 숙소 ↔ 인천1터미널역 ≈ 48km — 50km 안이라 고정만 하면 예전 규칙으로는 복귀 카드가 생긴다.
-  async function run(lastStops: Stop[]) {
+  async function run(lastStops: Stop[], departureTime = '13:00') {
     const itinerary = { days: [
       { day: 1, city: 'seoul', stops: [
         { category: 'lodging', name: 'Hotel', start_time: '09:00', ...P },
@@ -169,7 +183,7 @@ describe('RouteAgent 실행 — 출국일 마지막 구간·숙소 복귀', () =
       ] },
       { day: 2, city: 'seoul', stops: lastStops },
     ] };
-    await enrichItineraryWithRoute(itinerary as never, { apiKey: null, body: { area: 'seoul', regions: ['seoul'], language: 'en', recommendedZone: 'myeongdong', departureTime: '13:00' }, language: 'en', hotel_address: '', arrival_airport: 'ICN_T1', departure_airport: 'ICN_T1', pax: 2, zone_id: null } as never);
+    await enrichItineraryWithRoute(itinerary as never, { apiKey: null, body: { area: 'seoul', regions: ['seoul'], language: 'en', recommendedZone: 'myeongdong', departureTime }, language: 'en', hotel_address: '', arrival_airport: 'ICN_T1', departure_airport: 'ICN_T1', pax: 2, zone_id: null } as never);
     return itinerary as unknown as { days: Array<{ stops: Stop[]; last_to_lodging?: unknown }> };
   }
 
@@ -203,6 +217,25 @@ describe('RouteAgent 실행 — 출국일 마지막 구간·숙소 복귀', () =
     expect(transitSpy.mock.calls.some(([, curr]) => (curr as Stop).lat === station.lat && (curr as Stop).lng === station.lng)).toBe(true);
     expect(last.transit_from_prev?.distance_km).not.toBe(5);
     expect(it4.days[1].last_to_lodging).toBeUndefined();
+  });
+
+  // 재검토 11/16: legacy 는 출국 3시간 전 컷이 길찾기 뒤에 돈다 — 모델이 출국일 밤늦게 저녁을 넣으면, 고정한 진짜 구간(62분)이
+  //   자정을 넘겨 ROUTE_DAY_INFEASIBLE(422). 예전(좌표 없음 → 25분 기본값)은 통과하고 뒤의 출국 컷이 고쳤다.
+  it('좌표 없던 공항 stop 을 고정한 진짜 구간이 자정을 넘기면 고정을 풀고 예전 구간으로 — 플랜이 422 로 막히지 않는다', async () => {
+    const station = at(AIRPORT_STATION_COORDS.ICN_T1);
+    transitSpy.mockImplementation(async (_p: unknown, c: unknown, _a: unknown, _b: unknown, index: number) =>
+      ({ index, durationMin: (c as Stop).lat === station.lat ? 62 : 20, distanceKm: 2, publicTransit: null, drivingMin: null }) as never);
+    const it5 = await run([
+      { category: 'lodging', name: 'Seoul Mock Hotel', start_time: '09:00', ...P },
+      { category: 'food', name: 'Late Dinner', start_time: '21:30', stay_min: 90, lat: 37.534, lng: 126.994 },
+      { category: 'airport', name: 'Incheon International Airport', address: 'Incheon International Airport', start_time: '23:20', stay_min: 0 },
+    ], '23:55');
+    const last = it5.days[1].stops[it5.days[1].stops.length - 1] as Stop & { transit_from_prev?: Record<string, unknown> };
+    expect(last.name).toBe('Incheon International Airport');
+    expect(last.lat == null).toBe(true);
+    expect(last.transit_from_prev?.distance_km).toBe(5);
+    // 되돌림이 undefined 값을 남기지 않는다(Firestore 는 undefined 를 거부한다 — 다른 단계가 붙이는 빈 키는 저장 전 정리 대상이라 여기선 안 봄)
+    expect(Object.entries(last).filter(([k, v]) => ['lat', 'lng', '_geocoded'].includes(k) && v === undefined)).toEqual([]);
   });
 });
 
