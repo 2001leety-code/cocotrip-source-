@@ -491,6 +491,34 @@ function _verifyAirportStation(inputAirportKey, stationName) {
     return { match: true, reason: 'no_terminal_check' };
 }
 
+// 좌표 없는 공항 stop 이 출국 공항 "그 자체"인지 이름으로 본다(pinDepartureAirportStop) — '국제'·터미널 표시·공백, 그리고 공항 꼬리표뿐인
+//   괄호('(ICN)'·'(Busan)'·'（第1ターミナル）')를 지운 이름이 아래 중 하나와 같을 때만. 공항을 언급만 하는 곳('Seoul Station City Airport
+//   Terminal (Incheon Airport check-in)'·'인천공항 리무진 버스 정류장 (명동)'·'Incheon Airport (Myeongdong limousine bus stop)'·
+//   '… to Incheon Airport'·'김포공항 (인천 환승)')은 아니다. 여기 없는 이름은 예전처럼 둔다.
+const AIRPORT_BASE_NAMES = {
+    ICN: ['incheonairport', 'seoulincheonairport', '인천공항', '仁川空港', '仁川机场', '仁川機場'],
+    GMP: ['gimpoairport', 'kimpoairport', '김포공항', '金浦空港', '金浦机场', '金浦機場'],
+    PUS: ['gimhaeairport', 'kimhaeairport', 'busanairport', 'busangimhaeairport', '김해공항', '부산김해공항', '金海空港', '金海机场', '金海機場'],
+    CJU: ['jejuairport', 'chejuairport', '제주공항', '済州空港', '济州机场', '濟州機場'],
+    TAE: ['daeguairport', '대구공항', '大邱空港', '大邱机场', '大邱機場'],
+    KWJ: ['gwangjuairport', '광주공항', '光州空港', '光州机场', '光州機場'],
+    MWX: ['muanairport', '무안공항', '務安空港', '务安机场', '務安機場'],
+    YNY: ['yangyangairport', '양양공항', '襄陽空港', '襄阳机场', '襄陽機場'],
+};
+const AIRPORT_TERMINAL_RE = /t?\s*第?\s*[12]\s*(?:ターミナル|航站楼|航廈)|terminal\s*[12]|\bt\s*[12]\b|제?\s*[12]\s*(?:여객)?\s*터미널/g;
+// 괄호 안이 공항 꼬리표뿐이면(코드·도시·국제선·터미널) 지운다 — 다른 글(진짜 장소)이면 남겨 공항 이름과 같지 않게 한다.
+const isAirportParenTag = (inner) => /^(?:icn|gmp|pus|cju|tae|kwj|mwx|yny|busan|부산|seoul|서울|international|domestic|국제선|국내선)?$/
+    .test(inner.replace(AIRPORT_TERMINAL_RE, '').trim());
+const airportBaseName = (s) => String(s || '').toLowerCase()
+    .replace(/[(（]([^)）]*)[)）]/g, (_, inner) => (isAirportParenTag(inner) ? '' : inner))
+    .replace(/(?:국제선|국내선)\s*(?:청사|터미널)?|国際線|国际线|國際線|international|int['’]?l\b|국제|國際|国際|国际/g, '')
+    .replace(AIRPORT_TERMINAL_RE, '')
+    .replace(/[\s\-–—·.,]/g, '');
+// 좌표 없는 stop 은 그날 좌표 있는 가장 가까운 앞 stop 이 공항에서 이 거리 안일 때만 — 마지막 날이 다른 도시(예: 부산 숙소, 인천 출국)면
+//   고정한 진짜 구간이 몇 시간이 돼 자정 검사(ROUTE_DAY_INFEASIBLE)에 걸린다(출국 3시간 전 컷은 RouteAgent 뒤에 돈다).
+// ponytail: 100km = "같은 지역" 어림. 출국 마감을 RouteAgent 마지막 날 배치에 넣으면 없앤다.
+const NO_COORD_PIN_MAX_KM = 100;
+
 // ── Haversine helper (module-level pure fn) ─────────────────────────────
 /**
  * 2026-11-16: 출국일 마지막 공항 stop 을 출국 안내(departure_guide)와 같은 점(airportPoint)에 둔다.
@@ -498,7 +526,10 @@ function _verifyAirportStation(inputAirportKey, stationName) {
  *   출국 안내는 지하철역에서 끝났다(운영 시험 11/16 — 인천 매번, 부산은 역까지 틀림).
  *   blockMode 가 넣은 출국 stop(_departure_airport_stop — 바로 그 출국 공항 코드로 넣었다)은 지도 조회 결과와 상관없이 고정한다.
  *   모델이 쓴 공항 stop 은 안내 점 10km 안일 때만 — 밖이면 다른 공항(예: 출국은 인천인데 김포 stop)이거나 모르는 곳이라 둔다.
- *   좌표가 없어도 둔다.
+ *   좌표가 없으면(지도 조회 실패) 이름이 출국 공항 그 자체이고(AIRPORT_BASE_NAMES) 그날 앞 stop 이 공항 가까이일 때만 고정 —
+ *   운영 시나리오 11/16: 식이 손님(legacy) plan 의 'Incheon International Airport' 는 주소 지도 조회가 못 찾아 좌표가 없었고,
+ *   두면 마지막 구간이 "차로 25분·5km" 기본값이 됐다(출국 안내는 73분). 공항을 언급만 하는 도심 정류장은 옮기면 시내 정류장에
+ *   공항까지 구간이 붙고, 다른 도시의 하루는 구간이 몇 시간이 돼 플랜이 422 로 막힌다 — 둘 다 예전처럼 둔다.
  * @returns {boolean} 고정했으면 true
  */
 export function pinDepartureAirportStop(places, airportKey) {
@@ -507,7 +538,14 @@ export function pinDepartureAirportStop(places, airportKey) {
     if (!ap || !isAirportStop(last)) return false;
     if (last._departure_airport_stop !== true) {
         const cur = finiteCoordPair(last.lat, last.lng);
-        if (!cur || _haversineKmPure(cur.lat, cur.lng, ap.lat, ap.lng) > 10) return false;
+        if (cur) {
+            if (_haversineKmPure(cur.lat, cur.lng, ap.lat, ap.lng) > 10) return false;
+        } else {
+            const bases = AIRPORT_BASE_NAMES[String(airportKey).split('_')[0]] || [];
+            const named = [last.name, last.display_name, last.name_en, last.name_ko].some((n) => bases.includes(airportBaseName(n)));
+            const prev = places.slice(0, -1).reverse().map((p) => finiteCoordPair(p?.lat, p?.lng)).find(Boolean);
+            if (!named || !prev || _haversineKmPure(prev.lat, prev.lng, ap.lat, ap.lng) > NO_COORD_PIN_MAX_KM) return false;
+        }
     }
     last.lat = ap.lat;
     last.lng = ap.lng;
@@ -1469,9 +1507,18 @@ export class RouteAgent extends BaseAgent {
             // 2026-05-13 PR #412 env flag (P40 일환): `ROUTE_TSP_ENABLED=false` 시 skip.
             // 운영자 비상 circuit breaker — TSP 재정렬이 의도 깨면 일시 비활성.
             // 2026-11-16: 출국일 마지막 공항 stop = 출국 안내와 같은 점(pinDepartureAirportStop) — 지도 조회(Phase 1) 뒤, 순서 정리 앞
-            //   (순서 정리가 마지막 stop 좌표를 기준점으로 쓴다).
-            if (dayIdx === daysList.length - 1 && pinDepartureAirportStop(places, departureAirportKey)) {
-                console.log(`  [Route] Day ${dayPlan.day || dayIdx + 1}: departure airport stop pinned to ${departureAirportKey} guide point`);
+            //   (순서 정리가 마지막 stop 좌표를 기준점으로 쓴다). 좌표 없던 stop 을 고정했으면 되돌리는 법을 남긴다(아래 Phase 3 자정 위반).
+            let unpinNoCoordAirport = null;
+            if (dayIdx === daysList.length - 1) {
+                const lastStop = places[places.length - 1];
+                const before = lastStop ? { lat: lastStop.lat, lng: lastStop.lng, _geocoded: lastStop._geocoded } : null;
+                if (pinDepartureAirportStop(places, departureAirportKey)) {
+                    console.log(`  [Route] Day ${dayPlan.day || dayIdx + 1}: departure airport stop pinned to ${departureAirportKey} guide point`);
+                    if (!finiteCoordPair(before.lat, before.lng) && lastStop._departure_airport_stop !== true) {
+                        // Firestore 는 undefined 를 거부한다 — 없던 키는 지운다.
+                        unpinNoCoordAirport = { stop: lastStop, undo: () => { for (const [k, v] of Object.entries(before)) { if (v === undefined) delete lastStop[k]; else lastStop[k] = v; } } };
+                    }
+                }
             }
             const tspEnabled = process.env.ROUTE_TSP_ENABLED !== 'false';
             const beforeReorder = places.map((p, i) => `${i}:${p.name || p.display_name || '?'}`).join(' → ');
@@ -2099,6 +2146,15 @@ export class RouteAgent extends BaseAgent {
                 const v = findStitchViolation(places, candidate, { day1TourEndMin: day1 ? day1.tourEndMin : null, lastReturnMin: dayPlan.last_to_lodging?.est_min });
                 if (!v) { stitched = candidate; break; }
                 if (v.kind === 'order') throw routeDayInfeasibleError([`Day ${dayPlan.day || dayIdx + 1}: stop times would run backwards`]);
+                // 2026-11-16 재검토: 좌표 없던 출국 공항 stop 을 고정한 진짜 구간이 자정을 넘기면 고정을 풀고 예전 기본값 구간으로 다시 계산(= main).
+                //   legacy 는 출국 3시간 전 컷이 RouteAgent 뒤(postResponsePipeline)에 돌아, 모델이 밤늦게 짠 출국일이 여기서 422 가 될 수 있다.
+                // ponytail: 근본은 legacy 도 출국 컷을 길찾기 전에 하는 것(blockMode 처럼) — 그러면 이 되돌림은 없앤다.
+                if (v.kind === 'midnight' && v.index > 0 && unpinNoCoordAirport && places[v.index] === unpinNoCoordAirport.stop) {
+                    unpinNoCoordAirport.undo();
+                    unpinNoCoordAirport = null;
+                    transitResults[v.index - 1] = await legBetween(places[v.index - 1], places[v.index], v.index);
+                    continue;
+                }
                 if (v.kind === 'meal' && v.noWindow) { await removeStop(v.index, 'meal-no-window'); continue; }
                 // r2: 어떤 위반이든 Day1 선호 시각(pref)이 R 보다 늦으면 먼저 R 까지 당긴다(첫 stop 이 숙소가 아닐 때도 — stitchStartMins 0번 = pref).
                 if (day1 && day1.pref > day1.R) { day1.pref = day1.R; continue; }
