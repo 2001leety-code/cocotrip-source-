@@ -79,12 +79,15 @@ describe('P275 Phase B — AIRPORT_STATION_COORDS 자동 fix (ODsay strict match
     }
   });
 
-  it('RouteAgent — arrival 호출 site 가 airportPoint(역 우선)', () => {
-    expect(routeAgentSrc).toMatch(/const ap = airportPoint\(arrivalAirportKey\)/);
+  // 도착 안내 블록에 고정한다 — 같은 줄이 첫날 도시 이동(P155)에도 있어 줄만 찾으면 안내가 되돌아가도 통과한다.
+  //   행동 잠금 = tests/unit/airport-point-departure-pin-20261116.test.ts '도착·출국 안내는 airportPoint'.
+  it('RouteAgent — arrival 안내 호출 site 가 airportPoint(역 우선)', () => {
+    expect(routeAgentSrc).toMatch(/const ap = airportPoint\(arrivalAirportKey\);\s*const \{ coord: arrFromCoord/);
   });
 
-  it('RouteAgent — departure 호출 site 가 airportPoint(역 우선)', () => {
-    expect(routeAgentSrc).toMatch(/const ap = airportPoint\(departureAirportKey\)/);
+  it('RouteAgent — departure 안내 호출 site 가 airportPoint(역 우선)', () => {
+    expect(routeAgentSrc.match(/const ap = airportPoint\(departureAirportKey\);/g)).toHaveLength(1);
+    expect(routeAgentSrc).toMatch(/this\._routeAirportHotel\(depFromCoord, ap, 'departure'\)/);
   });
 
   it('P275 Phase B reference + SAFETY-CRITICAL 명시', () => {

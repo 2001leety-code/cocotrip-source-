@@ -158,10 +158,12 @@ describe('RouteAgent 실행 — 출국일 마지막 구간·숙소 복귀', () =
 });
 
 describe('시간 계산 입력(AIRPORT_COORDS)은 그대로 — 저장된 1일 끼니 면제가 수정 때 막히지 않게', () => {
-  it('공항 기준점 값이 #1503(11/16 오전) 때와 같다', () => {
-    expect(AIRPORT_COORDS).toMatchObject({
+  it('공항 기준점 표 전체가 #1503(11/16 오전) 때와 같다 — 값 이동·키 추가 모두 잡는다', () => {
+    expect(AIRPORT_COORDS).toEqual({
+      ICN_T1: { lat: 37.4602, lng: 126.4407 }, ICN_T2: { lat: 37.4583, lng: 126.4424 }, ICN: { lat: 37.4602, lng: 126.4407 },
+      GMP: { lat: 37.5587, lng: 126.7905 }, PUS: { lat: 35.1795, lng: 128.9381 },
       CJU: { lat: 33.5113, lng: 126.4928 }, TAE: { lat: 35.8941, lng: 128.6588 }, KWJ: { lat: 35.1264, lng: 126.8089 },
-      MWX: { lat: 34.9914, lng: 126.3829 }, YNY: { lat: 38.0613, lng: 128.6694 },
+      MWX: { lat: 34.9914, lng: 126.3829 }, YNY: { lat: 38.0613, lng: 128.6694 }, ALREADY: null,
     });
   });
   it('대구 출도착·서울 1일 플랜에 저장된 점심 면제 근거(11:04 부터 75분)가 수정 API 와 같은 요청으로 다시 검사를 통과한다', () => {
@@ -175,6 +177,57 @@ describe('시간 계산 입력(AIRPORT_COORDS)은 그대로 — 저장된 1일 �
     ] };
     const errors = validatePatternStructure({ days: [day] } as never, req as never).map(String);
     expect(errors.filter((e) => e.includes('B-MEAL-LUNCH'))).toEqual([]);
+  });
+});
+
+describe('도착·출국 안내는 airportPoint 에서 시작·끝난다(행동 잠금 — P275 역 우선 포함)', () => {
+  it.each([['ICN_T2', 'seoul', 37.57, 126.98], ['CJU', 'jeju', 33.5, 126.53]])('%s', async (key, city, lat, lng) => {
+    const seen: Array<[string, unknown]> = [];
+    const routeSpy = vi.spyOn(RouteAgent.prototype, '_routeAirportHotel').mockImplementation(async (from: unknown, to: unknown, direction: string) => {
+      seen.push([direction, direction === 'arrival' ? from : to]);
+      return null as never;
+    });
+    const transitSpy = vi.spyOn(RouteAgent.prototype, '_getTransitData').mockImplementation(async (_p: unknown, _c: unknown, _a: unknown, _b: unknown, index: number) =>
+      ({ index, durationMin: 10, distanceKm: 1, publicTransit: null, drivingMin: null }) as never);
+    try {
+      const itin = { arrival_guide: { airport: key }, departure_guide: { airport: key }, days: [
+        { day: 1, city, stops: [{ category: 'culture', name: 'Spot', start_time: '13:00', stay_min: 60, lat, lng }] },
+        { day: 2, city, stops: [{ category: 'culture', name: 'Spot2', start_time: '10:00', stay_min: 60, lat: lat + 0.01, lng: lng + 0.01 }] },
+      ] };
+      await enrichItineraryWithRoute(itin as never, { apiKey: null, body: { area: city, regions: [city], language: 'en', arrivalTime: '10:00', departureTime: '18:00' }, language: 'en', hotel_address: '', arrival_airport: key, departure_airport: key, pax: 2, zone_id: null } as never);
+    } finally { routeSpy.mockRestore(); transitSpy.mockRestore(); }
+    expect(at(seen.find(([d]) => d === 'arrival')?.[1] as never)).toEqual(at(airportPoint(key)));
+    expect(at(seen.find(([d]) => d === 'departure')?.[1] as never)).toEqual(at(airportPoint(key)));
+  });
+});
+
+describe('인천 터미널 — 이름 표시를 따르고, 첫날 같은 공항 비행기는 도착한 터미널에서 시작(P155)', () => {
+  it('이름에 터미널 표시가 있으면 그 터미널 역, 없으면 1터미널역(ICN 기본)', () => {
+    for (const n of ['인천국제공항 (T2)', '인천국제공항 (ICN T2)', '인천국제공항 T2', '인천공항2터미널역', '인천국제공항 제2여객터미널', 'Incheon Airport Terminal 2']) {
+      expect(at(lookupStationCoord(n)), n).toEqual(at(airportPoint('ICN_T2')));
+    }
+    for (const n of ['인천국제공항 제1여객터미널', '인천공항1터미널역', 'Incheon Airport T1']) expect(at(lookupStationCoord(n)), n).toEqual(at(airportPoint('ICN_T1')));
+    for (const n of ['인천국제공항', '인천국제공항 (ICN)', 'ICN']) expect(at(lookupStationCoord(n)), n).toEqual(at(airportPoint('ICN')));
+  });
+
+  it.each([['인천국제공항', 'ICN_T2'], ['인천국제공항 (T2)', 'ICN_T2'], ['인천국제공항 (T1)', 'ICN_T1']])('2터미널 도착 + 같은 날 %s 출발 비행기 → 앞 구간 끝 = %s 역', async (fromStation, endKey) => {
+    const legs: Array<{ from: unknown; to: unknown }> = [];
+    const spy = vi.spyOn(RouteAgent.prototype, '_getTransitData').mockImplementation(async (prev: unknown, curr: unknown, _a: unknown, _b: unknown, index: number) => {
+      if (index === -1) legs.push({ from: prev, to: curr });
+      return { index, durationMin: 10, distanceKm: 1, publicTransit: null, drivingMin: null } as never;
+    });
+    try {
+      const hotel = { lat: 35.1631, lng: 129.1635 };
+      const itin = { arrival_guide: { airport: 'ICN_T2' }, departure_guide: { airport: 'PUS' }, days: [
+        { day: 1, city: 'Busan', intercity_transit: { mode: 'Air', from_city: 'Seoul', to_city: 'Busan', from_station: fromStation, to_station: '김해국제공항', est_min: 60, arrival_at: '15:00' },
+          stops: [{ category: 'lodging', name: 'Hotel', start_time: '16:00', stay_min: 30, ...hotel }, { category: 'food', name: 'Dinner', start_time: '18:30', stay_min: 60, lat: 35.16, lng: 129.16 }] },
+        { day: 2, city: 'Busan', stops: [{ category: 'lodging', name: 'Hotel', start_time: '09:00', stay_min: 0, ...hotel }, { category: 'culture', name: 'Temple', start_time: '10:00', stay_min: 60, lat: 35.188, lng: 129.223 }] },
+      ] };
+      await enrichItineraryWithRoute(itin as never, { apiKey: null, body: { area: 'seoul', regions: ['seoul', 'busan'], language: 'en', arrivalTime: '08:00', departureTime: '20:00' }, language: 'en', hotel_address: '', arrival_airport: 'ICN_T2', departure_airport: 'PUS', pax: 2, zone_id: null } as never);
+    } finally { spy.mockRestore(); }
+    expect(legs.length).toBeGreaterThan(0);
+    expect(at(legs[0].from as never)).toEqual(at(airportPoint('ICN_T2')));
+    expect(at(legs[0].to as never)).toEqual(at(airportPoint(endKey)));
   });
 });
 

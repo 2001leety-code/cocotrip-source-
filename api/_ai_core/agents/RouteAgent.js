@@ -24,7 +24,7 @@ import { resolveNcpKeys } from "../../_shared/mood-route.js";
 // KTX/Air/Bus 의 from_station/to_station 좌표 — RouteAgent 가 city-change day
 // 의 hotel→station + station→new_hotel bookend transit 계산할 때 사용.
 // UI 도 intercity 전후 segment 표시 가능.
-const airportStation = (key, label) => { const p = airportPoint(key); return { lat: p.lat, lng: p.lng, label }; };
+const airportStation = (key, label) => { const p = airportPoint(key); return { lat: p.lat, lng: p.lng, label, airport: key }; };
 export const STATION_COORDS = {
   // ── KTX/SRT 주요역 ─────────────────────────────────
   '서울역':         { lat: 37.5547, lng: 126.9706, label: '서울역' },
@@ -120,6 +120,13 @@ export function lookupStationCoord(stationName) {
   if (!stationName || typeof stationName !== 'string') return null;
   const raw = stationName.trim();
   if (STATION_COORDS[raw]) return STATION_COORDS[raw];
+
+  // 2026-11-16: 인천은 터미널마다 역이 다르다(1·2터미널역 2.6km). 이름에 터미널 표시가 있으면 그 터미널 역 —
+  //   아래 괄호 제거·코드 별칭으로 가면 '인천국제공항 (T2)' 도 1터미널역(ICN 기본)이 된다.
+  if (/인천|incheon|\bicn\b/i.test(raw)) {
+    if (/\bt\s*2\b|2\s*(?:여객)?\s*터미널|terminal\s*2/i.test(raw)) return airportStation('ICN_T2', '인천국제공항');
+    if (/\bt\s*1\b|1\s*(?:여객)?\s*터미널|terminal\s*1/i.test(raw)) return airportStation('ICN_T1', '인천국제공항');
+  }
 
   // 1) 괄호 suffix 제거: "김포국제공항 (GMP)" / "부산종합버스터미널 (노포)"
   const noParen = raw.replace(/\s*\([^)]*\)\s*/g, '').trim();
@@ -1700,7 +1707,13 @@ export class RouteAgent extends BaseAgent {
                     bookendFailReasons.push(`pre:prev_hotel_coord_missing`);
                     console.warn(`  - intercity bookend pre SKIP — prevDayHotelCoord lat/lng missing (Day ${dayPlan.day})`);
                 } else {
-                    const fromStationCoord = lookupStationCoord(it.from_station);
+                    let fromStationCoord = lookupStationCoord(it.from_station);
+                    // 2026-11-16: 첫날 도착한 공항에서 바로 같은 공항 비행기 — 이름에 터미널이 없으면(예: '인천국제공항' = 1터미널역)
+                    //   도착한 점 그대로 둔다. 아니면 2터미널 도착 손님에게 1터미널까지 가는 구간이 생겼다.
+                    if (fromStationCoord?.airport && prevHotelEffective.source === 'arrival_airport_day1_p155'
+                        && fromStationCoord.airport === String(arrivalAirportKey).split('_')[0]) {
+                        fromStationCoord = { ...fromStationCoord, lat: prevHotelEffective.lat, lng: prevHotelEffective.lng };
+                    }
                     if (!fromStationCoord) {
                         bookendFailReasons.push(`pre:station_coord_missing:${it.from_station}`);
                         console.warn(`  - intercity bookend pre SKIP — STATION_COORDS 에 '${it.from_station}' 미등록 (Day ${dayPlan.day})`);
