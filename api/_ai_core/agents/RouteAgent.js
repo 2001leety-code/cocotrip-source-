@@ -491,18 +491,28 @@ function _verifyAirportStation(inputAirportKey, stationName) {
     return { match: true, reason: 'no_terminal_check' };
 }
 
-// 좌표 없는 공항 stop 이 출국 공항인지 이름으로 본다(pinDepartureAirportStop) — 공항 코드 앞부분별 도시 이름(영·한)·코드.
-//   여기 없는 공항은 고정하지 않는다(예전처럼 둔다).
-const DEPARTURE_AIRPORT_NAME_RE = {
-    ICN: /incheon|인천|\bICN\b/i,
-    GMP: /gimpo|김포|\bGMP\b/i,
-    PUS: /gimhae|김해|\bPUS\b/i,
-    CJU: /jeju|제주|\bCJU\b/i,
-    TAE: /daegu|대구|\bTAE\b/i,
-    KWJ: /gwangju|광주|\bKWJ\b/i,
-    MWX: /muan|무안|\bMWX\b/i,
-    YNY: /yangyang|양양|\bYNY\b/i,
+// 좌표 없는 공항 stop 이 출국 공항 "그 자체"인지 이름으로 본다(pinDepartureAirportStop) — 괄호·'국제'·터미널 표시·공백을 지운
+//   이름이 아래 중 하나와 같을 때만. 공항을 언급만 하는 곳('Seoul Station City Airport Terminal (Incheon Airport check-in)'·
+//   '인천공항 리무진 버스 정류장 (명동)'·'… to Incheon Airport'·'김포공항 (인천 환승)')은 아니다. 여기 없는 이름은 예전처럼 둔다.
+const AIRPORT_BASE_NAMES = {
+    ICN: ['incheonairport', '인천공항', '仁川空港', '仁川机场', '仁川機場'],
+    GMP: ['gimpoairport', 'kimpoairport', '김포공항', '金浦空港', '金浦机场', '金浦機場'],
+    PUS: ['gimhaeairport', 'kimhaeairport', 'busanairport', 'busangimhaeairport', '김해공항', '부산김해공항', '金海空港', '金海机场', '金海機場'],
+    CJU: ['jejuairport', 'chejuairport', '제주공항', '済州空港', '济州机场', '濟州機場'],
+    TAE: ['daeguairport', '대구공항', '大邱空港', '大邱机场', '大邱機場'],
+    KWJ: ['gwangjuairport', '광주공항', '光州空港', '光州机场', '光州機場'],
+    MWX: ['muanairport', '무안공항', '務安空港', '务安机场', '務安機場'],
+    YNY: ['yangyangairport', '양양공항', '襄陽空港', '襄阳机场', '襄陽機場'],
 };
+const airportBaseName = (s) => String(s || '').toLowerCase()
+    .replace(/\([^)]*\)/g, '')
+    .replace(/international|int['’]?l\b|국제|國際|国際|国际/g, '')
+    .replace(/terminal\s*[12]|\bt\s*[12]\b|제?\s*[12]\s*(?:여객)?\s*터미널/g, '')
+    .replace(/[\s\-–—·.,]/g, '');
+// 좌표 없는 stop 은 그날 좌표 있는 가장 가까운 앞 stop 이 공항에서 이 거리 안일 때만 — 마지막 날이 다른 도시(예: 부산 숙소, 인천 출국)면
+//   고정한 진짜 구간이 몇 시간이 돼 자정 검사(ROUTE_DAY_INFEASIBLE)에 걸린다(출국 3시간 전 컷은 RouteAgent 뒤에 돈다).
+// ponytail: 100km = "같은 지역" 어림. 출국 마감을 RouteAgent 마지막 날 배치에 넣으면 없앤다.
+const NO_COORD_PIN_MAX_KM = 100;
 
 // ── Haversine helper (module-level pure fn) ─────────────────────────────
 /**
@@ -511,10 +521,10 @@ const DEPARTURE_AIRPORT_NAME_RE = {
  *   출국 안내는 지하철역에서 끝났다(운영 시험 11/16 — 인천 매번, 부산은 역까지 틀림).
  *   blockMode 가 넣은 출국 stop(_departure_airport_stop — 바로 그 출국 공항 코드로 넣었다)은 지도 조회 결과와 상관없이 고정한다.
  *   모델이 쓴 공항 stop 은 안내 점 10km 안일 때만 — 밖이면 다른 공항(예: 출국은 인천인데 김포 stop)이거나 모르는 곳이라 둔다.
- *   좌표가 없으면(지도 조회 실패) 이름에 출국 공항(도시 이름 영·한 또는 공항 코드)이 있을 때만 고정 — 운영 시나리오 11/16:
- *   식이 손님(legacy) plan 의 'Incheon International Airport' 는 주소 지도 조회가 못 찾아 좌표가 없었고, 두면 마지막 구간이
- *   "차로 25분·5km" 기본값이 됐다(출국 안내는 73분). 다른 공항('김포국제공항')이나 이름으로 모르는 곳
- *   (도심 탑승 수속 'Seoul Station City Airport Terminal')은 둔다 — 공항으로 옮기면 시내 정류장에 공항까지 구간이 붙는다.
+ *   좌표가 없으면(지도 조회 실패) 이름이 출국 공항 그 자체이고(AIRPORT_BASE_NAMES) 그날 앞 stop 이 공항 가까이일 때만 고정 —
+ *   운영 시나리오 11/16: 식이 손님(legacy) plan 의 'Incheon International Airport' 는 주소 지도 조회가 못 찾아 좌표가 없었고,
+ *   두면 마지막 구간이 "차로 25분·5km" 기본값이 됐다(출국 안내는 73분). 공항을 언급만 하는 도심 정류장은 옮기면 시내 정류장에
+ *   공항까지 구간이 붙고, 다른 도시의 하루는 구간이 몇 시간이 돼 플랜이 422 로 막힌다 — 둘 다 예전처럼 둔다.
  * @returns {boolean} 고정했으면 true
  */
 export function pinDepartureAirportStop(places, airportKey) {
@@ -523,8 +533,14 @@ export function pinDepartureAirportStop(places, airportKey) {
     if (!ap || !isAirportStop(last)) return false;
     if (last._departure_airport_stop !== true) {
         const cur = finiteCoordPair(last.lat, last.lng);
-        const named = DEPARTURE_AIRPORT_NAME_RE[String(airportKey).split('_')[0]]?.test(`${last.name || ''} ${last.display_name || ''}`);
-        if (cur ? _haversineKmPure(cur.lat, cur.lng, ap.lat, ap.lng) > 10 : !named) return false;
+        if (cur) {
+            if (_haversineKmPure(cur.lat, cur.lng, ap.lat, ap.lng) > 10) return false;
+        } else {
+            const bases = AIRPORT_BASE_NAMES[String(airportKey).split('_')[0]] || [];
+            const named = [last.name, last.display_name, last.name_en, last.name_ko].some((n) => bases.includes(airportBaseName(n)));
+            const prev = places.slice(0, -1).reverse().map((p) => finiteCoordPair(p?.lat, p?.lng)).find(Boolean);
+            if (!named || !prev || _haversineKmPure(prev.lat, prev.lng, ap.lat, ap.lng) > NO_COORD_PIN_MAX_KM) return false;
+        }
     }
     last.lat = ap.lat;
     last.lng = ap.lng;

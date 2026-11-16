@@ -107,26 +107,44 @@ describe('pinDepartureAirportStop — 출국일 마지막 공항 stop 만, 같�
       [[{ ...hotel }, { category: 'food', name: 'Lunch', lat: 37.5, lng: 126.9 }], 'ICN_T1'],
       [[{ ...hotel }, { category: 'airport', name: 'Airport', ...at(AIRPORT_COORDS.ICN_T1) }, { ...hotel }], 'ICN_T1'],
       [[{ ...hotel }, { category: 'airport', name: 'Airport', ...at(AIRPORT_COORDS.ICN_T1) }], 'ALREADY'],
+      // 이름이 출국 공항이어도 좌표가 멀면(명동 숙소 자리, 48km) 둔다 — 좌표 있는 stop 은 거리만 본다
+      [[{ ...hotel }, { category: 'airport', name: 'Incheon International Airport', lat: 37.5636, lng: 126.9826 }], 'ICN_T1'],
+      // 좌표 없이 공항을 언급만 하는 도심 정류장·다른 공항 환승 — 공항 "그 자체"가 아니다
+      [[{ ...hotel }, { category: 'airport_transfer', name: '서울역 도심공항터미널', display_name: 'Seoul Station City Airport Terminal (Incheon Airport check-in)' }], 'ICN_T1'],
+      [[{ ...hotel }, { category: 'airport_transfer', name: '인천공항 리무진 버스 정류장 (명동)' }], 'ICN_T2'],
+      [[{ ...hotel }, { category: 'travel', name: 'Seoul Station - AREX Express to Incheon Airport' }], 'ICN'],
+      [[{ ...hotel }, { category: 'airport', name: '김포공항 (인천 환승)' }], 'ICN'],
+      // 마지막 날이 다른 도시(부산 숙소, 인천 출국) — 고정하면 진짜 구간이 몇 시간이 돼 자정 검사에 걸린다(플랜 422)
+      [[{ category: 'lodging', name: 'Busan Hotel', lat: 35.1631, lng: 129.1635 }, { category: 'airport', name: 'Incheon International Airport' }], 'ICN_T1'],
+      // 그날 좌표 있는 앞 stop 이 하나도 없으면 판단 못 한다
+      [[{ category: 'lodging', name: 'Hotel' }, { category: 'airport', name: 'Incheon International Airport' }], 'ICN_T1'],
     ];
     for (const [places, key] of cases) {
       const before = JSON.stringify(places);
-      expect(pinDepartureAirportStop(places, key)).toBe(false);
+      expect(pinDepartureAirportStop(places, key), JSON.stringify(places[places.length - 1])).toBe(false);
       expect(JSON.stringify(places)).toBe(before);
     }
   });
   // 운영 시나리오 11/16: 식이 손님(legacy) plan 의 'Incheon International Airport' 는 주소 지도 조회가 못 찾아 좌표가 없었다
-  //   → 마지막 구간이 "차로 25분·5km" 기본값(출국 안내는 73분). 비교할 좌표가 없으니 이름이 다른 공항일 때만 둔다.
-  it('좌표 없는 모델 stop(지도 조회 실패 — 영어 이름 등)은 안내 점에 고정 — 같은 공항의 다른 터미널 이름도 출국 안내 점으로', () => {
-    const cases: Array<[Stop, string]> = [
-      [{ category: 'airport', name: 'Incheon International Airport', address: 'Incheon International Airport', lat: null, lng: null }, 'ICN_T1'],
-      [{ category: 'airport', name: '인천국제공항 T2' }, 'ICN_T1'],
-      [{ category: 'travel', name: 'Jeju Airport' }, 'CJU'],
+  //   → 마지막 구간이 "차로 25분·5km" 기본값(출국 안내는 73분). 이름이 공항 그 자체이고 그날 앞 stop 이 공항 가까이면 고정.
+  it('좌표 없는 모델 stop(지도 조회 실패 — 영어·일본어 이름 등)은 이름이 출국 공항 그 자체이고 앞 stop 이 가까우면 안내 점에 고정', () => {
+    const busan = { category: 'lodging', name: 'Busan Hotel', lat: 35.1631, lng: 129.1635 };
+    const jeju = { category: 'lodging', name: 'Jeju Hotel', lat: 33.4996, lng: 126.5312 };
+    const cases: Array<[Stop[], string]> = [
+      [[{ ...hotel }, { category: 'airport', name: 'Incheon International Airport', address: 'Incheon International Airport', lat: null, lng: null }], 'ICN_T1'],
+      [[{ ...hotel }, { category: 'airport', name: '인천국제공항 T2' }], 'ICN_T1'],
+      [[{ ...hotel }, { category: 'airport', name: '仁川国際空港' }], 'ICN_T1'],
+      [[{ ...hotel }, { category: 'airport', name_en: "Incheon Int'l Airport (ICN)" }], 'ICN'],
+      // 앞 stop 이 좌표 없는 관광지여도 그 앞 숙소로 본다
+      [[{ ...hotel }, { category: 'culture', name: 'Hongdae Mural Street', lat: null, lng: null }, { category: 'airport', name: 'Incheon International Airport' }], 'ICN_T1'],
+      [[{ ...busan }, { category: 'airport', name: 'Gimhae International Airport (Busan)' }], 'PUS'],
+      [[{ ...jeju }, { category: 'travel', name: 'Jeju Airport' }], 'CJU'],
     ];
-    for (const [stop, key] of cases) {
-      const places: Stop[] = [{ ...hotel }, { ...stop }];
-      expect(pinDepartureAirportStop(places, key), String(stop.name)).toBe(true);
-      expect(at(places[1] as never)).toEqual(at(airportPoint(key)));
-      expect(places[1]._geocoded).toBe(true);
+    for (const [places, key] of cases) {
+      const last = places[places.length - 1];
+      expect(pinDepartureAirportStop(places, key), JSON.stringify(last)).toBe(true);
+      expect(at(last as never)).toEqual(at(airportPoint(key)));
+      expect(last._geocoded).toBe(true);
     }
   });
 });
