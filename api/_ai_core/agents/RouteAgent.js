@@ -855,16 +855,19 @@ const normPlaceName = (s) => String(s || '').replace(/[^\p{L}\p{N}]/gu, '').toLo
 export const LOCAL_GEO_NEAR_KM = 20; // 이름이 정확히 같지 않은 결과는 그날 숙소·좌표 있는 stop 중 하나에서 이 거리 안이어야 한다
 export const LOCAL_GEO_TIME_BUDGET_MS = 4000; // 한 플랜 검색 시간 상한(경로 계산 상한 180초 안에서 작게)
 export const LOCAL_GEO_MAX_LOOKUPS = 8; // 한 플랜 검색 상한(검색어 수)
-/** 검색어 후보 — 괄호 덧말을 지운 이름들 + 괄호 안이 한글이면 그것도(2자 이상, 중복 제거), 한글 먼저. 순수. */
+const stopNameFields = (p) => [p?.name, p?.name_ko, p?.display_name, p?.name_en].map((s) => String(s || ''));
+const uniqNames = (list) => [...new Set(list.map((s) => s.trim()).filter((s) => s.length >= 2))];
+/** 검색어 후보 — 괄호 덧말을 지운 이름들(2자 이상, 중복 제거), 한글 먼저. 순수. */
 export function localGeoNames(p) {
-    const out = [];
-    for (const raw of [p?.name, p?.name_ko, p?.display_name, p?.name_en]) {
-        const s = String(raw || '');
-        out.push(s.replace(/\s*\([^)]*\)/g, ''));
-        for (const m of s.matchAll(/\(([^)]*)\)/g)) if (HANGUL.test(m[1])) out.push(m[1]);
-    }
-    const names = [...new Set(out.map((s) => s.trim()).filter((s) => s.length >= 2))];
+    const names = uniqNames(stopNameFields(p).map((s) => s.replace(/\s*\([^)]*\)/g, '')));
     return [...names.filter((s) => HANGUL.test(s)), ...names.filter((s) => !HANGUL.test(s))];
+}
+/**
+ * 괄호 안 한글("Hongdae Mural Street (홍대 벽화거리)" → 홍대 벽화거리). 검색어로 쓰지 않고 결과 이름 맞추기에만 쓴다 — 순수.
+ *   "(가회동)"·"(예약 필수)" 같은 덧말로 검색하면 1순위 규칙이 엉뚱한 곳을 고를 수 있다(검토 11/17).
+ */
+export function localGeoAliases(p) {
+    return uniqNames(stopNameFields(p).flatMap((s) => [...s.matchAll(/\(([^)]*)\)/g)].map((m) => m[1]).filter((t) => HANGUL.test(t))));
 }
 /**
  * 장소 검색 결과에서 그 관광지 하나(없으면 null). 순수. near = 그날 숙소·좌표 있는 stop 들.
@@ -1493,7 +1496,7 @@ export class RouteAgent extends BaseAgent {
                 if (items === null) localGeoLeft = 0;
                 return items;
             });
-            localGeoChain = run;
+            localGeoChain = run.catch(() => null); // 지금은 reject 하지 않지만, 나중에 try 밖에서 throw 해도 뒤 검색이 막히지 않게
             return run;
         };
         const processDayFn = async (dayPlan, dayIdx) => {
@@ -1614,10 +1617,11 @@ export class RouteAgent extends BaseAgent {
             for (const p of places.slice(1, -1)) {
                 if (!needsLocalGeo(p)) continue;
                 const names = localGeoNames(p);
+                const exactNames = [...names, ...localGeoAliases(p)];
                 for (const q of names.slice(0, 2)) {
                     const items = await localGeoSearch(q);
                     if (items === null) break;
-                    const hit = pickAttractionHit(items, { names, address: p.address, near: localGeoAnchors });
+                    const hit = pickAttractionHit(items, { names: exactNames, address: p.address, near: localGeoAnchors });
                     if (!hit) {
                         if (items.length) console.log('  [Route] place search "' + q + '" rejected: ' + items.map((it) => it.title + '(' + it.category + ')').join(', ').slice(0, 300));
                         continue;

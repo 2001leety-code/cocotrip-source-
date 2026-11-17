@@ -96,6 +96,17 @@ describe('좌표 없는 관광 stop → 장소 검색 좌표', () => {
     expect(Object.entries(s).filter(([, v]) => v === undefined).map(([k]) => k).filter((k) => ['lat', 'lng', '_geocoded', '_geo_source'].includes(k))).toEqual([]);
   });
 
+  it('괄호 안 한글은 이름 맞추기에만 — 1순위가 호텔이어도 그 이름과 같은 결과를 받고, 괄호 말로는 검색하지 않는다', async () => {
+    searchMock.mockResolvedValue([{ ...HIT, title: '홍대 호텔', category: '숙박>호텔' }, HIT]);
+    const a = await run([[hotel('09:00'), mural({ name: 'Hongdae Mural Street (홍대 벽화거리)' }), hotel('13:00')], LAST_DAY]);
+    expect(isHit(a.days[0].stops[1])).toBe(true);
+    expect(searchMock.mock.calls.map(([q]) => q)).toEqual(['Hongdae Mural Street']);
+    searchMock.mockReset();
+    searchMock.mockResolvedValue([]);
+    await run([[hotel('09:00'), mural({ name: 'Bukchon Hanok Village (가회동)' }), hotel('13:00')], LAST_DAY]);
+    expect(searchMock.mock.calls.map(([q]) => q)).toEqual(['Bukchon Hanok Village']);
+  });
+
   it('그날 숙소·좌표 있는 stop 중 하나에서 20km 안만 받는다 — 공항(고정 좌표)은 기준이 아니다', async () => {
     const station = AIRPORT_STATION_COORDS.ICN_T1;
     const FAR = { ...HIT, lat: station.lat + 0.01, lng: station.lng + 0.01 }; // 공항 옆 — 명동 숙소에서 40km 넘음
@@ -180,6 +191,18 @@ describe('🔴 식이 안전 — 진짜 구간이 하루를 깨거나 식사를 
     const on = await run([day1, packed, LAST_DAY]);
     const off = await run([day1, packed, LAST_DAY], { localGeo: false });
     expect(names(off, 1)).not.toContain('Hongdae Mural Street'); // main 은 자정 수리로 이 stop 을 뺀다(이 시험이 그 길을 탄다는 확인)
+    expect(on).toEqual(off);
+  });
+
+  it('가운데 날 저녁이 투어 종료(21시)를 넘어가게 하는 구간(80분) → 되돌려 예전과 같게(그 시각부터 시작하는 stop 은 뒤에서 잘린다)', async () => {
+    // 숙소 체류 60(stay_min 없음) → X1 10:25~17:25 → 저녁 예전 19:25 / 진짜 구간 21:15 — 넘는 경계는 투어 종료 하나(22시는 안 넘음).
+    legMin = (p, c) => (isHit(p) || isHit(c) ? 80 : 20);
+    const day1 = [hotel('09:00'), { category: 'culture', name: 'Palace', start_time: '10:00', stay_min: 60, lat: 37.5796, lng: 126.977 }, hotel('12:00')];
+    const middle = [hotel('09:00'), { category: 'culture', name: 'X1', start_time: '09:30', stay_min: 420, lat: 37.5796, lng: 126.977 },
+      mural({ start_time: '17:30', stay_min: 60 }), { category: 'food', name: 'Halal Dinner', start_time: '19:00', stay_min: 60, lat: 37.56, lng: 126.93 }, hotel('22:30')];
+    const on = await run([day1, middle, LAST_DAY]);
+    const off = await run([day1, middle, LAST_DAY], { localGeo: false });
+    expect(muralOf(on, 1).lat == null).toBe(true);
     expect(on).toEqual(off);
   });
 

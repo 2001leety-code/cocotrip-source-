@@ -17,7 +17,7 @@ vi.mock('../../api/_shared/llm/index.js', () => ({ createLlmModel: () => { throw
 import * as shared from '../../api/_shared/naverLocalSearch.js';
 import * as placeSearch from '../../api/place-search.js';
 import {
-  koreanDistrict, pickAttractionHit, localGeoNames, needsLocalGeo, localGeoMealRuleCliffs, localGeoMealMoved, LOCAL_GEO_NEAR_KM,
+  koreanDistrict, pickAttractionHit, localGeoNames, localGeoAliases, needsLocalGeo, localGeoMealRuleCliffs, localGeoMealMoved, LOCAL_GEO_NEAR_KM,
 } from '../../api/_ai_core/agents/RouteAgent.js';
 
 const KEYS = { NAVER_LOCAL_SEARCH_CLIENT_ID: 'a', NAVER_LOCAL_SEARCH_SECRET: 'b', NAVER_CLIENT_ID: 'c', NAVER_CLIENT_SECRET: 'd' };
@@ -42,7 +42,21 @@ describe('searchNaverLocal — 실패는 null, 결과 없음은 [], throw 없음
     const [url, opts] = axiosGetMock.mock.calls[0];
     expect(url).toBe('https://openapi.naver.com/v1/search/local.json');
     expect(opts.params).toEqual({ query: 'Hongdae Mural Street', display: 5, sort: 'random' });
-    expect(opts.timeout).toBe(2000);
+    expect(opts.timeout).toBeGreaterThan(1990);
+    expect(opts.timeout).toBeLessThanOrEqual(2000);
+  });
+  it('키쌍을 여러 개 시도해도 검색 한 번 전체가 시간 제한 안 — 느린 거부 뒤 남은 시간만, 다 쓰면 다음 키를 부르지 않고 null', async () => {
+    let clock = 5_000_000;
+    const nowSpy = vi.spyOn(Date, 'now').mockImplementation(() => clock);
+    try {
+      axiosGetMock.mockImplementationOnce(async () => { clock += 1500; return { status: 401, data: {} }; })
+        .mockImplementationOnce(async () => { clock += 600; return { status: 401, data: {} }; });
+      const env3 = { ...KEYS, NAVER_DEVELOPERS_CLIENT_ID: 'e', NAVER_DEVELOPERS_SECRET: 'f' };
+      expect(await shared.searchNaverLocal('경복궁', { env: env3 })).toBeNull();
+      expect(axiosGetMock.mock.calls.map(([, o]) => o.timeout)).toEqual([2000, 500]);
+    } finally {
+      nowSpy.mockRestore();
+    }
   });
   it('401 이면 다음 키쌍으로 다시 부른다', async () => {
     axiosGetMock.mockResolvedValueOnce({ status: 401, data: {} }).mockResolvedValueOnce({ status: 200, data: { items: [] } });
@@ -144,11 +158,17 @@ describe('pickAttractionHit — 관광 분류 + 같은 시도·시군구 + (이�
   });
 });
 
-describe('localGeoNames · needsLocalGeo', () => {
-  it('괄호 덧말을 지우고, 괄호 안이 한글이면 그것도 검색어 — 한글 먼저, 중복 제거', () => {
+describe('localGeoNames · localGeoAliases · needsLocalGeo', () => {
+  it('검색어 = 괄호 덧말을 지운 이름 — 한글 먼저, 중복 제거', () => {
     expect(localGeoNames({ name: 'Hongdae Mural Street', display_name: '홍대 벽화거리 (Mural Street)', name_en: 'Hongdae Mural Street' })).toEqual(['홍대 벽화거리', 'Hongdae Mural Street']);
-    expect(localGeoNames({ name: 'Hongdae Mural Street (홍대 벽화거리)' })).toEqual(['홍대 벽화거리', 'Hongdae Mural Street']);
+    expect(localGeoNames({ name: 'Hongdae Mural Street (홍대 벽화거리)' })).toEqual(['Hongdae Mural Street']);
     expect(localGeoNames({ name: 'x' })).toEqual([]);
+  });
+  it('괄호 안 한글 = 이름 맞추기용 별칭(검색어 아님) — 영어 괄호·1자는 뺀다(검토 11/17: "(가회동)"으로 검색하면 엉뚱한 곳)', () => {
+    expect(localGeoAliases({ name: 'Hongdae Mural Street (홍대 벽화거리)' })).toEqual(['홍대 벽화거리']);
+    expect(localGeoAliases({ name: 'N Seoul Tower (남산) (야경 명소)', display_name: 'N Seoul Tower (남산)' })).toEqual(['남산', '야경 명소']);
+    expect(localGeoAliases({ name: 'Gyeongbokgung (Palace)', name_ko: '경복궁 (궁)' })).toEqual([]);
+    expect(localGeoAliases({})).toEqual([]);
   });
   it('legacy 관광 분류(landmark·culture·nature·shopping·kpop)만 · 블록 아님 · 좌표 없음', () => {
     for (const category of ['culture', 'landmark', 'nature', 'shopping', 'kpop', 'Culture']) expect(needsLocalGeo({ category, name: 'A' }), category).toBe(true);

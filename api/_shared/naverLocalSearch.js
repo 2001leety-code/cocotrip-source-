@@ -135,6 +135,7 @@ let lastGoodLocalSource = null;
 /**
  * 장소 검색 한 번 → [{ title, category, address, roadAddress, lat, lng }] (좌표 변환 실패 항목은 뺀다).
  * 결과 없음·검색어 너무 짧음 = [], 실패(키 없음·모든 키 거부·429·5xx·시간 초과·예외) = null. throw 하지 않는다.
+ * timeoutMs = 키쌍을 몇 개 시도하든 이 검색 한 번 전체의 시간 상한(느리게 거부하는 키가 시간을 늘리지 않게).
  */
 export async function searchNaverLocal(query, { display = 5, timeoutMs = 2000, env = process.env } = {}) {
   const q = String(query || '').trim();
@@ -142,12 +143,17 @@ export async function searchNaverLocal(query, { display = 5, timeoutMs = 2000, e
   const candidates = resolveCredentialCandidates(env);
   if (!candidates.length) return null;
   try {
-    const doRequest = (creds) => axios.get(LOCAL_SEARCH_URL, {
-      params: { query: q, display, sort: 'random' },
-      headers: { 'X-Naver-Client-Id': creds.id, 'X-Naver-Client-Secret': creds.secret, Accept: 'application/json' },
-      timeout: timeoutMs,
-      validateStatus: () => true,
-    });
+    const deadline = Date.now() + timeoutMs;
+    const doRequest = (creds) => {
+      const left = deadline - Date.now();
+      if (left <= 0) return Promise.resolve({ status: 408, data: null }); // 시간 다 씀 → 다음 키로 넘어가지 않고 실패(null)
+      return axios.get(LOCAL_SEARCH_URL, {
+        params: { query: q, display, sort: 'random' },
+        headers: { 'X-Naver-Client-Id': creds.id, 'X-Naver-Client-Secret': creds.secret, Accept: 'application/json' },
+        timeout: left,
+        validateStatus: () => true,
+      });
+    };
     const { upstream, source } = await searchWithCredentialFallback(candidates, doRequest, lastGoodLocalSource);
     if (!upstream || upstream.status !== 200) return null;
     lastGoodLocalSource = source;
