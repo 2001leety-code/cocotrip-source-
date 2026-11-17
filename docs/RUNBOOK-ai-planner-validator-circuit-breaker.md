@@ -32,6 +32,7 @@ https://vercel.com/2001leety-3613s-projects/cocotrip-source_2026/settings/enviro
 | **B-DC** (Day count match) | `VALIDATOR_BDC_ENABLED` | `false` | Day 누락 검출 OFF — Gemini 가 4일 응답해도 통과 |
 | **B-MEAL** (Lunch + dinner) | `VALIDATOR_BMEAL_ENABLED` | `false` | 식사 시간대 검증 OFF — 식사 누락 plan 통과 |
 | **R-TSP** (Stop reorder) | `ROUTE_TSP_ENABLED` | `false` | Intra-day 거리 최적화 OFF — Gemini 순서 그대로 |
+| **R-LOCALGEO** (Attraction place search) | `ROUTE_LOCAL_GEO_ENABLED` | `false` | 좌표 없는 관광 stop 의 Naver 장소 검색 보완 OFF — 예전처럼 좌표 없음 + 25분 기본값 구간 |
 
 각 flag: Environment = **Production** 체크 + Save.
 
@@ -98,6 +99,7 @@ https://vercel.com/2001leety-3613s-projects/cocotrip-source_2026/settings/enviro
 | **B-DC** | **Day count match (durationDays)** | **Hard** | `VALIDATOR_BDC_ENABLED=false` | **#407** |
 | **B-MEAL** | **Lunch + dinner per full day** | **Hard** | `VALIDATOR_BMEAL_ENABLED=false` | **#407 / #412** |
 | **R-TSP** | **Intra-day stop reorder** | **N/A (도구)** | `ROUTE_TSP_ENABLED=false` | **#409 / #413** |
+| **R-LOCALGEO** | **Coordless attraction → place search** | **N/A (도구)** | `ROUTE_LOCAL_GEO_ENABLED=false` | **2026-11-16** |
 
 ---
 

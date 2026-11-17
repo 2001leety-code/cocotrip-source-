@@ -6,7 +6,7 @@ import { formatTransitSummary, getSubwayStationInfo, getSubwayTimetable } from "
 import { searchTransit } from "../../_transit_provider.js";
 // BUGHUNT-LOW (2026-06-14): AREX 직통 HERO 합성을 ODsay 일 때만 발동시키는 게이트용 (TMAP native 급행 보존).
 import { getTransitProvider } from "../../_transit_provider.js";
-import { AIRPORT_COORDS, AIRPORT_NAMES, CITY_CENTER_COORDS, airportPoint, lookupZoneCoord, SCHEDULE_BUFFER_MIN, DEFAULT_LEG_MIN, arrivalReadyMinutes, hhmmToMin, resolveTourStartTime, resolveTourEndTime, resolveArrivalTime, singleDayMealWindows } from "../constants.js";
+import { AIRPORT_COORDS, AIRPORT_NAMES, CITY_CENTER_COORDS, airportPoint, lookupZoneCoord, SCHEDULE_BUFFER_MIN, DEFAULT_LEG_MIN, arrivalReadyMinutes, hhmmToMin, resolveTourStartTime, resolveTourEndTime, resolveArrivalTime, singleDayMealWindows, MEAL_ROLE_WINDOWS } from "../constants.js";
 // P-launch (2026-05-31): 한글 regions('부산') → 영문 키('busan') 정규화 (멀티시티 departure city 해석용).
 import { normalizeRegionKey, regionCityKey, departureCityKey } from "../responseValidator.js";
 import { isAirportStop } from "../../../src/lib/airportStop.js"; // 2026-11-16: 공항 stop 판정 — 화면(DayTimeline)과 같은 규칙
@@ -19,6 +19,7 @@ import { isSameLodgingMarker, isLodgingBookendPair, effectiveBookedAddress, stay
 import { loadPricingSpec } from "../../_shared/pricing.js";
 // NCP Maps(maps.apigw.ntruss.com) 키 해석 SSOT — 키 목록 복제 금지 (mood-route.js:45~ 주석).
 import { resolveNcpKeys } from "../../_shared/mood-route.js";
+import { searchNaverLocal } from "../../_shared/naverLocalSearch.js"; // 2026-11-16: 좌표 없는 관광 stop 보완(장소 검색)
 
 // ── intercity station coordinates (PDF-issue-2 fix, 2026-05-14) ─────────
 // KTX/Air/Bus 의 from_station/to_station 좌표 — RouteAgent 가 city-change day
@@ -832,6 +833,72 @@ const stayOf = stayMinOf; // PR2 r13: recalc-transit 과 같은 함수(mergedLod
 export const isSightseeingStop = (p) => !NOT_SIGHTSEEING.has(stopCat(p));
 /** Day1 바닥이 걸리는 stop — 첫 관광·식당(이동·숙소·공항 표식이 아니라). PR2 r3. */
 export const isDay1FloorStop = (p) => isSightseeingStop(p) || stopCat(p) === 'food';
+
+// 2026-11-16: 주소 지도 조회가 못 찾은 관광 stop(식이 손님 legacy — 영어 이름 "Hongdae Mural Street" + 번지 없는 주소)을 Naver 장소 검색으로 보완.
+//   좌표만 채운다 — 이름·주소·분류는 그대로. 식당·카페 좌표는 계속 식당 자료(foodIndex)에서만 온다(검색 결과 분류로 거른다).
+const SIDO_PREFIX = [['서울', '서울'], ['부산', '부산'], ['대구', '대구'], ['인천', '인천'], ['광주', '광주'], ['대전', '대전'], ['울산', '울산'], ['세종', '세종'],
+    ['경기', '경기'], ['강원', '강원'], ['충청북', '충북'], ['충북', '충북'], ['충청남', '충남'], ['충남', '충남'], ['전라북', '전북'], ['전북', '전북'],
+    ['전라남', '전남'], ['전남', '전남'], ['경상북', '경북'], ['경북', '경북'], ['경상남', '경남'], ['경남', '경남'], ['제주', '제주']];
+/** 한글 주소 앞 두 낱말 → { sido, sigungu } ("서울특별시 마포구 …" → 서울·마포구). 시·군·구가 없거나 한글 주소가 아니면 null. 순수. */
+export function koreanDistrict(address) {
+    const [a, b] = String(address || '').trim().split(/\s+/);
+    const hit = a ? SIDO_PREFIX.find(([p]) => a.startsWith(p)) : null;
+    if (!hit || !b || !/[시군구]$/.test(b)) return null;
+    return { sido: hit[1], sigungu: b };
+}
+// Naver 분류(운영 실측 11/16~17) — 여행,명소 · 문화,예술>고궁 · 불교>절,사찰 · 쇼핑,유통>시장 / 쇼핑복합시설. 음식점·카페·다른 가게·병원은 받지 않는다.
+const ATTRACTION_CATEGORY = /^(여행|문화|불교)|^쇼핑,유통>(시장|쇼핑복합시설)/;
+// 장소 검색 대상 stop 분류 = legacy 일정 표기(config.js "landmark | food | shopping | nature | culture | kpop") 중 식사 아닌 것. 카페·분류 없음·그 밖의 값은 하지 않는다.
+const LOCAL_GEO_STOP_CATEGORIES = new Set(['landmark', 'culture', 'nature', 'shopping', 'kpop']);
+const HANGUL = /[가-힣]/;
+const normPlaceName = (s) => String(s || '').replace(/[^\p{L}\p{N}]/gu, '').toLowerCase();
+export const LOCAL_GEO_NEAR_KM = 20; // 이름이 정확히 같지 않은 결과는 그날 숙소·좌표 있는 stop 중 하나에서 이 거리 안이어야 한다
+export const LOCAL_GEO_TIME_BUDGET_MS = 4000; // 한 플랜 검색 시간 상한(경로 계산 상한 180초 안에서 작게)
+export const LOCAL_GEO_MAX_LOOKUPS = 8; // 한 플랜 검색 상한(검색어 수)
+const stopNameFields = (p) => [p?.name, p?.name_ko, p?.display_name, p?.name_en].map((s) => String(s || ''));
+const uniqNames = (list) => [...new Set(list.map((s) => s.trim()).filter((s) => s.length >= 2))];
+/** 검색어 후보 — 괄호 덧말을 지운 이름들(2자 이상, 중복 제거), 한글 먼저. 순수. */
+export function localGeoNames(p) {
+    const names = uniqNames(stopNameFields(p).map((s) => s.replace(/\s*\([^)]*\)/g, '')));
+    return [...names.filter((s) => HANGUL.test(s)), ...names.filter((s) => !HANGUL.test(s))];
+}
+/**
+ * 괄호 안 한글("Hongdae Mural Street (홍대 벽화거리)" → 홍대 벽화거리). 검색어로 쓰지 않고 결과 이름 맞추기에만 쓴다 — 순수.
+ *   "(가회동)"·"(예약 필수)" 같은 덧말로 검색하면 1순위 규칙이 엉뚱한 곳을 고를 수 있다(검토 11/17).
+ */
+export function localGeoAliases(p) {
+    return uniqNames(stopNameFields(p).flatMap((s) => [...s.matchAll(/\(([^)]*)\)/g)].map((m) => m[1]).filter((t) => HANGUL.test(t))));
+}
+/**
+ * 장소 검색 결과에서 그 관광지 하나(없으면 null). 순수. near = 그날 숙소·좌표 있는 stop 들.
+ *   ① 관광 분류 + 이름이 정확히 같음(순위 무관) + stop 주소와 시도·시군구가 같음(주소로 동네를 못 읽으면 near 중 하나에서 20km 안).
+ *   ② 이름이 정확히 같지 않으면(영어 이름 등): 검색 1순위가 관광 분류 + 같은 시도·시군구 + near 중 하나에서 20km 안일 때만.
+ *      같은 구의 아무 관광지(예: 서귀포시 안 54km 떨어진 곳)나 식당 뒤 둘째 결과는 받지 않는다.
+ */
+export function pickAttractionHit(items, { names = [], address = '', near = [] } = {}) {
+    const list = (Array.isArray(items) ? items : []).filter(Boolean);
+    const usable = (it) => ATTRACTION_CATEGORY.test(String(it.category || '')) && !!finiteCoordPair(it.lat, it.lng);
+    const exact = (it) => names.some((n) => normPlaceName(n) !== '' && normPlaceName(n) === normPlaceName(it.title));
+    const anchors = (Array.isArray(near) ? near : [near]).map((a) => (a ? finiteCoordPair(a.lat, a.lng) : null)).filter(Boolean);
+    const nearby = (it) => anchors.some((a) => _haversineKmPure(a.lat, a.lng, it.lat, it.lng) <= LOCAL_GEO_NEAR_KM);
+    const want = koreanDistrict(address);
+    const sameDistrict = (it) => [it.roadAddress, it.address].some((a) => { const d = koreanDistrict(a); return !!d && !!want && d.sido === want.sido && d.sigungu === want.sigungu; });
+    const exactHit = list.find((it) => usable(it) && exact(it) && (want ? sameDistrict(it) : nearby(it)));
+    if (exactHit) return exactHit;
+    const top = list[0];
+    return top && want && usable(top) && sameDistrict(top) && nearby(top) ? top : null;
+}
+/** 장소 검색 대상 — 관광 분류 stop(LOCAL_GEO_STOP_CATEGORIES), 검수 코스(블록) 아님, 좌표 없음. 하루 첫·마지막 stop 은 부르는 쪽이 뺀다. */
+export const needsLocalGeo = (p) => !!p && LOCAL_GEO_STOP_CATEGORIES.has(stopCat(p)) && !p.source_block_id && !finiteCoordPair(p.lat, p.lng);
+/** 끼니 판정 경계(분) — 조식 6시·점심 11시·저녁 17~22시(B-MEAL 시간대) + 투어 종료(그 시각부터 시작하는 stop 은 잘린다). 순수. */
+export function localGeoMealRuleCliffs(tourEndMin) {
+    return [6 * 60, MEAL_ROLE_WINDOWS.lunch[0], MEAL_ROLE_WINDOWS.dinner[0], MEAL_ROLE_WINDOWS.dinner[1], tourEndMin].filter((c) => Number.isFinite(c) && c >= 0);
+}
+/** 식사 시작이 was → now 로 바뀌어 끼니 판정이 달라질 수 있는가 — 경계 반대편으로 가거나, 마지막 날(출국 컷이 길찾기 뒤에 돈다)에 늦어지면. 순수. */
+export function localGeoMealMoved(was, now, cliffs, lastDay) {
+    if (now === was) return false;
+    return (lastDay && now > was) || cliffs.some((c) => (was < c) !== (now < c));
+}
 // PR2 r11: 같은 숙소 판정(50m 좌표 규칙 + 좌표 없는 북엔드 규칙)은 mergedLodging.js 한 곳 — recalc-transit·qualityMetrics 와 공유.
 //   같은 숙소 구간은 이동·버퍼를 빼고 앞 숙소에 붙인다(손님은 이미 숙소). 그 밖엔 그대로 계산·자정 검사.
 export { isSameLodgingMarker, isLodgingBookendPair };
@@ -1411,6 +1478,27 @@ export class RouteAgent extends BaseAgent {
         // (Naver NCP 50req/s + ODsay Referer-bound quota). ROUTE_DAY_CONCURRENCY 로 즉시
         // 조정/롤백(재배포 불필요). 측정 후 상향, rate limit 문제 시 env 다운 = 안전망.
         const DAY_CONCURRENCY = Math.max(1, Math.min(7, Number(process.env.ROUTE_DAY_CONCURRENCY) || 5));
+        // 2026-11-16: 장소 검색(좌표 보완) — 한 플랜에 최대 LOCAL_GEO_MAX_LOOKUPS 번·LOCAL_GEO_TIME_BUDGET_MS 안, 날이 동시에 돌아도 한 번에 하나씩(키 하나의 초당 한도 보호).
+        //   실패(키 없음·모두 거부·429·5xx·시간 초과·예외) 한 번이면 그 플랜은 더 부르지 않는다. 이 함수는 reject 하지 않는다(경로 계산 전체가 멈추지 않게).
+        //   끄기 = ROUTE_LOCAL_GEO_ENABLED=false (Vercel 환경변수 — 바꾼 뒤 재배포).
+        let localGeoLeft = process.env.ROUTE_LOCAL_GEO_ENABLED === 'false' ? 0 : LOCAL_GEO_MAX_LOOKUPS;
+        let localGeoChain = Promise.resolve();
+        let localGeoSpentMs = 0; // 검색에 쓴 시간 합(기다린 시간 제외 — 뒤 배치 날이 앞 날 계산 시간 때문에 못 찾지 않게)
+        const localGeoSearch = (query) => {
+            const run = localGeoChain.then(async () => {
+                const left = LOCAL_GEO_TIME_BUDGET_MS - localGeoSpentMs;
+                if (localGeoLeft <= 0 || left <= 0) return null;
+                localGeoLeft -= 1;
+                const t0 = Date.now();
+                let items = null;
+                try { items = await searchNaverLocal(query, { timeoutMs: Math.min(2000, Math.max(300, left)) }); } catch { items = null; }
+                localGeoSpentMs += Date.now() - t0;
+                if (items === null) localGeoLeft = 0;
+                return items;
+            });
+            localGeoChain = run.catch(() => null); // 지금은 reject 하지 않지만, 나중에 try 밖에서 throw 해도 뒤 검색이 막히지 않게
+            return run;
+        };
         const processDayFn = async (dayPlan, dayIdx) => {
             const dayHotel = dayHotels[dayIdx];
             const prevDayHotelCoord = dayIdx > 0 ? dayHotels[dayIdx - 1] : null;
@@ -1520,9 +1608,36 @@ export class RouteAgent extends BaseAgent {
                     }
                 }
             }
+            // 2026-11-16: 좌표 없는 관광 stop → 장소 검색. 지도 조회(Phase 1)·공항 고정 뒤라 고정 판단은 main 과 같은 좌표로 한다.
+            //   첫·마지막 stop 은 빼고(숙소·공항 북엔드), 채운 날은 순서 정리를 건너뛴다(main 은 좌표 없는 stop 이 있으면 원래 순서).
+            //   이 좌표로 시각이 나빠지면 Phase 3 에서 지운다(undoLocalGeo).
+            const localGeoStops = [];
+            // 이름이 정확히 같지 않은 결과의 거리 기준 — 그날 숙소 + 원래 좌표가 있던 stop(공항 제외, 검색으로 채운 stop 끼리는 서로 기준이 되지 않게 먼저 모은다).
+            const localGeoAnchors = [dayHotel, ...places.filter((s) => !isAirportStop(s) && finiteCoordPair(s.lat, s.lng))];
+            for (const p of places.slice(1, -1)) {
+                if (!needsLocalGeo(p)) continue;
+                const names = localGeoNames(p);
+                const exactNames = [...names, ...localGeoAliases(p)];
+                for (const q of names.slice(0, 2)) {
+                    const items = await localGeoSearch(q);
+                    if (items === null) break;
+                    const hit = pickAttractionHit(items, { names: exactNames, address: p.address, near: localGeoAnchors });
+                    if (!hit) {
+                        if (items.length) console.log('  [Route] place search "' + q + '" rejected: ' + items.map((it) => it.title + '(' + it.category + ')').join(', ').slice(0, 300));
+                        continue;
+                    }
+                    p.lat = hit.lat;
+                    p.lng = hit.lng;
+                    p._geocoded = true;
+                    p._geo_source = 'naver_local';
+                    localGeoStops.push(p);
+                    console.log('  [Route] Day ' + (dayPlan.day || dayIdx + 1) + ': "' + q + '" coords from place search (' + hit.title + ', ' + hit.category + ')');
+                    break;
+                }
+            }
             const tspEnabled = process.env.ROUTE_TSP_ENABLED !== 'false';
             const beforeReorder = places.map((p, i) => `${i}:${p.name || p.display_name || '?'}`).join(' → ');
-            const reorderedPlaces = tspEnabled ? reorderStopsByProximity(places) : places;
+            const reorderedPlaces = (tspEnabled && !localGeoStops.length) ? reorderStopsByProximity(places) : places;
             if (reorderedPlaces !== places) {
                 // 새 배열 반환됨 — 순서 바뀐 stops 들의 order 필드도 1..N 재할당.
                 for (let k = 0; k < reorderedPlaces.length; k++) {
@@ -2101,6 +2216,30 @@ export class RouteAgent extends BaseAgent {
             const legBetween = async (prev, next, k) => ((prev?.lat && prev?.lng && next?.lat && next?.lng)
                 ? this._getTransitData(prev, next, clientId, clientSecret, k, dayOfWeek)
                 : { index: k, durationMin: 25, distanceKm: 5.0, publicTransit: null, drivingMin: null });
+            // 2026-11-16: 장소 검색 좌표 되돌리기 = 그 stop 을 main 처럼 좌표 없음 + 닿는 구간 기본값으로(다음 계산은 main 입력 그대로).
+            let undoLocalGeo = localGeoStops.length ? async () => {
+                for (const s of localGeoStops) { s.lat = null; s.lng = null; s._geocoded = false; delete s._geo_source; }
+                for (const s of localGeoStops) {
+                    const k = places.indexOf(s);
+                    if (k > 0) transitResults[k - 1] = await legBetween(places[k - 1], s, k);
+                    if (k >= 0 && k < places.length - 1) transitResults[k] = await legBetween(s, places[k + 1], k + 1);
+                    // 식사 면제 빼기로 첫·마지막이 됐으면 숙소 구간도 지운 좌표 기준으로 다시(= main).
+                    if (k === 0) await runHotelToFirst(true);
+                    if (k >= 0 && k === places.length - 1) await runLastToLodging(true);
+                }
+                console.log('  [Route] Day ' + (dayPlan.day || dayIdx + 1) + ': place-search coords undone (schedule would break or move a meal)');
+            } : null;
+            // 식사가 나빠지는가 — 같은 날을 검색 전 구간(기본값)으로 계산한 것(base)과 비교.
+            //   base 가 위반이면 main 은 그날을 고친다(관광 빼기 → 식사가 당겨짐) — 그 결과와 같아지려면 되돌린다(검토 11/17: 저녁 22:10 → 잘림 → 422).
+            //   base 가 위반이 아니면 base = main 결과 — 식당 시작이 끼니 경계를 넘거나 마지막 날 늦어지면 되돌린다.
+            const localGeoCliffs = localGeoMealRuleCliffs(hhmmToMin(resolveTourEndTime(data)));
+            const localGeoHurtsMeal = (candidate, opts) => {
+                const touches = (j) => localGeoStops.includes(places[j]) || localGeoStops.includes(places[j + 1]);
+                const base = stitchStartMins(places, { ...opts, legMins: opts.legMins.map((m, j) => (touches(j) ? DEFAULT_LEG_MIN : m)) });
+                if (findStitchViolation(places, base, { day1TourEndMin: day1 ? day1.tourEndMin : null, lastReturnMin: dayPlan.last_to_lodging?.est_min })) return true;
+                const lastDay = dayIdx === daysList.length - 1;
+                return places.some((p, i) => stopCat(p) === 'food' && localGeoMealMoved(base.starts[i], candidate.starts[i], localGeoCliffs, lastDay));
+            };
             const removedStops = [];
             const removeStop = async (k, why) => {
                 const [gone] = places.splice(k, 1);
@@ -2124,12 +2263,13 @@ export class RouteAgent extends BaseAgent {
             for (let guard = 0; guard <= placementPassLimit; guard++) {
                 // r3: 바닥은 첫 관광·식당 stop 에(공항 이동·travel·숙소 표식은 앞 사슬 그대로).
                 const floorIdx = day1 ? places.findIndex((p) => isDay1FloorStop(p)) : -1;
-                const candidate = stitchStartMins(places, {
+                const stitchOpts = {
                     firstMin: currentTime, legMins: transitResults.map((t, j) => legTransitMin(t, places[j + 1]?.transit_from_prev)), buffer: BUFFER_MIN,
                     floorIdx, floorMin: day1 ? day1.pref : null, mealOrigins: _mealOriginMins, d1Meal: day1 ? day1.meal : null,
                     mergeBookend: !isCityChangeDay, // r5: 좌표 없는 같은 예약 숙소 북엔드(도시 이동일은 숙소가 바뀔 수 있어 제외)
                     bookedAddress: effectiveBookedAddress(data), // r7/r12: 예약 숙소(또는 권역) 주소 — 재계산·품질 집계와 같은 함수
-                });
+                };
+                const candidate = stitchStartMins(places, stitchOpts);
                 extraMealIdx = new Set(candidate.meals.filter((m) => m.extra).map((m) => m.i));
                 // Preserve main placement. Only remove a meal proven impossible even without any travel or visits.
                 //   Not a basis: an extra same-role meal (cafe/dessert) or a block-sourced meal (blockMode proves those before its cap).
@@ -2144,6 +2284,8 @@ export class RouteAgent extends BaseAgent {
                     continue;
                 }
                 const v = findStitchViolation(places, candidate, { day1TourEndMin: day1 ? day1.tourEndMin : null, lastReturnMin: dayPlan.last_to_lodging?.est_min });
+                // 2026-11-16: 장소 검색 좌표가 위반을 만들거나 식사를 옮기면 그 좌표를 지우고 main 입력으로 다시 계산 — 빼기·422 보다 먼저.
+                if (undoLocalGeo && (v || localGeoHurtsMeal(candidate, stitchOpts))) { const undo = undoLocalGeo; undoLocalGeo = null; await undo(); continue; }
                 if (!v) { stitched = candidate; break; }
                 if (v.kind === 'order') throw routeDayInfeasibleError([`Day ${dayPlan.day || dayIdx + 1}: stop times would run backwards`]);
                 // 2026-11-16 재검토: 좌표 없던 출국 공항 stop 을 고정한 진짜 구간이 자정을 넘기면 고정을 풀고 예전 기본값 구간으로 다시 계산(= main).
