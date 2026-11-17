@@ -1,8 +1,9 @@
 /**
  * 2026-11-16 — 식이 손님(legacy) 플랜의 좌표 없는 관광 stop 을 장소 검색으로 채운다(RouteAgent 실제 실행, 외부 호출 전부 mock).
  *   운영 할랄·비건 서울 플랜: "Hongdae Mural Street"(주소 "서울 마포구 와우산로29길") 좌표 없음 → 앞뒤 구간 가짜 "25분 · 5 km".
- *   🔴 식이 안전: 채운 좌표의 진짜 구간이 하루를 깨거나(자정·첫날 끼니 창) 식사를 옮기면(끼니 경계·투어 종료·마지막 날 늦어짐)
- *   그 좌표를 지우고 예전(main)과 같은 입력으로 계산한다 — 그날 결과가 검색을 끈 실행과 똑같아야 한다.
+ *   🔴 식이 안전: 채운 좌표의 진짜 구간이 하루를 깨거나(자정·첫날 끼니 창) 식사를 옮기면(끼니 경계·투어 종료·마지막 날 늦어짐),
+ *   또는 예전(기본값 구간) 하루가 위반이라 main 이 관광을 빼는 날이면 그 좌표를 지우고 예전(main)과 같은 입력으로 계산한다
+ *   — 그날 결과가 검색을 끈 실행과 똑같아야 한다.
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
@@ -23,7 +24,7 @@ type Stop = Record<string, unknown> & { transit_from_prev?: Record<string, unkno
 type Itin = { days: Array<{ stops: Stop[]; last_to_lodging?: unknown }> };
 
 const P = { lat: 37.5636, lng: 126.9826 }; // 명동 숙소
-const HIT = { title: '홍대벽화거리', category: '여행,명소', address: '서울특별시 마포구 상수동 72-36', roadAddress: '', lat: 37.5517967, lng: 126.924103 };
+const HIT = { title: '홍대벽화거리', category: '여행,명소>거리,골목', address: '서울특별시 마포구 상수동 72-36', roadAddress: '', lat: 37.5517967, lng: 126.924103 };
 const mural = (extra: Stop = {}): Stop => ({ category: 'culture', name: 'Hongdae Mural Street', address: '서울 마포구 와우산로29길', start_time: '10:00', stay_min: 60, ...extra });
 const hotel = (t: string): Stop => ({ category: 'lodging', name: 'Seoul Mock Hotel', start_time: t, ...P });
 const isHit = (s: unknown) => (s as Stop)?.lat === HIT.lat && (s as Stop)?.lng === HIT.lng;
@@ -49,6 +50,7 @@ async function run(days: Stop[][], { departureTime = '18:00', localGeo = true } 
 }
 const LAST_DAY: Stop[] = [hotel('09:00'), { category: 'food', name: 'Brunch', start_time: '10:00', stay_min: 60, lat: 37.57, lng: 126.98 }, hotel('12:00')];
 const muralOf = (it: Itin, d = 0) => it.days[d].stops.find((s) => s.name === 'Hongdae Mural Street') as Stop;
+const names = (it: Itin, d = 0) => it.days[d].stops.map((s) => s.name);
 
 describe('좌표 없는 관광 stop → 장소 검색 좌표', () => {
   it('운영 모양(영어 이름 + 번지 없는 주소) → 홍대벽화거리 좌표, 앞뒤 구간을 그 좌표로 진짜 조회(25분 · 5 km 아님)', async () => {
@@ -64,7 +66,7 @@ describe('좌표 없는 관광 stop → 장소 검색 좌표', () => {
     expect((it.days[0].stops[2] as Stop).transit_from_prev?.distance_km).not.toBe(5);
   });
 
-  it('숙소·공항·이동·식당·하루 첫/마지막·검수 코스(블록)·좌표 있는 stop 은 검색하지 않는다', async () => {
+  it('숙소·공항·이동·식당·카페·분류 없음·하루 첫/마지막·검수 코스(블록)·좌표 있는 stop 은 검색하지 않는다', async () => {
     const day1: Stop[] = [
       mural({ name: 'First Culture', start_time: '09:00' }),
       { category: 'food', name: 'Coordless Lunch', start_time: '11:00', stay_min: 60 },
@@ -72,7 +74,9 @@ describe('좌표 없는 관광 stop → 장소 검색 좌표', () => {
       { category: 'airport_transfer', name: 'City Airport Terminal', start_time: '13:00', stay_min: 0 },
       { category: 'airport', name: 'Gimpo Airport', start_time: '13:30', stay_min: 0 },
       { category: 'lodging', name: 'Mid Hotel', start_time: '14:00', stay_min: 0 },
-      mural({ name: 'Block Mural', start_time: '14:30', source_block_id: 'seoul-hongdae' }),
+      { category: 'cafe', name: 'Coordless Cafe', start_time: '14:10', stay_min: 20 },
+      { name: 'No Category Spot', start_time: '14:40', stay_min: 20 },
+      mural({ name: 'Block Mural', start_time: '15:10', source_block_id: 'seoul-hongdae' }),
       mural({ name: 'Has Coords', start_time: '16:00', lat: 37.58, lng: 126.98 }),
       mural({ name: 'Last Culture', start_time: '18:00' }),
     ];
@@ -92,6 +96,17 @@ describe('좌표 없는 관광 stop → 장소 검색 좌표', () => {
     expect(Object.entries(s).filter(([, v]) => v === undefined).map(([k]) => k).filter((k) => ['lat', 'lng', '_geocoded', '_geo_source'].includes(k))).toEqual([]);
   });
 
+  it('그날 숙소·좌표 있는 stop 중 하나에서 20km 안만 받는다 — 공항(고정 좌표)은 기준이 아니다', async () => {
+    const station = AIRPORT_STATION_COORDS.ICN_T1;
+    const FAR = { ...HIT, lat: station.lat + 0.01, lng: station.lng + 0.01 }; // 공항 옆 — 명동 숙소에서 40km 넘음
+    searchMock.mockResolvedValue([FAR]);
+    const withStop = await run([[hotel('09:00'), mural(), { category: 'culture', name: 'Next To It', start_time: '13:00', stay_min: 60, lat: FAR.lat + 0.01, lng: FAR.lng }, hotel('16:00')], LAST_DAY]);
+    expect([muralOf(withStop).lat, muralOf(withStop).lng]).toEqual([FAR.lat, FAR.lng]);
+    const last = [hotel('05:30'), mural({ start_time: '06:00', stay_min: 30 }), { category: 'airport', name: 'Incheon International Airport', address: 'Incheon International Airport', start_time: '08:00', stay_min: 0 }];
+    const nearAirport = await run([LAST_DAY, last], { departureTime: '11:00' });
+    expect(muralOf(nearAirport, 1).lat == null).toBe(true);
+  });
+
   it('검색이 한 번 실패(null)하면 그 플랜은 더 부르지 않는다 · 한 플랜 상한 · 끄기 스위치', async () => {
     const many = (n: number) => [hotel('08:00'), ...Array.from({ length: n }, (_, i) => mural({ name: 'Spot ' + i, start_time: '09:00', stay_min: 10 })), hotel('20:00')];
     searchMock.mockResolvedValue(null);
@@ -108,10 +123,29 @@ describe('좌표 없는 관광 stop → 장소 검색 좌표', () => {
     expect(searchMock).not.toHaveBeenCalled();
   });
 
-  it('검색이 throw 해도 플랜은 계속(그 stop 은 예전처럼)', async () => {
+  it('검색에 쓴 시간 합이 한 플랜 상한(4초)을 넘으면 더 부르지 않고, 남은 시간만큼만 기다린다', async () => {
+    let clock = 1_000_000;
+    const nowSpy = vi.spyOn(Date, 'now').mockImplementation(() => clock);
+    try {
+      searchMock.mockImplementation(async () => { clock += 1500; return []; });
+      const many = [hotel('08:00'), ...Array.from({ length: 6 }, (_, i) => mural({ name: 'Spot ' + i, start_time: '09:00', stay_min: 10 })), hotel('20:00')];
+      await run([many, LAST_DAY]);
+      expect(searchMock.mock.calls.map(([, o]) => (o as { timeoutMs: number }).timeoutMs)).toEqual([2000, 2000, 1000]);
+    } finally {
+      nowSpy.mockRestore();
+    }
+  });
+
+  it('검색이 throw 해도 플랜 전체 경로 계산은 계속 — 검색을 끈 실행과 같다(이웃 구간·다른 날 유지)', async () => {
     searchMock.mockRejectedValue(new Error('boom'));
-    const it = await run([[hotel('09:00'), mural(), hotel('13:00')], LAST_DAY]);
-    expect(muralOf(it).lat == null).toBe(true);
+    const days = [[hotel('09:00'), mural(), { category: 'food', name: 'Lunch', start_time: '12:00', stay_min: 60, lat: 37.557, lng: 126.925 }, hotel('14:00')], LAST_DAY];
+    const on = await run(days);
+    const off = await run(days, { localGeo: false });
+    expect(searchMock).toHaveBeenCalledTimes(1);
+    expect(muralOf(on).lat == null).toBe(true);
+    expect(on).toEqual(off);
+    expect((on.days[0].stops[2] as Stop).transit_from_prev).toBeTruthy();
+    expect((on.days[1].stops[1] as Stop).transit_from_prev).toBeTruthy();
   });
 });
 
@@ -125,13 +159,27 @@ describe('🔴 식이 안전 — 진짜 구간이 하루를 깨거나 식사를 
     const off = await run([lunchDay(), LAST_DAY], { localGeo: false });
     expect(muralOf(on).lat == null).toBe(true);
     expect(on).toEqual(off);
-    expect(on.days[0].stops.map((s) => s.name)).toEqual(lunchDay().map((s) => s.name));
+    expect(names(on)).toEqual(lunchDay().map((s) => s.name));
   });
 
   it('자정을 넘기는 구간(600분) → 422 없이 예전과 같은 하루', async () => {
     legMin = (p, c) => (isHit(p) || isHit(c) ? 600 : 20);
     const on = await run([lunchDay(), LAST_DAY]);
     const off = await run([lunchDay(), LAST_DAY], { localGeo: false });
+    expect(on).toEqual(off);
+  });
+
+  it('예전(기본값 구간) 하루가 자정을 넘겨 main 이 관광을 빼는 날 — 짧은 진짜 구간이면 안 넘어도 되돌려 예전과 같게(검토 11/17: 저녁 22:10 → 투어 종료 컷 → 422)', async () => {
+    legMin = (p, c) => (isHit(p) || isHit(c) ? 5 : 20);
+    const day1 = [hotel('09:00'), { category: 'culture', name: 'Palace', start_time: '10:00', stay_min: 60, lat: 37.5796, lng: 126.977 }, hotel('12:00')];
+    const packed = [hotel('09:00'), { category: 'food', name: 'Halal Lunch', start_time: '12:00', stay_min: 60, lat: 37.557, lng: 126.925 },
+      { category: 'culture', name: 'X1', start_time: '13:30', stay_min: 240, lat: 37.5796, lng: 126.977 },
+      { category: 'culture', name: 'X2', start_time: '17:50', stay_min: 120, lat: 37.5512, lng: 126.9882 },
+      mural({ start_time: '20:00', stay_min: 120 }),
+      { category: 'food', name: 'Halal Dinner', start_time: '19:00', stay_min: 60, lat: 37.56, lng: 126.93 }, hotel('23:30')];
+    const on = await run([day1, packed, LAST_DAY]);
+    const off = await run([day1, packed, LAST_DAY], { localGeo: false });
+    expect(names(off, 1)).not.toContain('Hongdae Mural Street'); // main 은 자정 수리로 이 stop 을 뺀다(이 시험이 그 길을 탄다는 확인)
     expect(on).toEqual(off);
   });
 
@@ -160,10 +208,10 @@ describe('🔴 식이 안전 — 진짜 구간이 하루를 깨거나 식사를 
       { category: 'culture', name: 'Namsan', stay_min: 60, lat: 37.5512, lng: 126.9882 },
       { category: 'culture', name: 'Hongik Park', stay_min: 60, lat: 37.5563, lng: 126.9236 }, hotel('15:00')];
     const control = await run([day({ lat: HIT.lat, lng: HIT.lng }), LAST_DAY], { localGeo: false });
-    expect(control.days[0].stops.map((s) => s.name)).not.toEqual(day({}).map((s) => s.name));
+    expect(names(control)).not.toEqual(day({}).map((s) => s.name));
     const on = await run([day({}), LAST_DAY]);
     expect(isHit(muralOf(on))).toBe(true);
-    expect(on.days[0].stops.map((s) => s.name)).toEqual(day({}).map((s) => s.name));
+    expect(names(on)).toEqual(day({}).map((s) => s.name));
   });
 });
 
