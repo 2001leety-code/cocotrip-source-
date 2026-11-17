@@ -50,6 +50,8 @@ export interface Stop {
   // Editor + RouteAgent metadata
   _userAdded?: boolean;
   _geocoded?: boolean;
+  /** 2026-11-16: 주소 지도 조회가 못 찾아 Naver 장소 검색으로 채운 좌표(관광 stop 만). */
+  _geo_source?: 'naver_local';
 }
 
 /**
