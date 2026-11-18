@@ -45,6 +45,7 @@ import {
 import { repairAndParseJSON, normalizeRegionKey, arrivalRestDayCityKey, regionCityKey } from './responseValidator.js';
 import { stopDuplicateKey } from './qualityMetrics.js';
 import { buildCityPerDayWithBookends } from '../_shared/plannerIntentV1.js';
+import { bookendsWithDepartureAirport } from './airportInference.js';
 import { recordGeminiUsage } from '../_shared/apiUsageRecorder.js';
 // 식이 신뢰 등급 SSOT (.claude/rules/dietary-safety.md). 태그만 보고 "인증" 판정 금지 —
 // unverified(naver_local/ai_curated) 행은 점수 경쟁 전에 후보에서 탈락시킨다.
@@ -2375,11 +2376,12 @@ export async function runBlockModeMultiCity({ adminDb, cities, userInput, gemini
   }
 
   const durationDays = Math.max(1, Math.min(14, Number(userInput.durationDays) || 1));
-  const cityPerDay = buildCityPerDay(cities, durationDays, userInput.perDayCity || null, {
+  // 2026-11-18: no exit city marked → the departure airport's city closes the trip (ICN out = end in Seoul).
+  const cityPerDay = buildCityPerDay(cities, durationDays, userInput.perDayCity || null, bookendsWithDepartureAirport(cities, {
     // planner-intent-v1: normalizeRegionKey — '부산' 같은 현지어 입력도 영문 cityKey 와 맞춘다 (P321).
     arrivalCityKey: blockCityKey(userInput.arrival_city),
     departureCityKey: blockCityKey(userInput.departure_city),
-  });
+  }, userInput.departure_airport || userInput.arrival_airport));
 
   const selections = await selectBlocksMultiCity(cityBlocksList, userInput, geminiClient, cityPerDay);
   // (2026-06-03) 선택한 취미 = 전용 day 보장 (flag OFF 기본 = no-op). 도시별 후보에서 매칭 → city 정합 가드 통과.

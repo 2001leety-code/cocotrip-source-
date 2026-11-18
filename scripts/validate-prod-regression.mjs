@@ -30,6 +30,7 @@
 import { readFileSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
+import { departureDayFeasibility } from './lib/departure-day-feasibility.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const root = join(__dirname, '..');
@@ -96,6 +97,8 @@ const SCENARIO_RECOMMENDED_ZONES = Object.fromEntries(
     .filter(([, v]) => v)
 );
 const SCENARIO_ARRIVAL_TERMINAL = TERMINAL_BY_AIRPORT[SCENARIO_ARRIVAL_AIRPORT] || 'T1';
+// 출국 공항 = 입국 공항 (Step 2 body · B-19 공용)
+const SCENARIO_DEPARTURE_AIRPORT = SCENARIO_ARRIVAL_AIRPORT === 'ICN' ? 'ICN_T1' : SCENARIO_ARRIVAL_AIRPORT;
 
 // ─── Replay 모드 (2026-07-10): 저장된 plan JSON 으로 assertion 만 로컬 실행 ───
 // 용법: SCENARIO_REPLAY_FILE=path/to/plan.json node scripts/validate-prod-regression.mjs
@@ -170,7 +173,7 @@ if (REPLAY_FILE) {
       styles: ['Food', 'Photo'],
       arrivalAirport: SCENARIO_ARRIVAL_AIRPORT,
       arrival_airport: SCENARIO_ARRIVAL_AIRPORT === 'ICN' ? 'ICN_T1' : SCENARIO_ARRIVAL_AIRPORT,
-      departure_airport: SCENARIO_ARRIVAL_AIRPORT === 'ICN' ? 'ICN_T1' : SCENARIO_ARRIVAL_AIRPORT,
+      departure_airport: SCENARIO_DEPARTURE_AIRPORT,
       arrivalTerminal: SCENARIO_ARRIVAL_TERMINAL,
       arrivalTime: '14:00',
       departureTime: '10:00',
@@ -686,6 +689,16 @@ results.push({
   label: '다양성 지표 (unique stop name ≥ 70%, local_tag ≥ 30%)',
   actual: `unique=${uniqueNames}/${totalNames} (${(uniqueRatio * 100).toFixed(0)}%), local_tag=${eligibleCount < 5 ? `skip(block, eligible=${eligibleCount})` : `${localTagCount}/${eligibleCount} (${(localTagRatio * 100).toFixed(0)}%)`}`,
   pass: b18Pass,
+});
+
+// ─── B-19: 출국일 실행 가능 (2026-11-18) ─────────────────────
+// 출국 10:00 고정(위 Step 2 body) 전제 — 숙소 05:00 전 출발·출국일 도시 이동·공항 먼 도시 = 비행기 놓침 일정.
+const b19 = departureDayFeasibility(days, SCENARIO_DEPARTURE_AIRPORT);
+results.push({
+  id: 'B-19',
+  label: '출국일 실행 가능 (숙소 출발 05:00 이후 · 출국일 도시 이동 없음 · 마지막 날 도시 = 출국 공항 도시)',
+  actual: b19.actual,
+  pass: b19.pass,
 });
 
 // ─── Summary ──────────────────────────────────────────────
