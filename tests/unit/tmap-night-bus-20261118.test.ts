@@ -65,9 +65,26 @@ describe('legAvoidsNightBus', () => {
     expect(legAvoidsNightBus({ end_time: '00:40' }, {})).toBe(false);
     expect(legAvoidsNightBus({ end_time: '04:59' }, {})).toBe(false);
   });
-  it('airport legs keep TMAP first pick (departure-morning N6701 to ICN is real)', () => {
-    expect(legAvoidsNightBus({ category: 'lodging', start_time: '10:00', end_time: '10:00' }, { category: 'airport', start_time: '12:00' })).toBe(false);
-    expect(legAvoidsNightBus({ category: 'airport', end_time: '14:00' }, { category: 'lodging' })).toBe(false);
+  it('early airport legs keep TMAP first pick (departure-morning N6701 to ICN is real)', () => {
+    // blockMode departure stop = category travel + _departure_airport_stop; the hotel side has no times,
+    // so the only known time is the airport arrival.
+    const hotel = { category: 'lodging', name: 'Hotel' };
+    expect(legAvoidsNightBus(hotel, { category: 'travel', name: '인천국제공항 T1', start_time: '05:00', _departure_airport_stop: true })).toBe(false);
+    expect(legAvoidsNightBus(hotel, { category: 'travel', name: '인천국제공항 T1', start_time: '06:30' })).toBe(false);
+    expect(legAvoidsNightBus(hotel, { category: 'airport', start_time: '06:59' })).toBe(false);
+    expect(legAvoidsNightBus({ category: 'airport', end_time: '22:10' }, hotel)).toBe(false); // late arrival
+  });
+  it('daytime airport legs skip night buses too', () => {
+    expect(legAvoidsNightBus({ category: 'lodging', start_time: '10:00', end_time: '10:00' }, { category: 'airport', start_time: '12:00' })).toBe(true);
+    expect(legAvoidsNightBus({ category: 'airport', end_time: '14:00' }, { category: 'lodging' })).toBe(true);
+    expect(legAvoidsNightBus({ category: 'lodging' }, { category: 'travel', name: 'Incheon Airport', start_time: '07:00' })).toBe(true);
+  });
+  it('leaving time = start_time + stay_min first (generation has no end_time; recalc leaves it stale)', () => {
+    expect(legAvoidsNightBus({ start_time: '18:00', stay_min: 35 }, { start_time: '19:21' })).toBe(true);
+    expect(legAvoidsNightBus({ start_time: '03:30', stay_min: 50 }, { start_time: '05:10' })).toBe(false); // leaves 04:20
+    expect(legAvoidsNightBus({ start_time: '15:10', stay_min: 40, end_time: '23:50' }, {})).toBe(true); // stale end_time
+    expect(legAvoidsNightBus({ start_time: '22:30', stay_min: 60 }, {})).toBe(false); // leaves 23:30
+    expect(legAvoidsNightBus({ start_time: '18:00', stay_min: '' }, { start_time: '19:21' })).toBe(true); // blank stay → next start
   });
   it('falls back to the next stop start, then the stop start; unknown time = old behaviour', () => {
     expect(legAvoidsNightBus({}, { start_time: '13:10' })).toBe(true);

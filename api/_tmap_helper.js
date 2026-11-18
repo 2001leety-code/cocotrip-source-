@@ -296,8 +296,10 @@ export async function searchTransitRouteTmap(sx, sy, ex, ey, opts = {}) {
     // daytime searchDttm (prod vegan plan e00efd46 day 1: N16 at 18:35, N73 at 20:26, searched at
     // 18:59 KST) → a daytime leg (opts.avoidNightBus) takes the first candidate without one, and
     // still the first candidate when every one of them needs a night bus.
-    const pick = (opts.avoidNightBus && its.find((it) => !itineraryHasNightBus(it))) || its[0];
-    return mapTmapItineraryToRoute(pick);
+    const dayPick = opts.avoidNightBus ? its.find((it) => !itineraryHasNightBus(it)) : null;
+    // Counted on purpose: how often a daytime leg still gets only night-bus candidates.
+    if (opts.avoidNightBus && !dayPick) console.info(`[TMAP] daytime leg, all ${its.length} candidates use a night bus`);
+    return mapTmapItineraryToRoute(dayPick || its[0]);
   } catch (err) {
     const isTransient = err.name === 'AbortError' || err.name === 'TimeoutError'
       || /HTTP 5\d\d/.test(err.message || '')
