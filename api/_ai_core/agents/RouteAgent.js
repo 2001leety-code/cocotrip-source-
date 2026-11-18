@@ -581,7 +581,7 @@ function _haversineKmPure(lat1, lng1, lat2, lng2) {
 //   - source 'naver_fallback' — TransitFromPrev enum 의 정식 값(types/plan.ts L174).
 //   - instruction/instruction_en + step_by_step 로 거리·시간·네이버 링크 인라인 표시.
 // 좌표가 하나라도 없으면 null → 호출부가 기존 skip 동작 유지(절대 깨지지 않음).
-function buildBookendFallbackLeg({ fromLat, fromLng, fromLabel, toLat, toLng, toLabel }) {
+function buildBookendFallbackLeg({ fromLat, fromLng, fromLabel, toLat, toLng, toLabel, language = 'ko' }) {
     if (fromLat == null || fromLng == null || toLat == null || toLng == null) return null;
     if (![fromLat, fromLng, toLat, toLng].every((n) => Number.isFinite(n))) return null;
     const distKm = _haversineKmPure(fromLat, fromLng, toLat, toLng);
@@ -602,12 +602,20 @@ function buildBookendFallbackLeg({ fromLat, fromLng, fromLabel, toLat, toLng, to
     const stepEn = isWalk
         ? `~${walkMin} min walk (${distM}m)`
         : `Taxi ~${estMin} min · est. ₩${taxiKrw.toLocaleString('en-US')} (${distKm.toFixed(1)}km)`;
+    // 2026-11-18: step_by_step in the traveller's language (this leg now also stands in for hotel legs with no
+    //   transit). instruction / instruction_en unchanged.
+    const lang = ['ko', 'en', 'ja', 'zh'].includes(language) ? language : 'ko';
+    const fareStr = taxiKrw.toLocaleString('en-US');
+    const stepLocal = (isWalk
+        ? { ko: stepKo, en: stepEn, ja: `徒歩約${walkMin}分 (${distM}m)`, zh: `步行约${walkMin}分钟 (${distM}米)` }
+        : { ko: stepKo, en: stepEn, ja: `タクシー約${estMin}分 · 目安 ${fareStr}ウォン (${distKm.toFixed(1)}km)`, zh: `出租车约${estMin}分钟 · 预计 ${fareStr}韩元 (${distKm.toFixed(1)}公里)` })[lang];
+    const naverLabel = { ko: '네이버 지도 길찾기', en: 'Naver Map directions', ja: 'NAVER マップで経路検索', zh: 'NAVER 地图路线' }[lang];
     return {
         method,
         mode: methodToMode(method) || method,
         instruction: `${stepKo} · 네이버 지도 길찾기: ${naverUrl}`,
         instruction_en: `${stepEn} · Naver Map directions: ${naverUrl}`,
-        step_by_step: [stepKo, `네이버 지도 길찾기: ${naverUrl}`],
+        step_by_step: [stepLocal, `${naverLabel}: ${naverUrl}`],
         est_min: estMin,
         est_fare_krw: isWalk ? 0 : taxiKrw,
         distance_km: distKm,
@@ -1332,7 +1340,7 @@ export class RouteAgent extends BaseAgent {
                 // Leaving the hotel = the departure-day activity deadline (flight − airport buffer − transfer), same rule as blockMode.
                 const depFlightMin = hhmmToMin(data.flight_departure_time);
                 const depLeave = depFlightMin < 0 ? null
-                    : shiftHHMM('00:00', departureActivityDeadlineMin(depFlightMin, departureAirportKey, departureCity || region));
+                    : shiftHHMM('00:00', departureActivityDeadlineMin(depFlightMin, departureAirportKey, departureCity || regionCityKey(region)));
                 const route = await this._routeAirportHotel(depFromCoord, ap, 'departure', { leave: depLeave });
                 if (route) {
                     if (depFromSource !== 'hotel') {
@@ -1897,6 +1905,7 @@ export class RouteAgent extends BaseAgent {
                                 // 두 좌표(prevHotel ↔ fromStation)는 KNOWN → 도보/택시 추정 +
                                 // 네이버 길찾기 링크. UI 가 빈칸 대신 graceful 안내 표시.
                                 const fb = buildBookendFallbackLeg({
+                                    language,
                                     fromLat: prevHotelEffective.lat, fromLng: prevHotelEffective.lng,
                                     fromLabel: prevHotelEffective.label || 'Hotel',
                                     toLat: fromStationCoord.lat, toLng: fromStationCoord.lng,
@@ -1960,6 +1969,7 @@ export class RouteAgent extends BaseAgent {
                                 // 두 좌표(toStation ↔ dayHotel)는 KNOWN → 도보/택시 추정 +
                                 // 네이버 길찾기 링크. UI 가 빈칸 대신 graceful 안내 표시.
                                 const fb = buildBookendFallbackLeg({
+                                    language,
                                     fromLat: toStationCoord.lat, fromLng: toStationCoord.lng,
                                     fromLabel: it.to_station,
                                     toLat: dayHotel.lat, toLng: dayHotel.lng,
@@ -2095,6 +2105,7 @@ export class RouteAgent extends BaseAgent {
                         // 2026-11-18: no transit (API down, or every TMAP candidate needs a night bus by day) → walk/taxi
                         //   leg like the intercity bookends, not a "subway" card carrying a car time.
                         const hotelFb = pt ? null : buildBookendFallbackLeg({
+                            language,
                             fromLat: dayHotel.lat, fromLng: dayHotel.lng, fromLabel: dayHotel.label || 'Hotel',
                             toLat: places[0].lat, toLng: places[0].lng, toLabel: places[0].display_name || places[0].name,
                         });
@@ -2171,6 +2182,7 @@ export class RouteAgent extends BaseAgent {
                             const pt = lastTransit.publicTransit;
                             // 2026-11-18: same walk/taxi fallback as hotel → first stop above.
                             const returnFb = pt ? null : buildBookendFallbackLeg({
+                                language,
                                 fromLat: lastPlace.lat, fromLng: lastPlace.lng, fromLabel: lastPlace.display_name || lastPlace.name || 'last stop',
                                 toLat: dayHotel.lat, toLng: dayHotel.lng, toLabel: dayHotel.label || 'Hotel',
                             });

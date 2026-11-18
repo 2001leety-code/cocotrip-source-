@@ -37,7 +37,7 @@ beforeEach(() => {
 afterEach(() => { cardSpy.mockRestore(); vi.useRealTimers(); delete process.env.ROUTE_TSP_ENABLED; });
 
 async function run(body: Record<string, unknown>, day1: Stop[] = [hotel('15:00'), sight('16:00', 1), hotel('20:00')]) {
-  const itinerary = { days: [
+  const itinerary: { days: Array<Record<string, unknown>>; [k: string]: unknown } = { days: [
     day(1, day1),
     day(2, [hotel('09:00'), sight('10:00', 2), sight('13:00', 3), hotel('19:00')]),
     day(3, [hotel('08:00'), sight('09:00', 4)]),
@@ -46,12 +46,29 @@ async function run(body: Record<string, unknown>, day1: Stop[] = [hotel('15:00')
     apiKey: null, body: { area: 'seoul', regions: ['seoul'], language: 'en', recommendedZone: 'myeongdong', ...body },
     language: 'en', hotel_address: '', arrival_airport: 'ICN_T1', departure_airport: 'ICN_T1', pax: 2, zone_id: null,
   });
+  return itinerary;
 }
 const card = (direction: string) => cardSpy.mock.calls.find((c) => c[2] === direction) as unknown[] | undefined;
 const ap = airportPoint('ICN_T1') as { lat: number; lng: number };
 const tmapOpts = (toAirport: boolean) => transitCalls
   .filter((c) => (toAirport ? c.ex === ap.lng && c.ey === ap.lat : c.sx === ap.lng && c.sy === ap.lat))
   .map((c) => c.opts.avoidNightBus);
+
+describe('hotel legs with no transit (API down, or only night buses by day)', () => {
+  it('become walk/taxi legs in the traveller language, not a "subway" card with a car time', async () => {
+    const it2 = await run({ departure_time: '15:00', arrival_time: '14:00' });
+    const legs = it2.days.flatMap((d) => [d.lodging_to_first, d.last_to_lodging]).filter(Boolean) as Array<Record<string, unknown>>;
+    // Short legs (<1.5 km) are already turned into a walk by _getTransitData; longer ones hit the fallback.
+    const fallback = legs.filter((l) => l.source === 'naver_fallback');
+    expect(fallback.length).toBeGreaterThan(0);
+    for (const leg of legs) expect(leg.method === 'subway' && !(leg.steps_detail as unknown[])?.length).toBe(false);
+    for (const leg of fallback) {
+      expect(['walk', 'taxi']).toContain(leg.method);
+      expect(String((leg.step_by_step as string[])[0])).not.toMatch(/[가-힣]/); // English trip → no Korean step
+      expect(typeof leg.anchor_lat).toBe('number'); // day hotel anchor kept (UI labels which hotel)
+    }
+  });
+});
 
 describe('airport cards carry flight-based times on a 3-day trip', () => {
   it('15:00 flight → hotel leaves before noon → TMAP asked to skip night buses', async () => {
