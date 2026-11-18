@@ -60,6 +60,10 @@ const apiKey =
 const email = process.env.HEALTH_CHECK_EMAIL || envLocal.HEALTH_CHECK_EMAIL;
 const password = process.env.HEALTH_CHECK_PASSWORD || envLocal.HEALTH_CHECK_PASSWORD;
 const BASE_URL = process.env.BASE_URL || 'https://cocotripkr.com';
+// Vercel 미리보기(SSO 보호)를 시험할 때만: 우회 키는 *.vercel.app 주소로만 보낸다.
+const previewBypass = process.env.VERCEL_AUTOMATION_BYPASS_SECRET && new URL(BASE_URL).hostname.endsWith('.vercel.app')
+  ? { 'x-vercel-protection-bypass': process.env.VERCEL_AUTOMATION_BYPASS_SECRET.trim() }
+  : {};
 
 // ─── 시나리오 매트릭스 매개변수 (env override, 기본값은 기존 hardcoded 유지) ───
 const SCENARIO_NAME = process.env.SCENARIO_NAME || 'default';
@@ -153,6 +157,7 @@ if (REPLAY_FILE) {
       Authorization: `Bearer ${auth.idToken}`,
       // LLM 공급자 전환 (2026-10-13): 자동 실행 = 유료 LLM 호출 0 (REAL_LLM=1 수동 실행만 실호출).
       'x-llm-mock': process.env.REAL_LLM === '1' ? '0' : '1',
+      ...previewBypass,
     },
     body: JSON.stringify({
       paypalOrderId: 'ADMIN-BYPASS-REGRESSION-' + Date.now(),
