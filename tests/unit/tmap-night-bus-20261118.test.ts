@@ -14,7 +14,7 @@ import { describe, it, expect, vi, afterEach } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { itineraryHasNightBus, searchTransitRouteTmap } from '../../api/_tmap_helper.js';
-import { legAvoidsNightBus } from '../../api/_shared/nightBusLeg.js';
+import { legAvoidsNightBus, shiftHHMM } from '../../api/_shared/nightBusLeg.js';
 
 const ROOT = resolve(__dirname, '../..');
 const src = (p: string) => readFileSync(resolve(ROOT, p), 'utf8');
@@ -72,7 +72,28 @@ describe('legAvoidsNightBus', () => {
     expect(legAvoidsNightBus(hotel, { category: 'travel', name: '인천국제공항 T1', start_time: '05:00', _departure_airport_stop: true })).toBe(false);
     expect(legAvoidsNightBus(hotel, { category: 'travel', name: '인천국제공항 T1', start_time: '06:30' })).toBe(false);
     expect(legAvoidsNightBus(hotel, { category: 'airport', start_time: '06:59' })).toBe(false);
-    expect(legAvoidsNightBus({ category: 'airport', end_time: '22:10' }, hotel)).toBe(false); // late arrival
+    expect(legAvoidsNightBus({ category: 'airport', end_time: '23:10' }, hotel)).toBe(false); // late arrival
+  });
+  it('arrival-only legs assume the leg time (60 min, airport 120 min)', () => {
+    expect(legAvoidsNightBus({}, { start_time: '05:50' })).toBe(false); // leaves ~04:50
+    expect(legAvoidsNightBus({}, { start_time: '06:00' })).toBe(true);
+    expect(legAvoidsNightBus({}, { category: 'airport', start_time: '07:00' })).toBe(true); // leaves ~05:00
+    expect(legAvoidsNightBus({}, { start_time: '00:30' })).toBe(false); // leaves ~23:30
+  });
+  it('airport card times (landing + 60 / flight - 180)', () => {
+    const hotel = { name: 'Hotel' };
+    expect(legAvoidsNightBus({ category: 'airport', end_time: shiftHHMM('21:30', 60) }, hotel)).toBe(true);
+    expect(legAvoidsNightBus({ category: 'airport', end_time: shiftHHMM('22:30', 60) }, hotel)).toBe(false);
+    expect(legAvoidsNightBus(hotel, { category: 'airport', start_time: shiftHHMM('08:00', -180) })).toBe(false); // N6701 morning
+    expect(legAvoidsNightBus(hotel, { category: 'airport', start_time: shiftHHMM('14:00', -180) })).toBe(true);
+    expect(legAvoidsNightBus(hotel, { category: 'airport', start_time: shiftHHMM('01:00', -180) })).toBe(true); // at ICN 22:00
+  });
+  it('shiftHHMM wraps midnight and rejects junk', () => {
+    expect(shiftHHMM('23:30', 60)).toBe('00:30');
+    expect(shiftHHMM('01:00', -180)).toBe('22:00');
+    expect(shiftHHMM('9:05', 0)).toBe('09:05');
+    expect(shiftHHMM('evening', 60)).toBe(null);
+    expect(shiftHHMM(undefined, 60)).toBe(null);
   });
   it('daytime airport legs skip night buses too', () => {
     expect(legAvoidsNightBus({ category: 'lodging', start_time: '10:00', end_time: '10:00' }, { category: 'airport', start_time: '12:00' })).toBe(true);
@@ -101,12 +122,18 @@ describe('searchTransitRouteTmap — picks among TMAP candidates', () => {
     vi.unstubAllGlobals();
     if (ORIGINAL_KEY === undefined) delete process.env.TMAP_APP_KEY; else process.env.TMAP_APP_KEY = ORIGINAL_KEY;
   });
-  const stubTmap = (itineraries: unknown[]) => {
+  // One itinerary list per call (the last one repeats).
+  const stubTmap = (...answers: unknown[][]) => {
     process.env.TMAP_APP_KEY = 'test-key';
-    const fetchMock = vi.fn(async () => ({ ok: true, status: 200, json: async () => ({ metaData: { plan: { itineraries } } }) }));
+    let n = 0;
+    const fetchMock = vi.fn(async () => {
+      const itineraries = answers[Math.min(n++, answers.length - 1)];
+      return { ok: true, status: 200, json: async () => ({ metaData: { plan: { itineraries } } }) };
+    });
     vi.stubGlobal('fetch', fetchMock);
     return fetchMock;
   };
+  const bodyOf = (m: ReturnType<typeof vi.fn>, i: number) => JSON.parse((m.mock.calls[i] as unknown as [string, { body: string }])[1].body);
   // 홍대 → 동대문 (~8 km, not the <300 m walk shortcut)
   const HONGDAE = [126.9241, 37.5518] as const;
   const DDP = [127.0070, 37.5652] as const;
@@ -122,16 +149,33 @@ describe('searchTransitRouteTmap — picks among TMAP candidates', () => {
     const r = await searchTransitRouteTmap(HONGDAE[0], HONGDAE[1], DDP[0], DDP[1]);
     expect(busNos(r)).toEqual(['7011', 'N16']);
   });
-  it('every candidate needs a night bus → still the first one (a route beats none)', async () => {
-    stubTmap([NIGHT_ONLY, NIGHT_FIRST]);
+  it('fewer than 3 candidates, all night buses → null (no re-query; callers use walk/car)', async () => {
+    const fetchMock = stubTmap([NIGHT_ONLY, NIGHT_FIRST]);
+    expect(await searchTransitRouteTmap(HONGDAE[0], HONGDAE[1], DDP[0], DDP[1], { avoidNightBus: true })).toBe(null);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+  it('3 night candidates → one re-query with count 10, takes its day candidate', async () => {
+    const fetchMock = stubTmap([NIGHT_ONLY, NIGHT_FIRST, NIGHT_ONLY], [NIGHT_ONLY, NIGHT_FIRST, NIGHT_ONLY, DAY_SECOND]);
     const r = await searchTransitRouteTmap(HONGDAE[0], HONGDAE[1], DDP[0], DDP[1], { avoidNightBus: true });
+    expect(busNos(r)).toEqual(['수도권2호선']);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(bodyOf(fetchMock, 0).count).toBe(3);
+    expect(bodyOf(fetchMock, 1).count).toBe(10);
+  });
+  it('re-query still all night buses → null', async () => {
+    stubTmap([NIGHT_ONLY, NIGHT_FIRST, NIGHT_ONLY]);
+    expect(await searchTransitRouteTmap(HONGDAE[0], HONGDAE[1], DDP[0], DDP[1], { avoidNightBus: true })).toBe(null);
+  });
+  it('without the flag, all-night candidates still return the first (old behaviour, no re-query)', async () => {
+    const fetchMock = stubTmap([NIGHT_ONLY, NIGHT_FIRST, NIGHT_ONLY]);
+    const r = await searchTransitRouteTmap(HONGDAE[0], HONGDAE[1], DDP[0], DDP[1]);
     expect(busNos(r)).toEqual(['N73']);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
   });
   it('the flag does not leak into the TMAP request', async () => {
     const fetchMock = stubTmap([DAY_SECOND]);
     await searchTransitRouteTmap(HONGDAE[0], HONGDAE[1], DDP[0], DDP[1], { avoidNightBus: true });
-    const body = JSON.parse((fetchMock.mock.calls[0] as unknown as [string, { body: string }])[1].body);
-    expect(Object.keys(body).sort()).toEqual(['count', 'endX', 'endY', 'format', 'searchDttm', 'startX', 'startY']);
+    expect(Object.keys(bodyOf(fetchMock, 0)).sort()).toEqual(['count', 'endX', 'endY', 'format', 'searchDttm', 'startX', 'startY']);
   });
 });
 
@@ -140,6 +184,13 @@ describe('every TMAP caller passes the daytime hint (no sibling left on the old 
     const s = src('api/_ai_core/agents/RouteAgent.js');
     expect(s).toMatch(/_searchOdsayWithRetry\(prev\.lng, prev\.lat, curr\.lng, curr\.lat, \{ avoidNightBus: legAvoidsNightBus\(prev, curr\) \}\)/);
     expect(s).toMatch(/async _searchOdsayWithRetry\(sx, sy, ex, ey, opts = \{\}\)[\s\S]{0,300}searchTransit\(sx, sy, ex, ey, opts\)/);
+  });
+  it('plan generation — intercity station legs and the airport card carry their known times', () => {
+    const s = src('api/_ai_core/agents/RouteAgent.js');
+    expect(s).toMatch(/name: it\.from_station, display_name: it\.from_station, start_time: it\.recommended_depart \}/);
+    expect(s).toMatch(/name: it\.to_station, display_name: it\.to_station, end_time: it\.arrival_at \}/);
+    expect(s).toMatch(/_routeAirportHotel\(ap, arrFromCoord, 'arrival', \{ leave: shiftHHMM\(data\.arrival_time, 60\) \}\)/);
+    expect(s).toMatch(/_routeAirportHotel\(depFromCoord, ap, 'departure', \{ arrive: shiftHHMM\(data\.departure_time, -180\) \}\)/);
   });
   it('plan re-calculation (recalc-transit)', () => {
     expect(src('api/recalc-transit.js')).toMatch(/searchTransit\(prev\.lng, prev\.lat, curr\.lng, curr\.lat, \{ avoidNightBus: legAvoidsNightBus\(prev, curr\) \}\)/);

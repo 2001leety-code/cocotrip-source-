@@ -271,16 +271,17 @@ export async function searchTransitRouteTmap(sx, sy, ex, ey, opts = {}) {
       _provider: 'tmap',
     };
   }
+  const post = (count) => fetch(TMAP_ENDPOINT, {
+    method: 'POST',
+    signal: AbortSignal.timeout(12000),
+    headers: { appKey, 'Content-Type': 'application/json', accept: 'application/json' },
+    body: JSON.stringify({
+      startX: String(sx), startY: String(sy), endX: String(ex), endY: String(ey),
+      count, format: 'json', searchDttm: buildSearchDttm(opts),
+    }),
+  });
   try {
-    const res = await fetch(TMAP_ENDPOINT, {
-      method: 'POST',
-      signal: AbortSignal.timeout(12000),
-      headers: { appKey, 'Content-Type': 'application/json', accept: 'application/json' },
-      body: JSON.stringify({
-        startX: String(sx), startY: String(sy), endX: String(ex), endY: String(ey),
-        count: 3, format: 'json', searchDttm: buildSearchDttm(opts),
-      }),
-    });
+    const res = await post(3);
     if (!res.ok) {
       if (res.status >= 500) throw new Error(`TMAP HTTP ${res.status}`);
       console.warn(`[TMAP] HTTP ${res.status}`);
@@ -294,12 +295,25 @@ export async function searchTransitRouteTmap(sx, sy, ex, ey, opts = {}) {
     }
     // path[0] = 최단(ODsay 와 동일 정책). 2026-11-18: TMAP ranks night buses first even for a
     // daytime searchDttm (prod vegan plan e00efd46 day 1: N16 at 18:35, N73 at 20:26, searched at
-    // 18:59 KST) → a daytime leg (opts.avoidNightBus) takes the first candidate without one, and
-    // still the first candidate when every one of them needs a night bus.
-    const dayPick = opts.avoidNightBus ? its.find((it) => !itineraryHasNightBus(it)) : null;
-    // Counted on purpose: how often a daytime leg still gets only night-bus candidates.
-    if (opts.avoidNightBus && !dayPick) console.info(`[TMAP] daytime leg, all ${its.length} candidates use a night bus`);
-    return mapTmapItineraryToRoute(dayPick || its[0]);
+    // 18:59 KST) → a daytime leg (opts.avoidNightBus) takes the first candidate without one.
+    if (!opts.avoidNightBus) return mapTmapItineraryToRoute(its[0]);
+    let dayPick = its.find((it) => !itineraryHasNightBus(it));
+    if (!dayPick && its.length >= 3) {
+      // All 3 need a night bus → one more look with every candidate TMAP has (rare, logged).
+      try {
+        const more = await post(10);
+        const moreIts = more.ok ? (await more.json())?.metaData?.plan?.itineraries : null;
+        dayPick = (Array.isArray(moreIts) ? moreIts : []).find((it) => !itineraryHasNightBus(it));
+      } catch (e) {
+        console.info('[TMAP] night-bus re-query failed:', e && e.message);
+      }
+    }
+    if (!dayPick) {
+      // A bus that is not running is worse than none: callers fall back to walk (short) or car time.
+      console.info('[TMAP] daytime leg: every candidate uses a night bus → no transit');
+      return null;
+    }
+    return mapTmapItineraryToRoute(dayPick);
   } catch (err) {
     const isTransient = err.name === 'AbortError' || err.name === 'TimeoutError'
       || /HTTP 5\d\d/.test(err.message || '')

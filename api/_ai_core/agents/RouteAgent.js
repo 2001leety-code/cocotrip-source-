@@ -6,7 +6,7 @@ import { formatTransitSummary, getSubwayStationInfo, getSubwayTimetable } from "
 import { searchTransit } from "../../_transit_provider.js";
 // BUGHUNT-LOW (2026-06-14): AREX 직통 HERO 합성을 ODsay 일 때만 발동시키는 게이트용 (TMAP native 급행 보존).
 import { getTransitProvider } from "../../_transit_provider.js";
-import { legAvoidsNightBus } from "../../_shared/nightBusLeg.js";
+import { legAvoidsNightBus, shiftHHMM } from "../../_shared/nightBusLeg.js";
 import { AIRPORT_COORDS, AIRPORT_NAMES, CITY_CENTER_COORDS, airportPoint, lookupZoneCoord, SCHEDULE_BUFFER_MIN, DEFAULT_LEG_MIN, arrivalReadyMinutes, hhmmToMin, resolveTourStartTime, resolveTourEndTime, resolveArrivalTime, singleDayMealWindows, MEAL_ROLE_WINDOWS } from "../constants.js";
 // P-launch (2026-05-31): 한글 regions('부산') → 영문 키('busan') 정규화 (멀티시티 departure city 해석용).
 import { normalizeRegionKey, regionCityKey, departureCityKey } from "../responseValidator.js";
@@ -1145,7 +1145,7 @@ export class RouteAgent extends BaseAgent {
             });
 
             if (arrFromCoord) {
-                const route = await this._routeAirportHotel(ap, arrFromCoord, 'arrival');
+                const route = await this._routeAirportHotel(ap, arrFromCoord, 'arrival', { leave: shiftHHMM(data.arrival_time, 60) }); // landing + 60 = leaving the airport
                 if (route) {
                     // PR-C (2026-06-01, FEATURE_CHARTER_HERO_PRICE): charter HERO 가격/구간 context.
                     //   region 은 한글('서울') 가능 → normalizeRegionKey 로 영문 키('seoul') 변환
@@ -1328,7 +1328,7 @@ export class RouteAgent extends BaseAgent {
             });
 
             if (depFromCoord) {
-                const route = await this._routeAirportHotel(depFromCoord, ap, 'departure');
+                const route = await this._routeAirportHotel(depFromCoord, ap, 'departure', { arrive: shiftHHMM(data.departure_time, -180) }); // at the airport 3h before the flight
                 if (route) {
                     if (depFromSource !== 'hotel') {
                         route.fallback_origin = depFromSource; // 'arrival_guide' | 'zone_anchor' | 'city_center'
@@ -1882,7 +1882,8 @@ export class RouteAgent extends BaseAgent {
                         console.warn(`  - intercity bookend pre SKIP — STATION_COORDS 에 '${it.from_station}' 미등록 (Day ${dayPlan.day})`);
                     } else {
                         try {
-                            const stationPlace = { lat: fromStationCoord.lat, lng: fromStationCoord.lng, name: it.from_station, display_name: it.from_station };
+                            // start_time = train departure → night-bus check (nightBusLeg.js) reads the hotel leaving time from it.
+                            const stationPlace = { lat: fromStationCoord.lat, lng: fromStationCoord.lng, name: it.from_station, display_name: it.from_station, start_time: it.recommended_depart };
                             const prevHotelPlace = { lat: prevHotelEffective.lat, lng: prevHotelEffective.lng, name: prevHotelEffective.label || 'Hotel', display_name: prevHotelEffective.label || 'Hotel' };
                             const transitData = await this._getTransitData(prevHotelPlace, stationPlace, clientId, clientSecret, -1, dayOfWeek);
                             const pt = transitData.publicTransit;
@@ -1944,7 +1945,8 @@ export class RouteAgent extends BaseAgent {
                         console.warn(`  - intercity bookend post SKIP — STATION_COORDS 에 '${it.to_station}' 미등록 (Day ${dayPlan.day})`);
                     } else {
                         try {
-                            const stationPlace = { lat: toStationCoord.lat, lng: toStationCoord.lng, name: it.to_station, display_name: it.to_station };
+                            // end_time = train arrival = leaving the station (night-bus check, nightBusLeg.js).
+                            const stationPlace = { lat: toStationCoord.lat, lng: toStationCoord.lng, name: it.to_station, display_name: it.to_station, end_time: it.arrival_at };
                             const newHotelPlace = { lat: dayHotel.lat, lng: dayHotel.lng, name: dayHotel.label || 'Hotel', display_name: dayHotel.label || 'Hotel' };
                             const transitData = await this._getTransitData(stationPlace, newHotelPlace, clientId, clientSecret, -2, dayOfWeek);
                             const pt = transitData.publicTransit;
@@ -3022,9 +3024,12 @@ export class RouteAgent extends BaseAgent {
      * retry, so this outer retry covers cases where _getTransitData itself throws
      * (e.g. axios network error before any ODsay call).
      */
-    async _routeAirportHotel(from, to, direction) {
-        const fromPlace = { lat: from.lat, lng: from.lng, name: direction === 'arrival' ? 'Airport' : 'Hotel' };
-        const toPlace = { lat: to.lat, lng: to.lng, name: direction === 'arrival' ? 'Hotel' : 'Airport' };
+    async _routeAirportHotel(from, to, direction, times = {}) {
+        // 2026-11-18: airport side flagged + known flight-based times → night-bus check (nightBusLeg.js).
+        //   No times (AREX hero last-mile) = TMAP first pick, as before.
+        const arrival = direction === 'arrival';
+        const fromPlace = { lat: from.lat, lng: from.lng, name: arrival ? 'Airport' : 'Hotel', ...(arrival ? { category: 'airport' } : {}), ...(times.leave ? { end_time: times.leave } : {}) };
+        const toPlace = { lat: to.lat, lng: to.lng, name: arrival ? 'Hotel' : 'Airport', ...(arrival ? {} : { category: 'airport' }), ...(times.arrive ? { start_time: times.arrive } : {}) };
         // 키 해석 = mood-route.resolveNcpKeys (SSOT) — 2026-07-27 죽은 NAVER_CLIENT_* 직독 제거.
         const { clientId: cid, clientSecret: csec } = resolveNcpKeys();
         const MAX_ATTEMPTS = 2; // 1 try + 1 retry

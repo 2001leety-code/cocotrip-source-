@@ -4,9 +4,9 @@
  * without one (`searchTransitRouteTmap(..., { avoidNightBus })`); a leg whose time is unknown keeps
  * whatever TMAP ranks first.
  *
- * Airport legs get a narrower window: their only known time is often the airport arrival (the
- * hotel side carries no times), and the departure-morning N6701 to ICN is real — an 06:30 airport
- * arrival means leaving around 05:00, when only night buses run.
+ * The test is on the leaving time. When only the arrival is known (hotel or temp objects carry no
+ * times), the leg is assumed to take ASSUMED_LEG_MIN, or ASSUMED_AIRPORT_LEG_MIN to/from an airport
+ * — so an 06:30 airport arrival reads as leaving 04:30 and keeps the departure-morning N6701.
  *
  * Own module on purpose: tests and the offline plan harness mock `_transit_provider.js` wholesale,
  * so a pure helper living there would vanish from those mocks.
@@ -18,44 +18,49 @@ import { isAirportStop } from '../../src/lib/airportStop.js'; // same airport ru
 
 const DAY_FROM_MIN = 5 * 60;
 const DAY_UNTIL_MIN = 23 * 60;
-const AIRPORT_DAY_FROM_MIN = 7 * 60;
-const AIRPORT_DAY_UNTIL_MIN = 22 * 60;
+const ASSUMED_LEG_MIN = 60;
+const ASSUMED_AIRPORT_LEG_MIN = 120;
+const DAY_MIN = 24 * 60;
 
 const toMin = (v) => {
   const m = /^(\d{1,2}):(\d{2})$/.exec(String(v == null ? '' : v).trim());
   return m ? Number(m[1]) * 60 + Number(m[2]) : null;
 };
 
+/** "HH:MM" moved by deltaMin, wrapping past midnight; null when the input is not "HH:MM". */
+export function shiftHHMM(hhmm, deltaMin) {
+  const min = toMin(hhmm);
+  if (min === null) return null;
+  const t = (((min + deltaMin) % DAY_MIN) + DAY_MIN) % DAY_MIN;
+  return `${String(Math.floor(t / 60)).padStart(2, '0')}:${String(t % 60).padStart(2, '0')}`;
+}
+
 /**
  * Leaving time of the leg, in minutes. At generation time end_time is not filled yet
  * (planPersister fills it later) and recalc-transit moves start_time without touching end_time,
- * so start_time + an explicit stay_min wins; then end_time; then the next stop's start; then the
- * stop's own start.
+ * so start_time + an explicit stay_min wins; then end_time; then the next stop's start minus the
+ * assumed leg time; then the stop's own start.
  */
-function leavingMin(prev, curr) {
+function leavingMin(prev, curr, airport) {
   const start = toMin(prev?.start_time);
   const stay = prev?.stay_min;
   if (start !== null && stay !== null && stay !== undefined && stay !== '' && Number.isFinite(Number(stay))) {
     return start + Math.max(0, Math.floor(Number(stay)));
   }
-  for (const t of [prev?.end_time, curr?.start_time]) {
-    const m = toMin(t);
-    if (m !== null) return m;
-  }
+  const end = toMin(prev?.end_time);
+  if (end !== null) return end;
+  const arrive = toMin(curr?.start_time);
+  if (arrive !== null) return arrive - (airport ? ASSUMED_AIRPORT_LEG_MIN : ASSUMED_LEG_MIN);
   return start;
 }
 
 /**
- * Should this stop-to-stop leg skip night-bus candidates?
+ * Should this leg skip night-bus candidates?
  * @param {{category?: string, name?: string, start_time?: string, end_time?: string, stay_min?: number|string, _departure_airport_stop?: boolean}|null} prev
  * @param {{category?: string, name?: string, start_time?: string, _departure_airport_stop?: boolean}|null} curr
  * @returns {boolean}
  */
 export function legAvoidsNightBus(prev, curr) {
-  const min = leavingMin(prev, curr);
-  if (min === null) return false;
-  const airport = isAirportStop(prev) || isAirportStop(curr);
-  return airport
-    ? min >= AIRPORT_DAY_FROM_MIN && min < AIRPORT_DAY_UNTIL_MIN
-    : min >= DAY_FROM_MIN && min < DAY_UNTIL_MIN;
+  const min = leavingMin(prev, curr, isAirportStop(prev) || isAirportStop(curr));
+  return min !== null && min >= DAY_FROM_MIN && min < DAY_UNTIL_MIN;
 }
