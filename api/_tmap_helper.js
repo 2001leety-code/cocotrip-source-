@@ -46,6 +46,29 @@ export function itineraryHasNightBus(it) {
     && /^N\d+$/.test(String(l.route || '').split(':').pop().trim()));
 }
 
+// Before 05:00 TMAP's flags are unusable (00:30–03:00 every leg 0, running N73 included) → not used then.
+const RUNNING_FLAGS_FROM_MIN = 5 * 60;
+
+/**
+ * 2026-11-19: does this itinerary need a bus that TMAP flags as not running at `departDttm`?
+ * TMAP sends `service` (1 running / 0 not) on every transit leg, judged at searchDttm (N16 boarded
+ * 26 min after a 23:50 search still read 1). Checked against real timetables (~50 live calls):
+ *   · BUS flags hold 05:00–23:59 — N16/N73 0 at 09:00/18:35/20:26, 1 at 23:40–23:50; commuter-only 8101
+ *     (weekdays 07:30–08:05) 0 at 06:30/13:00/20:26; Jeju/Busan/Daegu/Gyeongju/Gangneung buses 1 by day.
+ *   · 00:00–04:59 → ignored (see above; 04:00 is mixed).
+ *   · Rail flags are wrong by day (Line 1 local, AREX all-stop, Sinbundang 0 at 06:30–21:30) → never used.
+ * A bus whose own flag is 0 counts as not running even when a `Lane` alternative reads 1: the card shows
+ * `route` (mapTmapItineraryToRoute), so keeping it would name the bus that has stopped.
+ * No real departure time (plan date unknown) → false: flags at the generation time say nothing about the trip.
+ */
+export function itineraryNotRunning(it, departDttm) {
+  const dttm = String(departDttm == null ? '' : departDttm);
+  if (!/^\d{12}$/.test(dttm)) return false;
+  if (Number(dttm.slice(8, 10)) * 60 + Number(dttm.slice(10, 12)) < RUNNING_FLAGS_FROM_MIN) return false;
+  return (Array.isArray(it?.legs) ? it.legs : []).some((l) => String(l.mode || '').toUpperCase() === 'BUS'
+    && (l.service === 0 || l.service === '0'));
+}
+
 /**
  * TMAP itinerary → ODsay searchTransitRoute 호환 raw shape (pure, 테스트용 export).
  * @returns {object|null} { type, totalTime(분), fare(원), transfers, distance(m), totalWalk(m),
@@ -293,27 +316,29 @@ export async function searchTransitRouteTmap(sx, sy, ex, ey, opts = {}) {
       console.info('[TMAP] no routes found:', data?.result?.message || data?.error?.message || 'empty');
       return null;
     }
-    // path[0] = 최단(ODsay 와 동일 정책). 2026-11-18: TMAP ranks night buses first even for a
-    // daytime searchDttm (prod vegan plan e00efd46 day 1: N16 at 18:35, N73 at 20:26, searched at
-    // 18:59 KST) → a daytime leg (opts.avoidNightBus) takes the first candidate without one.
-    if (!opts.avoidNightBus) return mapTmapItineraryToRoute(its[0]);
-    let dayPick = its.find((it) => !itineraryHasNightBus(it));
-    if (!dayPick && its.length >= 3) {
-      // All 3 need a night bus → one more look with every candidate TMAP has (rare, logged).
+    // path[0] = 최단(ODsay 와 동일 정책). 2026-11-18: TMAP ranks the same candidates first at any
+    // searchDttm and flags, not drops, the ones not running (prod vegan plan e00efd46 day 1: N16 at
+    // 18:35, N73 at 20:26, both service 0) → skip night buses by day (opts.avoidNightBus) and buses
+    // flagged not running at the real departure (opts.departDttm, itineraryNotRunning).
+    const departDttm = /^\d{12}$/.test(String(opts.departDttm || '')) ? opts.departDttm : null;
+    const usable = (it) => !(opts.avoidNightBus && itineraryHasNightBus(it)) && !itineraryNotRunning(it, departDttm);
+    let pick = its.find(usable);
+    if (!pick && its.length >= 3) {
+      // None of the 3 is usable → one more look with every candidate TMAP has (rare, logged).
       try {
         const more = await post(10);
         const moreIts = more.ok ? (await more.json())?.metaData?.plan?.itineraries : null;
-        dayPick = (Array.isArray(moreIts) ? moreIts : []).find((it) => !itineraryHasNightBus(it));
+        pick = (Array.isArray(moreIts) ? moreIts : []).find(usable);
       } catch (e) {
-        console.info('[TMAP] night-bus re-query failed:', e && e.message);
+        console.info('[TMAP] not-running re-query failed:', e && e.message);
       }
     }
-    if (!dayPick) {
+    if (!pick) {
       // A bus that is not running is worse than none: callers fall back to walk (short) or car time.
-      console.info('[TMAP] daytime leg: every candidate uses a night bus → no transit');
+      console.info(`[TMAP] every candidate needs a night bus by day or a bus not running at ${departDttm || 'unknown time'} → no transit`);
       return null;
     }
-    return mapTmapItineraryToRoute(dayPick);
+    return mapTmapItineraryToRoute(pick);
   } catch (err) {
     const isTransient = err.name === 'AbortError' || err.name === 'TimeoutError'
       || /HTTP 5\d\d/.test(err.message || '')

@@ -6,7 +6,7 @@
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
-const transitCalls = vi.hoisted(() => [] as Array<{ ex: number; ey: number; sx: number; sy: number; opts: { avoidNightBus?: boolean } }>);
+const transitCalls = vi.hoisted(() => [] as Array<{ ex: number; ey: number; sx: number; sy: number; opts: { avoidNightBus?: boolean; departDttm?: string } }>);
 vi.mock('axios', () => ({ default: { get: vi.fn(() => Promise.reject(new Error('offline'))), post: vi.fn(() => Promise.reject(new Error('offline'))) } }));
 vi.mock('../../api/_transit_provider.js', () => ({
   searchTransit: vi.fn(async (sx: number, sy: number, ex: number, ey: number, opts = {}) => { transitCalls.push({ sx, sy, ex, ey, opts }); return null; }),
@@ -36,12 +36,12 @@ beforeEach(() => {
 });
 afterEach(() => { cardSpy.mockRestore(); vi.useRealTimers(); delete process.env.ROUTE_TSP_ENABLED; });
 
-async function run(body: Record<string, unknown>, day1: Stop[] = [hotel('15:00'), sight('16:00', 1), hotel('20:00')]) {
+async function run(body: Record<string, unknown>, day1: Stop[] = [hotel('15:00'), sight('16:00', 1), hotel('20:00')], dates?: string[]) {
   const itinerary: { days: Array<Record<string, unknown>>; [k: string]: unknown } = { days: [
     day(1, day1),
     day(2, [hotel('09:00'), sight('10:00', 2), sight('13:00', 3), hotel('19:00')]),
     day(3, [hotel('08:00'), sight('09:00', 4)]),
-  ], departure_guide: { airport: 'ICN_T1' }, arrival_guide: {} };
+  ].map((d, i) => (dates ? { ...d, date: dates[i] } : d)), departure_guide: { airport: 'ICN_T1' }, arrival_guide: {} };
   await enrichItineraryWithRoute(itinerary, {
     apiKey: null, body: { area: 'seoul', regions: ['seoul'], language: 'en', recommendedZone: 'myeongdong', ...body },
     language: 'en', hotel_address: '', arrival_airport: 'ICN_T1', departure_airport: 'ICN_T1', pax: 2, zone_id: null,
@@ -93,5 +93,36 @@ describe('airport cards carry flight-based times on a 3-day trip', () => {
     await run({ departure_time: '15:00', arrival_time: '23:30' }, [hotel('23:59')]); // late landing: hotel only
     expect(((card('arrival')![3]) as { leave?: string }).leave).toBe('01:00');
     expect(tmapOpts(false)).not.toContain(true);
+  });
+});
+
+describe('2026-11-19: dated trip → TMAP gets the real departure of each leg (running flags)', () => {
+  const DATES = ['2026-12-01', '2026-12-02', '2026-12-03'];
+  const dttms = (toAirport: boolean) => transitCalls
+    .filter((c) => (toAirport ? c.ex === ap.lng && c.ey === ap.lat : c.sx === ap.lng && c.sy === ap.lat))
+    .map((c) => c.opts.departDttm);
+  it('departure card is dated on the last day, arrival card on day 1', async () => {
+    await run({ departure_time: '15:00', arrival_time: '14:00' }, undefined, DATES);
+    expect(dttms(true).length).toBeGreaterThan(0);
+    for (const d of dttms(true)) expect(d).toMatch(/^202612031[01][0-5][0-9]$/); // 15:00 − 180 − transfer, on day 3
+    expect(dttms(false)).toContain('202612011530');
+  });
+  it('23:30 landing → leaves the airport 01:00 the next day', async () => {
+    await run({ departure_time: '15:00', arrival_time: '23:30' }, [hotel('23:59')], DATES);
+    expect(dttms(false)).toContain('202612020100');
+  });
+  it('stop-to-stop legs carry the date of their own day', async () => {
+    await run({ departure_time: '15:00', arrival_time: '14:00' }, undefined, DATES);
+    const legDates = transitCalls.filter((c) => !(c.ex === ap.lng && c.ey === ap.lat) && !(c.sx === ap.lng && c.sy === ap.lat))
+      .map((c) => String(c.opts.departDttm || '').slice(0, 8));
+    expect(legDates).toContain('20261201');
+    expect(legDates).toContain('20261202');
+    expect(legDates).toContain('20261203');
+    expect(legDates).not.toContain(''); // every timed leg is dated
+  });
+  it('undated trip → no departDttm anywhere (generation-time search, as before)', async () => {
+    await run({ departure_time: '15:00', arrival_time: '14:00' });
+    expect(transitCalls.length).toBeGreaterThan(0);
+    for (const c of transitCalls) expect(c.opts.departDttm).toBeUndefined();
   });
 });

@@ -183,7 +183,9 @@ describe('searchTransitRouteTmap — picks among TMAP candidates', () => {
 describe('every TMAP caller passes the daytime hint (no sibling left on the old pick)', () => {
   it('plan generation (RouteAgent) — stop-to-stop legs', () => {
     const s = src('api/_ai_core/agents/RouteAgent.js');
-    expect(s).toMatch(/_searchOdsayWithRetry\(prev\.lng, prev\.lat, curr\.lng, curr\.lat, \{ avoidNightBus: legAvoidsNightBus\(prev, curr\) \}\)/);
+    // 2026-11-19: + the day date → real departure (tmap-running-flag-20261119.test.ts).
+    expect(s).toMatch(/_searchOdsayWithRetry\(prev\.lng, prev\.lat, curr\.lng, curr\.lat, transitLegOpts\(prev, curr, dayYmd\)\)/);
+    expect(s.match(/this\._getTransitData\([^)]*, dayOfWeek, dayPlan\.date\)/g)).toHaveLength(6); // every day leg
     expect(s).toMatch(/async _searchOdsayWithRetry\(sx, sy, ex, ey, opts = \{\}\)[\s\S]{0,300}searchTransit\(sx, sy, ex, ey, opts\)/);
   });
   it('plan generation — intercity station legs and the airport card carry their known times', () => {
@@ -191,11 +193,11 @@ describe('every TMAP caller passes the daytime hint (no sibling left on the old 
     expect(s).toMatch(/name: it\.from_station, display_name: it\.from_station, start_time: it\.recommended_depart \}/);
     expect(s).toMatch(/name: it\.to_station, display_name: it\.to_station, end_time: it\.arrival_at \}/);
     // Airport cards on a real 3-day run: tmap-night-bus-airport-card-20261118.test.ts.
-    expect(s).toMatch(/_routeAirportHotel\(ap, arrFromCoord, 'arrival', \{ leave: shiftHHMM\(data\.arrival_time, IMMIGRATION_BUFFER_MIN\) \}\)/);
-    expect(s).toMatch(/_routeAirportHotel\(depFromCoord, ap, 'departure', \{ leave: depLeave \}\)/);
+    expect(s).toMatch(/_routeAirportHotel\(ap, arrFromCoord, 'arrival', \{ leave: shiftHHMM\(data\.arrival_time, IMMIGRATION_BUFFER_MIN\), date: arrLeave\?\.date \}\)/);
+    expect(s).toMatch(/_routeAirportHotel\(depFromCoord, ap, 'departure', \{ leave: depLeave, date: depLeaveAt\?\.date \}\)/);
   });
   it('plan re-calculation (recalc-transit)', () => {
-    expect(src('api/recalc-transit.js')).toMatch(/searchTransit\(prev\.lng, prev\.lat, curr\.lng, curr\.lat, \{ avoidNightBus: legAvoidsNightBus\(prev, curr\) \}\)/);
+    expect(src('api/recalc-transit.js')).toMatch(/searchTransit\(prev\.lng, prev\.lat, curr\.lng, curr\.lat, transitLegOpts\(prev, curr, day\.date\)\)/);
   });
   it('course builder (course-route) — daytime courses, no times', () => {
     expect(src('api/course-route.js')).toMatch(/searchTransitRouteTmap\(a\.lng, a\.lat, b\.lng, b\.lat, \{ avoidNightBus: true \}\)/);
