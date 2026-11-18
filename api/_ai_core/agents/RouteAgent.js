@@ -6,6 +6,7 @@ import { formatTransitSummary, getSubwayStationInfo, getSubwayTimetable } from "
 import { searchTransit } from "../../_transit_provider.js";
 // BUGHUNT-LOW (2026-06-14): AREX 직통 HERO 합성을 ODsay 일 때만 발동시키는 게이트용 (TMAP native 급행 보존).
 import { getTransitProvider } from "../../_transit_provider.js";
+import { legAvoidsNightBus } from "../../_shared/nightBusLeg.js";
 import { AIRPORT_COORDS, AIRPORT_NAMES, CITY_CENTER_COORDS, airportPoint, lookupZoneCoord, SCHEDULE_BUFFER_MIN, DEFAULT_LEG_MIN, arrivalReadyMinutes, hhmmToMin, resolveTourStartTime, resolveTourEndTime, resolveArrivalTime, singleDayMealWindows, MEAL_ROLE_WINDOWS } from "../constants.js";
 // P-launch (2026-05-31): 한글 regions('부산') → 영문 키('busan') 정규화 (멀티시티 departure city 해석용).
 import { normalizeRegionKey, regionCityKey, departureCityKey } from "../responseValidator.js";
@@ -2578,7 +2579,8 @@ export class RouteAgent extends BaseAgent {
                 timeout: 5000,
             }) : Promise.reject(new Error('no credentials')),
             // ODsay Transit (Layer 3: retry with 500ms backoff, 10s timeout)
-            this._searchOdsayWithRetry(prev.lng, prev.lat, curr.lng, curr.lat),
+            // 2026-11-18: daytime legs skip TMAP night-bus candidates (N16 at 18:35 — legAvoidsNightBus).
+            this._searchOdsayWithRetry(prev.lng, prev.lat, curr.lng, curr.lat, { avoidNightBus: legAvoidsNightBus(prev, curr) }),
         ]);
 
         // Naver 결과 처리
@@ -2857,11 +2859,11 @@ export class RouteAgent extends BaseAgent {
      * B9-31: attempt 1 failure 는 retry 가 정상 흐름이라 info 로 다운그레이드.
      * attempt 2 fatal 만 warn 유지 (운영자가 인식해야 하는 패턴).
      */
-    async _searchOdsayWithRetry(sx, sy, ex, ey) {
+    async _searchOdsayWithRetry(sx, sy, ex, ey, opts = {}) {
         for (let attempt = 0; attempt < 2; attempt++) {
             try {
                 // P330: provider-aware (ODsay 기본 / TMAP env 스위치). 출력 shape 동일.
-                const result = await searchTransit(sx, sy, ex, ey);
+                const result = await searchTransit(sx, sy, ex, ey, opts);
                 return result;
             } catch (e) {
                 if (attempt === 0) {

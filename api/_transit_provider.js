@@ -23,7 +23,8 @@ export function getTransitProvider() {
  * 두 좌표 간 대중교통 경로 검색 (provider 무관 단일 진입점).
  * ODsay searchTransitRoute 와 동일 시그니처/출력 → 호출부 변경 최소.
  * @param {number} sx 출발 경도 / @param {number} sy 출발 위도 / @param {number} ex 도착 경도 / @param {number} ey 도착 위도
- * @param {object} [opts] TMAP 전용 옵션 (departDttm 등). ODsay 는 무시.
+ * @param {object} [opts] TMAP 전용 옵션 (departDttm · avoidNightBus). ODsay 는 무시 — ODsay 는 고른
+ *   결과를 좌표만으로 캐시하므로 심야버스 거르기를 넣으려면 캐시 키부터 바꿔야 한다(지금은 예비 경로).
  * @returns {Promise<object|null>} ODsay 호환 raw route 또는 null.
  */
 export async function searchTransit(sx, sy, ex, ey, opts = {}) {

@@ -38,6 +38,15 @@ function legModeToStepMode(mode) {
 }
 
 /**
+ * 2026-11-18: does this TMAP itinerary ride a Seoul-area night bus (N16 · N73 · N6701 …)?
+ * TMAP gives `route` as '일반:N16' / '공항:N6701' (sometimes bare 'N16').
+ */
+export function itineraryHasNightBus(it) {
+  return (Array.isArray(it?.legs) ? it.legs : []).some((l) => legModeToStepMode(l.mode) === 'bus'
+    && /^N\d+$/.test(String(l.route || '').split(':').pop().trim()));
+}
+
+/**
  * TMAP itinerary → ODsay searchTransitRoute 호환 raw shape (pure, 테스트용 export).
  * @returns {object|null} { type, totalTime(분), fare(원), transfers, distance(m), totalWalk(m),
  *   firstStation, lastStation, steps[], alternatives, _provider:'tmap' }
@@ -283,7 +292,12 @@ export async function searchTransitRouteTmap(sx, sy, ex, ey, opts = {}) {
       console.info('[TMAP] no routes found:', data?.result?.message || data?.error?.message || 'empty');
       return null;
     }
-    return mapTmapItineraryToRoute(its[0]); // path[0] = 최단(ODsay 와 동일 정책)
+    // path[0] = 최단(ODsay 와 동일 정책). 2026-11-18: TMAP ranks night buses first even for a
+    // daytime searchDttm (prod vegan plan e00efd46 day 1: N16 at 18:35, N73 at 20:26, searched at
+    // 18:59 KST) → a daytime leg (opts.avoidNightBus) takes the first candidate without one, and
+    // still the first candidate when every one of them needs a night bus.
+    const pick = (opts.avoidNightBus && its.find((it) => !itineraryHasNightBus(it))) || its[0];
+    return mapTmapItineraryToRoute(pick);
   } catch (err) {
     const isTransient = err.name === 'AbortError' || err.name === 'TimeoutError'
       || /HTTP 5\d\d/.test(err.message || '')
