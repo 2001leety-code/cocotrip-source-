@@ -82,11 +82,12 @@ describe('legAvoidsNightBus', () => {
   });
   it('airport card times (landing + 60 / flight - 180)', () => {
     const hotel = { name: 'Hotel' };
-    expect(legAvoidsNightBus({ category: 'airport', end_time: shiftHHMM('21:30', 60) }, hotel)).toBe(true);
-    expect(legAvoidsNightBus({ category: 'airport', end_time: shiftHHMM('22:30', 60) }, hotel)).toBe(false);
-    expect(legAvoidsNightBus(hotel, { category: 'airport', start_time: shiftHHMM('08:00', -180) })).toBe(false); // N6701 morning
-    expect(legAvoidsNightBus(hotel, { category: 'airport', start_time: shiftHHMM('14:00', -180) })).toBe(true);
-    expect(legAvoidsNightBus(hotel, { category: 'airport', start_time: shiftHHMM('01:00', -180) })).toBe(true); // at ICN 22:00
+    // arrival card: airport end_time = landing + 90 (immigration); departure card: hotel end_time = leaving.
+    expect(legAvoidsNightBus({ category: 'airport', end_time: shiftHHMM('21:00', 90) }, hotel)).toBe(true);
+    expect(legAvoidsNightBus({ category: 'airport', end_time: shiftHHMM('22:30', 90) }, hotel)).toBe(false);
+    expect(legAvoidsNightBus({ name: 'Hotel', end_time: '03:50' }, { category: 'airport' })).toBe(false); // N6701 morning
+    expect(legAvoidsNightBus({ name: 'Hotel', end_time: '10:50' }, { category: 'airport' })).toBe(true);
+    expect(legAvoidsNightBus({ name: 'Hotel', end_time: '20:50' }, { category: 'airport' })).toBe(true); // 01:00 flight
   });
   it('shiftHHMM wraps midnight and rejects junk', () => {
     expect(shiftHHMM('23:30', 60)).toBe('00:30');
@@ -189,8 +190,9 @@ describe('every TMAP caller passes the daytime hint (no sibling left on the old 
     const s = src('api/_ai_core/agents/RouteAgent.js');
     expect(s).toMatch(/name: it\.from_station, display_name: it\.from_station, start_time: it\.recommended_depart \}/);
     expect(s).toMatch(/name: it\.to_station, display_name: it\.to_station, end_time: it\.arrival_at \}/);
-    expect(s).toMatch(/_routeAirportHotel\(ap, arrFromCoord, 'arrival', \{ leave: shiftHHMM\(data\.arrival_time, 60\) \}\)/);
-    expect(s).toMatch(/_routeAirportHotel\(depFromCoord, ap, 'departure', \{ arrive: shiftHHMM\(data\.departure_time, -180\) \}\)/);
+    // Airport cards on a real 3-day run: tmap-night-bus-airport-card-20261118.test.ts.
+    expect(s).toMatch(/_routeAirportHotel\(ap, arrFromCoord, 'arrival', \{ leave: shiftHHMM\(data\.arrival_time, IMMIGRATION_BUFFER_MIN\) \}\)/);
+    expect(s).toMatch(/_routeAirportHotel\(depFromCoord, ap, 'departure', \{ leave: depLeave \}\)/);
   });
   it('plan re-calculation (recalc-transit)', () => {
     expect(src('api/recalc-transit.js')).toMatch(/searchTransit\(prev\.lng, prev\.lat, curr\.lng, curr\.lat, \{ avoidNightBus: legAvoidsNightBus\(prev, curr\) \}\)/);

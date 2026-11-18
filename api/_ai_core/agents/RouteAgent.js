@@ -7,7 +7,7 @@ import { searchTransit } from "../../_transit_provider.js";
 // BUGHUNT-LOW (2026-06-14): AREX 직통 HERO 합성을 ODsay 일 때만 발동시키는 게이트용 (TMAP native 급행 보존).
 import { getTransitProvider } from "../../_transit_provider.js";
 import { legAvoidsNightBus, shiftHHMM } from "../../_shared/nightBusLeg.js";
-import { AIRPORT_COORDS, AIRPORT_NAMES, CITY_CENTER_COORDS, airportPoint, lookupZoneCoord, SCHEDULE_BUFFER_MIN, DEFAULT_LEG_MIN, arrivalReadyMinutes, hhmmToMin, resolveTourStartTime, resolveTourEndTime, resolveArrivalTime, singleDayMealWindows, MEAL_ROLE_WINDOWS } from "../constants.js";
+import { AIRPORT_COORDS, AIRPORT_NAMES, CITY_CENTER_COORDS, airportPoint, lookupZoneCoord, SCHEDULE_BUFFER_MIN, DEFAULT_LEG_MIN, arrivalReadyMinutes, hhmmToMin, resolveTourStartTime, resolveTourEndTime, resolveArrivalTime, singleDayMealWindows, MEAL_ROLE_WINDOWS, IMMIGRATION_BUFFER_MIN, departureActivityDeadlineMin } from "../constants.js";
 // P-launch (2026-05-31): 한글 regions('부산') → 영문 키('busan') 정규화 (멀티시티 departure city 해석용).
 import { normalizeRegionKey, regionCityKey, departureCityKey } from "../responseValidator.js";
 import { isAirportStop } from "../../../src/lib/airportStop.js"; // 2026-11-16: 공항 stop 판정 — 화면(DayTimeline)과 같은 규칙
@@ -1145,7 +1145,8 @@ export class RouteAgent extends BaseAgent {
             });
 
             if (arrFromCoord) {
-                const route = await this._routeAirportHotel(ap, arrFromCoord, 'arrival', { leave: shiftHHMM(data.arrival_time, 60) }); // landing + 60 = leaving the airport
+                // Leaving the airport = landing + immigration buffer (same constant as arrivalReadyMinutes).
+                const route = await this._routeAirportHotel(ap, arrFromCoord, 'arrival', { leave: shiftHHMM(data.arrival_time, IMMIGRATION_BUFFER_MIN) });
                 if (route) {
                     // PR-C (2026-06-01, FEATURE_CHARTER_HERO_PRICE): charter HERO 가격/구간 context.
                     //   region 은 한글('서울') 가능 → normalizeRegionKey 로 영문 키('seoul') 변환
@@ -1328,7 +1329,11 @@ export class RouteAgent extends BaseAgent {
             });
 
             if (depFromCoord) {
-                const route = await this._routeAirportHotel(depFromCoord, ap, 'departure', { arrive: shiftHHMM(data.departure_time, -180) }); // at the airport 3h before the flight
+                // Leaving the hotel = the departure-day activity deadline (flight − airport buffer − transfer), same rule as blockMode.
+                const depFlightMin = hhmmToMin(data.flight_departure_time);
+                const depLeave = depFlightMin < 0 ? null
+                    : shiftHHMM('00:00', departureActivityDeadlineMin(depFlightMin, departureAirportKey, departureCity || region));
+                const route = await this._routeAirportHotel(depFromCoord, ap, 'departure', { leave: depLeave });
                 if (route) {
                     if (depFromSource !== 'hotel') {
                         route.fallback_origin = depFromSource; // 'arrival_guide' | 'zone_anchor' | 'city_center'
@@ -2087,7 +2092,17 @@ export class RouteAgent extends BaseAgent {
                         const hotelPlace = { lat: dayHotel.lat, lng: dayHotel.lng, name: dayHotel.label || 'Hotel', display_name: dayHotel.label || 'Hotel' };
                         const transitData = await this._getTransitData(hotelPlace, places[0], clientId, clientSecret, 0, dayOfWeek);
                         const pt = transitData.publicTransit;
-                        hotelTransit = {
+                        // 2026-11-18: no transit (API down, or every TMAP candidate needs a night bus by day) → walk/taxi
+                        //   leg like the intercity bookends, not a "subway" card carrying a car time.
+                        const hotelFb = pt ? null : buildBookendFallbackLeg({
+                            fromLat: dayHotel.lat, fromLng: dayHotel.lng, fromLabel: dayHotel.label || 'Hotel',
+                            toLat: places[0].lat, toLng: places[0].lng, toLabel: places[0].display_name || places[0].name,
+                        });
+                        hotelTransit = hotelFb ? {
+                            ...hotelFb,
+                            anchor_lat: dayHotel.lat, anchor_lng: dayHotel.lng,
+                            anchor_label: dayHotel.label || null, anchor_source: dayHotel.source || 'hotel',
+                        } : {
                             method: pt?.method || 'subway',
                             mode: methodToMode(pt?.method) || 'subway',
                             instruction: pt?.summary || `Take public transit from ${dayHotel.label || 'hotel'} to ${places[0].name || places[0].display_name || 'first stop'}`,
@@ -2154,7 +2169,17 @@ export class RouteAgent extends BaseAgent {
                             const hotelPlace = { lat: dayHotel.lat, lng: dayHotel.lng, name: dayHotel.label || 'Hotel', display_name: dayHotel.label || 'Hotel' };
                             const lastTransit = await this._getTransitData(lastPlace, hotelPlace, clientId, clientSecret, 999, dayOfWeek);
                             const pt = lastTransit.publicTransit;
-                            const returnTransit = {
+                            // 2026-11-18: same walk/taxi fallback as hotel → first stop above.
+                            const returnFb = pt ? null : buildBookendFallbackLeg({
+                                fromLat: lastPlace.lat, fromLng: lastPlace.lng, fromLabel: lastPlace.display_name || lastPlace.name || 'last stop',
+                                toLat: dayHotel.lat, toLng: dayHotel.lng, toLabel: dayHotel.label || 'Hotel',
+                            });
+                            const returnTransit = returnFb ? {
+                                ...returnFb,
+                                anchor_lat: dayHotel.lat, anchor_lng: dayHotel.lng,
+                                anchor_label: dayHotel.label || null, anchor_source: dayHotel.source || 'hotel',
+                                _isLodgingReturn: true,
+                            } : {
                                 method: pt?.method || 'subway',
                                 mode: methodToMode(pt?.method) || 'subway',
                                 instruction: pt?.summary || `Return to ${dayHotel.label || 'hotel'} from ${lastPlace.name || lastPlace.display_name || 'last stop'}`,
