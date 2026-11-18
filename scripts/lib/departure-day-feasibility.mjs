@@ -5,9 +5,12 @@
 //   마지막 날 도시를 출국 공항이 안 맡으면(부산 + ICN) 숙소 시각이 그럴듯해도 실패 — mock LLM 폴백
 //   경로는 숙소를 06:30 에 고정해 시각만으로는 이 모양을 놓친다(review N1). 시나리오 도시(서울·부산·제주)
 //   전제 — 공항 없는 도시(경주 등)가 마지막 날인 시나리오를 넣으면 이 줄을 다시 볼 것.
+//   시각 선 = 04:30: 플래너 자체 바닥(05:00, planPersister)은 여유 5분 때문에 추정치가 조금만 길어도 1분
+//   차이로 안 걸린다(오프라인 명동→인천 차 116분 추정 → 04:59, 운영 실제 버스 70분 → 05:30). 그 흔들림은
+//   넘기고 02:18 처럼 첫차 훨씬 전 출발만 잡는다.
 import { cityForAirport } from '../../api/_ai_core/airportInference.js';
 
-export const EARLIEST_LODGING_DEPART_MIN = 5 * 60;
+export const EARLIEST_LODGING_DEPART_MIN = 4 * 60 + 30;
 
 /**
  * @param {Array<{day?: number, city?: string, stops?: Array<{category?: string, start_time?: string}>, intercity_transit?: {mode?: string}}>} days

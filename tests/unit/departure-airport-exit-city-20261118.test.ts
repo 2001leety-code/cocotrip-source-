@@ -89,8 +89,10 @@ describe('scenario B-19 departureDayFeasibility', () => {
   it('fails the 02:18 Busan departure the zh scenario produced', () => {
     expect(departureDayFeasibility([day('02:18')]).pass).toBe(false);
   });
-  it('passes 05:00 and later', () => {
-    expect(departureDayFeasibility([day('05:00')]).pass).toBe(true);
+  it('passes 04:30 and later — estimate noise (offline car 116 min → 04:59) is not a failure', () => {
+    expect(departureDayFeasibility([day('04:29')]).pass).toBe(false);
+    expect(departureDayFeasibility([day('04:30')]).pass).toBe(true);
+    expect(departureDayFeasibility([day('04:59')]).pass).toBe(true);
     expect(departureDayFeasibility([day('05:30')]).pass).toBe(true);
   });
   it('fails a last-day city the departure airport does not serve, even at a plausible time (review N1)', () => {
