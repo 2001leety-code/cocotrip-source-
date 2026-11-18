@@ -30,6 +30,7 @@
 import { readFileSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
+import { departureDayFeasibility } from './lib/departure-day-feasibility.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const root = join(__dirname, '..');
@@ -59,6 +60,10 @@ const apiKey =
 const email = process.env.HEALTH_CHECK_EMAIL || envLocal.HEALTH_CHECK_EMAIL;
 const password = process.env.HEALTH_CHECK_PASSWORD || envLocal.HEALTH_CHECK_PASSWORD;
 const BASE_URL = process.env.BASE_URL || 'https://cocotripkr.com';
+// Vercel 미리보기(SSO 보호)를 시험할 때만: 우회 키는 *.vercel.app 주소로만 보낸다.
+const previewBypass = process.env.VERCEL_AUTOMATION_BYPASS_SECRET && new URL(BASE_URL).hostname.endsWith('.vercel.app')
+  ? { 'x-vercel-protection-bypass': process.env.VERCEL_AUTOMATION_BYPASS_SECRET.trim() }
+  : {};
 
 // ─── 시나리오 매트릭스 매개변수 (env override, 기본값은 기존 hardcoded 유지) ───
 const SCENARIO_NAME = process.env.SCENARIO_NAME || 'default';
@@ -96,6 +101,8 @@ const SCENARIO_RECOMMENDED_ZONES = Object.fromEntries(
     .filter(([, v]) => v)
 );
 const SCENARIO_ARRIVAL_TERMINAL = TERMINAL_BY_AIRPORT[SCENARIO_ARRIVAL_AIRPORT] || 'T1';
+// 출국 공항 = 입국 공항 (Step 2 body · B-19 공용)
+const SCENARIO_DEPARTURE_AIRPORT = SCENARIO_ARRIVAL_AIRPORT === 'ICN' ? 'ICN_T1' : SCENARIO_ARRIVAL_AIRPORT;
 
 // ─── Replay 모드 (2026-07-10): 저장된 plan JSON 으로 assertion 만 로컬 실행 ───
 // 용법: SCENARIO_REPLAY_FILE=path/to/plan.json node scripts/validate-prod-regression.mjs
@@ -150,6 +157,7 @@ if (REPLAY_FILE) {
       Authorization: `Bearer ${auth.idToken}`,
       // LLM 공급자 전환 (2026-10-13): 자동 실행 = 유료 LLM 호출 0 (REAL_LLM=1 수동 실행만 실호출).
       'x-llm-mock': process.env.REAL_LLM === '1' ? '0' : '1',
+      ...previewBypass,
     },
     body: JSON.stringify({
       paypalOrderId: 'ADMIN-BYPASS-REGRESSION-' + Date.now(),
@@ -170,7 +178,7 @@ if (REPLAY_FILE) {
       styles: ['Food', 'Photo'],
       arrivalAirport: SCENARIO_ARRIVAL_AIRPORT,
       arrival_airport: SCENARIO_ARRIVAL_AIRPORT === 'ICN' ? 'ICN_T1' : SCENARIO_ARRIVAL_AIRPORT,
-      departure_airport: SCENARIO_ARRIVAL_AIRPORT === 'ICN' ? 'ICN_T1' : SCENARIO_ARRIVAL_AIRPORT,
+      departure_airport: SCENARIO_DEPARTURE_AIRPORT,
       arrivalTerminal: SCENARIO_ARRIVAL_TERMINAL,
       arrivalTime: '14:00',
       departureTime: '10:00',
@@ -686,6 +694,16 @@ results.push({
   label: '다양성 지표 (unique stop name ≥ 70%, local_tag ≥ 30%)',
   actual: `unique=${uniqueNames}/${totalNames} (${(uniqueRatio * 100).toFixed(0)}%), local_tag=${eligibleCount < 5 ? `skip(block, eligible=${eligibleCount})` : `${localTagCount}/${eligibleCount} (${(localTagRatio * 100).toFixed(0)}%)`}`,
   pass: b18Pass,
+});
+
+// ─── B-19: 출국일 실행 가능 (2026-11-18) ─────────────────────
+// 출국 10:00 고정(위 Step 2 body) 전제 — 숙소 04:30 전 출발·출국일 도시 이동·공항 먼 도시 = 비행기 놓침 일정.
+const b19 = departureDayFeasibility(days, SCENARIO_DEPARTURE_AIRPORT);
+results.push({
+  id: 'B-19',
+  label: '출국일 실행 가능 (숙소 출발 04:30 이후 · 출국일 도시 이동 없음 · 마지막 날 도시 = 출국 공항 도시)',
+  actual: b19.actual,
+  pass: b19.pass,
 });
 
 // ─── Summary ──────────────────────────────────────────────

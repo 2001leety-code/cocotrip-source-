@@ -14,6 +14,12 @@ on:
     # 일요일 01:00 UTC = KST 10:00. daily-health (월/수/금 00:00 UTC) 와 겹치지 않게 일요일 선택.
     - cron: '0 1 * * 0'
   workflow_dispatch:
+    inputs:
+      base_url:
+        description: '시험할 주소 (비우면 운영 https://cocotripkr.com). Vercel 미리보기 주소면 미리보기 시험 계정·우회 키를 쓴다.'
+        required: false
+        default: ''
+        type: string
 
 permissions:
   contents: read
@@ -49,10 +55,11 @@ jobs:
 
       - name: Run scenario ${{ matrix.scenario.name }}
         env:
-          FIREBASE_WEB_API_KEY: ${{ secrets.FIREBASE_WEB_API_KEY }}
-          HEALTH_CHECK_EMAIL: ${{ secrets.HEALTH_CHECK_EMAIL }}
-          HEALTH_CHECK_PASSWORD: ${{ secrets.HEALTH_CHECK_PASSWORD }}
-          BASE_URL: https://cocotripkr.com
+          FIREBASE_WEB_API_KEY: ${{ inputs.base_url && secrets.PREVIEW_FIREBASE_WEB_API_KEY || secrets.FIREBASE_WEB_API_KEY }}
+          HEALTH_CHECK_EMAIL: ${{ inputs.base_url && secrets.PREVIEW_HEALTH_CHECK_EMAIL || secrets.HEALTH_CHECK_EMAIL }}
+          HEALTH_CHECK_PASSWORD: ${{ inputs.base_url && secrets.PREVIEW_HEALTH_CHECK_PASSWORD || secrets.HEALTH_CHECK_PASSWORD }}
+          VERCEL_AUTOMATION_BYPASS_SECRET: ${{ inputs.base_url && secrets.VERCEL_AUTOMATION_BYPASS_SECRET || '' }}
+          BASE_URL: ${{ inputs.base_url || 'https://cocotripkr.com' }}
           SCENARIO_NAME: ${{ matrix.scenario.name }}
           SCENARIO_REGIONS: ${{ matrix.scenario.regions }}
           SCENARIO_DURATION: ${{ matrix.scenario.duration }}
@@ -67,7 +74,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Create issue on failure
-        if: needs.scenario.result != 'success'
+        # 미리보기 시험(base_url 지정)은 이슈를 만들지 않는다 — 결과는 run 로그로 본다.
+        if: needs.scenario.result != 'success' && !inputs.base_url
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |

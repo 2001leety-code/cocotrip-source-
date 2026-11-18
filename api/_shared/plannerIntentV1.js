@@ -450,7 +450,8 @@ export function normalizePlannerIntentV1(body, legacyShaped = null) {
  *
  * Requirements (planner-intent-v1 §4):
  *   - exactly `durationDays` entries,
- *   - day 1 === arrivalCityKey and day N === departureCityKey when supplied,
+ *   - day 1 === arrivalCityKey and day N === departureCityKey when supplied
+ *     (round trip with cities in between: days N-1 and N too, when the trip is long enough),
  *   - the traveller's city ordering is preserved in between,
  *   - single-city stays byte-identical to "every day is that city".
  *
@@ -472,9 +473,27 @@ export function buildCityPerDayWithBookends(cityKeys, durationDays, bookends = {
   const arrival = find(bookends.arrivalCityKey);
   const departure = find(bookends.departureCityKey);
 
+  const spread = (seq, n) => Array.from({ length: n }, (_, d) => seq[Math.min(Math.floor((d / n) * seq.length), seq.length - 1)]);
+
   // Ordered city sequence: arrival first, departure last, everything else in
   // the traveller's original order in between.
   const middle = cities.filter((c) => c !== arrival && c !== departure);
+
+  // 2026-11-18: round trip (same entry and exit city, others in between — e.g. ICN in and out).
+  // The even split below ended [..., busan, seoul]: the move back landed on the departure
+  // morning, and a 10:00 ICN flight meant leaving Busan at 02:18. Arrival day, the middle
+  // cities, a travel-back day, then the departure day = the last night is in the exit city.
+  // Too short for that → the plain split of [arrival, ...middle] (what the trip got without
+  // bookends), so no picked city drops out (P158) — day N is then NOT the exit city.
+  // The home city keeps a fair share (≥3 days incl. the two closing days) so long trips still
+  // get full days there: 5d [S,B,B,S,S] · 7d [S,S,B,B,B,S,S] · 14d [S×5,B×7,S,S] (review M1).
+  if (arrival && arrival === departure && middle.length > 0) {
+    if (days < middle.length + 3) return spread([arrival, ...middle], days);
+    const share = Math.max(3, Math.round(days / (middle.length + 1)));
+    const head = Math.max(1, Math.min(share - 2, days - 2 - middle.length));
+    return [...Array(head).fill(arrival), ...spread(middle, days - head - 2), departure, departure];
+  }
+
   const sequence = [
     ...(arrival ? [arrival] : []),
     ...middle,
@@ -488,11 +507,7 @@ export function buildCityPerDayWithBookends(cityKeys, durationDays, bookends = {
     : [ordered[0], ...ordered.slice(1, -1).slice(0, Math.max(0, days - 2)), ordered[ordered.length - 1]].slice(0, days);
 
   // Even distribution across the usable sequence, then force the bookends.
-  const out = [];
-  for (let d = 0; d < days; d++) {
-    const idx = Math.min(Math.floor((d / days) * usable.length), usable.length - 1);
-    out.push(usable[idx]);
-  }
+  const out = spread(usable, days);
   if (arrival) out[0] = arrival;
   if (departure && days > 1) out[days - 1] = departure;
   return out;

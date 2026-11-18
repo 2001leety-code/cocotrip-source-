@@ -66,3 +66,47 @@ export function inferDepartureAirport(arrivalAirport, regions, cities, departure
   if (lastKey && CITY_DEFAULT_AIRPORT[lastKey]) return CITY_DEFAULT_AIRPORT[lastKey];
   return arrivalAirport;
 }
+
+// GMP is never auto-inferred (not in CITY_DEFAULT_AIRPORT) but a traveller can pick it explicitly.
+const AIRPORT_CITY_EXTRA = { GMP: 'seoul' };
+
+/**
+ * Airport code ('ICN_T1', 'PUS', 'GMP' …) → the picked city it serves, or '' when it serves none of them.
+ * @param {string} airport
+ * @param {string[]} cityKeys
+ */
+export function cityForAirport(airport, cityKeys) {
+  const code = String(airport || '').trim().toUpperCase().split('_')[0];
+  if (!code) return '';
+  const keys = (Array.isArray(cityKeys) ? cityKeys : []).map(resolveCityToken).filter(Boolean);
+  return keys.find((k) => CITY_DEFAULT_AIRPORT[k] === code || AIRPORT_CITY_EXTRA[code] === k) || '';
+}
+
+/**
+ * 2026-11-18: block_mode day-split bookends when the departure airport is known but no exit city
+ * was marked. The Wizard sends a picked departure airport as-is and the exit city only when the
+ * traveller taps a city chip twice — so Seoul+Busan with ICN out (no chip) split by pick order,
+ * ended in Busan, and the 10:00 ICN flight meant leaving the Busan hotel at 02:18 (scenario
+ * seoul-busan-zh-5d, every run since at least 2026-09-06). Fill the exit city from the airport and
+ * keep day 1 where it already was (first picked city) when no entry city was marked either.
+ * Bookends only: requestShaper's arrivalCity/departureCity feed the prepay fingerprint
+ * (prepay-coverage.js) and must stay what the traveller sent.
+ * @param {string[]} cityKeys — ordered, as picked
+ * @param {{arrivalCityKey?: string, departureCityKey?: string}} bookends — explicit Wizard marks
+ * @param {string} departureAirport
+ * @returns {{arrivalCityKey?: string, departureCityKey?: string}}
+ */
+export function bookendsWithDepartureAirport(cityKeys, bookends, departureAirport) {
+  const cities = Array.isArray(cityKeys) ? cityKeys : [];
+  const marked = bookends || {};
+  if (marked.departureCityKey || cities.length < 2) return marked;
+  const exitCity = cityForAirport(departureAirport, cities);
+  // Last city actually visited = last picked one that isn't the marked entry city (the split
+  // puts the entry city first). Already served by the departure airport (incl. Seoul↔Incheon
+  // sharing ICN) → nothing to fix.
+  const entryKey = resolveCityToken(marked.arrivalCityKey);
+  const rest = cities.filter((c) => !entryKey || resolveCityToken(c) !== entryKey);
+  const lastVisited = rest.length ? rest[rest.length - 1] : cities[cities.length - 1];
+  if (!exitCity || cityForAirport(departureAirport, [lastVisited])) return marked;
+  return { arrivalCityKey: marked.arrivalCityKey || String(cities[0]), departureCityKey: exitCity };
+}
