@@ -22,6 +22,7 @@ import { useLanguage } from '@/hooks/useLanguage';
 import { usePageMeta } from '@/hooks/usePageMeta';
 import { TOUR_CUTOFF_HOURS } from '@/lib/bookingCutoff';
 import { Header } from '@/sections/Header';
+import { Footer } from '@/sections/Footer';
 import { getRecommendedHotels } from '@/data/hotels';
 import { ReviewList } from '@/components/ReviewList';
 import { TourStopList } from '@/components/tours/TourStopList';
@@ -64,6 +65,7 @@ function TourDetailShell({
     <div className="tour-detail-editorial" data-testid="tour-detail-shell">
       <div className="ec-root"><Header language={language} t={t} onLanguageChange={onLanguageChange} /></div>
       {children}
+      <Footer t={t} />
     </div>
   );
 }

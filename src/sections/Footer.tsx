@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import { Fragment, type ReactNode } from 'react';
 import { Phone, Mail, MapPin, CreditCard, ChevronDown } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
 import { CookieSettings } from '@/components/CookieSettings';
@@ -11,8 +11,8 @@ import { isHomeChromePath } from '@/lib/customerNight';
  *
  * One responsive footer replaces the previous mobile/desktop fork (two markup
  * trees, two colour systems, the same content). Links, routes and the legal
- * block are unchanged; the registration numbers are the point of the section,
- * so they get the layout weight rather than a decorative brand lockup.
+ * block are unchanged. The registration numbers sit in one small line next to
+ * the copyright that every page shows, folded or not (operator 2026-11-19).
  */
 
 interface FooterProps {
@@ -28,12 +28,13 @@ const LEGAL_LINKS = [
 ] as const;
 
 /**
- * Home only (2026-10-07 annotation): Row 1 starts closed behind one summary
- * row. Every other page gets the same markup, unwrapped. Legal links and
- * cookie settings sit outside this, so they are always visible.
+ * Home (2026-10-07 annotation) and the tour list/detail (2026-11-19): Row 1
+ * starts closed behind one summary row. Every other page gets the same markup,
+ * unwrapped. The business identity line, legal links and cookie settings sit
+ * outside this, so they are always visible.
  */
-function HomeInfoFold({ home, summary, children }: { home: boolean; summary: string; children: ReactNode }) {
-  if (!home) return <>{children}</>;
+function InfoFold({ fold, summary, children }: { fold: boolean; summary: string; children: ReactNode }) {
+  if (!fold) return <>{children}</>;
   return (
     <details className="home-dope-footer-info">
       <summary className="home-dope-footer-info__summary">
@@ -49,19 +50,26 @@ function HomeInfoFold({ home, summary, children }: { home: boolean; summary: str
 
 export function Footer({ t }: FooterProps) {
   const f = t.footer;
+  const { pathname } = useLocation();
   // Home and the exact /planner entry share Home's footer (fold + dark chrome).
-  const isHome = isHomeChromePath(useLocation().pathname);
+  const isHome = isHomeChromePath(pathname);
   const homeChrome = isHome ? ' home-dope-chrome' : '';
+  // Tour list/detail fold the same block, in the shared light chrome.
+  const foldInfo = isHome || pathname === '/tours' || pathname.startsWith('/tours/');
+  // E-commerce act art. 10 identity, always visible, plus the FTC disclosure page
+  // link (enforcement rule art. 7(2)). The link number comes from businessNo: one source.
+  const identity = [f.company, f.businessNo, f.mailOrderNo, f.tourNo].filter(Boolean);
+  const bizNo = (f.businessNo || '').replace(/\D/g, '');
 
   return (
     <footer className={`ec-root ec-no-print bg-ec-sunken border-t border-ec-line pb-20 md:pb-0${homeChrome}`}>
       <div className="ec-container-wide py-12 md:py-16">
 
         {/* ── Row 1: identity + contact + links ── */}
-        <HomeInfoFold home={isHome} summary={`${f.about} · ${f.cs}`}>
+        <InfoFold fold={foldInfo} summary={`${f.about} · ${f.cs}`}>
         <div className="grid gap-10 md:grid-cols-12">
 
-          {/* Identity + registration. The numbers are the trust signal. */}
+          {/* Identity + contact. Registration numbers are in the always-visible line below. */}
           <div className="md:col-span-5">
             <div className="flex items-center gap-2">
               <img {...RESPONSIVE_BRAND_MARK} sizes="28px" alt="" aria-hidden width={28} height={28} className="h-7 w-7 rounded-ec-sm" />
@@ -77,18 +85,6 @@ export function Footer({ t }: FooterProps) {
               <div className="flex gap-2">
                 <dt className="shrink-0 pt-0.5"><Mail className="w-4 h-4 text-ec-ink-3" aria-hidden /></dt>
                 <dd>{f.email}</dd>
-              </div>
-              <div className="flex gap-2">
-                <dt className="sr-only">Business registration</dt>
-                <dd className="ec-figure text-[13px] font-medium text-ec-ink-2">{f.businessNo}</dd>
-              </div>
-              <div className="flex gap-2">
-                <dt className="sr-only">Mail-order sales registration</dt>
-                <dd className="ec-figure text-[13px] font-medium text-ec-ink-2">{f.mailOrderNo}</dd>
-              </div>
-              <div className="flex gap-2">
-                <dt className="sr-only">Tour operator registration</dt>
-                <dd className="ec-figure text-[13px] font-medium text-ec-ink-2">{f.tourNo}</dd>
               </div>
             </dl>
           </div>
@@ -135,25 +131,47 @@ export function Footer({ t }: FooterProps) {
             </nav>
           </div>
         </div>
-        </HomeInfoFold>
+        </InfoFold>
 
-        {/* ── Row 2: legal + copyright ── */}
+        {/* ── Row 2: legal links, then business identity + copyright (always visible) ── */}
         <hr className="ec-rule mt-12 mb-6" />
-        <div className="flex flex-col-reverse gap-5 sm:flex-row sm:items-center sm:justify-between">
-          <p className="text-[12px] text-ec-ink-3">{f.copyright}</p>
-          <div className="flex flex-wrap items-center gap-x-5 gap-y-1">
-            {LEGAL_LINKS.map((l) => (
-              <Link
-                key={l.to}
-                to={l.to}
-                className="inline-flex items-center min-h-[44px] text-[13px] text-ec-ink-2 transition-colors duration-ec-base ease-ec-standard hover:text-ec-ink"
-              >
-                {f[l.key]}
-              </Link>
+        <div className="flex flex-wrap items-center gap-x-5 gap-y-1">
+          {LEGAL_LINKS.map((l) => (
+            <Link
+              key={l.to}
+              to={l.to}
+              className="inline-flex items-center min-h-[44px] text-[13px] text-ec-ink-2 transition-colors duration-ec-base ease-ec-standard hover:text-ec-ink"
+            >
+              {f[l.key]}
+            </Link>
+          ))}
+          {/* 🔴 P1-1: 동의를 **바꿀 수 있는** 상시 진입점. 배너는 한 번 닫으면 다시 안 뜬다. */}
+          <CookieSettings className="inline-flex items-center min-h-[44px] text-[13px] text-ec-ink-2 transition-colors duration-ec-base ease-ec-standard hover:text-ec-ink" />
+        </div>
+        <div className="mt-3 space-y-1 text-[12px] leading-5 text-ec-ink-3">
+          {/* Small on purpose (operator 2026-11-19). Each item wraps as a unit; the dot stays at line end. */}
+          <p data-testid="footer-business-identity">
+            {identity.map((item, i) => (
+              <Fragment key={item}>
+                {i > 0 && '\u00a0· '}
+                <span className="inline-block">{item}</span>
+              </Fragment>
             ))}
-            {/* 🔴 P1-1: 동의를 **바꿀 수 있는** 상시 진입점. 배너는 한 번 닫으면 다시 안 뜬다. */}
-            <CookieSettings className="inline-flex items-center min-h-[44px] text-[13px] text-ec-ink-2 transition-colors duration-ec-base ease-ec-standard hover:text-ec-ink" />
-          </div>
+            {bizNo.length === 10 && (
+              <>
+                {'\u00a0· '}
+                <a
+                  href={`https://www.ftc.go.kr/bizCommPop.do?wrkr_no=${bizNo}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-block underline underline-offset-2 transition-colors duration-ec-base ease-ec-standard hover:text-ec-ink"
+                >
+                  {f.bizInfoLink}
+                </a>
+              </>
+            )}
+          </p>
+          <p>{f.copyright}</p>
         </div>
       </div>
     </footer>

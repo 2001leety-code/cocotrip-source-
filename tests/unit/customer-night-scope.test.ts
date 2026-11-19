@@ -22,7 +22,7 @@ describe('home chrome predicate (Home + exact /planner only)', () => {
     expect(header).toContain('isHomeChromePath(location.pathname)');
     expect(header).not.toMatch(/homeChrome = location\.pathname === '\/'/);
     expect(header).not.toMatch(/compactHeader = isCompactViewport && location\.pathname === '\/'/);
-    expect(footer).toContain('isHomeChromePath(useLocation().pathname)');
+    expect(footer).toContain('isHomeChromePath(pathname)');
     // Direct /planner visits need Home's stylesheet without passing through Home.
     expect(read('src/pages/PlannerPage/index.tsx')).toContain("import '@/styles/home-dope.css';");
   });

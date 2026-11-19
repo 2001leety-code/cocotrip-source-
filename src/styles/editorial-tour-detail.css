@@ -15,7 +15,13 @@
   font-family: var(--ecp-font-sans);
 }
 
+/* Space above the shared footer. The fixed booking bar's clearance sits on the
+   footer itself, so the footer's last line is never hidden under the bar. */
 .tour-detail-nonpayment {
+  padding-bottom: 80px;
+}
+
+.tour-detail-editorial:has(> .tour-detail-booking-bar) > footer {
   padding-bottom: 176px;
 }
 
@@ -788,7 +794,7 @@
 }
 
 @media (max-width: 767px) {
-  .tour-detail-nonpayment {
+  .tour-detail-editorial:has(> .tour-detail-booking-bar) > footer {
     padding-bottom: 208px;
   }
 
