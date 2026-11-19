@@ -48,6 +48,12 @@ export function itineraryHasNightBus(it) {
 
 // Before 05:00 TMAP's flags are unusable (00:30–03:00 every leg 0, running N73 included) → not used then.
 const RUNNING_FLAGS_FROM_MIN = 5 * 60;
+// 2026-11-19: no subway, AREX or Korail train leaves 01:00–04:59 anywhere in Korea (last trains end ~01:00,
+// first ones ~05:00–05:30), yet TMAP still ranks them first then (an 04:20 Myeongdong → ICN search
+// offered rail). Decided by the timetable, not by TMAP's flag (unusable at that hour, see above).
+const NO_RAIL_FROM_MIN = 60;
+const NO_RAIL_UNTIL_MIN = 5 * 60;
+const isRailLeg = (l) => /^(SUBWAY|TRAIN)$/.test(String(l?.mode || '').toUpperCase());
 
 /**
  * 2026-11-19: does this itinerary need a bus that TMAP flags as not running at `departDttm`?
@@ -59,13 +65,17 @@ const RUNNING_FLAGS_FROM_MIN = 5 * 60;
  *   · Rail flags are wrong by day (Line 1 local, AREX all-stop, Sinbundang 0 at 06:30–21:30) → never used.
  * A bus whose own flag is 0 counts as not running even when a `Lane` alternative reads 1: the card shows
  * `route` (mapTmapItineraryToRoute), so keeping it would name the bus that has stopped.
+ * Leaving 01:00–04:59 → any rail leg (SUBWAY / TRAIN) counts as not running, by timetable.
  * No real departure time (plan date unknown) → false: flags at the generation time say nothing about the trip.
  */
 export function itineraryNotRunning(it, departDttm) {
   const dttm = String(departDttm == null ? '' : departDttm);
   if (!/^\d{12}$/.test(dttm)) return false;
-  if (Number(dttm.slice(8, 10)) * 60 + Number(dttm.slice(10, 12)) < RUNNING_FLAGS_FROM_MIN) return false;
-  return (Array.isArray(it?.legs) ? it.legs : []).some((l) => String(l.mode || '').toUpperCase() === 'BUS'
+  const min = Number(dttm.slice(8, 10)) * 60 + Number(dttm.slice(10, 12));
+  const legs = Array.isArray(it?.legs) ? it.legs : [];
+  if (min >= NO_RAIL_FROM_MIN && min < NO_RAIL_UNTIL_MIN) return legs.some(isRailLeg);
+  if (min < RUNNING_FLAGS_FROM_MIN) return false;
+  return legs.some((l) => String(l.mode || '').toUpperCase() === 'BUS'
     && (l.service === 0 || l.service === '0'));
 }
 
@@ -335,7 +345,7 @@ export async function searchTransitRouteTmap(sx, sy, ex, ey, opts = {}) {
     }
     if (!pick) {
       // A bus that is not running is worse than none: callers fall back to walk (short) or car time.
-      console.info(`[TMAP] every candidate needs a night bus by day or a bus not running at ${departDttm || 'unknown time'} → no transit`);
+      console.info(`[TMAP] every candidate needs a night bus by day, a bus not running or rail at dawn at ${departDttm || 'unknown time'} → no transit`);
       return null;
     }
     return mapTmapItineraryToRoute(pick);

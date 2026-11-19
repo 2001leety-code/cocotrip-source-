@@ -605,12 +605,13 @@ export async function generatePDF(
           arex_all_stop: 'AREX All Stop',
           limousine_bus: 'Limousine Bus',
           public_transit: 'Public Transit', // P-launch: AREX 직통 합성 실패 시 중립 추천
+          taxi: 'Taxi', // 2026-11-19: dawn pick where no charter product runs
         };
         const recLabel = labels[rec.key] || rec.key;
         html += `<div style="background:linear-gradient(135deg,rgba(124,92,252,0.10),rgba(234,83,126,0.06));border:1px solid ${C.accent};border-radius:8px;padding:12px;margin-bottom:12px;">
           <p style="font-size:9px;font-weight:700;color:#FBBC05;text-transform:uppercase;letter-spacing:1px;margin:0 0 6px;">★ ${uiDict?.pdfRecommended || 'Recommended'}</p>
           <p style="font-size:13px;font-weight:700;color:${C.heading};margin:0 0 2px;">${recLabel}</p>
-          <p style="font-size:10px;color:${C.muted};margin:0 0 6px;">${(route.est_min as number) || '?'}${L.min}${(route.est_fare_krw as number) ? ' \u00B7 ' + formatKRW((route.est_fare_krw as number) || 0) : ''}${(route.transfers as number) ? ' \u00B7 ' + (route.transfers as number) + ' transfer' : ''}</p>
+          ${rec.key === 'taxi' ? '' : `<p style="font-size:10px;color:${C.muted};margin:0 0 6px;">${(route.est_min as number) || '?'}${L.min}${(route.est_fare_krw as number) ? ' \u00B7 ' + formatKRW((route.est_fare_krw as number) || 0) : ''}${(route.transfers as number) ? ' \u00B7 ' + (route.transfers as number) + ' transfer' : ''}</p>`}
           ${recReason ? `<p style="font-size:10px;color:${C.sub};margin:0;">\uD83D\uDCA1 ${recReason}</p>` : ''}
         </div>`;
       }

@@ -53,6 +53,14 @@ describe('itineraryNotRunning — which TMAP flags count', () => {
     expect(itineraryNotRunning(itin(bus('일반:N73', 0)), '202612020500')).toBe(true);
     expect(itineraryNotRunning(itin(bus('순환:TOUR11', 0)), '202612012359')).toBe(true);
   });
+  it('01:00–04:59: any rail leg = not running, by timetable (no subway / AREX / Korail departures then)', () => {
+    expect(itineraryNotRunning(itin(rail('수도권2호선', 1)), '202612020100')).toBe(true);
+    expect(itineraryNotRunning(itin(bus('일반:N16', 1), rail('공항철도', 1)), '202612020430')).toBe(true);
+    expect(itineraryNotRunning(itin({ ...rail('경부선', 1), mode: 'TRAIN' }), '202612020300')).toBe(true);
+    expect(itineraryNotRunning(itin(rail('수도권2호선', 1)), '202612020059')).toBe(false); // last trains still run
+    expect(itineraryNotRunning(itin(rail('수도권2호선', 0)), '202612020500')).toBe(false); // first trains; day rail flags unused
+    expect(itineraryNotRunning(itin(bus('일반:N16', 0)), '202612020200')).toBe(false); // bus-only: flags still ignored
+  });
   it('no real departure, missing flags or junk → false', () => {
     expect(itineraryNotRunning(itin(bus('일반:N73', 0)), undefined)).toBe(false);
     expect(itineraryNotRunning(itin(bus('일반:N73', 0)), '20261201')).toBe(false);

@@ -6,6 +6,8 @@
 export const REST_DAY_LATE_ARRIVAL_MIN = 18 * 60; // B-LATE-ARRIVAL 과 같은 기준
 export const REST_DAY_TOUR_END_MARGIN_MIN = 60;   // 정책 여유값(실측 아님) — 운영자 승인 값
 export const DEFAULT_TOUR_END_MIN = 21 * 60;
+// 2026-11-19: moved here from api/_ai_core/constants.js (re-exported there) so the plan page uses the same value.
+export const IMMIGRATION_BUFFER_MIN = 90; // 국제선 입국심사 + 짐 + 세관 (보수적)
 export const EARLY_DEPARTURE_NO_BREAKFAST_MIN = 11 * 60; // 출국 11:00 전 = 식당 조식 면제(B-MEAL P137 · 조식 안내)
 
 /** 엄격 HH:MM(00:00~23:59, 앞 5자). 아니면 null. */

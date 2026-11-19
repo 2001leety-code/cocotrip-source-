@@ -311,6 +311,16 @@ export function TransitArrow({ transit, destinationName, endpoints }: { transit:
         </p>
       )}
 
+      {/* 2026-11-19: night leg with no transit → CocoTrip van via WhatsApp (text in the traveller's language from
+          RouteAgent). Shown outside the folded steps so it is seen. */}
+      {transit.night_contact?.url && transit.night_contact.text && (
+        <a href={transit.night_contact.url} target="_blank" rel="noopener noreferrer"
+          className="ml-6 mt-1 flex items-start gap-1.5 text-[12px] font-medium text-ec-brand hover:underline">
+          <Moon className="mt-0.5 h-3 w-3 flex-shrink-0" />
+          <span>{transit.night_contact.text}</span>
+        </a>
+      )}
+
       {isDowngraded && (
         <div className="ml-6 mt-1 flex items-center gap-1.5 text-[12px] text-ec-notice">
           <AlertTriangle className="w-3 h-3" />

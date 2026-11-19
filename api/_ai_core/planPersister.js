@@ -821,7 +821,8 @@ export function selfHealArrivalGuide(itinerary, arrival_airport, ctx = {}) {
   // late-night arrival (>=23:00) hint
   const arrivalHour = arrival_time && /^\d{1,2}:/.test(arrival_time) ? parseInt(String(arrival_time).slice(0, 2), 10) : null;
   const lateNightHint = arrivalHour !== null && (arrivalHour >= 23 || arrivalHour < 5)
-    ? ' Late-night arrival — recommend taxi (no AREX after 23:00).'
+    // 2026-11-19 (operator): charter first at night — a taxi seats 4; the CocoTrip van seats 7–9.
+    ? ' Late-night arrival — AREX and airport buses stop around midnight; a CocoTrip charter (7–9 seats) is recommended, a taxi is the backup.'
     : '';
   // P205 (2026-05-26): arrival_guide 있는데 airport nested field 누락 시 self-heal.
   //   5/26 measure 5/5 sample 모두 arrival_guide.airport 정상이었지만 departure 누락.
@@ -876,7 +877,7 @@ export function selfHealArrivalGuide(itinerary, arrival_airport, ctx = {}) {
         step: 5,
         title: 'Get to Your Hotel',
         // P288 personalize: hotel/zone 명 + late-night hint 추가 (P276+P277 buildPrompt 대안).
-        description: `Best transport option from ${arrival_airport} to ${hotelLabel}, based on group size + luggage.${lateNightHint} Backend RouteAgent populates transport_to_hotel with ODsay step-by-step routes.`,
+        description: `Best transport option from ${arrival_airport} to ${hotelLabel}, based on group size + luggage.${lateNightHint}`,
         est_min: 0,
         transport_to_hotel: {
           arex_express: { price_krw: 9500, duration_min: 43, instruction: '' },

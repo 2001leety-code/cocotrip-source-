@@ -5,7 +5,7 @@
 // Display rules:
 //   - Charter booked → 미노출 (PreTripSlide 가 다른 카드 노출)
 //   - 한국인 (ko) → 단순화된 1줄 안내만 (한국인은 공항 교통 잘 앎)
-//   - 그 외 (en/ja/zh) → 4 옵션 + 자동 추천 (캐리어 합 3+ 또는 5인+ → 차터 강조)
+//   - 그 외 (en/ja/zh) → 4 옵션 + 자동 추천 (2026-11-19: charterFirst.js — 4인+ / 짐 많음 / 새벽 → 차터 강조)
 //   - airport / lodging 미정 → 미노출 (보여 줄 정보 부족)
 //
 // 가격/시간은 매핑 테이블 (한국 공식 공항철도·공항버스 노선 기반).
@@ -17,6 +17,8 @@ import type { PlanDocument } from '../types';
 import { BRAND } from '@/lib/design-tokens';
 import { trackAdClick } from '@/lib/analytics';
 import { calcVehicleCount } from '@/lib/luggageVehicle';
+import { needsCharterForGroup, isDawnMin } from '@/lib/charterFirst.js';
+import { strictHHMMToMin, IMMIGRATION_BUFFER_MIN } from '@/lib/arrivalRestRules.js';
 
 type Lang = 'ko' | 'en' | 'ja' | 'zh';
 
@@ -42,26 +44,30 @@ const TRANSPORT_NOTES = {
   ko: {
     arex_express_note: '캐리어 적을 때 가성비 최고. 서울역까지 직통 43분.',
     limousine_bus_note: '공항버스 6015번 등 — 명동·강남까지 환승 없이 이동. 75분.',
-    taxi_note: '캐리어 24인치 2개까지 가능 (기사 차량 LPG 트렁크 제약). 그 이상이면 코코트립 차량 추천.',
-    cocotrip_note: '도어투도어, 영어 가능 기사, 모든 짐 적재. 캐리어 3개 이상이면 권장.',
+    taxi_note: '4인승, 캐리어 24인치 2개까지 가능 (기사 차량 LPG 트렁크 제약). 4인 이상이거나 짐이 많으면 코코트립 차량 추천.',
+    cocotrip_note: '도어투도어 7~9인승 스타리아, 영어 가능 기사, 모든 짐 적재. 4인 이상·캐리어 3개 이상·늦은 밤 도착이면 권장.',
+    not_running_note: '입국 수속을 마칠 시간엔 운행이 끝나요.',
   },
   en: {
     arex_express_note: 'Best value for light luggage. Direct to Seoul Station in 43 min.',
     limousine_bus_note: 'Airport bus 6015 etc — no transfer needed to Myeongdong/Gangnam. 75 min.',
-    taxi_note: 'Up to 2 × 24-inch suitcases (LPG trunk limit). 3+ bags → CocoTrip charter.',
-    cocotrip_note: 'Door-to-door, English-speaking driver, loads all luggage. Recommended for 3+ suitcases.',
+    taxi_note: 'Seats 4, up to 2 × 24-inch suitcases (LPG trunk limit). 4+ people or 3+ bags → CocoTrip charter.',
+    cocotrip_note: 'Door-to-door 7–9 seat Staria, English-speaking driver, loads all luggage. Recommended for 4+ people, 3+ suitcases or late-night arrivals.',
+    not_running_note: 'Not running by the time you clear immigration.',
   },
   ja: {
     arex_express_note: 'スーツケースが少ない方に最適。ソウル駅まで直通43分。',
     limousine_bus_note: '空港バス6015番など — 明洞・江南へ乗換なし。75分。',
-    taxi_note: '24インチスーツケース2個まで（LPGトランク制限）。3個以上はCocoTripチャーター推奨。',
-    cocotrip_note: 'ドアツードア、英語対応ドライバー、全荷物積載。3個以上のスーツケースなら推奨。',
+    taxi_note: '4人乗り、24インチスーツケース2個まで（LPGトランク制限）。4名以上・荷物3個以上はCocoTripチャーター推奨。',
+    cocotrip_note: 'ドアツードア、7〜9人乗りスタリア、英語対応ドライバー、全荷物積載。4名以上・スーツケース3個以上・深夜到着なら推奨。',
+    not_running_note: '入国手続きを終える頃には運行が終了しています。',
   },
   zh: {
     arex_express_note: '行李少时性价比最高。直达首尔站43分钟。',
     limousine_bus_note: '机场巴士6015号等 — 直达明洞·江南无需换乘。75分钟。',
-    taxi_note: '最多2件24英寸行李箱（LPG后备箱限制）。3件以上推荐CocoTrip包车。',
-    cocotrip_note: '门到门服务、英文司机、可装载全部行李。3件以上行李推荐。',
+    taxi_note: '限乘4人，最多2件24英寸行李箱（LPG后备箱限制）。4人以上或3件以上行李推荐CocoTrip包车。',
+    cocotrip_note: '门到门服务、7–9座Staria、英文司机、可装载全部行李。4人以上、3件以上行李或深夜到达时推荐。',
+    not_running_note: '办完入境手续时已停运。',
   },
 } as const;
 
@@ -83,12 +89,28 @@ const OPTION_LABELS = {
 const REC_BADGE = { ko: '추천', en: 'Recommended', ja: 'おすすめ', zh: '推荐' };
 
 const SIMPLIFIED_KO = '한국 거주자라면 공항철도·공항버스·택시 모두 익숙하시죠? 캐리어가 많으시면 코코트립 차량을 이용하실 수도 있어요.';
+const SIMPLIFIED_KO_DAWN = '늦은 밤 도착이라 입국 수속을 마칠 때쯤엔 공항철도·공항버스가 끊겨요. 기사가 기다리는 7~9인승 코코트립 차량을 추천해요.';
+const SIMPLIFIED_KO_DAWN_TAXI = '늦은 밤 도착이라 입국 수속을 마칠 때쯤엔 공항철도·공항버스가 끊겨요. 택시를 이용하세요.';
+// Airports with a CocoTrip pickup product (pricing_spec airport_transfer_prices) — same gate as RouteAgent.
+const CHARTER_AIRPORT_RE = /^(ICN|GMP|PUS|CJU)/i;
+
+// 2026-11-19: landing + immigration lands in 23:00–04:59 → AREX / airport bus not running, charter first.
+const DAWN_BANNER = {
+  en: '🌙 Late-night arrival — airport trains and buses have stopped by the time you clear immigration. A CocoTrip charter (7–9 seat Staria) waits for you; a taxi is the backup.',
+  ja: '🌙 深夜到着 — 入国手続きを終える頃には空港鉄道・空港バスは運行終了です。CocoTripチャーター（7〜9人乗りスタリア）がお待ちします。タクシーは予備の手段です。',
+  zh: '🌙 深夜到达 — 办完入境手续时机场铁路和机场大巴已停运。CocoTrip包车（7–9座Staria）会等候您；出租车作为备选。',
+} as const;
+const DAWN_BANNER_TAXI = {
+  en: '🌙 Late-night arrival — airport trains and buses have stopped by the time you clear immigration. Take a taxi.',
+  ja: '🌙 深夜到着 — 入国手続きを終える頃には空港鉄道・空港バスは運行終了です。タクシーをご利用ください。',
+  zh: '🌙 深夜到达 — 办完入境手续时机场铁路和机场大巴已停运。请乘坐出租车。',
+} as const;
 
 // 인천 (ICN) 기본 — 다른 공항도 동일 fallback (가격 약간 다르지만 큰 차이 X).
 // B-5/B-8 (2026-05-10 prod 검증): heavyLoad 기준을 calcVehicleCount(luggage) >= 2 로 통일.
 //   1-7개 → 1대 (택시/공항철도 충분), 8+ → 2대 (코코트립 차터 권장).
-function getOptions(lang: Lang, luggageCount: number, paxCount: number): TransportOption[] {
-  const heavyLoad = calcVehicleCount(luggageCount) >= 2 || paxCount >= 5;
+function getOptions(lang: Lang, heavyLoad: boolean, dawn: boolean, dawnCharter: boolean): TransportOption[] {
+  const charterFirst = heavyLoad || dawnCharter;
   const opts: TransportOption[] = [
     {
       key: 'arex_express',
@@ -96,8 +118,8 @@ function getOptions(lang: Lang, luggageCount: number, paxCount: number): Transpo
       iconColor: '#7C5CFC',
       durationMin: 43,
       priceKRW: 11000,
-      emphasis: heavyLoad ? 'avoid' : 'recommended',
-      noteKey: 'arex_express_note',
+      emphasis: charterFirst ? 'avoid' : 'recommended',
+      noteKey: dawn ? 'not_running_note' : 'arex_express_note',
     },
     {
       key: 'limousine_bus',
@@ -105,7 +127,8 @@ function getOptions(lang: Lang, luggageCount: number, paxCount: number): Transpo
       iconColor: '#34d399',
       durationMin: 75,
       priceKRW: 17000,
-      noteKey: 'limousine_bus_note',
+      emphasis: dawn ? 'avoid' : undefined,
+      noteKey: dawn ? 'not_running_note' : 'limousine_bus_note',
     },
     {
       key: 'taxi',
@@ -116,7 +139,7 @@ function getOptions(lang: Lang, luggageCount: number, paxCount: number): Transpo
       // 일치하도록 ₩75K → ₩60K. 시장 평균 ICN→서울 일반 택시 ~₩60-80K 범위 내.
       priceKRW: 60000,
       noteKey: 'taxi_note',
-      emphasis: heavyLoad ? 'avoid' : undefined,
+      emphasis: heavyLoad ? 'avoid' : (dawn && !dawnCharter ? 'recommended' : undefined),
     },
     {
       key: 'cocotrip',
@@ -124,7 +147,7 @@ function getOptions(lang: Lang, luggageCount: number, paxCount: number): Transpo
       iconColor: '#EA537E',
       durationMin: 60,
       priceKRW: 124800,
-      emphasis: heavyLoad ? 'recommended' : undefined,
+      emphasis: charterFirst ? 'recommended' : undefined,
       noteKey: 'cocotrip_note',
       ctaTo: '/charter',
     },
@@ -154,10 +177,13 @@ export function AirportToLodgingGuide({ plan }: Props) {
   const luggage = input.luggage as { small?: number; medium?: number; large?: number } | undefined;
   const luggageCount = (luggage?.small || 0) + (luggage?.medium || 0) + (luggage?.large || 0);
   const paxCount = (input.pax as number) || (input.adults as number) || 2;
-  // B-5/B-8 (2026-05-10 prod 검증): 캐리어 → 차량 수 동적 룰 통일.
-  //   1-7=1대, 8+=2대, 14+=3대, +6/대. 차량 2대 이상 필요 시 = heavyLoad.
+  // B-5/B-8 (2026-05-10 prod 검증): 캐리어 → 차량 수 동적 룰 (1-7=1대, 8+=2대, 14+=3대, +6/대).
+  // 2026-11-19: heavy = the shared charter rule (4+ people, bags beyond a sedan trunk) — same as RouteAgent.
   const vehicleCount = calcVehicleCount(luggageCount);
-  const heavyLoad = vehicleCount >= 2 || paxCount >= 5;
+  const heavyLoad = needsCharterForGroup({ pax: paxCount, luggage });
+  const arrivalMin = strictHHMMToMin(input.arrival_time || input.arrivalTime);
+  const dawn = arrivalMin !== null && isDawnMin(arrivalMin + IMMIGRATION_BUFFER_MIN);
+  const dawnCharter = dawn && CHARTER_AIRPORT_RE.test(arrivalAirport.trim());
 
   // 한국어 사용자는 단순화 — 한국인은 공항 교통 잘 알고, 디테일 본문 길면 짜증 (사용자 피드백).
   if (lang === 'ko') {
@@ -170,7 +196,7 @@ export function AirportToLodgingGuide({ plan }: Props) {
           </div>
           <div className="min-w-0 flex-1">
             <p className="text-sm font-bold text-white mb-1">{HEADLINE.ko.title}</p>
-            <p className="text-[13px] text-white/75 leading-relaxed">{SIMPLIFIED_KO}</p>
+            <p className="text-[13px] text-white/75 leading-relaxed">{dawn ? (dawnCharter ? SIMPLIFIED_KO_DAWN : SIMPLIFIED_KO_DAWN_TAXI) : SIMPLIFIED_KO}</p>
             {/* B-4 (2026-05-11 prod 검증): "코코트립 차량 알아보기" 버튼 제거.
                 바로 아래 AirportPickupAd 카드와 중복 — 안내문은 유지, 버튼만 삭제. */}
           </div>
@@ -180,7 +206,8 @@ export function AirportToLodgingGuide({ plan }: Props) {
   }
 
   // 외국인 — 4 옵션 풀 노출.
-  const options = getOptions(lang, luggageCount, paxCount);
+  const options = getOptions(lang, heavyLoad, dawn, dawnCharter);
+  const vehicles = Math.max(1, vehicleCount);
   const headline = HEADLINE[lang];
   const labels = OPTION_LABELS[lang];
   const notes = TRANSPORT_NOTES[lang];
@@ -208,10 +235,15 @@ export function AirportToLodgingGuide({ plan }: Props) {
         {heavyLoad && (
           <div className="mt-3 rounded-lg bg-amber-500/10 border border-amber-500/30 px-3 py-2">
             <p className="text-[13px] text-amber-200 leading-relaxed">
-              {lang === 'en' && `🧳 ${luggageCount} suitcases / ${paxCount} pax — ${vehicleCount} vehicles recommended (Staria). Korean taxis fit only 1-2 large bags.`}
-              {lang === 'ja' && `🧳 荷物${luggageCount}個 / ${paxCount}名 — 車両${vehicleCount}台推奨 (スターリア)。韓国のタクシーは大きな荷物1-2個まで。`}
-              {lang === 'zh' && `🧳 ${luggageCount}件行李 / ${paxCount}人 — 建议${vehicleCount}辆车 (Staria)。韩国出租车仅能放1-2件大行李。`}
+              {lang === 'en' && `🧳 ${luggageCount} suitcases / ${paxCount} pax — ${vehicles} ${vehicles > 1 ? 'vehicles' : 'vehicle'} recommended (7–9 seat Staria). Korean taxis seat 4 and fit only 1-2 large bags.`}
+              {lang === 'ja' && `🧳 荷物${luggageCount}個 / ${paxCount}名 — 車両${vehicles}台推奨 (7〜9人乗りスタリア)。韓国のタクシーは4人乗りで、大きな荷物は1-2個まで。`}
+              {lang === 'zh' && `🧳 ${luggageCount}件行李 / ${paxCount}人 — 建议${vehicles}辆车 (7–9座Staria)。韩国出租车限乘4人，仅能放1-2件大行李。`}
             </p>
+          </div>
+        )}
+        {dawn && (
+          <div className="mt-3 rounded-lg bg-indigo-500/10 border border-indigo-400/30 px-3 py-2">
+            <p className="text-[13px] text-indigo-100 leading-relaxed">{(dawnCharter ? DAWN_BANNER : DAWN_BANNER_TAXI)[lang]}</p>
           </div>
         )}
       </div>
@@ -268,7 +300,7 @@ export function AirportToLodgingGuide({ plan }: Props) {
       </div>
 
       {/* Subtle CocoTrip charter upsell footer when not heavy. */}
-      {!heavyLoad && (
+      {!heavyLoad && !dawn && (
         <div className="px-4 pb-4">
           <Link to="/charter"
             onClick={() => trackAdClick('charter', 'preTrip:airportToLodging:footer', '/charter')}

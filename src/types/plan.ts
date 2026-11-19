@@ -178,6 +178,8 @@ export interface TransitFromPrev {
   _downgraded_from?: string;
   _odsay_failed?: boolean;
   _stale?: boolean;
+  /** 2026-11-19: night leg with no transit — WhatsApp contact for a CocoTrip van (text already localized). */
+  night_contact?: { text: string; url: string };
 }
 
 /**

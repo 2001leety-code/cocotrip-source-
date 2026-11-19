@@ -6,10 +6,12 @@ import { formatTransitSummary, getSubwayStationInfo, getSubwayTimetable } from "
 import { searchTransit } from "../../_transit_provider.js";
 // BUGHUNT-LOW (2026-06-14): AREX 직통 HERO 합성을 ODsay 일 때만 발동시키는 게이트용 (TMAP native 급행 보존).
 import { getTransitProvider } from "../../_transit_provider.js";
-import { transitLegOpts, shiftHHMM, clockAt } from "../../_shared/nightBusLeg.js";
+import { transitLegOpts, shiftHHMM, clockAt, legLeavingMin } from "../../_shared/nightBusLeg.js";
 import { AIRPORT_COORDS, AIRPORT_NAMES, CITY_CENTER_COORDS, airportPoint, lookupZoneCoord, SCHEDULE_BUFFER_MIN, DEFAULT_LEG_MIN, arrivalReadyMinutes, hhmmToMin, resolveTourStartTime, resolveTourEndTime, resolveArrivalTime, singleDayMealWindows, MEAL_ROLE_WINDOWS, IMMIGRATION_BUFFER_MIN, departureActivityDeadlineMin } from "../constants.js";
 // P-launch (2026-05-31): 한글 regions('부산') → 영문 키('busan') 정규화 (멀티시티 departure city 해석용).
 import { normalizeRegionKey, regionCityKey, departureCityKey } from "../responseValidator.js";
+import { needsCharterForGroup, isDawnMin, isLateNightLegMin, COCOTRIP_WHATSAPP_URL, NIGHT_WHATSAPP_REPLY_MIN } from "../../../src/lib/charterFirst.js"; // 2026-11-19: charter over taxi — dawn / group rule shared with the plan page
+import { strictHHMMToMin } from "../../../src/lib/arrivalRestRules.js";
 import { isAirportStop } from "../../../src/lib/airportStop.js"; // 2026-11-16: 공항 stop 판정 — 화면(DayTimeline)과 같은 규칙
 import { throttledTelegramAlert } from "../../_shared/telegram-throttle.js";
 // Phase 3 (2026-05-27): zone_courses Firestore transit_matrix cache — ODsay 호출 절감.
@@ -290,75 +292,81 @@ async function reportError(err, ctx) {
 }
 
 // Pick the recommended airport transport based on context.
-//   - Heavy luggage  → CocoTrip charter cross-sell. Korean taxi law restricts
-//     trunk capacity (a sedan taxi typically only takes ONE large suitcase),
-//     so a group with multiple checked bags can't physically use a taxi —
-//     they need a 8-pax Staria van or larger. We pitch our own charter here
-//     instead of recommending an option that won't actually work.
-//   - Late-night arrival (≥23:00 or <05:00) → AREX last train ~23:42, so
-//     recommend limousine bus.
+//   - Group / luggage (needsCharterForGroup: 4+ people, or more bags than a sedan trunk takes) → CocoTrip
+//     charter. A Korean taxi seats 4 with an LPG tank in the trunk; a charter is a 7–9 seat Staria.
+//   - Dawn (leaving the airport 23:00–04:59, src/lib/charterFirst.js) → charter where we run airport
+//     transfers (airportTransferPriceKRW), else a taxi. AREX and the airport buses have stopped.
+//     2026-11-19 (operator): this used to recommend the limousine bus, which has also stopped by then.
 //   - Otherwise → AREX express is the fastest/cheapest standard option.
 //
-// Heavy threshold:
-//   ≥3 large bags, OR (≥2 large bags AND ≥4 pax), OR (≥2 mediums AND ≥1 large
-//   AND ≥3 pax) — anything that clearly won't fit in a sedan trunk.
-// PR-C (2026-06-01): heavyLoad(charter) HERO 가격+구간 표시용 context 는 선택 인자.
-//   region/airportKey/fromLabel/toLabel/estMin 는 FEATURE_CHARTER_HERO_PRICE='true'
-//   일 때만 charter 반환에 est_price_krw/from/to/est_min + prefill cta_link 추가.
-//   추천 *판단* (hour/lateNight/large/medium/heavyLoad) 은 불변 — 새 인자 영향 0.
-//   플래그 OFF / 기존 호출(인자 미전달) 시 반환 객체 byte-identical.
-export function pickRecommendedTransport({ arrivalTimeHHMM, luggage, paxCount, region, airportKey, fromLabel, toLabel, estMin } = {}) {
-  // 2026-05-13 PR (Critical C3 — Agent X audit): HH:MM 형식 검증.
-  // 기존: arrivalTimeHHMM 형식 검증 없음 → "9:30 " / "오전 9시" / "ABCDE" 등
-  // 비정상 입력 시 parseInt 가 NaN 반환 → lateNight=false 가정 → 잘못된 추천.
-  // /^\d{1,2}:\d{2}$/ 매칭 + 0-23 범위 확인.
-  let hour = null;
-  if (arrivalTimeHHMM && /^\d{1,2}:\d{2}$/.test(arrivalTimeHHMM)) {
-    const parsed = parseInt(arrivalTimeHHMM.split(':')[0], 10);
-    if (Number.isFinite(parsed) && parsed >= 0 && parsed < 24) {
-      hour = parsed;
-    }
+// leaveHHMM = when the traveller leaves the airport (landing + immigration). Without it the landing
+//   time stands in (older callers).
+// PR-C (2026-06-01): region/airportKey/fromLabel/toLabel/estMin feed the charter price line + prefill
+//   link only when FEATURE_CHARTER_HERO_PRICE='true'; the decision itself never reads the flag.
+const CHARTER_REASON = {
+  group: {
+    reason_ko: '택시는 4인승이라 인원·짐이 많으면 다 타기 어려워요 — 7~9인승 스타리아 코코트립 차량을 추천합니다 (기사가 모든 짐 적재)',
+    reason_en: 'A Korean taxi seats 4 and fits little luggage — book a CocoTrip charter (7–9 seat Staria); your driver loads all bags',
+    reason_ja: '韓国のタクシーは4人乗りで荷物もあまり積めません — 7〜9人乗りスタリアのCocoTripチャーターを推奨（ドライバーが全荷物を積載）',
+    reason_zh: '韩国出租车只能坐4人、行李空间小 — 推荐CocoTrip包车（7–9座Staria，司机协助装载所有行李）',
+  },
+  // dawn: true → the plan page hides daytime-only options (airport bus card) next to this pick.
+  dawnArrival: {
+    dawn: true,
+    reason_ko: '늦은 밤·새벽 도착 — 공항철도·공항버스가 끊긴 시간이에요. 기사가 기다리는 7~9인승 코코트립 차량을 추천합니다',
+    reason_en: 'Late-night arrival — airport trains and buses have stopped. Book a CocoTrip charter (7–9 seat Staria); your driver waits for you',
+    reason_ja: '深夜・早朝到着 — 空港鉄道・リムジンバスは運行終了の時間です。ドライバーがお待ちする7〜9人乗りのCocoTripチャーターを推奨',
+    reason_zh: '深夜/凌晨到达 — 机场铁路和机场大巴已停运。推荐CocoTrip包车（7–9座Staria，司机等候接机）',
+  },
+  dawnDeparture: {
+    dawn: true,
+    reason_ko: '늦은 밤·새벽 출발 — 지하철·공항버스가 다니지 않는 시간이에요. 숙소 앞에서 타는 7~9인승 코코트립 차량을 추천합니다',
+    reason_en: 'Night / early-morning departure — subway and airport buses are not running. Book a CocoTrip charter (7–9 seat Staria) from your hotel door',
+    reason_ja: '深夜・早朝出発 — 地下鉄・リムジンバスが運行していない時間です。ホテル前から乗れる7〜9人乗りのCocoTripチャーターを推奨',
+    reason_zh: '深夜/清晨出发 — 地铁和机场大巴不运营。推荐从酒店门口出发的CocoTrip包车（7–9座Staria）',
+  },
+};
+
+// priceAirportKey: airport the price is looked up for (departure: the departure airport; the prefill origin stays the
+//   arrival-airport airportKey, unset on a departure pick).
+function charterRecommendation(reason, { region, airportKey, priceAirportKey = airportKey, paxCount, fromLabel, toLabel, estMin, service = 'airport_transfer' } = {}) {
+  const rec = { key: 'cocotrip_charter', ...reason, cta_link: '/charter' };
+  // FEATURE_CHARTER_HERO_PRICE='true' 일 때만 가격/구간 + prefill 딥링크 채움. OFF = 위 객체 그대로.
+  if (process.env.FEATURE_CHARTER_HERO_PRICE === 'true') {
+    const priceKRW = airportTransferPriceKRW(region, priceAirportKey); // SSOT lookup, 미매핑 → null
+    // 🔴 가격은 null 이면 필드 자체를 넣지 않음 (프론트가 0/빈칸 노출 못 하도록).
+    if (priceKRW != null) rec.est_price_krw = priceKRW;
+    if (fromLabel) rec.from = fromLabel;
+    if (toLabel) rec.to = toLabel;
+    if (typeof estMin === 'number' && estMin > 0) rec.est_min = estMin;
+    // prefill 딥링크 — origin=공항키, destinationKey=region, pax. 값 있을 때만.
+    const params = new URLSearchParams({ service });
+    if (airportKey) params.set('origin', String(airportKey));
+    if (region) params.set('destinationKey', String(region));
+    if (paxCount) params.set('pax', String(paxCount));
+    rec.cta_link = `/charter?${params.toString()}`;
   }
-  const lateNight = hour !== null && (hour >= 23 || hour < 5);
-  const large = luggage?.large || 0;
-  const medium = luggage?.medium || 0;
-  const heavyLoad = large >= 3
-    || (paxCount >= 4 && large >= 2)
-    || (paxCount >= 3 && medium >= 2 && large >= 1);
-  if (heavyLoad) {
-    const rec = {
-      key: 'cocotrip_charter',
-      reason_ko: '한국 택시는 캐리어 1개만 가능 — 짐이 많아 코코트립 전용 차량을 추천합니다 (기사가 모든 짐 적재)',
-      reason_en: 'Korean taxis can only fit 1 suitcase — book a CocoTrip charter; your driver loads all luggage',
-      reason_ja: '韓国のタクシーはスーツケース1個のみ — 荷物が多い方は専用車両を推奨（ドライバーが全荷物を積載）',
-      reason_zh: '韩国出租车只能放1个行李箱 — 行李较多请预订CocoTrip包车（司机协助装载所有行李）',
-      cta_link: '/charter',
-    };
-    // FEATURE_CHARTER_HERO_PRICE='true' 일 때만 가격/구간 + prefill 딥링크 채움.
-    // OFF = 위 객체 그대로 (현재 동작 byte-identical).
-    if (process.env.FEATURE_CHARTER_HERO_PRICE === 'true') {
-      const priceKRW = airportTransferPriceKRW(region); // SSOT lookup, 미매핑 → null
-      // 🔴 가격은 null 이면 필드 자체를 넣지 않음 (프론트가 0/빈칸 노출 못 하도록).
-      if (priceKRW != null) rec.est_price_krw = priceKRW;
-      if (fromLabel) rec.from = fromLabel;
-      if (toLabel) rec.to = toLabel;
-      if (typeof estMin === 'number' && estMin > 0) rec.est_min = estMin;
-      // prefill 딥링크 — origin=공항키, destinationKey=region, pax. 값 있을 때만.
-      const params = new URLSearchParams({ service: 'airport_transfer' });
-      if (airportKey) params.set('origin', String(airportKey));
-      if (region) params.set('destinationKey', String(region));
-      if (paxCount) params.set('pax', String(paxCount));
-      rec.cta_link = `/charter?${params.toString()}`;
-    }
-    return rec;
+  return rec;
+}
+
+export function pickRecommendedTransport({ arrivalTimeHHMM, leaveHHMM, luggage, paxCount, region, airportKey, fromLabel, toLabel, estMin } = {}) {
+  // 2026-05-13 PR (Critical C3): strict HH:MM — "9:30 " / "오전 9시" 는 시각 없음으로 본다.
+  const leaveOwn = strictHHMMToMin(leaveHHMM);
+  const leaveMin = leaveOwn !== null ? leaveOwn : strictHHMMToMin(arrivalTimeHHMM);
+  const ctx = { region, airportKey, paxCount, fromLabel, toLabel, estMin };
+  const dawn = isDawnMin(leaveMin);
+  if (dawn && airportTransferPriceKRW(region, airportKey) != null) return charterRecommendation(CHARTER_REASON.dawnArrival, ctx);
+  // Group rule is not gated on the region (PR-C contract: the decision never depends on the price lookup).
+  if (needsCharterForGroup({ pax: paxCount, luggage })) {
+    return charterRecommendation(dawn ? { ...CHARTER_REASON.group, dawn: true } : CHARTER_REASON.group, ctx);
   }
-  if (lateNight) {
+  if (dawn) {
     return {
-      key: 'limousine_bus',
-      reason_ko: '늦은 시각 도착 — AREX 막차 후 운행하는 리무진 버스 추천',
-      reason_en: 'Late arrival — AREX has stopped, take limousine bus',
-      reason_ja: '深夜到着 — AREXの終電後はリムジンバスを推奨',
-      reason_zh: '深夜到达 — AREX末班车已结束，推荐机场巴士',
+      key: 'taxi',
+      reason_ko: '늦은 밤·새벽 도착 — 공항철도·공항버스가 끊긴 시간이에요. 택시를 이용하세요',
+      reason_en: 'Late-night arrival — airport trains and buses have stopped. Take a taxi',
+      reason_ja: '深夜・早朝到着 — 空港鉄道・リムジンバスは運行終了の時間です。タクシーをご利用ください',
+      reason_zh: '深夜/凌晨到达 — 机场铁路和机场大巴已停运，请乘坐出租车',
     };
   }
   return {
@@ -368,6 +376,21 @@ export function pickRecommendedTransport({ arrivalTimeHHMM, luggage, paxCount, r
     reason_ja: '最速かつ最安の標準オプション',
     reason_zh: '最快最便宜的标准选择',
   };
+}
+
+/**
+ * Hotel → airport, same rules as the arrival pick: a dawn leave (23:00–04:59) where we run airport transfers
+ * for this airport + region, or a group / heavy luggage; otherwise null (the card shows the transit route as before).
+ */
+export function pickDepartureTransport({ leaveHHMM, luggage, paxCount, region, airportKey, estMin } = {}) {
+  // airportKey prices the leg only — the charter prefill reads origin as the arrival airport, so it is not passed on.
+  const ctx = { region, priceAirportKey: airportKey, paxCount, estMin };
+  const dawn = isDawnMin(strictHHMMToMin(leaveHHMM));
+  if (dawn && airportTransferPriceKRW(region, airportKey) != null) return charterRecommendation(CHARTER_REASON.dawnDeparture, ctx);
+  if (needsCharterForGroup({ pax: paxCount, luggage })) {
+    return charterRecommendation(dawn ? { ...CHARTER_REASON.group, dawn: true } : CHARTER_REASON.group, ctx);
+  }
+  return null;
 }
 
 // Map the Wizard / Gemini `area` value to the matching charter product in
@@ -420,15 +443,25 @@ function regionToCharterProduct(region) {
  * @param {string} region normalizeRegionKey 영문 lowercase 권장 ('seoul'/'busan')
  * @returns {number|null} priceKRW 또는 null
  */
-export function airportTransferPriceKRW(region) {
+// 2026-11-19: airport_transfer_regions zones are ICN pickups (busan = ICN 직행 ₩660,000). Other airports have
+//   their own zones; an airport with none → null (price hidden), never the ICN price.
+const NON_ICN_AIRPORT_ZONES = {
+    GMP: { seoul: 'gimpo-seoul-central' },
+    PUS: { busan: 'busan-metro' },
+    CJU: { jeju: 'jeju-metro' },
+};
+export function airportTransferPriceKRW(region, airportKey) {
     if (!region) return null;
     const low = String(region).toLowerCase();
+    const base = low.includes('_') ? low.split('_')[0] : low;
     const spec = loadPricingSpec();
     const regions = spec?.airport_transfer_regions || {};
     // area 키('seoul_city'/'seoul_suburb' 등 세분 키)는 base city('seoul')로 환원 — 공항픽업
     //   가격은 도시 단위 SSOT. (정확 키 우선, 없으면 '_' 앞 base 도시로 폴백.)
-    const zoneKey = regions[low]
-        || (low.includes('_') ? regions[low.split('_')[0]] : undefined);
+    let zoneKey = regions[low] || regions[base];
+    const ap = airportKey ? (/^[A-Za-z]{3}/.exec(String(airportKey).trim()) || [''])[0].toUpperCase() : '';
+    if (ap && ap !== 'ICN') zoneKey = NON_ICN_AIRPORT_ZONES[ap]?.[base];
+    else if (ap === 'ICN' && zoneKey === 'jeju-metro') zoneKey = undefined; // CJU pickup, not ICN
     if (!zoneKey) return null;
     const price = spec?.airport_transfer_prices?.[zoneKey]?.priceKRW;
     return (typeof price === 'number' && price > 0) ? price : null;
@@ -581,7 +614,7 @@ function _haversineKmPure(lat1, lng1, lat2, lng2) {
 //   - source 'naver_fallback' — TransitFromPrev enum 의 정식 값(types/plan.ts L174).
 //   - instruction/instruction_en + step_by_step 로 거리·시간·네이버 링크 인라인 표시.
 // 좌표가 하나라도 없으면 null → 호출부가 기존 skip 동작 유지(절대 깨지지 않음).
-function buildBookendFallbackLeg({ fromLat, fromLng, fromLabel, toLat, toLng, toLabel, language = 'ko' }) {
+export function buildBookendFallbackLeg({ fromLat, fromLng, fromLabel, toLat, toLng, toLabel, language = 'ko', night = false }) {
     if (fromLat == null || fromLng == null || toLat == null || toLng == null) return null;
     if (![fromLat, fromLng, toLat, toLng].every((n) => Number.isFinite(n))) return null;
     const distKm = _haversineKmPure(fromLat, fromLng, toLat, toLng);
@@ -624,7 +657,21 @@ function buildBookendFallbackLeg({ fromLat, fromLng, fromLabel, toLat, toLng, to
         to_label: toLabel || '',
         naver_directions_url: naverUrl,
         _bookend_fallback: true,
+        ...(night && !isWalk ? { night_contact: nightContact(lang) } : {}),
     };
+}
+
+// 2026-11-19 (operator): a night leg with no transit points to WhatsApp for a CocoTrip van. A charter needs the
+//   operator awake, so no reply within NIGHT_WHATSAPP_REPLY_MIN minutes means no car — take a taxi.
+const NIGHT_CONTACT_TEXT = {
+    ko: `늦은 시간엔 지하철·버스가 끊길 수 있어요. 코코트립 왓츠앱으로 7~9인승 차량을 문의하세요 — ${NIGHT_WHATSAPP_REPLY_MIN}분 안에 답이 없으면 배차가 어려우니 택시를 이용하세요.`,
+    en: `Late at night the subway and buses may have stopped. Message CocoTrip on WhatsApp for a 7–9 seat van — no reply within ${NIGHT_WHATSAPP_REPLY_MIN} minutes means no car is free, so take a taxi.`,
+    ja: `深夜は地下鉄・バスが終了している場合があります。CocoTripのWhatsAppで7〜9人乗りの車両をお問い合わせください — ${NIGHT_WHATSAPP_REPLY_MIN}分以内に返信がなければ配車できないため、タクシーをご利用ください。`,
+    zh: `深夜地铁和公交可能已停运。请通过WhatsApp联系CocoTrip预约7–9座车辆 — ${NIGHT_WHATSAPP_REPLY_MIN}分钟内未回复即表示无车可派，请乘坐出租车。`,
+};
+export function nightContact(language) {
+    const lang = Object.prototype.hasOwnProperty.call(NIGHT_CONTACT_TEXT, language) ? language : 'en';
+    return { text: NIGHT_CONTACT_TEXT[lang], url: COCOTRIP_WHATSAPP_URL };
 }
 
 // ── (2026-07-19): 도보 override 판정 (pure, 회귀 테스트용 export) ────────────────
@@ -1158,28 +1205,29 @@ export class RouteAgent extends BaseAgent {
                 const arrLandMin = hhmmToMin(data.arrival_time);
                 const arrLeave = arrLandMin < 0 ? null : clockAt(daysList[0]?.date, arrLandMin + IMMIGRATION_BUFFER_MIN);
                 const route = await this._routeAirportHotel(ap, arrFromCoord, 'arrival', { leave: shiftHHMM(data.arrival_time, IMMIGRATION_BUFFER_MIN), date: arrLeave?.date });
+                // PR-C (2026-06-01, FEATURE_CHARTER_HERO_PRICE): charter HERO 가격/구간 context.
+                //   region 은 한글('서울') 가능 → normalizeRegionKey 로 영문 키('seoul') 변환
+                //   (가격 zone 매핑 키와 일치). 공항 라벨은 AIRPORT_NAMES, generic 'ICN' 은 항목
+                //   없어 'Incheon Airport' fallback, 그래도 없으면 plan 의 airport 문자열.
+                // 2026-11-19: decided before the route check — a dawn leg often has no transit at all,
+                //   and that is exactly when the charter recommendation matters.
+                const heroRegionKey = normalizeRegionKey(region) || null;
+                const heroFromLabel = AIRPORT_NAMES[arrivalAirportKey]
+                    || (arrivalAirportKey && String(arrivalAirportKey).startsWith('ICN') ? 'Incheon Airport' : null)
+                    || rawItinerary.arrival_guide.airport
+                    || null;
+                const rec = pickRecommendedTransport({
+                    arrivalTimeHHMM: data.arrival_time,
+                    leaveHHMM: shiftHHMM(data.arrival_time, IMMIGRATION_BUFFER_MIN),
+                    luggage: data.luggage,
+                    paxCount: data.pax || 2,
+                    region: heroRegionKey,
+                    airportKey: arrivalAirportKey,
+                    fromLabel: heroFromLabel,
+                    toLabel: arrFromLabel || null,
+                    estMin: route?.est_min,
+                });
                 if (route) {
-                    // PR-C (2026-06-01, FEATURE_CHARTER_HERO_PRICE): charter HERO 가격/구간 context.
-                    //   region 은 한글('서울') 가능 → normalizeRegionKey 로 영문 키('seoul') 변환
-                    //   (가격 zone 매핑 키와 일치). 공항 라벨은 AIRPORT_NAMES, generic 'ICN' 은 항목
-                    //   없어 'Incheon Airport' fallback, 그래도 없으면 plan 의 airport 문자열.
-                    //   est_min/to 는 이미 계산된 route + hotel/zone 라벨 재사용. 플래그 OFF 면
-                    //   pickRecommendedTransport 가 이 인자들을 전부 무시 (반환 byte-identical).
-                    const heroRegionKey = normalizeRegionKey(region) || null;
-                    const heroFromLabel = AIRPORT_NAMES[arrivalAirportKey]
-                        || (arrivalAirportKey && String(arrivalAirportKey).startsWith('ICN') ? 'Incheon Airport' : null)
-                        || rawItinerary.arrival_guide.airport
-                        || null;
-                    const rec = pickRecommendedTransport({
-                        arrivalTimeHHMM: data.arrival_time,
-                        luggage: data.luggage,
-                        paxCount: data.pax || 2,
-                        region: heroRegionKey,
-                        airportKey: arrivalAirportKey,
-                        fromLabel: heroFromLabel,
-                        toLabel: arrFromLabel || null,
-                        estMin: route.est_min,
-                    });
 
                     // P327 (2026-05-31): ICN→서울 중심부 + arex_express 추천 시 직통 HERO 로 교체.
                     // ODsay path[0] 가 일반열차→홍대입구→2호선 79분 indirect 라 라벨 "AREX Express
@@ -1272,6 +1320,8 @@ export class RouteAgent extends BaseAgent {
                         mode: 'unknown',
                         source: 'failed',
                         direction: 'arrival',
+                        // 2026-11-19: a charter pick needs no transit data — keep it so the card still shows.
+                        ...(rec.key === 'cocotrip_charter' ? { recommended_option: { ...rec } } : {}),
                     };
                     console.warn('  - [Airport→Hotel] ODsay all attempts failed → _failed=true');
                 }
@@ -1347,7 +1397,17 @@ export class RouteAgent extends BaseAgent {
                 const depLeave = depLeaveMin === null ? null : shiftHHMM('00:00', depLeaveMin);
                 const depLeaveAt = depLeaveMin === null ? null : clockAt(daysList[daysList.length - 1]?.date, depLeaveMin);
                 const route = await this._routeAirportHotel(depFromCoord, ap, 'departure', { leave: depLeave, date: depLeaveAt?.date });
+                // 2026-11-19: charter first for a group / heavy luggage or a dawn leave (null = no recommendation, as before).
+                const depRec = pickDepartureTransport({
+                    leaveHHMM: depLeave,
+                    luggage: data.luggage,
+                    paxCount: data.pax || 2,
+                    region: normalizeRegionKey(departureCity || region) || null,
+                    airportKey: departureAirportKey,
+                    estMin: route?.est_min,
+                });
                 if (route) {
+                    if (depRec) route.recommended_option = depRec;
                     if (depFromSource !== 'hotel') {
                         route.fallback_origin = depFromSource; // 'arrival_guide' | 'zone_anchor' | 'city_center'
                         route.fallback_label = depFromLabel || null;
@@ -1396,6 +1456,7 @@ export class RouteAgent extends BaseAgent {
                         mode: 'unknown',
                         source: 'failed',
                         direction: 'departure',
+                        ...(depRec ? { recommended_option: depRec } : {}),
                     };
                     console.warn('  - [Hotel→Airport] ODsay all attempts failed → _failed=true');
                     await reportError(new Error('ODsay departure route failed'), {
@@ -1915,6 +1976,7 @@ export class RouteAgent extends BaseAgent {
                                     fromLabel: prevHotelEffective.label || 'Hotel',
                                     toLat: fromStationCoord.lat, toLng: fromStationCoord.lng,
                                     toLabel: it.from_station,
+                                    night: isLateNightLegMin(legLeavingMin(prevHotelPlace, stationPlace)),
                                 });
                                 if (fb) {
                                     it.lodging_to_station = fb;
@@ -1979,6 +2041,7 @@ export class RouteAgent extends BaseAgent {
                                     fromLabel: it.to_station,
                                     toLat: dayHotel.lat, toLng: dayHotel.lng,
                                     toLabel: dayHotel.label || 'Hotel',
+                                    night: isLateNightLegMin(legLeavingMin(stationPlace, newHotelPlace)),
                                 });
                                 if (fb) {
                                     it.station_to_lodging = fb;
@@ -2113,6 +2176,7 @@ export class RouteAgent extends BaseAgent {
                             language,
                             fromLat: dayHotel.lat, fromLng: dayHotel.lng, fromLabel: dayHotel.label || 'Hotel',
                             toLat: places[0].lat, toLng: places[0].lng, toLabel: places[0].display_name || places[0].name,
+                            night: isLateNightLegMin(legLeavingMin(dayHotel, places[0])),
                         });
                         hotelTransit = hotelFb ? {
                             ...hotelFb,
@@ -2190,6 +2254,7 @@ export class RouteAgent extends BaseAgent {
                                 language,
                                 fromLat: lastPlace.lat, fromLng: lastPlace.lng, fromLabel: lastPlace.display_name || lastPlace.name || 'last stop',
                                 toLat: dayHotel.lat, toLng: dayHotel.lng, toLabel: dayHotel.label || 'Hotel',
+                                night: isLateNightLegMin(legLeavingMin(lastPlace, dayHotel)),
                             });
                             const returnTransit = returnFb ? {
                                 ...returnFb,
@@ -2489,18 +2554,14 @@ export class RouteAgent extends BaseAgent {
                                 zh: [`移动距离: ${distStr}`, `预计时间: 驾车约${fallbackMin}分钟`, `出租车费用估算: 约${Math.round(taxiFareKrw / 100) * 100}韩元 — 建议使用 Kakao T / Uber`],
                             };
                             enrichedSteps = labels[language];
-                            if (isLateNight) {
-                                enrichedSteps.push({
-                                    ko: '야간 시간대 — 지하철·버스 막차 종료 가능. 택시·카카오T 안전',
-                                    en: 'Late at night, subway and bus service may have ended. Consider a taxi via Kakao T.',
-                                    ja: '深夜は地下鉄・バスの運行が終了している場合があります。Kakao T でタクシーをご利用ください。',
-                                    zh: '深夜时段地铁和公交可能已停运，可考虑使用 Kakao T 叫车。',
-                                }[language]);
-                            }
                         }
+                        // 2026-11-19 (operator): the night line is no longer a folded "taxi / Kakao T" step — it is the
+                        //   always-visible WhatsApp contact (CocoTrip van, 20-minute reply rule, else taxi).
+                        const fallbackMode = methodToMode(fallbackMethod) || 'car';
+                        const nightLeg = isLateNight && fallbackMode !== 'walk';
                         place.transit_from_prev = {
                             method: fallbackMethod,
-                            mode: methodToMode(fallbackMethod) || 'car',
+                            mode: fallbackMode,
                             instruction_en: geminiTransit.instruction_en || '',
                             step_by_step: enrichedSteps,
                             est_min: fallbackMin,
@@ -2514,6 +2575,7 @@ export class RouteAgent extends BaseAgent {
                             source: isBlindFallback ? 'blind_25_no_coords' : 'naver_fallback',
                             ...(isBlindFallback ? { _blind_fallback: true } : {}),
                             ...(isLateNight ? { _late_night: true } : {}),
+                            ...(nightLeg ? { night_contact: nightContact(language) } : {}),
                         };
                     }
 

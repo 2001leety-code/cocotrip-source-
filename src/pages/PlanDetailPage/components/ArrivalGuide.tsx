@@ -5,14 +5,14 @@
 //     component used between stops, so the visual is consistent.
 //   - Side-by-side comparison grid for the alternative transport options.
 import { useState } from 'react';
-import { Link } from 'react-router-dom';
-import { Plane, ChevronDown, Wallet, Sparkles, Train, Bus, Car, Smartphone, ShieldCheck, ArrowRight } from 'lucide-react';
+import { Plane, ChevronDown, Wallet, Sparkles, Train, Bus, Car, Smartphone, ShieldCheck } from 'lucide-react';
 import { formatKRW } from '../constants';
 import { useLanguage } from '@/hooks/useLanguage';
 import { getPlanDetailUI } from '../types';
 import { TransitArrow } from './TransitArrow';
 import type { TransitFromPrev } from '@/types/plan';
 import { BRAND } from '@/lib/design-tokens';
+import { CharterRecCard, recReasonFor, type CharterRecommendation } from './CharterRecCard';
 
 interface ArrivalOption {
   name: string;
@@ -26,21 +26,7 @@ interface TransportOption {
   instruction?: string;
 }
 
-interface RecommendedOption {
-  key: string;
-  reason_ko?: string;
-  reason_en?: string;
-  reason_ja?: string;
-  reason_zh?: string;
-  cta_link?: string;
-  // PR-C (2026-06-01, FEATURE_CHARTER_HERO_PRICE backend flag): charter HERO 가격+구간.
-  // 백엔드(RouteAgent)가 플래그 ON 일 때만 채움. 가격은 SSOT(공항픽업 요금)만 — null/미존재면
-  // 가격 줄 자체를 숨김 (0/빈칸 노출 금지). 플래그 OFF 면 필드 부재 = 현재 동작.
-  est_price_krw?: number;
-  from?: string;
-  to?: string;
-  est_min?: number;
-}
+type RecommendedOption = CharterRecommendation;
 
 interface RouteToHotel extends TransitFromPrev {
   recommended_option?: RecommendedOption;
@@ -93,12 +79,15 @@ export function ArrivalGuide({ guide }: { guide: ArrivalGuideData }) {
   // 노출된다(단계별 transport_to_hotel 옵션은 별개라 계속 표시됨).
   const rawRoute = guide.route_to_hotel;
   const route = rawRoute && !rawRoute._failed && Number.isFinite(rawRoute.est_min) ? rawRoute : undefined;
-  const rec = route?.recommended_option;
-  const recReason = rec
-    ? ((language === 'ko' && rec.reason_ko) || (language === 'ja' && rec.reason_ja) || (language === 'zh' && rec.reason_zh) || rec.reason_en || '')
-    : '';
+  // 2026-11-19: a charter pick (dawn / group) is kept on a failed route too — it needs no transit data.
+  const rec = route?.recommended_option
+    || (rawRoute?.recommended_option?.key === 'cocotrip_charter' ? rawRoute.recommended_option : undefined);
+  const recReason = recReasonFor(rec, language);
   const recMeta = rec ? TRANSPORT_META[rec.key] : undefined;
   const RecIcon = recMeta?.icon || Train;
+  // 2026-11-19: dawn taxi pick (no charter product here) — the stored route is transit, so its time/fare/steps
+  //   are not the taxi's. Show the pick + reason only.
+  const taxiPick = rec?.key === 'taxi';
 
   return (
     <section className="mb-6">
@@ -124,53 +113,7 @@ export function ArrivalGuide({ guide }: { guide: ArrivalGuideData }) {
 
       <div className={`overflow-hidden transition-all duration-300 ease-out ${open ? 'max-h-[5000px] opacity-100 mt-4' : 'max-h-0 opacity-0'}`}>
         {/* HERO: Charter cross-sell takes precedence (heavy luggage = Korean taxis can't fit) */}
-        {rec?.key === 'cocotrip_charter' && (
-          <div className="mb-4 rounded-2xl overflow-hidden"
-            style={{ background: 'linear-gradient(135deg, rgba(234,83,126,0.18), rgba(124,92,252,0.12))', border: '1px solid rgba(234,83,126,0.40)' }}>
-            <div className="p-4">
-              <div className="flex items-center gap-2 mb-2.5">
-                <Sparkles className="w-3.5 h-3.5 text-[#FBBC05]" />
-                <span className="text-[12px] font-bold uppercase tracking-wider text-[#FBBC05]">{ui.recommended || 'Recommended'}</span>
-              </div>
-              <div className="flex items-center gap-3 mb-2">
-                <div className="w-11 h-11 rounded-xl flex items-center justify-center shrink-0 shadow-lg"
-                  style={{ background: BRAND.gradient.primary }}>
-                  <Car className="w-6 h-6 text-white" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-[16px] font-bold text-white">{ui.charterRecTitle || 'CocoTrip Private Charter'}</p>
-                  <p className="text-[13px] text-white/70">{ui.charterRecSub || 'Door-to-door · driver loads all luggage · English-speaking'}</p>
-                </div>
-              </div>
-              {/* PR-C (2026-06-01): 가격+구간 1줄 — 백엔드 플래그 ON 시에만 필드 존재.
-                  from→to · est_min · ₩price. 각 세그먼트는 값 있을 때만, 가격은 양수일 때만
-                  (null/0 → 미노출, 오노출 방지). 숫자·기존 라벨(formatKRW/minUnit)만 사용. */}
-              {(rec.from || rec.to || (rec.est_min || 0) > 0 || (rec.est_price_krw || 0) > 0) && (
-                <div className="rounded-lg bg-white/[0.05] border border-white/[0.08] px-3 py-2 mb-3">
-                  <p className="text-[14px] font-semibold text-white/90 leading-relaxed">
-                    {[
-                      rec.from && rec.to ? `${rec.from} → ${rec.to}` : (rec.from || rec.to || ''),
-                      (rec.est_min || 0) > 0 ? `${rec.est_min}${ui.minUnit || 'min'}` : '',
-                      (rec.est_price_krw || 0) > 0 ? formatKRW(rec.est_price_krw || 0) : '',
-                    ].filter(Boolean).join(' · ')}
-                  </p>
-                </div>
-              )}
-              {recReason && (
-                <div className="rounded-lg bg-white/[0.05] border border-white/[0.08] px-3 py-2 mb-3">
-                  <p className="text-[14px] text-white/85 leading-relaxed">⚠️ {recReason}</p>
-                </div>
-              )}
-              <Link
-                to={rec.cta_link || '/charter'}
-                className="flex items-center justify-center gap-2 w-full py-2.5 rounded-xl text-[13px] font-bold text-white transition-all hover:scale-[1.01] min-h-[44px]"
-                style={{ background: BRAND.gradient.primary, boxShadow: '0 4px 16px rgba(124,92,252,0.35)' }}
-              >
-                {ui.bookCharter || 'Book Charter'} <ArrowRight className="w-4 h-4" />
-              </Link>
-            </div>
-          </div>
-        )}
+        {rec?.key === 'cocotrip_charter' && <CharterRecCard rec={rec} />}
 
         {/* HERO: Public transit route — only shown if RouteAgent provided ODsay data AND charter wasn't recommended */}
         {route && rec?.key !== 'cocotrip_charter' && (
@@ -188,20 +131,22 @@ export function ArrivalGuide({ guide }: { guide: ArrivalGuideData }) {
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="text-[15px] font-bold text-white">{recMeta?.label || ui.toHotel || 'To Hotel'}</p>
-                  <p className="text-[13px] text-white/70">
+                  {!taxiPick && <p className="text-[13px] text-white/70">
                     {route.est_min}{ui.minUnit || 'min'}
                     {(route.est_fare_krw || 0) > 0 ? ` · ${formatKRW(route.est_fare_krw || 0)}` : ''}
                     {(route.transfers || 0) > 0 ? ` · ${route.transfers} ${ui.transfer || 'transfer'}` : ''}
-                  </p>
+                  </p>}
                 </div>
               </div>
               {recReason && (
                 <p className="text-[14px] text-white/70 leading-snug mt-1.5">💡 {recReason}</p>
               )}
             </div>
-            <div className="px-2 pb-3">
-              <TransitArrow transit={route as TransitFromPrev & Record<string, unknown>} />
-            </div>
+            {!taxiPick && (
+              <div className="px-2 pb-3">
+                <TransitArrow transit={route as TransitFromPrev & Record<string, unknown>} />
+              </div>
+            )}
           </div>
         )}
 
