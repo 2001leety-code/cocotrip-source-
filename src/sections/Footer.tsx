@@ -60,6 +60,7 @@ export function Footer({ t }: FooterProps) {
   // link (enforcement rule art. 7(2)). The link number comes from businessNo: one source.
   const identity = [f.company, f.businessNo, f.mailOrderNo, f.tourNo].filter(Boolean);
   const bizNo = (f.businessNo || '').replace(/\D/g, '');
+  const ftcHref = bizNo.length === 10 ? `https://www.ftc.go.kr/bizCommPop.do?wrkr_no=${bizNo}` : '';
 
   return (
     <footer className={`ec-root ec-no-print bg-ec-sunken border-t border-ec-line pb-20 md:pb-0${homeChrome}`}>
@@ -149,26 +150,25 @@ export function Footer({ t }: FooterProps) {
           <CookieSettings className="inline-flex items-center min-h-[44px] text-[13px] text-ec-ink-2 transition-colors duration-ec-base ease-ec-standard hover:text-ec-ink" />
         </div>
         <div className="mt-3 space-y-1 text-[12px] leading-5 text-ec-ink-3">
-          {/* Small on purpose (operator 2026-11-19). Each item wraps as a unit; the dot stays at line end. */}
+          {/* Small on purpose (operator 2026-11-19). Each item wraps as a unit and carries its own dot, so a line never starts with one; dots are hidden from screen readers. */}
           <p data-testid="footer-business-identity">
             {identity.map((item, i) => (
               <Fragment key={item}>
-                {i > 0 && '\u00a0· '}
-                <span className="inline-block">{item}</span>
+                <span className="inline-block">
+                  {item}
+                  {(i < identity.length - 1 || ftcHref) && <span aria-hidden>{'\u00a0·'}</span>}
+                </span>{' '}
               </Fragment>
             ))}
-            {bizNo.length === 10 && (
-              <>
-                {'\u00a0· '}
-                <a
-                  href={`https://www.ftc.go.kr/bizCommPop.do?wrkr_no=${bizNo}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-block underline underline-offset-2 transition-colors duration-ec-base ease-ec-standard hover:text-ec-ink"
-                >
-                  {f.bizInfoLink}
-                </a>
-              </>
+            {ftcHref && (
+              <a
+                href={ftcHref}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-block underline underline-offset-2 transition-colors duration-ec-base ease-ec-standard hover:text-ec-ink"
+              >
+                {f.bizInfoLink}
+              </a>
             )}
           </p>
           <p>{f.copyright}</p>

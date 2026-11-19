@@ -55,6 +55,11 @@ describe('footer business identity line', () => {
     expect(link.getAttribute('target')).toBe('_blank');
     expect(link.getAttribute('rel')).toBe('noopener noreferrer');
     expect(link.textContent).toBe(f.bizInfoLink);
+    // Dots ride inside the item before them (never start a line) and are not read aloud.
+    const dots = [...line.querySelectorAll('[aria-hidden="true"]')];
+    expect(dots).toHaveLength(4);
+    for (const d of dots) expect(d.textContent).toBe('\u00a0·');
+    expect(line.textContent!.trimStart().startsWith('·')).toBe(false);
   });
 
   it.each(['/', '/planner', '/tours', '/tours/seoul-night'])('%s folds the contact block, line stays outside', (path) => {
@@ -65,8 +70,9 @@ describe('footer business identity line', () => {
     expect(getByTestId('footer-business-identity').closest('details')).toBeNull();
   });
 
-  it.each(['/guide', '/charter', '/about', '/tours-x'])('%s keeps the contact block expanded', (path) => {
-    const { container } = renderAt(path);
+  it.each(['/guide', '/charter', '/about', '/tours-x'])('%s keeps the contact block expanded, line still shown', (path) => {
+    const { container, getByTestId } = renderAt(path);
+    expect(getByTestId('footer-business-identity').querySelector('a')!.getAttribute('href')).toBe(FTC);
     expect(container.querySelector('details')).toBeNull();
     expect(container.querySelector('a[href="tel:+821087140611"]')).not.toBeNull();
   });
@@ -89,9 +95,17 @@ describe('tour pages render the shared footer', () => {
 
   it('the fixed booking bar clearance sits on the footer (desktop 176px, phone 208px)', () => {
     const css = read('src/styles/editorial-tour-detail.css');
-    const rule = (px: number) => new RegExp(`\\.tour-detail-editorial:has\\(> \\.tour-detail-booking-bar\\) > footer \\{\\s*padding-bottom: ${px}px;`);
+    const rule = (px: number) => new RegExp(`\\.tour-detail-editorial\\[data-booking-bar\\] > footer \\{\\s*padding-bottom: ${px}px;`);
     expect(css).toMatch(rule(176));
     expect(css).toMatch(rule(208));
+  });
+
+  it('only the branch that renders the booking bar marks the shell', () => {
+    const src = read('src/pages/TourDetailPage.tsx');
+    expect(src.match(/<TourDetailShell[^>]*\bwithBar\b/g)).toHaveLength(1);
+    const barBranch = src.slice(src.search(/<TourDetailShell[^>]*\bwithBar\b/));
+    expect(barBranch.indexOf('data-testid="tour-detail-booking-bar"')).toBeGreaterThan(-1);
+    expect(barBranch.indexOf('data-testid="tour-detail-booking-bar"')).toBeLessThan(barBranch.indexOf('</TourDetailShell>'));
   });
 
   it('fold styles are global, because tour pages do not load home-dope.css', () => {
