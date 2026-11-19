@@ -149,9 +149,9 @@ describe('/about 렌더', () => {
     for (const [lang, dict] of Object.entries({ ko, en, ja, zh })) {
       const f = (dict as unknown as { footer: Record<string, string> }).footer;
       expect(f.ceo, `${lang} ceo`).toBeUndefined();
-      expect(f.mailOrderNo, `${lang} mailOrderNo`).toMatch(/2026-.*0507/);
-      expect(f.tourNo, `${lang} tourNo`).toContain('2024-000012');
-      expect(f.tourNo, `${lang} tourNo`).not.toContain('2024-0000012');
+      // Anchored on both sides: another office, an extra digit or the old 2024-0000012 must fail.
+      expect(f.mailOrderNo, `${lang} mailOrderNo`).toMatch(/(?<!\d)2026-(서울용산|Seoul Yongsan|ソウル龍山|首尔龙山)-0507(?!\d)/);
+      expect(f.tourNo, `${lang} tourNo`).toMatch(/(?<!\d)2024-000012(?!\d)/);
     }
   });
 
