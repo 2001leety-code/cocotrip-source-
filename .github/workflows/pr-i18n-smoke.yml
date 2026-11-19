@@ -113,6 +113,12 @@ jobs:
       # Cache Playwright browsers — 2026-05-12 추가. 1차 fail 원인: install --with-deps
       # 가 9~10분 걸려 timeout 10m 초과. 캐시 hit 시 ~30s, miss 시 기존 그대로.
       # 키 = OS + package-lock.json hash (Playwright 버전 변경 시 자동 무효화).
+      # 2026-11-19: this step is a no-op here. Vercel creates deployments by commit SHA,
+      # so GITHUB_REF is empty on deployment_status and actions/cache skips both restore
+      # and save ("Event Validation Error: The event type deployment_status is not
+      # supported because it's not tied to a branch or tag ref"). Every real smoke run is
+      # a cold install; playwright-cache-prime cannot help it. Kept only so the key stays
+      # aligned with the other Playwright workflows (tests/unit/daily-health-playwright-browsers.test.ts).
       - name: Cache Playwright browsers
         if: github.event_name == 'deployment_status'
         uses: actions/cache@v4
@@ -123,33 +129,43 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-ubuntu-24.04-playwright-chromium-webkit-
 
-      - name: Install Playwright browsers (cache miss)
-        if: github.event_name == 'deployment_status' && steps.playwright-cache.outputs.cache-hit != 'true'
+      - name: Install Playwright browsers + system deps
+        if: github.event_name == 'deployment_status'
         # iPhone 14 Pro 프로젝트가 webkit 엔진을 쓰므로 chromium + webkit 둘 다 설치.
         # 이전엔 chromium만 설치 → iPhone 14 Pro 케이스 3ms 즉시 실패 (Executable not found at webkit-XXX/pw_run.sh).
         #
-        # 2026-08-19: 이 단계가 느려지면(Playwright CDN/apt 지연) job timeout(15분)을
-        # 넘겨 4연속 cancelled 발생 (PR #1323). job timeout 을 25분으로 올려 대응 —
-        # 위 job 레벨 주석 참고.
-        # 2026-08-19 2차: 자매 job(visual)이 18분으로도 잘림(#1328) — 지연이 아니라
-        # 다운로드 '매달림'. 시도별 7분 timeout + 3회 재시도. 근본 해소는
-        # playwright-cache-prime.yml(main 캐시 프라이밍) — PR 캐시는 브랜치 간 공유 안 됨.
+        # 2026-08-19 (#1323, #1328): installs could hang past the job timeout -> per-attempt
+        # timeout + 3 attempts.
+        # 2026-11-19: when the time ran out during apt, that retry could not work.
+        # `--with-deps` runs apt-get through sudo, i.e. as root, and a runner-user `timeout`
+        # cannot signal a root process: apt-get kept running with /var/lib/dpkg/lock-frontend
+        # held and attempts 2-3 failed in seconds ("Could not get lock ... held by process
+        # NNNN (apt-get)"; runs 44461319505 and 44471524508, slow apt mirror). Now two loops:
+        #   1) system packages, with `timeout` itself run as root so it can signal apt-get and
+        #      its download helpers. dpkg runs in its own session and dies a moment after
+        #      apt-get, so before the next try wait 10 s, then finish any dpkg run the kill cut
+        #      off (time-limited too). .debs already downloaded stay in /var/cache/apt/archives,
+        #      so a retry continues rather than starts over.
+        #      The CLI is called directly, not through npx, to keep npm out of the root shell.
+        #   2) browser download as the runner user, inside timeout's process group, so a hung
+        #      download (and Playwright's forked download child) dies and the retry downloads again.
+        # Both together normally take under 70 s, so 300 s per attempt only guards against hangs.
+        # One step for any cache state: browsers already present are skipped fast, and a
+        # partial restore still gets its missing binaries (P187, 2026-05-25).
         run: |
           ok=""
           for attempt in 1 2 3; do
-            if timeout 420 npx playwright install --with-deps chromium webkit; then ok=1; break; fi
-            echo "::warning::Playwright install attempt ${attempt} timed out or failed - retrying"
+            if sudo env "PATH=$PATH" timeout -k 30 300 ./node_modules/.bin/playwright install-deps chromium webkit; then ok=1; break; fi
+            echo "::warning::System packages attempt ${attempt} failed or timed out - retrying"
+            sleep 10; sudo timeout 120 dpkg --configure -a || true
           done
           [ -n "$ok" ]
-
-      - name: Install Playwright browsers + deps (cache hit verify)
-        if: github.event_name == 'deployment_status' && steps.playwright-cache.outputs.cache-hit == 'true'
-        # P187 (2026-05-25): cache HIT 라도 restore-keys 로 partial restore 발생 가능 →
-        # browser binary 누락. install 명령은 이미 있는 browser fast skip → cache 효과
-        # 유지하며 회귀 차단. system deps (libnss3/libgbm1 등 /var/lib) 도 동봉.
-        run: |
-          npx playwright install chromium webkit
-          npx playwright install-deps chromium webkit
+          ok=""
+          for attempt in 1 2 3; do
+            if timeout -k 30 300 npx playwright install chromium webkit; then ok=1; break; fi
+            echo "::warning::Browser download attempt ${attempt} failed or timed out - retrying"
+          done
+          [ -n "$ok" ]
 
       - name: Run i18n locale smoke against preview URL (3 viewports)
         if: github.event_name == 'deployment_status'
