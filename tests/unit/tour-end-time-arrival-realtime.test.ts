@@ -78,7 +78,9 @@ describe('#tour-end source markers — 흐름 전체 박제', () => {
 
   it('constants.js — 도착 현실 계산이 단일 원천으로 존재한다', () => {
     const src = read('api/_ai_core/constants.js');
-    expect(/IMMIGRATION_BUFFER_MIN\s*=\s*90/.test(src), '입국수속 버퍼(90분) 누락').toBe(true);
+    // 2026-11-19: the value moved to the browser-safe leaf (the plan page uses it too); constants.js re-exports it.
+    expect(/IMMIGRATION_BUFFER_MIN\s*=\s*90/.test(read('src/lib/arrivalRestRules.js')), '입국수속 버퍼(90분) 누락').toBe(true);
+    expect(/export \{ IMMIGRATION_BUFFER_MIN \}/.test(src), 'constants.js re-export 누락').toBe(true);
     expect(/export function estimateAirportTransitMin\(/.test(src), '공항→권역 이동 추정 helper 누락').toBe(true);
     expect(/export function arrivalReadyMinutes\(/.test(src), 'arrivalReadyMinutes 누락').toBe(true);
   });

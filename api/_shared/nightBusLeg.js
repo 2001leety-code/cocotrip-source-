@@ -64,6 +64,11 @@ function leavingMin(prev, curr, airport) {
  * @param {{category?: string, name?: string, start_time?: string, _departure_airport_stop?: boolean}|null} curr
  * @returns {boolean}
  */
+/** Leaving time of a leg in minutes from the day start (may be negative or ≥ 1440), or null. */
+export function legLeavingMin(prev, curr) {
+  return leavingMin(prev, curr, isAirportStop(prev) || isAirportStop(curr));
+}
+
 export function legAvoidsNightBus(prev, curr) {
   return transitLegOpts(prev, curr).avoidNightBus;
 }
@@ -93,7 +98,7 @@ export function clockAt(ymd, min) {
  * @returns {{avoidNightBus: boolean, departDttm?: string}}
  */
 export function transitLegOpts(prev, curr, ymd) {
-  const min = leavingMin(prev, curr, isAirportStop(prev) || isAirportStop(curr));
+  const min = legLeavingMin(prev, curr);
   const at = min === null ? null : clockAt(ymd, min);
   return {
     avoidNightBus: min !== null && min >= DAY_FROM_MIN && min < DAY_UNTIL_MIN,

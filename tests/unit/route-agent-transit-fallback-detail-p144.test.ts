@@ -254,9 +254,10 @@ describe('P144-continued — source-level invariant (RouteAgent.js)', () => {
     expect(ROUTE_AGENT).toMatch(/startHour\s*>=\s*22\s*\|\|\s*startHour\s*<\s*5/);
   });
 
-  it('카카오T 권장 텍스트 + 막차 종료 알림 inject', () => {
+  it('카카오T 권장 텍스트 + 야간 = 왓츠앱 연락 줄 (2026-11-19, 택시 단계 대신)', () => {
     expect(ROUTE_AGENT).toMatch(/카카오T/);
-    expect(ROUTE_AGENT).toMatch(/막차 종료/);
+    expect(ROUTE_AGENT).toContain('...(nightLeg ? { night_contact: nightContact(language) } : {})');
+    expect(ROUTE_AGENT).not.toMatch(/택시·카카오T 안전/);
   });
 
   it('distance_km 필드 + _late_night flag inject 패턴 존재', () => {

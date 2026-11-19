@@ -99,10 +99,11 @@ describe('PR-C pickRecommendedTransport — FEATURE_CHARTER_HERO_PRICE 플래그
     const rec = pickRecommendedTransport(HEAVY);
     expect(rec).toEqual({
       key: 'cocotrip_charter',
-      reason_ko: '한국 택시는 캐리어 1개만 가능 — 짐이 많아 코코트립 전용 차량을 추천합니다 (기사가 모든 짐 적재)',
-      reason_en: 'Korean taxis can only fit 1 suitcase — book a CocoTrip charter; your driver loads all luggage',
-      reason_ja: '韓国のタクシーはスーツケース1個のみ — 荷物が多い方は専用車両を推奨（ドライバーが全荷物を積載）',
-      reason_zh: '韩国出租车只能放1个行李箱 — 行李较多请预订CocoTrip包车（司机协助装载所有行李）',
+      // 2026-11-19: group reason (taxi seats 4 → 7–9 seat Staria).
+      reason_ko: '택시는 4인승이라 인원·짐이 많으면 다 타기 어려워요 — 7~9인승 스타리아 코코트립 차량을 추천합니다 (기사가 모든 짐 적재)',
+      reason_en: 'A Korean taxi seats 4 and fits little luggage — book a CocoTrip charter (7–9 seat Staria); your driver loads all bags',
+      reason_ja: '韓国のタクシーは4人乗りで荷物もあまり積めません — 7〜9人乗りスタリアのCocoTripチャーターを推奨（ドライバーが全荷物を積載）',
+      reason_zh: '韩国出租车只能坐4人、行李空间小 — 推荐CocoTrip包车（7–9座Staria，司机协助装载所有行李）',
       cta_link: '/charter',
     });
   });

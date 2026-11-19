@@ -14,6 +14,7 @@ import type { DepartureGuideBlock, PlanDocument } from '../types';
 import { getPlanDetailUI } from '../types';
 import { useLanguage } from '@/hooks/useLanguage';
 import { TransitArrow } from './TransitArrow';
+import { CharterRecCard, type CharterRecommendation } from './CharterRecCard';
 import type { TransitFromPrev } from '@/types/plan';
 import {
   AIRPORT_BUS_BY_HUB,
@@ -29,6 +30,7 @@ type DepartureRoute = (TransitFromPrev & Record<string, unknown> & {
   fallbackReason?: string;
   fallback_origin?: 'arrival_guide' | 'zone_anchor' | 'city_center' | 'hotel';
   fallback_label?: string | null;
+  recommended_option?: CharterRecommendation;
 }) | undefined;
 
 interface DepartureGuideProps {
@@ -67,6 +69,8 @@ export function DepartureGuide({ guide, plan }: DepartureGuideProps) {
   const geminiCost = guide.to_airport?.cost_krw;
 
   const routeMin = (route?.est_min as number | undefined) || geminiDuration;
+  // 2026-11-19: dawn departure or a big group → RouteAgent puts a charter pick on the route (failed or not).
+  const charterRec = route?.recommended_option?.key === 'cocotrip_charter' ? route.recommended_option : undefined;
 
   return (
     <section className="mb-6">
@@ -98,6 +102,8 @@ export function DepartureGuide({ guide, plan }: DepartureGuideProps) {
       </button>
 
       <div className={`overflow-hidden transition-all duration-300 ease-out ${open ? 'max-h-[3000px] opacity-100 mt-4' : 'max-h-0 opacity-0'}`}>
+        {charterRec && <CharterRecCard rec={charterRec} />}
+
         {/* HERO 1: ODsay 정상 데이터 → 항상 우선 표시 */}
         {hasOdsayData && route && (
           <div className="mb-4 rounded-2xl overflow-hidden"
@@ -215,7 +221,8 @@ export function DepartureGuide({ guide, plan }: DepartureGuideProps) {
         {/* B9-33: 직행 공항버스 카드 — hub 매칭 시에만 노출.
             ODsay 결과는 지하철 환승 위주라 짐 많을 때 6015/6005 직행이 더 편함.
             수동 추가 옵션이라 디자인은 알록달록한 hero 와 별개의 emerald 톤으로 차별. */}
-        {hubKey && busInfo && hubLabel && (
+        {/* 2026-11-19: hidden on a dawn charter pick — the airport bus is not running then. */}
+        {hubKey && busInfo && hubLabel && !charterRec?.dawn && (
           <div className="mb-4 rounded-2xl overflow-hidden"
             style={{ background: 'linear-gradient(135deg, rgba(52,211,153,0.10), rgba(96,165,250,0.06))', border: '1px solid rgba(52,211,153,0.30)' }}>
             <div className="px-4 pt-4 pb-3">

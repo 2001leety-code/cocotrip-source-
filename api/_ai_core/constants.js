@@ -4,7 +4,7 @@
  */
 // 2026-10-26: 도착 휴식일·출국 조식 면제 순수 값 SSOT(브라우저 안전 leaf) — 아래에서 re-export.
 import {
-  REST_DAY_LATE_ARRIVAL_MIN, REST_DAY_TOUR_END_MARGIN_MIN, DEFAULT_TOUR_END_MIN, EARLY_DEPARTURE_NO_BREAKFAST_MIN, strictHHMMToMin,
+  REST_DAY_LATE_ARRIVAL_MIN, REST_DAY_TOUR_END_MARGIN_MIN, DEFAULT_TOUR_END_MIN, EARLY_DEPARTURE_NO_BREAKFAST_MIN, strictHHMMToMin, IMMIGRATION_BUFFER_MIN,
 } from '../../src/lib/arrivalRestRules.js';
 
 // ── 환경변수 trim — Naver API 헤더 오류 방지 (개행/공백 제거) ──────────
@@ -78,7 +78,7 @@ export const AIRPORT_ARRIVE_BEFORE_MIN = 180;
 //   실측(ICN 14:00 도착): 실제 권역 도착 17:00 인데 legacy 플랜의 첫 활동이
 //   16:15~16:26 — 손님이 아직 공항에 있는 시각이다.
 //   → 두 경로가 같은 값을 쓰도록 여기(의존성 없는 leaf)로 옮겼다.
-export const IMMIGRATION_BUFFER_MIN = 90; // 국제선 입국심사 + 짐 + 세관 (보수적)
+export { IMMIGRATION_BUFFER_MIN }; // value lives in src/lib/arrivalRestRules.js (browser-safe leaf)
 
 /** 공항 → 권역(시내/호텔) 이동 현실 추정(분). 공항 코드/한글명 부분일치. */
 export function estimateAirportTransitMin(airport) {
