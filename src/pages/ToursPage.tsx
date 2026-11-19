@@ -29,6 +29,7 @@ import { matchesTourQuery } from '@/lib/tourSearch';
 import { TOUR_REGION_IMAGE_SIZES } from '@/lib/responsiveTourImage';
 import { ResponsiveTourImage } from '@/components/ResponsiveTourImage';
 import { Header } from '@/sections/Header';
+import { Footer } from '@/sections/Footer';
 import { isToursPath, useToursCloudMotion } from '@/lib/toursBackgroundMotion';
 import '@/styles/editorial-tours-catalog.css';
 
@@ -862,6 +863,8 @@ export default function ToursPage() {
           </AffiliateCard>
         </section>
       </main>
+
+      <Footer t={t} />
 
       <TourInquireModal
         open={inquireOpen}

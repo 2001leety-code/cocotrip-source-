@@ -22,6 +22,7 @@ import { useLanguage } from '@/hooks/useLanguage';
 import { usePageMeta } from '@/hooks/usePageMeta';
 import { TOUR_CUTOFF_HOURS } from '@/lib/bookingCutoff';
 import { Header } from '@/sections/Header';
+import { Footer } from '@/sections/Footer';
 import { getRecommendedHotels } from '@/data/hotels';
 import { ReviewList } from '@/components/ReviewList';
 import { TourStopList } from '@/components/tours/TourStopList';
@@ -53,17 +54,21 @@ function TourDetailShell({
   language,
   t,
   onLanguageChange,
+  withBar = false,
   children,
 }: {
   language: Language;
   t: Translations;
   onLanguageChange: (language: Language) => void;
+  /** The branch that renders the fixed booking bar; its clearance goes on the footer. */
+  withBar?: boolean;
   children: ReactNode;
 }) {
   return (
-    <div className="tour-detail-editorial" data-testid="tour-detail-shell">
+    <div className="tour-detail-editorial" data-testid="tour-detail-shell" data-booking-bar={withBar || undefined}>
       <div className="ec-root"><Header language={language} t={t} onLanguageChange={onLanguageChange} /></div>
       {children}
+      <Footer t={t} />
     </div>
   );
 }
@@ -307,7 +312,7 @@ export default function TourDetailPage() {
   ].filter((section): section is TourSectionTab => section !== null);
 
   return (
-    <TourDetailShell language={language} t={t} onLanguageChange={changeLanguage}>
+    <TourDetailShell language={language} t={t} onLanguageChange={changeLanguage} withBar>
       <main className="ec-root tour-detail-nonpayment" data-testid="tour-detail-nonpayment">
         <div className="ec-container-wide">
           <nav className="tour-detail-breadcrumb" aria-label={copy.documentLabel}>

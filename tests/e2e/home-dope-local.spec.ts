@@ -665,7 +665,7 @@ for (const language of LANGUAGES) {
 
     expect(labels.size).toBe(3);
     if (language === 'en') {
-      const shots = process.env.ROLLOUT_DIR ?? 'test-results';
+      const shots = process.env.ROLLOUT_DIR || 'test-results';
       await page.screenshot({ path: `${shots}/home-pc-fit.png` });
       await page.setViewportSize({ width: 390, height: 844 });
       await page.screenshot({ path: `${shots}/home-phone-fit.png` });
@@ -947,7 +947,7 @@ test('annotations: home footer info starts closed, opens by keyboard, keeps ever
 test('annotations: non-home footer keeps the expanded layout with no fold', async ({ page }) => {
   await setupPage(page, 'en');
   await page.setViewportSize({ width: 1440, height: 1000 });
-  // /tours renders no Footer; /guide renders the shared sections/Footer.
+  // Home and the tour pages fold the footer; /guide keeps it expanded.
   await page.goto('/guide', { waitUntil: 'domcontentloaded' });
   const footer = page.locator('footer').last();
   await expect(footer.locator('a[href="tel:+821087140611"]')).toBeVisible();

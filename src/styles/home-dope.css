@@ -1672,32 +1672,6 @@
   .home-dope .home-dope-leg__link { margin-left: 26px; }
 }
 
-/* Footer (home only): company/contact block folded behind one summary row. */
-.home-dope-chrome .home-dope-footer-info__summary {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  min-height: 44px;
-  cursor: pointer;
-  list-style: none;
-}
-
-.home-dope-chrome .home-dope-footer-info__summary::-webkit-details-marker {
-  display: none;
-}
-
-.home-dope-chrome .home-dope-footer-info__chevron {
-  transition: transform 160ms ease;
-}
-
-.home-dope-chrome .home-dope-footer-info[open] .home-dope-footer-info__chevron {
-  transform: rotate(180deg);
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .home-dope-chrome .home-dope-footer-info__chevron { transition: none; }
-}
-
 /* ── Chrome follow-up (2026-10-07): chat trigger, hamburger, menu entry ──── */
 
 /* Chat trigger (ChatWidget.tsx): compact dark tile instead of the pale round

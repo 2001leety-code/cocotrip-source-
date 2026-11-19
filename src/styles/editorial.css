@@ -402,6 +402,30 @@ html[lang='zh'] .ec-body { line-height: 1.78; }
   }
 }
 
+/* Footer info fold (home + tour list/detail): company/contact block behind one
+   summary row. Global because tour pages do not load home-dope.css. Reduced
+   motion is covered by the .ec-root rule above. */
+.home-dope-footer-info__summary {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 44px;
+  cursor: pointer;
+  list-style: none;
+}
+
+.home-dope-footer-info__summary::-webkit-details-marker {
+  display: none;
+}
+
+.home-dope-footer-info__chevron {
+  transition: transform 160ms ease;
+}
+
+.home-dope-footer-info[open] .home-dope-footer-info__chevron {
+  transform: rotate(180deg);
+}
+
 /* Print: paper is already paper. Drop the shell chrome and keep the ink. */
 @media print {
   .ec-no-print { display: none !important; }

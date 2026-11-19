@@ -65,6 +65,7 @@ vi.mock('../../src/hooks/useTourRatingAggregates', () => ({ useTourRatingAggrega
 vi.mock('../../src/lib/firebase', () => ({ db: {}, auth: {} }));
 vi.mock('../../src/lib/firebase-auth.js', () => ({ auth: { currentUser: null } }));
 vi.mock('../../src/sections/Header', () => ({ Header: () => null }));
+vi.mock('../../src/sections/Footer', () => ({ Footer: () => null }));
 vi.mock('../../src/lib/analytics', () => ({ trackEvent: () => {} }));
 vi.mock('../../src/lib/affiliateTracking', () => ({
   observeAffiliateImpression: () => () => {},
