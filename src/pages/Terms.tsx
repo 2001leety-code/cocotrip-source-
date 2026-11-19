@@ -15,7 +15,7 @@ const CONTENT = {
     articles: [
       {
         title: 'Article 1 (Purpose)',
-        body: "These terms and conditions aim to stipulate the conditions and procedures for using all travel-related services provided by COCOTRIP (hereinafter referred to as the 'Company').",
+        body: "These terms and conditions aim to stipulate the conditions and procedures for using all travel-related services provided by 주식회사 코코트립 (COCOTRIP, hereinafter referred to as the 'Company').",
       },
       {
         title: 'Article 2 (Booking Method)',
@@ -41,7 +41,7 @@ const CONTENT = {
     articles: [
       {
         title: '제1조 (목적)',
-        body: "이 약관은 COCOTRIP(이하 '회사')이 제공하는 여행 관련 모든 서비스의 이용 조건 및 절차를 규정하는 것을 목적으로 합니다.",
+        body: "이 약관은 주식회사 코코트립(이하 '회사')이 제공하는 여행 관련 모든 서비스의 이용 조건 및 절차를 규정하는 것을 목적으로 합니다.",
       },
       {
         title: '제2조 (예약 방법)',
@@ -67,7 +67,7 @@ const CONTENT = {
     articles: [
       {
         title: '第1条（目的）',
-        body: "本規約は、COCOTRIP（以下「当社」）が提供する旅行関連の全サービスの利用条件および手続きを規定することを目的とします。",
+        body: "本規約は、주식회사 코코트립（COCOTRIP、以下「当社」）が提供する旅行関連の全サービスの利用条件および手続きを規定することを目的とします。",
       },
       {
         title: '第2条（予約方法）',
@@ -93,7 +93,7 @@ const CONTENT = {
     articles: [
       {
         title: '第一条（目的）',
-        body: '本条款旨在规定使用COCOTRIP（以下简称"公司"）提供的所有旅行相关服务的条件和程序。',
+        body: '本条款旨在规定使用주식회사 코코트립（COCOTRIP，以下简称"公司"）提供的所有旅行相关服务的条件和程序。',
       },
       {
         title: '第二条（预订方式）',

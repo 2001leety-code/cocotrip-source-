@@ -16,7 +16,7 @@ const CONTENT = {
     articles: [
       {
         title: 'Article 1 (Collected Personal Information)',
-        body: "'COCOTRIP' is collecting the following personal information to provide smooth customer consultation and services.",
+        body: "'주식회사 코코트립 (COCOTRIP)' is collecting the following personal information to provide smooth customer consultation and services.",
         list: [
           'Required Items: Full name, contact number (phone number), email address',
           'Optional Items: (For airport pickup) Flight number, other additional requests',
@@ -62,7 +62,7 @@ const CONTENT = {
     articles: [
       {
         title: '제1조 (수집하는 개인정보 항목)',
-        body: "'코코트립(COCOTRIP)'은 원활한 고객 상담 및 서비스 제공을 위해 아래와 같은 개인정보를 수집하고 있습니다.",
+        body: "'주식회사 코코트립'은 원활한 고객 상담 및 서비스 제공을 위해 아래와 같은 개인정보를 수집하고 있습니다.",
         list: [
           '필수항목: 성명, 연락처(전화번호), 이메일 주소',
           '선택항목: (공항 픽업 시) 항공편명, 기타 추가 요청사항',
@@ -108,7 +108,7 @@ const CONTENT = {
     articles: [
       {
         title: '第1条（収集する個人情報）',
-        body: "「COCOTRIP」は、円滑なカスタマーサポートおよびサービス提供のため、以下の個人情報を収集しています。",
+        body: "「주식회사 코코트립（COCOTRIP）」は、円滑なカスタマーサポートおよびサービス提供のため、以下の個人情報を収集しています。",
         list: [
           '必須項目：氏名、連絡先（電話番号）、メールアドレス',
           '任意項目：（空港送迎の場合）フライト番号、その他の追加リクエスト',
@@ -154,7 +154,7 @@ const CONTENT = {
     articles: [
       {
         title: '第一条（收集的个人信息）',
-        body: "「COCOTRIP」为提供顺畅的客户咨询及服务，收集以下个人信息。",
+        body: "「주식회사 코코트립（COCOTRIP）」为提供顺畅的客户咨询及服务，收集以下个人信息。",
         list: [
           '必填项目：姓名、联系方式（电话号码）、电子邮箱',
           '选填项目：（机场接机时）航班号、其他附加需求',
