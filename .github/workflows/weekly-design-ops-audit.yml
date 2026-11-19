@@ -41,21 +41,26 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-playwright-
 
-      - name: Install Playwright chromium (cache miss)
-        if: steps.playwright-cache.outputs.cache-hit != 'true'
+      # 2026-11-19: apt-get runs as root through sudo and a runner-user `timeout` cannot
+      # signal it, so when the old `timeout ... install --with-deps` ran out during apt, the
+      # dpkg lock stayed held and the retries failed in seconds. Now system packages (timeout run as root) and the
+      # browser download are retried separately. Full note in pr-i18n-smoke.yml.
+      # One step for any cache state: a cached browser is skipped fast.
+      - name: Install Playwright chromium + system deps
         run: |
           ok=""
           for attempt in 1 2 3; do
-            if timeout 420 npx playwright install --with-deps chromium; then ok=1; break; fi
-            echo "::warning::Playwright install attempt ${attempt} timed out or failed - retrying"
+            if sudo env "PATH=$PATH" timeout -k 30 300 ./node_modules/.bin/playwright install-deps chromium; then ok=1; break; fi
+            echo "::warning::System packages attempt ${attempt} failed or timed out - retrying"
+            sleep 10; sudo timeout 120 dpkg --configure -a || true
           done
           [ -n "$ok" ]
-
-      - name: Verify Playwright chromium + system deps (cache hit)
-        if: steps.playwright-cache.outputs.cache-hit == 'true'
-        run: |
-          npx playwright install chromium
-          npx playwright install-deps chromium
+          ok=""
+          for attempt in 1 2 3; do
+            if timeout -k 30 300 npx playwright install chromium; then ok=1; break; fi
+            echo "::warning::Browser download attempt ${attempt} failed or timed out - retrying"
+          done
+          [ -n "$ok" ]
 
       # 직전 성공 보고서를 작은 캐시로 복원해 finding_key의 new/resolved/unchanged를 계산한다.
       - name: Restore previous design audit result

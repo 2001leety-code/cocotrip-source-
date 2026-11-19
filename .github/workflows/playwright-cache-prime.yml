@@ -10,6 +10,11 @@
 # 이후 모든 PR 의 smoke/visual 이 main 캐시를 restore 해 miss 자체가 사라진다.
 # 트리거 = lockfile 변경(키가 바뀌는 유일한 시점) + 주 1회(캐시 7일 미사용 축출
 # 대비) + 수동.
+#
+# 2026-11-19 correction: the premise above does not hold for smoke/visual. Their real
+# runs are deployment_status events, where GITHUB_REF is empty (Vercel deploys by commit
+# SHA) and actions/cache skips restore and save entirely - see pr-i18n-smoke.yml. This
+# cache is still restored by daily-health and weekly-i18n-audit (same key, run on main).
 name: playwright-cache-prime
 
 on:
@@ -40,7 +45,7 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      # smoke/visual 과 동일한 키·경로 — chromium+webkit 수퍼셋을 저장해 둘 다 커버.
+      # smoke·daily-health·weekly-i18n-audit 와 같은 키·경로 (visual 은 다른 키를 쓴다).
       - name: Cache Playwright browsers
         uses: actions/cache@v4
         id: playwright-cache
@@ -52,11 +57,15 @@ jobs:
 
       - name: Install Playwright browsers (prime)
         if: steps.playwright-cache.outputs.cache-hit != 'true'
-        # 다운로드 매달림 대비 — 시도별 7분 timeout + 3회 재시도 (smoke/visual 과 동일 백신).
+        # 다운로드 매달림 대비 — 시도별 5분 timeout + 3회 재시도.
+        # 2026-11-19: browsers only, no `--with-deps`. The cache holds only ~/.cache/ms-playwright,
+        # and with `--with-deps` a timeout during apt could not be retried: apt-get runs as
+        # root through sudo, the runner-user `timeout` cannot signal it, and it kept the dpkg
+        # lock. Without apt the timeout kills the whole download and a retry downloads again.
         run: |
           ok=""
           for attempt in 1 2 3; do
-            if timeout 420 npx playwright install --with-deps chromium webkit; then ok=1; break; fi
-            echo "::warning::Playwright install attempt ${attempt} timed out or failed - retrying"
+            if timeout -k 30 300 npx playwright install chromium webkit; then ok=1; break; fi
+            echo "::warning::Playwright install attempt ${attempt} failed or timed out - retrying"
           done
           [ -n "$ok" ]
