@@ -87,7 +87,8 @@ describe('P275 Phase B — AIRPORT_STATION_COORDS 자동 fix (ODsay strict match
 
   it('RouteAgent — departure 안내 호출 site 가 airportPoint(역 우선)', () => {
     expect(routeAgentSrc.match(/const ap = airportPoint\(departureAirportKey\);/g)).toHaveLength(1);
-    expect(routeAgentSrc).toMatch(/this\._routeAirportHotel\(depFromCoord, ap, 'departure'\)/);
+    // 2026-11-18: 4th arg = flight-based times for the night-bus check (tmap-night-bus-20261118).
+    expect(routeAgentSrc).toMatch(/this\._routeAirportHotel\(depFromCoord, ap, 'departure'[,)]/);
   });
 
   it('P275 Phase B reference + SAFETY-CRITICAL 명시', () => {

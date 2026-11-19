@@ -27,6 +27,7 @@ import axios from 'axios';
 import { formatTransitSummary } from './_odsay_helper.js';
 // P330 (2026-05-31): provider 스위치 — 기본 ODsay, TRANSIT_PROVIDER=tmap 시 TMAP.
 import { searchTransit } from './_transit_provider.js';
+import { transitLegOpts } from './_shared/nightBusLeg.js';
 // NCP Maps 키 해석 + geocode 호출 SSOT — 키 목록 복제 금지 (mood-route.js:45~ 주석).
 import { geocode, resolveNcpKeys } from './_shared/mood-route.js';
 import { isMergedLodgingStop, isSameLodgingMarker, isLodgingBookendPair, effectiveBookedAddress, stayMinOf, SAME_LODGING_FIELD } from './_ai_core/mergedLodging.js'; // PR2 r10/r12/r13: 같은 숙소 병합 표식(이동 0)·체류 규칙
@@ -207,7 +208,7 @@ export default async function handler(req, res) {
             },
             timeout: 5000,
           }) : Promise.reject(new Error('no credentials')),
-          searchTransit(prev.lng, prev.lat, curr.lng, curr.lat),
+          searchTransit(prev.lng, prev.lat, curr.lng, curr.lat, transitLegOpts(prev, curr, day.date)),
         ]);
 
         let durationMin = 25;

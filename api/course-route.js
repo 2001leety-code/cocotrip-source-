@@ -75,7 +75,8 @@ export default async function handler(req, res) {
       looked++;
       let route = null;
       try {
-        route = await searchTransitRouteTmap(a.lng, a.lat, b.lng, b.lat);
+        // 코스 = 낮 일정(시각 없음) → 심야버스 후보는 건너뛴다 (2026-11-18, _shared/nightBusLeg.js).
+        route = await searchTransitRouteTmap(a.lng, a.lat, b.lng, b.lat, { avoidNightBus: true });
       } catch (e) {
         // transient(5xx/타임아웃)는 helper 가 throw — 구간만 비우고 계속(fail-soft).
         console.info(`[course-route] leg ${i} TMAP error: ${e && e.message}`);

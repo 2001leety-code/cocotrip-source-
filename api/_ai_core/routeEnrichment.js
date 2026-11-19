@@ -183,6 +183,8 @@ export async function enrichItineraryWithRoute(itinerary, { apiKey, body, langua
       tour_end_time: resolveTourEndTime(body),
       // 1일 여행만: 식사 상한에 PR1 출국 활동 마감(departureActivityDeadlineMin) 적용.
       ...((itinerary.days || []).length === 1 ? { departure_time: resolveDepartureTime(body) } : {}),
+      // 2026-11-18: every trip — departure card night-bus check (RouteAgent → nightBusLeg.js). departure_time above stays 1-day only.
+      flight_departure_time: resolveDepartureTime(body),
       luggage: body.luggage || null,
       pax,
       // 2026-05-05: area + recommended_zone 누락 → RouteAgent 의 hotel→airport

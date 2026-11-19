@@ -135,7 +135,8 @@ describe('P330 호출부 wiring (source-grep) — provider-aware searchTransit �
   const provider = readFileSync(resolve(ROOT, 'api/_transit_provider.js'), 'utf8');
   it('RouteAgent 가 _transit_provider.searchTransit 호출 (직접 searchTransitRoute 아님)', () => {
     expect(routeAgent).toMatch(/import\s*\{\s*searchTransit\s*\}\s*from\s*["'][^"']*_transit_provider\.js["']/);
-    expect(routeAgent).toMatch(/await\s+searchTransit\(sx,\s*sy,\s*ex,\s*ey\)/);
+    // 2026-11-18: opts (avoidNightBus) rides along — tmap-night-bus-20261118.test.ts.
+    expect(routeAgent).toMatch(/await\s+searchTransit\(sx,\s*sy,\s*ex,\s*ey(,\s*opts)?\)/);
     expect(routeAgent).not.toMatch(/await\s+searchTransitRoute\(/); // 직접 호출 제거됨
   });
   it('recalc-transit 도 searchTransit 사용', () => {

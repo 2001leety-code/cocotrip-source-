@@ -6,7 +6,8 @@ import { formatTransitSummary, getSubwayStationInfo, getSubwayTimetable } from "
 import { searchTransit } from "../../_transit_provider.js";
 // BUGHUNT-LOW (2026-06-14): AREX 직통 HERO 합성을 ODsay 일 때만 발동시키는 게이트용 (TMAP native 급행 보존).
 import { getTransitProvider } from "../../_transit_provider.js";
-import { AIRPORT_COORDS, AIRPORT_NAMES, CITY_CENTER_COORDS, airportPoint, lookupZoneCoord, SCHEDULE_BUFFER_MIN, DEFAULT_LEG_MIN, arrivalReadyMinutes, hhmmToMin, resolveTourStartTime, resolveTourEndTime, resolveArrivalTime, singleDayMealWindows, MEAL_ROLE_WINDOWS } from "../constants.js";
+import { transitLegOpts, shiftHHMM, clockAt } from "../../_shared/nightBusLeg.js";
+import { AIRPORT_COORDS, AIRPORT_NAMES, CITY_CENTER_COORDS, airportPoint, lookupZoneCoord, SCHEDULE_BUFFER_MIN, DEFAULT_LEG_MIN, arrivalReadyMinutes, hhmmToMin, resolveTourStartTime, resolveTourEndTime, resolveArrivalTime, singleDayMealWindows, MEAL_ROLE_WINDOWS, IMMIGRATION_BUFFER_MIN, departureActivityDeadlineMin } from "../constants.js";
 // P-launch (2026-05-31): 한글 regions('부산') → 영문 키('busan') 정규화 (멀티시티 departure city 해석용).
 import { normalizeRegionKey, regionCityKey, departureCityKey } from "../responseValidator.js";
 import { isAirportStop } from "../../../src/lib/airportStop.js"; // 2026-11-16: 공항 stop 판정 — 화면(DayTimeline)과 같은 규칙
@@ -580,7 +581,7 @@ function _haversineKmPure(lat1, lng1, lat2, lng2) {
 //   - source 'naver_fallback' — TransitFromPrev enum 의 정식 값(types/plan.ts L174).
 //   - instruction/instruction_en + step_by_step 로 거리·시간·네이버 링크 인라인 표시.
 // 좌표가 하나라도 없으면 null → 호출부가 기존 skip 동작 유지(절대 깨지지 않음).
-function buildBookendFallbackLeg({ fromLat, fromLng, fromLabel, toLat, toLng, toLabel }) {
+function buildBookendFallbackLeg({ fromLat, fromLng, fromLabel, toLat, toLng, toLabel, language = 'ko' }) {
     if (fromLat == null || fromLng == null || toLat == null || toLng == null) return null;
     if (![fromLat, fromLng, toLat, toLng].every((n) => Number.isFinite(n))) return null;
     const distKm = _haversineKmPure(fromLat, fromLng, toLat, toLng);
@@ -601,12 +602,20 @@ function buildBookendFallbackLeg({ fromLat, fromLng, fromLabel, toLat, toLng, to
     const stepEn = isWalk
         ? `~${walkMin} min walk (${distM}m)`
         : `Taxi ~${estMin} min · est. ₩${taxiKrw.toLocaleString('en-US')} (${distKm.toFixed(1)}km)`;
+    // 2026-11-18: step_by_step in the traveller's language (this leg now also stands in for hotel legs with no
+    //   transit). instruction / instruction_en unchanged.
+    const lang = ['ko', 'en', 'ja', 'zh'].includes(language) ? language : 'ko';
+    const fareStr = taxiKrw.toLocaleString('en-US');
+    const stepLocal = (isWalk
+        ? { ko: stepKo, en: stepEn, ja: `徒歩約${walkMin}分 (${distM}m)`, zh: `步行约${walkMin}分钟 (${distM}米)` }
+        : { ko: stepKo, en: stepEn, ja: `タクシー約${estMin}分 · 目安 ${fareStr}ウォン (${distKm.toFixed(1)}km)`, zh: `出租车约${estMin}分钟 · 预计 ${fareStr}韩元 (${distKm.toFixed(1)}公里)` })[lang];
+    const naverLabel = { ko: '네이버 지도 길찾기', en: 'Naver Map directions', ja: 'NAVER マップで経路検索', zh: 'NAVER 地图路线' }[lang];
     return {
         method,
         mode: methodToMode(method) || method,
         instruction: `${stepKo} · 네이버 지도 길찾기: ${naverUrl}`,
         instruction_en: `${stepEn} · Naver Map directions: ${naverUrl}`,
-        step_by_step: [stepKo, `네이버 지도 길찾기: ${naverUrl}`],
+        step_by_step: [stepLocal, `${naverLabel}: ${naverUrl}`],
         est_min: estMin,
         est_fare_krw: isWalk ? 0 : taxiKrw,
         distance_km: distKm,
@@ -1144,7 +1153,11 @@ export class RouteAgent extends BaseAgent {
             });
 
             if (arrFromCoord) {
-                const route = await this._routeAirportHotel(ap, arrFromCoord, 'arrival');
+                // Leaving the airport = landing + immigration buffer (same constant as arrivalReadyMinutes),
+                //   dated on day 1 (a 23:30 landing leaves 01:00 the next day).
+                const arrLandMin = hhmmToMin(data.arrival_time);
+                const arrLeave = arrLandMin < 0 ? null : clockAt(daysList[0]?.date, arrLandMin + IMMIGRATION_BUFFER_MIN);
+                const route = await this._routeAirportHotel(ap, arrFromCoord, 'arrival', { leave: shiftHHMM(data.arrival_time, IMMIGRATION_BUFFER_MIN), date: arrLeave?.date });
                 if (route) {
                     // PR-C (2026-06-01, FEATURE_CHARTER_HERO_PRICE): charter HERO 가격/구간 context.
                     //   region 은 한글('서울') 가능 → normalizeRegionKey 로 영문 키('seoul') 변환
@@ -1327,7 +1340,13 @@ export class RouteAgent extends BaseAgent {
             });
 
             if (depFromCoord) {
-                const route = await this._routeAirportHotel(depFromCoord, ap, 'departure');
+                // Leaving the hotel = the departure-day activity deadline (flight − airport buffer − transfer), same rule as blockMode.
+                //   Dated on the last day (a 02:00 flight leaves the hotel the evening before).
+                const depFlightMin = hhmmToMin(data.flight_departure_time);
+                const depLeaveMin = depFlightMin < 0 ? null : departureActivityDeadlineMin(depFlightMin, departureAirportKey, departureCity || regionCityKey(region));
+                const depLeave = depLeaveMin === null ? null : shiftHHMM('00:00', depLeaveMin);
+                const depLeaveAt = depLeaveMin === null ? null : clockAt(daysList[daysList.length - 1]?.date, depLeaveMin);
+                const route = await this._routeAirportHotel(depFromCoord, ap, 'departure', { leave: depLeave, date: depLeaveAt?.date });
                 if (route) {
                     if (depFromSource !== 'hotel') {
                         route.fallback_origin = depFromSource; // 'arrival_guide' | 'zone_anchor' | 'city_center'
@@ -1686,7 +1705,7 @@ export class RouteAgent extends BaseAgent {
                                 // 지리 mismatch (venue 치환 의심) → cache 폐기, 아래 ODsay 실측으로.
                             }
                             // Cache miss 또는 geo mismatch: 기존 ODsay 경로
-                            return this._getTransitData(prev, curr, clientId, clientSecret, i, dayOfWeek);
+                            return this._getTransitData(prev, curr, clientId, clientSecret, i, dayOfWeek, dayPlan.date);
                         })
                     );
                 } else {
@@ -1881,15 +1900,17 @@ export class RouteAgent extends BaseAgent {
                         console.warn(`  - intercity bookend pre SKIP — STATION_COORDS 에 '${it.from_station}' 미등록 (Day ${dayPlan.day})`);
                     } else {
                         try {
-                            const stationPlace = { lat: fromStationCoord.lat, lng: fromStationCoord.lng, name: it.from_station, display_name: it.from_station };
+                            // start_time = train departure → night-bus check (nightBusLeg.js) reads the hotel leaving time from it.
+                            const stationPlace = { lat: fromStationCoord.lat, lng: fromStationCoord.lng, name: it.from_station, display_name: it.from_station, start_time: it.recommended_depart };
                             const prevHotelPlace = { lat: prevHotelEffective.lat, lng: prevHotelEffective.lng, name: prevHotelEffective.label || 'Hotel', display_name: prevHotelEffective.label || 'Hotel' };
-                            const transitData = await this._getTransitData(prevHotelPlace, stationPlace, clientId, clientSecret, -1, dayOfWeek);
+                            const transitData = await this._getTransitData(prevHotelPlace, stationPlace, clientId, clientSecret, -1, dayOfWeek, dayPlan.date);
                             const pt = transitData.publicTransit;
                             if (!pt) {
                                 // (2026-06-23): null 응답 → skip 대신 합성 fallback leg.
                                 // 두 좌표(prevHotel ↔ fromStation)는 KNOWN → 도보/택시 추정 +
                                 // 네이버 길찾기 링크. UI 가 빈칸 대신 graceful 안내 표시.
                                 const fb = buildBookendFallbackLeg({
+                                    language,
                                     fromLat: prevHotelEffective.lat, fromLng: prevHotelEffective.lng,
                                     fromLabel: prevHotelEffective.label || 'Hotel',
                                     toLat: fromStationCoord.lat, toLng: fromStationCoord.lng,
@@ -1943,15 +1964,17 @@ export class RouteAgent extends BaseAgent {
                         console.warn(`  - intercity bookend post SKIP — STATION_COORDS 에 '${it.to_station}' 미등록 (Day ${dayPlan.day})`);
                     } else {
                         try {
-                            const stationPlace = { lat: toStationCoord.lat, lng: toStationCoord.lng, name: it.to_station, display_name: it.to_station };
+                            // end_time = train arrival = leaving the station (night-bus check, nightBusLeg.js).
+                            const stationPlace = { lat: toStationCoord.lat, lng: toStationCoord.lng, name: it.to_station, display_name: it.to_station, end_time: it.arrival_at };
                             const newHotelPlace = { lat: dayHotel.lat, lng: dayHotel.lng, name: dayHotel.label || 'Hotel', display_name: dayHotel.label || 'Hotel' };
-                            const transitData = await this._getTransitData(stationPlace, newHotelPlace, clientId, clientSecret, -2, dayOfWeek);
+                            const transitData = await this._getTransitData(stationPlace, newHotelPlace, clientId, clientSecret, -2, dayOfWeek, dayPlan.date);
                             const pt = transitData.publicTransit;
                             if (!pt) {
                                 // (2026-06-23): null 응답 → skip 대신 합성 fallback leg.
                                 // 두 좌표(toStation ↔ dayHotel)는 KNOWN → 도보/택시 추정 +
                                 // 네이버 길찾기 링크. UI 가 빈칸 대신 graceful 안내 표시.
                                 const fb = buildBookendFallbackLeg({
+                                    language,
                                     fromLat: toStationCoord.lat, fromLng: toStationCoord.lng,
                                     fromLabel: it.to_station,
                                     toLat: dayHotel.lat, toLng: dayHotel.lng,
@@ -2082,9 +2105,20 @@ export class RouteAgent extends BaseAgent {
                 } else {
                     try {
                         const hotelPlace = { lat: dayHotel.lat, lng: dayHotel.lng, name: dayHotel.label || 'Hotel', display_name: dayHotel.label || 'Hotel' };
-                        const transitData = await this._getTransitData(hotelPlace, places[0], clientId, clientSecret, 0, dayOfWeek);
+                        const transitData = await this._getTransitData(hotelPlace, places[0], clientId, clientSecret, 0, dayOfWeek, dayPlan.date);
                         const pt = transitData.publicTransit;
-                        hotelTransit = {
+                        // 2026-11-18: no transit (API down, or every TMAP candidate needs a night bus by day) → walk/taxi
+                        //   leg like the intercity bookends, not a "subway" card carrying a car time.
+                        const hotelFb = pt ? null : buildBookendFallbackLeg({
+                            language,
+                            fromLat: dayHotel.lat, fromLng: dayHotel.lng, fromLabel: dayHotel.label || 'Hotel',
+                            toLat: places[0].lat, toLng: places[0].lng, toLabel: places[0].display_name || places[0].name,
+                        });
+                        hotelTransit = hotelFb ? {
+                            ...hotelFb,
+                            anchor_lat: dayHotel.lat, anchor_lng: dayHotel.lng,
+                            anchor_label: dayHotel.label || null, anchor_source: dayHotel.source || 'hotel',
+                        } : {
                             method: pt?.method || 'subway',
                             mode: methodToMode(pt?.method) || 'subway',
                             instruction: pt?.summary || `Take public transit from ${dayHotel.label || 'hotel'} to ${places[0].name || places[0].display_name || 'first stop'}`,
@@ -2149,9 +2183,20 @@ export class RouteAgent extends BaseAgent {
                     if (!sameAsHotel) {
                         try {
                             const hotelPlace = { lat: dayHotel.lat, lng: dayHotel.lng, name: dayHotel.label || 'Hotel', display_name: dayHotel.label || 'Hotel' };
-                            const lastTransit = await this._getTransitData(lastPlace, hotelPlace, clientId, clientSecret, 999, dayOfWeek);
+                            const lastTransit = await this._getTransitData(lastPlace, hotelPlace, clientId, clientSecret, 999, dayOfWeek, dayPlan.date);
                             const pt = lastTransit.publicTransit;
-                            const returnTransit = {
+                            // 2026-11-18: same walk/taxi fallback as hotel → first stop above.
+                            const returnFb = pt ? null : buildBookendFallbackLeg({
+                                language,
+                                fromLat: lastPlace.lat, fromLng: lastPlace.lng, fromLabel: lastPlace.display_name || lastPlace.name || 'last stop',
+                                toLat: dayHotel.lat, toLng: dayHotel.lng, toLabel: dayHotel.label || 'Hotel',
+                            });
+                            const returnTransit = returnFb ? {
+                                ...returnFb,
+                                anchor_lat: dayHotel.lat, anchor_lng: dayHotel.lng,
+                                anchor_label: dayHotel.label || null, anchor_source: dayHotel.source || 'hotel',
+                                _isLodgingReturn: true,
+                            } : {
                                 method: pt?.method || 'subway',
                                 mode: methodToMode(pt?.method) || 'subway',
                                 instruction: pt?.summary || `Return to ${dayHotel.label || 'hotel'} from ${lastPlace.name || lastPlace.display_name || 'last stop'}`,
@@ -2214,7 +2259,7 @@ export class RouteAgent extends BaseAgent {
             //   시각 역전(LateBar 23:20 → Hotel 23:00)을 만들었다. C 시점엔 모든 시각이 1440 미만이 보장된다.
             // ════════════════════════════════════════════════════════
             const legBetween = async (prev, next, k) => ((prev?.lat && prev?.lng && next?.lat && next?.lng)
-                ? this._getTransitData(prev, next, clientId, clientSecret, k, dayOfWeek)
+                ? this._getTransitData(prev, next, clientId, clientSecret, k, dayOfWeek, dayPlan.date)
                 : { index: k, durationMin: 25, distanceKm: 5.0, publicTransit: null, drivingMin: null });
             // 2026-11-16: 장소 검색 좌표 되돌리기 = 그 stop 을 main 처럼 좌표 없음 + 닿는 구간 기본값으로(다음 계산은 main 입력 그대로).
             let undoLocalGeo = localGeoStops.length ? async () => {
@@ -2543,7 +2588,7 @@ export class RouteAgent extends BaseAgent {
     /**
      * 단일 구간의 경로 데이터를 병렬로 가져오기 (Naver Driving + ODsay Transit)
      */
-    async _getTransitData(prev, curr, clientId, clientSecret, index, dayOfWeek) {
+    async _getTransitData(prev, curr, clientId, clientSecret, index, dayOfWeek, dayYmd) {
         // Haversine baseline — used to (a) prefer walking for <1.5km legs, and
         // (b) replace the legacy 25min/5km blind fallback when both APIs fail
         // but coordinates are known. Pedestrian pace 70m/min (~4.2km/h).
@@ -2578,7 +2623,9 @@ export class RouteAgent extends BaseAgent {
                 timeout: 5000,
             }) : Promise.reject(new Error('no credentials')),
             // ODsay Transit (Layer 3: retry with 500ms backoff, 10s timeout)
-            this._searchOdsayWithRetry(prev.lng, prev.lat, curr.lng, curr.lat),
+            // 2026-11-18: daytime legs skip TMAP night-bus candidates (N16 at 18:35); 2026-11-19: with the
+            //   day date (dayYmd) TMAP gets the real departure and skips buses it flags not running (transitLegOpts).
+            this._searchOdsayWithRetry(prev.lng, prev.lat, curr.lng, curr.lat, transitLegOpts(prev, curr, dayYmd)),
         ]);
 
         // Naver 결과 처리
@@ -2857,11 +2904,11 @@ export class RouteAgent extends BaseAgent {
      * B9-31: attempt 1 failure 는 retry 가 정상 흐름이라 info 로 다운그레이드.
      * attempt 2 fatal 만 warn 유지 (운영자가 인식해야 하는 패턴).
      */
-    async _searchOdsayWithRetry(sx, sy, ex, ey) {
+    async _searchOdsayWithRetry(sx, sy, ex, ey, opts = {}) {
         for (let attempt = 0; attempt < 2; attempt++) {
             try {
                 // P330: provider-aware (ODsay 기본 / TMAP env 스위치). 출력 shape 동일.
-                const result = await searchTransit(sx, sy, ex, ey);
+                const result = await searchTransit(sx, sy, ex, ey, opts);
                 return result;
             } catch (e) {
                 if (attempt === 0) {
@@ -3020,16 +3067,20 @@ export class RouteAgent extends BaseAgent {
      * retry, so this outer retry covers cases where _getTransitData itself throws
      * (e.g. axios network error before any ODsay call).
      */
-    async _routeAirportHotel(from, to, direction) {
-        const fromPlace = { lat: from.lat, lng: from.lng, name: direction === 'arrival' ? 'Airport' : 'Hotel' };
-        const toPlace = { lat: to.lat, lng: to.lng, name: direction === 'arrival' ? 'Hotel' : 'Airport' };
+    async _routeAirportHotel(from, to, direction, times = {}) {
+        // 2026-11-18: airport side flagged + known flight-based times → night-bus check (nightBusLeg.js).
+        //   2026-11-19: times.date = calendar day of times.leave → TMAP gets the real departure.
+        //   No times (AREX hero last-mile) = TMAP first pick, as before.
+        const arrival = direction === 'arrival';
+        const fromPlace = { lat: from.lat, lng: from.lng, name: arrival ? 'Airport' : 'Hotel', ...(arrival ? { category: 'airport' } : {}), ...(times.leave ? { end_time: times.leave } : {}) };
+        const toPlace = { lat: to.lat, lng: to.lng, name: arrival ? 'Hotel' : 'Airport', ...(arrival ? {} : { category: 'airport' }), ...(times.arrive ? { start_time: times.arrive } : {}) };
         // 키 해석 = mood-route.resolveNcpKeys (SSOT) — 2026-07-27 죽은 NAVER_CLIENT_* 직독 제거.
         const { clientId: cid, clientSecret: csec } = resolveNcpKeys();
         const MAX_ATTEMPTS = 2; // 1 try + 1 retry
         let lastErr = null;
         for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
             try {
-                const td = await this._getTransitData(fromPlace, toPlace, cid, csec, 0);
+                const td = await this._getTransitData(fromPlace, toPlace, cid, csec, 0, undefined, times.date);
                 const pt = td.publicTransit;
                 if (!pt) {
                     // No transit → 다음 attempt에서 같은 결과일 가능성 높지만,
