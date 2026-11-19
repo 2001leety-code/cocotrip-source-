@@ -15,11 +15,11 @@ const CONTENT = {
     articles: [
       {
         title: 'Article 1 (Purpose)',
-        body: 'These terms and conditions aim to stipulate the detailed implementation and compliance of overseas travel contracts concluded between COCOTRIP (hereinafter referred to as the \'Company\') and travelers. This is based on the Standard Terms for Overseas Travel of the Fair Trade Commission.',
+        body: 'These terms and conditions aim to stipulate the detailed implementation and compliance of overseas travel contracts concluded between 주식회사 코코트립 (COCOTRIP, hereinafter referred to as the \'Company\') and travelers. This is based on the Standard Terms for Overseas Travel of the Fair Trade Commission.',
       },
       {
         title: 'Article 2 (Obligations of the Company and Traveler)',
-        body: '1. Company: The Company faithfully performs various tasks such as establishing, implementing, and post-managing travel plans to provide safe and satisfactory travel services to travelers.\n\n• Name: COCOTRIP\n• Business Registration Number: 423-88-03168\n• Address: 201-81, B2, 127 Sinchon-ro, Seodaemun-gu, Seoul\n\n2. Traveler: Travelers must faithfully respond to the Company\'s guidance and cooperation requests for traveler safety and smooth travel.',
+        body: '1. Company: The Company faithfully performs various tasks such as establishing, implementing, and post-managing travel plans to provide safe and satisfactory travel services to travelers.\n\n• Name: 주식회사 코코트립 (COCOTRIP)\n• Business Registration Number: 423-88-03168\n• Address: 201-81, B2, 127 Sinchon-ro, Seodaemun-gu, Seoul\n\n2. Traveler: Travelers must faithfully respond to the Company\'s guidance and cooperation requests for traveler safety and smooth travel.',
       },
       {
         title: 'Article 3 (Formation of Contract)',
@@ -48,11 +48,11 @@ const CONTENT = {
     articles: [
       {
         title: '제1조 (목적)',
-        body: '본 약관은 COCOTRIP(이하 \'회사\')과 여행자 간에 체결한 국외여행 계약의 세부 이행 및 준수 사항을 규정하는 것을 목적으로 합니다. 이는 공정거래위원회의 국외여행 표준약관을 기반으로 합니다.',
+        body: '본 약관은 주식회사 코코트립(이하 \'회사\')과 여행자 간에 체결한 국외여행 계약의 세부 이행 및 준수 사항을 규정하는 것을 목적으로 합니다. 이는 공정거래위원회의 국외여행 표준약관을 기반으로 합니다.',
       },
       {
         title: '제2조 (회사 및 여행자의 의무)',
-        body: '1. 회사: 회사는 여행자에게 안전하고 만족스러운 여행 서비스를 제공하기 위해 여행 계획 수립, 실행, 사후 관리 등 각종 업무를 성실히 수행합니다.\n\n• 상호: COCOTRIP\n• 사업자등록번호: 423-88-03168\n• 주소: 서울특별시 서대문구 신촌로 127 지하2층 201-81호\n\n2. 여행자: 여행자는 안전하고 원활한 여행을 위한 회사의 안내와 협조 요청에 성실히 응하여야 합니다.',
+        body: '1. 회사: 회사는 여행자에게 안전하고 만족스러운 여행 서비스를 제공하기 위해 여행 계획 수립, 실행, 사후 관리 등 각종 업무를 성실히 수행합니다.\n\n• 상호: 주식회사 코코트립\n• 사업자등록번호: 423-88-03168\n• 주소: 서울특별시 서대문구 신촌로 127 지하2층 201-81호\n\n2. 여행자: 여행자는 안전하고 원활한 여행을 위한 회사의 안내와 협조 요청에 성실히 응하여야 합니다.',
       },
       {
         title: '제3조 (계약의 성립)',
@@ -81,11 +81,11 @@ const CONTENT = {
     articles: [
       {
         title: '第1条（目的）',
-        body: '本約款は、COCOTRIP（以下「当社」）と旅行者との間で締結された海外旅行契約の詳細な履行および遵守事項を規定することを目的とします。これは公正取引委員会の海外旅行標準約款に基づいています。',
+        body: '本約款は、주식회사 코코트립（COCOTRIP、以下「当社」）と旅行者との間で締結された海外旅行契約の詳細な履行および遵守事項を規定することを目的とします。これは公正取引委員会の海外旅行標準約款に基づいています。',
       },
       {
         title: '第2条（当社および旅行者の義務）',
-        body: '1. 当社：当社は、旅行者に安全で満足のいく旅行サービスを提供するために、旅行計画の策定、実施、事後管理などの各種業務を誠実に遂行します。\n\n• 商号：COCOTRIP\n• 事業者登録番号：423-88-03168\n• 住所：ソウル特別市西大門区新村路127 地下2階 201-81号\n\n2. 旅行者：旅行者は、安全で円滑な旅行のための当社の案内と協力要請に誠実に対応しなければなりません。',
+        body: '1. 当社：当社は、旅行者に安全で満足のいく旅行サービスを提供するために、旅行計画の策定、実施、事後管理などの各種業務を誠実に遂行します。\n\n• 商号：주식회사 코코트립（COCOTRIP）\n• 事業者登録番号：423-88-03168\n• 住所：ソウル特別市西大門区新村路127 地下2階 201-81号\n\n2. 旅行者：旅行者は、安全で円滑な旅行のための当社の案内と協力要請に誠実に対応しなければなりません。',
       },
       {
         title: '第3条（契約の成立）',
@@ -114,11 +114,11 @@ const CONTENT = {
     articles: [
       {
         title: '第一条（目的）',
-        body: '本条款旨在规定COCOTRIP（以下简称"公司"）与旅行者之间签订的海外旅行合同的详细执行和遵守事项。本条款基于公平贸易委员会的海外旅行标准条款。',
+        body: '本条款旨在规定주식회사 코코트립（COCOTRIP，以下简称"公司"）与旅行者之间签订的海外旅行合同的详细执行和遵守事项。本条款基于公平贸易委员会的海外旅行标准条款。',
       },
       {
         title: '第二条（公司和旅行者的义务）',
-        body: '1. 公司：公司忠实地执行旅行计划的制定、实施和后续管理等各项工作，为旅行者提供安全和满意的旅行服务。\n\n• 名称：COCOTRIP\n• 营业执照号码：423-88-03168\n• 地址：首尔特别市西大门区新村路127 地下2层 201-81号\n\n2. 旅行者：旅行者必须忠实地回应公司为保障旅行者安全和顺畅旅行而提出的指导和协助请求。',
+        body: '1. 公司：公司忠实地执行旅行计划的制定、实施和后续管理等各项工作，为旅行者提供安全和满意的旅行服务。\n\n• 名称：주식회사 코코트립（COCOTRIP）\n• 营业执照号码：423-88-03168\n• 地址：首尔特别市西大门区新村路127 地下2层 201-81号\n\n2. 旅行者：旅行者必须忠实地回应公司为保障旅行者安全和顺畅旅行而提出的指导和协助请求。',
       },
       {
         title: '第三条（合同的成立）',
