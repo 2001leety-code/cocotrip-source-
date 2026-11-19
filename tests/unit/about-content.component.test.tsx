@@ -138,8 +138,20 @@ describe('/about 렌더', () => {
     const { container } = renderAbout('en');
     const text = mainText(container as HTMLElement);
     const footer = (en as unknown as { footer: Record<string, string> }).footer;
-    for (const key of ['company', 'ceo', 'address', 'businessNo', 'tourNo', 'email', 'phone', 'hours']) {
+    for (const key of ['company', 'address', 'businessNo', 'mailOrderNo', 'tourNo', 'email', 'phone', 'hours']) {
       expect(text, `footer.${key}`).toContain(footer[key]);
+    }
+  });
+
+  // 2026-11-19 (operator): numbers copied from the mail-order sales report (Yongsan-gu, 2026-05-14) and the
+  // tourism business registration (2024-12-16); the representative's name is no longer shown.
+  it('business info matches the registration documents in every language', () => {
+    for (const [lang, dict] of Object.entries({ ko, en, ja, zh })) {
+      const f = (dict as unknown as { footer: Record<string, string> }).footer;
+      expect(f.ceo, `${lang} ceo`).toBeUndefined();
+      expect(f.mailOrderNo, `${lang} mailOrderNo`).toMatch(/2026-.*0507/);
+      expect(f.tourNo, `${lang} tourNo`).toContain('2024-000012');
+      expect(f.tourNo, `${lang} tourNo`).not.toContain('2024-0000012');
     }
   });
 

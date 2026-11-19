@@ -47,9 +47,9 @@ export default function About() {
   // 등록·연락 정보는 전부 footer i18n 값 그대로다. 없는 값은 줄 자체를 그리지 않는다.
   const companyRows = [
     footer?.company,
-    footer?.ceo,
     footer?.address,
     footer?.businessNo,
+    footer?.mailOrderNo,
     footer?.tourNo,
     footer?.email,
     footer?.phone,

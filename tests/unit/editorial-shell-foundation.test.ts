@@ -135,6 +135,8 @@ describe('시각만 바뀌었다 — 라우트·권한·동의 로직 무변경'
   it('푸터가 등록번호를 계속 노출한다 (신뢰 신호이자 법적 표기)', () => {
     expect(FOOTER).toMatch(/f\.businessNo/);
     expect(FOOTER).toMatch(/f\.tourNo/);
+    expect(FOOTER).toMatch(/f\.mailOrderNo/);
+    expect(FOOTER).not.toMatch(/f\.ceo/);
     for (const legal of ["'/terms'", "'/privacy'", "'/travel-terms'"]) {
       expect(FOOTER, `footer lost ${legal}`).toContain(legal);
     }

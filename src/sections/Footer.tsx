@@ -71,10 +71,6 @@ export function Footer({ t }: FooterProps) {
 
             <dl className="mt-6 space-y-2 text-[13px] text-ec-ink-2">
               <div className="flex gap-2">
-                <dt className="sr-only">CEO</dt>
-                <dd>{f.ceo}</dd>
-              </div>
-              <div className="flex gap-2">
                 <dt className="shrink-0 pt-0.5"><MapPin className="w-4 h-4 text-ec-ink-3" aria-hidden /></dt>
                 <dd>{f.address}</dd>
               </div>
@@ -85,6 +81,10 @@ export function Footer({ t }: FooterProps) {
               <div className="flex gap-2">
                 <dt className="sr-only">Business registration</dt>
                 <dd className="ec-figure text-[13px] font-medium text-ec-ink-2">{f.businessNo}</dd>
+              </div>
+              <div className="flex gap-2">
+                <dt className="sr-only">Mail-order sales registration</dt>
+                <dd className="ec-figure text-[13px] font-medium text-ec-ink-2">{f.mailOrderNo}</dd>
               </div>
               <div className="flex gap-2">
                 <dt className="sr-only">Tour operator registration</dt>
