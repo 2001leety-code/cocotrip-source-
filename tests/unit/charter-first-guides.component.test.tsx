@@ -32,12 +32,6 @@ describe('charter card on failed routes', () => {
     wrap(<ArrivalGuide guide={{ airport: 'ICN', route_to_hotel: { _failed: true, method: 'unknown', recommended_option: { key: 'taxi' } } as never }} />);
     expect(screen.queryByText('CocoTrip Private Charter')).toBeNull();
   });
-  it('arrival: dawn taxi pick on a transit route → no transit steps under "Taxi"', () => {
-    const route = { method: 'subway', est_min: 77, est_fare_krw: 3000, step_by_step: ['Line 9 to Express Bus Terminal'], recommended_option: { key: 'taxi', reason_en: 'Take a taxi' } };
-    wrap(<ArrivalGuide guide={{ airport: 'TAE', route_to_hotel: route as never }} />);
-    expect(screen.getByText('Taxi')).toBeTruthy();
-    expect(screen.queryByText(/Line 9 to Express Bus Terminal/)).toBeNull();
-  });
   it('departure: dawn charter pick → charter card, airport bus card hidden', () => {
     const plan = { input: { hotel_address: '명동 호텔' } } as never;
     wrap(<DepartureGuide guide={{ airport: 'ICN', route_to_airport: { _failed: true, recommended_option: charter } } as never} plan={plan} />);
@@ -72,11 +66,10 @@ describe('airport → lodging guide', () => {
     expect(screen.getByText(/Korean taxis seat 4/)).toBeTruthy();
     expect(screen.getByText(/1 vehicle recommended/)).toBeTruthy();
   });
-  it('dawn at an airport with no CocoTrip pickup → taxi banner, no charter pick', () => {
+  it('dawn at any airport (Daegu too) → charter banner', () => {
     lang = 'en';
     wrap(<AirportToLodgingGuide plan={{ input: { ...base, arrival_airport: 'TAE', arrival_time: '23:50' } } as never} />);
-    expect(screen.getByText(/Take a taxi\./)).toBeTruthy();
-    expect(screen.queryByText(/waits for you/)).toBeNull();
+    expect(screen.getByText(/waits for you/)).toBeTruthy();
   });
   it('Korean at dawn → dawn line', () => {
     lang = 'ko';

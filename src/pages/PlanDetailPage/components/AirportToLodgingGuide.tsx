@@ -90,9 +90,7 @@ const REC_BADGE = { ko: '추천', en: 'Recommended', ja: 'おすすめ', zh: '�
 
 const SIMPLIFIED_KO = '한국 거주자라면 공항철도·공항버스·택시 모두 익숙하시죠? 캐리어가 많으시면 코코트립 차량을 이용하실 수도 있어요.';
 const SIMPLIFIED_KO_DAWN = '늦은 밤 도착이라 입국 수속을 마칠 때쯤엔 공항철도·공항버스가 끊겨요. 기사가 기다리는 7~9인승 코코트립 차량을 추천해요.';
-const SIMPLIFIED_KO_DAWN_TAXI = '늦은 밤 도착이라 입국 수속을 마칠 때쯤엔 공항철도·공항버스가 끊겨요. 택시를 이용하세요.';
-// Airports with a CocoTrip pickup product (pricing_spec airport_transfer_prices) — same gate as RouteAgent.
-const CHARTER_AIRPORT_RE = /^(ICN|GMP|PUS|CJU)/i;
+
 
 // 2026-11-19: landing + immigration lands in 23:00–04:59 → AREX / airport bus not running, charter first.
 const DAWN_BANNER = {
@@ -100,17 +98,13 @@ const DAWN_BANNER = {
   ja: '🌙 深夜到着 — 入国手続きを終える頃には空港鉄道・空港バスは運行終了です。CocoTripチャーター（7〜9人乗りスタリア）がお待ちします。タクシーは予備の手段です。',
   zh: '🌙 深夜到达 — 办完入境手续时机场铁路和机场大巴已停运。CocoTrip包车（7–9座Staria）会等候您；出租车作为备选。',
 } as const;
-const DAWN_BANNER_TAXI = {
-  en: '🌙 Late-night arrival — airport trains and buses have stopped by the time you clear immigration. Take a taxi.',
-  ja: '🌙 深夜到着 — 入国手続きを終える頃には空港鉄道・空港バスは運行終了です。タクシーをご利用ください。',
-  zh: '🌙 深夜到达 — 办完入境手续时机场铁路和机场大巴已停运。请乘坐出租车。',
-} as const;
+
 
 // 인천 (ICN) 기본 — 다른 공항도 동일 fallback (가격 약간 다르지만 큰 차이 X).
 // B-5/B-8 (2026-05-10 prod 검증): heavyLoad 기준을 calcVehicleCount(luggage) >= 2 로 통일.
 //   1-7개 → 1대 (택시/공항철도 충분), 8+ → 2대 (코코트립 차터 권장).
-function getOptions(lang: Lang, heavyLoad: boolean, dawn: boolean, dawnCharter: boolean): TransportOption[] {
-  const charterFirst = heavyLoad || dawnCharter;
+function getOptions(lang: Lang, heavyLoad: boolean, dawn: boolean): TransportOption[] {
+  const charterFirst = heavyLoad || dawn;
   const opts: TransportOption[] = [
     {
       key: 'arex_express',
@@ -139,7 +133,7 @@ function getOptions(lang: Lang, heavyLoad: boolean, dawn: boolean, dawnCharter: 
       // 일치하도록 ₩75K → ₩60K. 시장 평균 ICN→서울 일반 택시 ~₩60-80K 범위 내.
       priceKRW: 60000,
       noteKey: 'taxi_note',
-      emphasis: heavyLoad ? 'avoid' : (dawn && !dawnCharter ? 'recommended' : undefined),
+      emphasis: heavyLoad ? 'avoid' : undefined,
     },
     {
       key: 'cocotrip',
@@ -183,7 +177,6 @@ export function AirportToLodgingGuide({ plan }: Props) {
   const heavyLoad = needsCharterForGroup({ pax: paxCount, luggage });
   const arrivalMin = strictHHMMToMin(input.arrival_time || input.arrivalTime);
   const dawn = arrivalMin !== null && isDawnMin(arrivalMin + IMMIGRATION_BUFFER_MIN);
-  const dawnCharter = dawn && CHARTER_AIRPORT_RE.test(arrivalAirport.trim());
 
   // 한국어 사용자는 단순화 — 한국인은 공항 교통 잘 알고, 디테일 본문 길면 짜증 (사용자 피드백).
   if (lang === 'ko') {
@@ -196,7 +189,7 @@ export function AirportToLodgingGuide({ plan }: Props) {
           </div>
           <div className="min-w-0 flex-1">
             <p className="text-sm font-bold text-white mb-1">{HEADLINE.ko.title}</p>
-            <p className="text-[13px] text-white/75 leading-relaxed">{dawn ? (dawnCharter ? SIMPLIFIED_KO_DAWN : SIMPLIFIED_KO_DAWN_TAXI) : SIMPLIFIED_KO}</p>
+            <p className="text-[13px] text-white/75 leading-relaxed">{dawn ? SIMPLIFIED_KO_DAWN : SIMPLIFIED_KO}</p>
             {/* B-4 (2026-05-11 prod 검증): "코코트립 차량 알아보기" 버튼 제거.
                 바로 아래 AirportPickupAd 카드와 중복 — 안내문은 유지, 버튼만 삭제. */}
           </div>
@@ -206,7 +199,7 @@ export function AirportToLodgingGuide({ plan }: Props) {
   }
 
   // 외국인 — 4 옵션 풀 노출.
-  const options = getOptions(lang, heavyLoad, dawn, dawnCharter);
+  const options = getOptions(lang, heavyLoad, dawn);
   const vehicles = Math.max(1, vehicleCount);
   const headline = HEADLINE[lang];
   const labels = OPTION_LABELS[lang];
@@ -243,7 +236,7 @@ export function AirportToLodgingGuide({ plan }: Props) {
         )}
         {dawn && (
           <div className="mt-3 rounded-lg bg-indigo-500/10 border border-indigo-400/30 px-3 py-2">
-            <p className="text-[13px] text-indigo-100 leading-relaxed">{(dawnCharter ? DAWN_BANNER : DAWN_BANNER_TAXI)[lang]}</p>
+            <p className="text-[13px] text-indigo-100 leading-relaxed">{DAWN_BANNER[lang]}</p>
           </div>
         )}
       </div>

@@ -291,14 +291,11 @@ export function buildPlanHtml(plan) {
         arex_express: 'AREX Express',
         arex_all_stop: 'AREX All Stop',
         limousine_bus: 'Limousine Bus',
-        public_transit: 'Public Transit',
-        taxi: 'Taxi', // 2026-11-19: dawn pick where no charter product runs — transit numbers below are not the taxi's
       };
       const recLabel = TRANSIT_LABELS[rec.key] || rec.key;
-      const isTaxi = rec.key === 'taxi';
-      const estMin = !isTaxi && (route.est_min || 0) > 0 ? ` · ~${route.est_min} min` : '';
-      const estFare = !isTaxi && route.est_fare_krw ? ` · ${formatKRW(route.est_fare_krw)}` : '';
-      const transfers = !isTaxi && route.transfers ? ` · ${route.transfers} transfer` : '';
+      const estMin = (route.est_min || 0) > 0 ? ` · ~${route.est_min} min` : '';
+      const estFare = route.est_fare_krw ? ` · ${formatKRW(route.est_fare_krw)}` : '';
+      const transfers = route.transfers ? ` · ${route.transfers} transfer` : '';
       const recReason = rec.reason_en || rec.reason_ko || '';
 
       body += `<div class="guide-hero" style="background:linear-gradient(135deg,rgba(124,92,252,0.10),rgba(234,83,126,0.06));border:1px solid ${C.accent};">

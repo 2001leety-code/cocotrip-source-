@@ -85,9 +85,6 @@ export function ArrivalGuide({ guide }: { guide: ArrivalGuideData }) {
   const recReason = recReasonFor(rec, language);
   const recMeta = rec ? TRANSPORT_META[rec.key] : undefined;
   const RecIcon = recMeta?.icon || Train;
-  // 2026-11-19: dawn taxi pick (no charter product here) — the stored route is transit, so its time/fare/steps
-  //   are not the taxi's. Show the pick + reason only.
-  const taxiPick = rec?.key === 'taxi';
 
   return (
     <section className="mb-6">
@@ -131,22 +128,20 @@ export function ArrivalGuide({ guide }: { guide: ArrivalGuideData }) {
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="text-[15px] font-bold text-white">{recMeta?.label || ui.toHotel || 'To Hotel'}</p>
-                  {!taxiPick && <p className="text-[13px] text-white/70">
+                  <p className="text-[13px] text-white/70">
                     {route.est_min}{ui.minUnit || 'min'}
                     {(route.est_fare_krw || 0) > 0 ? ` · ${formatKRW(route.est_fare_krw || 0)}` : ''}
                     {(route.transfers || 0) > 0 ? ` · ${route.transfers} ${ui.transfer || 'transfer'}` : ''}
-                  </p>}
+                  </p>
                 </div>
               </div>
               {recReason && (
                 <p className="text-[14px] text-white/70 leading-snug mt-1.5">💡 {recReason}</p>
               )}
             </div>
-            {!taxiPick && (
-              <div className="px-2 pb-3">
-                <TransitArrow transit={route as TransitFromPrev & Record<string, unknown>} />
-              </div>
-            )}
+            <div className="px-2 pb-3">
+              <TransitArrow transit={route as TransitFromPrev & Record<string, unknown>} />
+            </div>
           </div>
         )}
 

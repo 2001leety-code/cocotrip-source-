@@ -294,9 +294,9 @@ async function reportError(err, ctx) {
 // Pick the recommended airport transport based on context.
 //   - Group / luggage (needsCharterForGroup: 4+ people, or more bags than a sedan trunk takes) → CocoTrip
 //     charter. A Korean taxi seats 4 with an LPG tank in the trunk; a charter is a 7–9 seat Staria.
-//   - Dawn (leaving the airport 23:00–04:59, src/lib/charterFirst.js) → charter where we run airport
-//     transfers (airportTransferPriceKRW), else a taxi. AREX and the airport buses have stopped.
-//     2026-11-19 (operator): this used to recommend the limousine bus, which has also stopped by then.
+//   - Dawn (leaving the airport 23:00–04:59, src/lib/charterFirst.js) → charter, in every region (operator
+//     2026-11-19: "부산 서울 어디든" — the van runs anywhere). AREX and the airport buses have stopped; this used
+//     to recommend the limousine bus, which has also stopped by then.
 //   - Otherwise → AREX express is the fastest/cheapest standard option.
 //
 // leaveHHMM = when the traveller leaves the airport (landing + immigration). Without it the landing
@@ -354,21 +354,9 @@ export function pickRecommendedTransport({ arrivalTimeHHMM, leaveHHMM, luggage, 
   const leaveOwn = strictHHMMToMin(leaveHHMM);
   const leaveMin = leaveOwn !== null ? leaveOwn : strictHHMMToMin(arrivalTimeHHMM);
   const ctx = { region, airportKey, paxCount, fromLabel, toLabel, estMin };
-  const dawn = isDawnMin(leaveMin);
-  if (dawn && airportTransferPriceKRW(region, airportKey) != null) return charterRecommendation(CHARTER_REASON.dawnArrival, ctx);
-  // Group rule is not gated on the region (PR-C contract: the decision never depends on the price lookup).
-  if (needsCharterForGroup({ pax: paxCount, luggage })) {
-    return charterRecommendation(dawn ? { ...CHARTER_REASON.group, dawn: true } : CHARTER_REASON.group, ctx);
-  }
-  if (dawn) {
-    return {
-      key: 'taxi',
-      reason_ko: '늦은 밤·새벽 도착 — 공항철도·공항버스가 끊긴 시간이에요. 택시를 이용하세요',
-      reason_en: 'Late-night arrival — airport trains and buses have stopped. Take a taxi',
-      reason_ja: '深夜・早朝到着 — 空港鉄道・リムジンバスは運行終了の時間です。タクシーをご利用ください',
-      reason_zh: '深夜/凌晨到达 — 机场铁路和机场大巴已停运，请乘坐出租车',
-    };
-  }
+  // Region / price never decide the pick (PR-C contract) — they only fill the price line.
+  if (isDawnMin(leaveMin)) return charterRecommendation(CHARTER_REASON.dawnArrival, ctx);
+  if (needsCharterForGroup({ pax: paxCount, luggage })) return charterRecommendation(CHARTER_REASON.group, ctx);
   return {
     key: 'arex_express',
     reason_ko: '가장 빠르고 저렴한 표준 옵션',
@@ -379,17 +367,14 @@ export function pickRecommendedTransport({ arrivalTimeHHMM, leaveHHMM, luggage, 
 }
 
 /**
- * Hotel → airport, same rules as the arrival pick: a dawn leave (23:00–04:59) where we run airport transfers
- * for this airport + region, or a group / heavy luggage; otherwise null (the card shows the transit route as before).
+ * Hotel → airport, same rules as the arrival pick: a dawn leave (23:00–04:59) or a group / heavy luggage →
+ * charter; otherwise null (the card shows the transit route as before).
  */
 export function pickDepartureTransport({ leaveHHMM, luggage, paxCount, region, airportKey, estMin } = {}) {
   // airportKey prices the leg only — the charter prefill reads origin as the arrival airport, so it is not passed on.
   const ctx = { region, priceAirportKey: airportKey, paxCount, estMin };
-  const dawn = isDawnMin(strictHHMMToMin(leaveHHMM));
-  if (dawn && airportTransferPriceKRW(region, airportKey) != null) return charterRecommendation(CHARTER_REASON.dawnDeparture, ctx);
-  if (needsCharterForGroup({ pax: paxCount, luggage })) {
-    return charterRecommendation(dawn ? { ...CHARTER_REASON.group, dawn: true } : CHARTER_REASON.group, ctx);
-  }
+  if (isDawnMin(strictHHMMToMin(leaveHHMM))) return charterRecommendation(CHARTER_REASON.dawnDeparture, ctx);
+  if (needsCharterForGroup({ pax: paxCount, luggage })) return charterRecommendation(CHARTER_REASON.group, ctx);
   return null;
 }
 

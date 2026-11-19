@@ -64,9 +64,12 @@ describe('pickRecommendedTransport — arrival', () => {
     expect(rec.dawn).toBe(true);
     expect(rec.reason_ko).toMatch(/7~9인승/);
   });
-  it('dawn leave with no charter product in the region → taxi', () => {
-    const rec = pickRecommendedTransport({ ...light, arrivalTimeHHMM: '23:50', leaveHHMM: '01:20', region: 'gwangju' });
-    expect(rec.key).toBe('taxi');
+  it('dawn leave in any region (operator: the van runs anywhere) → charter, price line only where priced', () => {
+    for (const region of ['gwangju', 'daegu', null]) {
+      const rec = pickRecommendedTransport({ ...light, arrivalTimeHHMM: '23:50', leaveHHMM: '01:20', region, airportKey: 'TAE' });
+      expect(rec.key).toBe('cocotrip_charter');
+      expect(rec.dawn).toBe(true);
+    }
   });
   it('leave time wins over landing time; landing stands in when leave is missing', () => {
     expect(pickRecommendedTransport({ ...light, arrivalTimeHHMM: '21:40', leaveHHMM: '23:10', region: 'busan' }).key).toBe('cocotrip_charter');
@@ -95,15 +98,13 @@ describe('pickDepartureTransport — hotel → airport', () => {
     expect(pickDepartureTransport({ leaveHHMM: '15:00', paxCount: 4, region: 'seoul' })?.key).toBe('cocotrip_charter');
     expect(pickDepartureTransport({ leaveHHMM: '15:00', paxCount: 2, region: 'seoul' })).toBeNull();
   });
-  it('no charter product here → no dawn pick; the group rule still applies (same as arrival)', () => {
-    expect(pickDepartureTransport({ leaveHHMM: '04:30', paxCount: 2, region: 'gwangju' })).toBeNull();
-    expect(pickDepartureTransport({ leaveHHMM: '04:30', paxCount: 2, region: null })).toBeNull();
-    expect(pickDepartureTransport({ leaveHHMM: '04:30', paxCount: 2, region: 'seoul', airportKey: 'TAE' })).toBeNull();
-    expect(pickDepartureTransport({ leaveHHMM: '04:30', paxCount: 4, region: 'gwangju' })?.key).toBe('cocotrip_charter');
+  it('any region, any airport (operator: the van runs anywhere)', () => {
+    expect(pickDepartureTransport({ leaveHHMM: '04:30', paxCount: 2, region: 'gwangju' })?.key).toBe('cocotrip_charter');
+    expect(pickDepartureTransport({ leaveHHMM: '04:30', paxCount: 2, region: null })?.key).toBe('cocotrip_charter');
+    expect(pickDepartureTransport({ leaveHHMM: '15:00', paxCount: 4, region: 'gwangju', airportKey: 'KWJ' })?.key).toBe('cocotrip_charter');
   });
   it('review must-fix: a group leaving at dawn gets dawn: true (airport-bus card hidden)', () => {
     expect(pickDepartureTransport({ leaveHHMM: '01:30', paxCount: 4, region: 'seoul' })?.dawn).toBe(true);
-    expect(pickDepartureTransport({ leaveHHMM: '01:30', paxCount: 4, region: 'gwangju' })?.dawn).toBe(true);
     expect(pickDepartureTransport({ leaveHHMM: '15:00', paxCount: 4, region: 'seoul' })?.dawn).toBeUndefined();
     expect(pickRecommendedTransport({ leaveHHMM: '01:30', paxCount: 4, region: 'gwangju' }).dawn).toBe(true);
   });
