@@ -347,7 +347,7 @@ export function MobileHome({ t: _t }: MobileHomeProps) {
         <div className="text-center pb-4">
           <p className="text-[20px] font-black m-shimmer">CocoTrip</p>
           <p className="text-[10px] text-white/15 mt-1">{m.brandSlogan || 'Premium Korea Travel — cocotripkr.com'}</p>
-          <p className="text-[9px] text-white/10 mt-0.5">{_t.footer?.tourNo || 'Tour Operator No.: 2024-0000012'}</p>
+          <p className="text-[9px] text-white/10 mt-0.5">{_t.footer?.tourNo || 'Tour Operator No.: 2024-000012'}</p>
         </div>
       </section>
     </div>

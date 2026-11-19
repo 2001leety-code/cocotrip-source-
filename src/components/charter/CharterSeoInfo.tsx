@@ -314,6 +314,7 @@ export function CharterSeoInfo({ language, t }: { language: string; t: Translati
             {c.trust({ tolerancePct: ESTIMATE_RECONCILE_TOLERANCE_PCT }).map((s) => <li key={s}>{s}</li>)}
             {/* 등록번호는 footer i18n 값 재사용 — 두 벌로 관리하면 갱신 때 한쪽만 바뀐다. */}
             {footer?.businessNo ? <li>{footer.businessNo}</li> : null}
+            {footer?.mailOrderNo ? <li>{footer.mailOrderNo}</li> : null}
             {footer?.tourNo ? <li>{footer.tourNo}</li> : null}
           </ul>
         </div>
