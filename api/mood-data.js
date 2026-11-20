@@ -72,13 +72,16 @@ function normalizedCourseShare(booking) {
   const stopCount = routeStopCount(activeBreakdown);
   if (stopCount === null) return { ok: false };
 
+  // 보관 기간이 지나 경로(출발·도착·경유지)를 지운 끝난 예약: 경로 칸 수가 0 이라
+  // 저장된 부담률 칸 수와 맞출 수 없다. 부담률은 돈 기록이라 그대로 두고 칸 수 검사만 건너뛴다.
+  const routeScrubbed = stopCount === 0 && Boolean(booking.privacyRetention);
   const hasCanonicalField = hasOwn(booking, 'courseMoodPercentages') || hasOwn(booking, 'courseShareSchemaVersion');
   if (hasCanonicalField) {
     const percentages = booking.courseMoodPercentages;
     if (
       booking.courseShareSchemaVersion !== COURSE_SHARE_SCHEMA_VERSION
       || !Array.isArray(percentages)
-      || percentages.length !== stopCount
+      || (percentages.length !== stopCount && !routeScrubbed)
       || percentages.some((percentage) => !Number.isInteger(percentage) || percentage < 0 || percentage > 100)
     ) {
       return { ok: false };

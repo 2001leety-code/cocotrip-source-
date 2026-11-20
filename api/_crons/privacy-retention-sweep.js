@@ -293,6 +293,8 @@ async function sweepBookingSheet(run, sheets) {
     // 손님이 날짜를 바꾸면 예약 문서만 바뀌고 장부는 손으로 고친다(modifyBooking.js) → 장부 날짜는 옛 날짜일 수 있다.
     const booking = await findBookingByOrderId(run, R.cellText(row?.[13]));
     if (booking) {
+      // 환불·취소 진행 중인 예약은 예약 문서도 남기므로(heldStatus) 장부 줄도 남긴다 — R열 손 메모는 장부에만 있다.
+      if (!R.bookingSettled(booking.data.status)) { run.tally(T, 'heldStatus'); continue; }
       const bookingEnd = await bookingEndYmd(run, booking.id, booking.data);
       if (!bookingEnd || !R.isDue(bookingEnd, MONTH, run.nowMs)) { run.tally(T, 'heldBookingNotDue'); continue; }
     }

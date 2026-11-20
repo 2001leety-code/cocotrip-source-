@@ -109,7 +109,8 @@ function seed() {
         lines: [{ productId: 'tour-1', amount: 300, booking: { dateStart: '2026-10-01', dateEnd: '2026-10-02', customerPhone: '+82', pickupLocation: 'Test Hotel', at: ts('2026-09-25T00:00:00') } }] },
     },
     mood_bookings: {
-      m1: { status: 'completed', date: '2026-10-01', price: 500, origin: 'A', destination: 'B', note: 'n', breakdown: { origin: 'A', destination: 'B', fare: 300 } },
+      m1: { status: 'completed', date: '2026-10-01', price: 500, origin: 'A', destination: 'B', note: 'n', breakdown: { origin: 'A', destination: 'B', fare: 300 },
+        courseMoodPercentages: [100, 0], courseShareSchemaVersion: 2 }, // 부담률 = 돈 기록, 남김
       m2: { status: 'confirmed', date: '2026-10-02', origin: 'A', bookingChangeApproval: { status: 'pending' } },
       m3: { status: 'completed', date: '2026-10-03', origin: 'A', settlementApproval: { status: 'changes_requested' } }, // 정산 다툼
       m4: { status: 'confirmed', date: '2026-10-04', serviceType: 'vehicle', origin: 'A', breakdown: { origin: 'A' } }, // 정산 전
@@ -230,7 +231,8 @@ describe('스위치 켬 = 지움', () => {
     const fake = makeDb(seed());
     await run(fake, ENV);
     expect(fake.col('mood_bookings').get('m1')).toEqual({
-      status: 'completed', date: '2026-10-01', price: 500, breakdown: { fare: 300 }, privacyRetention: { version: 1, scrubbedAtMs: NOW } });
+      status: 'completed', date: '2026-10-01', price: 500, breakdown: { fare: 300 },
+      courseMoodPercentages: [100, 0], courseShareSchemaVersion: 2, privacyRetention: { version: 1, scrubbedAtMs: NOW } });
     expect(fake.col('mood_booking_change_events').get('e1')).toEqual({
       bookingId: 'm1', reason: 'time', before: { price: 500 }, after: {}, privacyRetention: { version: 1, scrubbedAtMs: NOW } });
     expect(fake.col('mood_bookings').get('m2')).toHaveProperty('origin', 'A');
@@ -365,6 +367,19 @@ describe('구글 시트 (운영에서만)', () => {
     const result = await run(fake, PROD_ON, { sheets: api });
     expect(api.writeRetentionSheetCells).toHaveBeenCalledWith('bookings', [{ row: 3, column: 'D', value: '' }, { row: 3, column: 'G', value: '' }]);
     expect(result.counts.sheet_bookings).toEqual({ heldBookingNotDue: 1, due: 1, applied: 1 });
+  });
+
+  it('예약 장부: 환불이 끝나지 않은 예약의 줄은 날짜가 지나도 남김', async () => {
+    const api = { ...sheets(), readRetentionSheetRows: vi.fn(async (tab: string) => (tab === 'bookings' ? [
+      bookingRows[0],
+      ['2026. 8. 30.', 'Name', 'b@example.test', '+82', 'tour', '2026-09-01', 'Hotel', '', '', '', '', '', '', 'P-refund'],
+    ] : [])) };
+    const fake = makeDb({ bookings: {
+      'P-refund': { status: 'REFUND_UNKNOWN', tourDate: '2026-09-01', tourEndDate: '2026-09-01' },
+    } });
+    const result = await run(fake, PROD_ON, { sheets: api });
+    expect(api.writeRetentionSheetCells).not.toHaveBeenCalled();
+    expect(result.counts.sheet_bookings).toEqual({ heldStatus: 1 });
   });
 
   it('Leads: 줄은 남기고 이메일·이름·일정 번호를 비우고 시각을 달로', async () => {

@@ -848,4 +848,32 @@ describe('비율 저장·조회·멱등 계약', () => {
     expect(response.statusCode).toBe(409);
     expect(json.error).toBe('INVALID_COURSE_SHARE');
   });
+
+  it('보관 기간이 지나 경로를 지운 예약은 부담률을 그대로 두고 조회가 멈추지 않는다', async () => {
+    store.set('mood_bookings/booking-data-scrubbed', dataBooking({
+      status: 'cancelled',
+      breakdown: {},
+      courseMoodPercentages: [100, 0, 100],
+      courseShareSchemaVersion: 2,
+      privacyRetention: { version: 1, at: 1 },
+    }));
+
+    const { response } = await callData();
+
+    expect(response.statusCode).toBe(200);
+  });
+
+  it('보관 표시 없이 경로만 빈 예약은 지금처럼 409로 멈춘다', async () => {
+    store.set('mood_bookings/booking-data-route-missing', dataBooking({
+      status: 'cancelled',
+      breakdown: {},
+      courseMoodPercentages: [100, 0, 100],
+      courseShareSchemaVersion: 2,
+    }));
+
+    const { response, json } = await callData();
+
+    expect(response.statusCode).toBe(409);
+    expect(json.error).toBe('INVALID_COURSE_SHARE');
+  });
 });
