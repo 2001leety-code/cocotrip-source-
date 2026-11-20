@@ -119,7 +119,9 @@ describe('privacy policy articles', () => {
     expect(count(contact)).toBe(contacts);
   });
 
-  // Checked 2026-11-20: the code sends no Discord notifications, and Telegram's privacy policy names no country.
+  // Checked 2026-11-20 (setting names only, no values): production has no DISCORD_WEBHOOK_URL, so api/_shared/notify.js
+  // copies no alert to Discord. Setting it would send every operator alert there too, so add Discord Inc. (USA) to
+  // articles 5 and 6 first. Telegram's privacy policy names no country.
   it('names no recipient the service does not use and no country the recipient does not state', () => {
     expect(src).not.toMatch(/Discord|telegram\.org\/support|Arab Emirates|아랍에미리트|アラブ首長国連邦|阿拉伯联合酋长国/);
   });

@@ -33,7 +33,9 @@ const DATE: Record<PolicyLang, string> = {
 // ── 다국어 콘텐츠 ──────────────────────────────────────
 // 2026-11-20 운영자 결정(질문 21개)을 반영. 아래 문장 중 식단 따로 동의·보호자 동의·한 달 자동 파기는
 // 그 코드가 운영에 먼저 들어가야 사실이 된다 — 이 판은 그 뒤에 올린다.
-// 🔴 제3조 표의 견적 문의·사이트 채팅·후기와 커뮤니티 글·협력사 포털 예약 4줄은 작성자 제안(2차 검토) — 운영자 결정 전.
+// 🔴 제3조 표의 AI 일정 신청 목록·견적 문의·사이트 채팅·후기와 커뮤니티 글·협력사 포털 예약 5줄은 작성자 제안(검토 반영) — 운영자 결정 전.
+// 🔴 운영에 설정이 없어 꺼져 있다(2026-11-20, 설정 이름만 확인): 알림을 디스코드로도 보내는 길(api/_shared/notify.js, DISCORD_WEBHOOK_URL)과
+//    WhatsApp 받은편지함(api/whatsapp-inbox-webhook.js). 켜기 전에 제3·5·6조에 4개 언어로 먼저 넣는다.
 const CONTENT: Record<PolicyLang, { pageTitle: string; changeSummary: string; articles: PolicyArticle[] }> = {
   en: {
     pageTitle: 'Privacy Policy',
@@ -55,7 +57,7 @@ const CONTENT: Record<PolicyLang, { pageTitle: string; changeSummary: string; ar
         footerList: [
           "Sensitive information: Dietary requirements (such as allergies, halal and vegetarian) can reveal health or beliefs, so the 'Company' treats them as sensitive information and processes them only with your separate consent.",
           "Children under 14: Children under 14 cannot sign up or book by themselves. For a booking that includes a child, the parent or guardian enters the child's information and gives consent.",
-          "Partner portal: In the booking portal used by staff of partner companies (advertising agencies), the 'Company' collects the staff member's sign-in email address, the booking details (date, time, departure, destination, stops, airport, notes) the name of the influencer who travels with them, and the schedule text the staff member pastes in.",
+          "Partner portal: In the booking portal used by staff of partner companies (advertising agencies), the 'Company' collects the staff member's sign-in email address, the booking details (date, time, departure, destination, stops, airport, notes), the name of the influencer who travels with them, and the schedule text the staff member pastes in.",
         ],
       },
       {
@@ -75,15 +77,16 @@ const CONTENT: Record<PolicyLang, { pageTitle: string; changeSummary: string; ar
           rows: [
             ['Trip preparation details (pickup and drop-off places, flights, dietary requirements, requests and notes, messages exchanged with drivers)', '1 month after the trip ends'],
             ['Contact details left for an itinerary preview by people who did not book', '1 month after they were left'],
+            ['AI itinerary request list (Google Sheets: email address, name, region, travel style, number of travelers, itinerary number)', '1 month after the request'],
             ['Member account and saved itineraries', 'Until you delete your account'],
             ["Contract and payment records (booking number, product, amount, dates, booker's name and email address)", '5 years (Article 6 of the Enforcement Decree of the E-Commerce Act)'],
             ['Records of consumer complaints or dispute handling', '3 years (Article 6 of the Enforcement Decree of the E-Commerce Act)'],
             ['Records of labeling and advertising', '6 months (Article 6 of the Enforcement Decree of the E-Commerce Act)'],
             ['Tax books and supporting documents', '5 years (Article 85-3 of the Framework Act on National Taxes)'],
-            ["Inquiries received in the email inbox of the 'Company'", '30 days after the inquiry is closed'],
+            ["Inquiries received in the email inbox of the 'Company'", '30 days after the inquiry is closed (inquiries kept as evidence in a dispute: 3 years, as records of consumer complaints or dispute handling)'],
             ['Quote requests sent through the website form', '30 days after the request is closed'],
             ['Website chat conversations (including AI chat)', '1 month after the last message'],
-            ['Reviews and community posts (text and photos)', 'Until you delete them or delete your account'],
+            ['Reviews and community posts (text and photos)', 'Until you delete your account'],
             ['Partner portal bookings (influencer name, staff email address, date and route)', '1 month after the ride ends'],
             ['Information provided to rental car companies and drivers (Article 7)', '1 month after the ride ends'],
             ['Automatically collected records (access records, error reports, visit analytics)', "The period set by each recipient's policy and settings (Article 6)"],
@@ -103,7 +106,7 @@ const CONTENT: Record<PolicyLang, { pageTitle: string; changeSummary: string; ar
         title: 'Article 5 (Entrustment of Personal Information Processing)',
         body: "To provide its services smoothly, the 'Company' entrusts the processing of personal information as follows. If the entrusted work or the entrusted companies change, the 'Company' will announce it through this Privacy Policy.",
         list: [
-          'Google LLC: Member sign-in, storage of booking and itinerary information and review photos, booking emails, booking records, AI itinerary planning and editing, translation (inquiries and community posts), chat, reading partner portal schedules (Gemini, when Claude is unavailable), mobile booking pass, visit analytics (with consent)',
+          'Google LLC: Member sign-in, storage of booking and itinerary information and review photos, booking emails, booking and itinerary request records, AI itinerary planning and editing, translation (inquiries and community posts), chat, reading partner portal schedules (Gemini, when Claude is unavailable), mobile booking pass, visit analytics (with consent)',
           'Anthropic PBC: AI itinerary planning and editing, translation (inquiries and community posts), chat, reading partner portal schedules (Claude, used first)',
           'Vercel Inc.: Operation of the website and servers',
           'PayPal Pte. Ltd.: Payment processing and refunds',
@@ -120,7 +123,7 @@ const CONTENT: Record<PolicyLang, { pageTitle: string; changeSummary: string; ar
         table: {
           head: ['Recipient (contact)', 'Country', 'When and how', 'Items', 'Purpose', 'Retention and use period'],
           rows: [
-            ['Google LLC (googlekrsupport@google.com)', 'USA', 'Sent over the network when you use the service', 'All personal information in Article 1', 'Sign-in, data storage, emails, booking records, mobile booking pass, visit analytics (with consent)', 'The periods in Article 3'],
+            ['Google LLC (googlekrsupport@google.com)', 'USA', 'Sent over the network when you use the service', 'All personal information in Article 1', 'Sign-in, data storage, emails, booking and itinerary request records, mobile booking pass, visit analytics (with consent)', 'The periods in Article 3'],
             ['Anthropic PBC (privacy@anthropic.com)', 'USA', 'Sent over the network when AI features are used', 'Name, trip details (dates, cities, number of travelers, accommodation address, flight times, dietary requirements, requests), AI chat conversations, inquiry text and community posts to be translated, partner portal schedule text', 'AI itinerary planning and editing, translation (inquiries and community posts), chat, reading partner portal schedules (Claude, used first). Customer information is not used to train AI.', "After processing, as set in the recipient's own policy"],
             ['Google LLC — Gemini (googlekrsupport@google.com)', 'USA', 'Sent over the network when Claude is unavailable', 'The same items as Claude', 'AI itinerary planning and editing, translation (inquiries and community posts), chat, reading partner portal schedules (paid connection). Customer information is not used to train AI.', "After processing, as set in the recipient's own policy"],
             ['Vercel Inc. (privacy@vercel.com)', 'USA (servers in Washington, D.C.)', 'Sent over the network when you use the service', 'Personal information exchanged while using the service, access records (IP address, etc.)', 'Operation of the website and servers', "After processing, as set in the recipient's own policy"],
@@ -257,15 +260,16 @@ const CONTENT: Record<PolicyLang, { pageTitle: string; changeSummary: string; ar
           rows: [
             ['여행 준비 정보(픽업·하차 장소, 항공편, 식이 조건, 요청사항·메모, 기사와 주고받은 내용)', '여행이 끝난 날부터 1개월'],
             ['예약하지 않은 분이 일정 미리보기에 남긴 연락처', '남긴 날부터 1개월'],
+            ['AI 일정 신청 목록(구글 시트: 이메일·이름·지역·여행 취향·인원·일정 번호)', '신청한 날부터 1개월'],
             ['회원 계정과 저장한 여행 일정', '회원 탈퇴 시까지'],
             ['계약·결제 기록(예약 번호, 상품, 금액, 날짜, 예약자 이름·이메일)', '5년 (전자상거래법 시행령 제6조)'],
             ['소비자 불만 또는 분쟁 처리 기록', '3년 (전자상거래법 시행령 제6조)'],
             ['표시·광고에 관한 기록', '6개월 (전자상거래법 시행령 제6조)'],
             ['세금 관련 장부와 증빙 서류', '5년 (국세기본법 제85조의3)'],
-            ['회사 메일 받은편지함(문의함)으로 받은 문의', '처리를 마친 뒤 30일'],
+            ['회사 메일 받은편지함(문의함)으로 받은 문의', '처리를 마친 뒤 30일 (분쟁 증거로 남긴 문의는 소비자 불만 또는 분쟁 처리 기록으로 3년)'],
             ['사이트 견적 문의 양식으로 보낸 문의', '처리를 마친 뒤 30일'],
             ['사이트 채팅 대화(AI 상담 포함)', '마지막 대화 후 1개월'],
-            ['후기·커뮤니티 글(내용과 사진)', '직접 지우거나 회원 탈퇴할 때까지'],
+            ['후기·커뮤니티 글(내용과 사진)', '회원 탈퇴할 때까지'],
             ['협력사 포털 예약(인플루언서 이름, 직원 이메일, 날짜·경로)', '운행이 끝난 뒤 1개월'],
             ['렌터카 회사·기사에게 제공한 정보(제7조)', '운행이 끝난 뒤 1개월'],
             ['자동으로 수집되는 기록(접속 기록·오류 기록·방문 통계)', '각 업체의 방침과 설정에 따른 기간(제6조)'],
@@ -285,7 +289,7 @@ const CONTENT: Record<PolicyLang, { pageTitle: string; changeSummary: string; ar
         title: '제5조 (개인정보 처리업무의 위탁)',
         body: "'회사'는 원활한 서비스 제공을 위해 아래와 같이 개인정보 처리업무를 위탁하고 있습니다. 위탁 업무의 내용이나 수탁자가 바뀌면 이 개인정보처리방침을 통해 알리겠습니다.",
         list: [
-          'Google LLC: 회원 로그인, 예약·일정 정보와 후기 사진 저장, 예약 안내 메일 발송, 예약 관리 장부, AI 여행 일정 작성·수정, 번역(문의·커뮤니티 글), 상담, 협력사 포털 일정 글 읽기(Claude를 쓸 수 없을 때 Gemini), 모바일 예약 확인 카드, 방문 통계(동의한 경우)',
+          'Google LLC: 회원 로그인, 예약·일정 정보와 후기 사진 저장, 예약 안내 메일 발송, 예약·일정 신청 관리 장부, AI 여행 일정 작성·수정, 번역(문의·커뮤니티 글), 상담, 협력사 포털 일정 글 읽기(Claude를 쓸 수 없을 때 Gemini), 모바일 예약 확인 카드, 방문 통계(동의한 경우)',
           'Anthropic PBC: AI 여행 일정 작성·수정, 번역(문의·커뮤니티 글), 상담, 협력사 포털 일정 글 읽기(Claude, 먼저 사용)',
           'Vercel Inc.: 웹사이트와 서버 운영',
           'PayPal Pte. Ltd.: 결제 처리 및 환불',
@@ -302,7 +306,7 @@ const CONTENT: Record<PolicyLang, { pageTitle: string; changeSummary: string; ar
         table: {
           head: ['이전받는 자(연락처)', '이전되는 나라', '이전 시기·방법', '이전 항목', '이용 목적', '보유·이용 기간'],
           rows: [
-            ['Google LLC (googlekrsupport@google.com)', '미국', '서비스를 이용할 때 네트워크로 전송', '제1조의 개인정보 전부', '로그인, 정보 저장, 메일 발송, 예약 관리 장부, 모바일 예약 확인 카드, 방문 통계(동의한 경우)', '제3조의 기간'],
+            ['Google LLC (googlekrsupport@google.com)', '미국', '서비스를 이용할 때 네트워크로 전송', '제1조의 개인정보 전부', '로그인, 정보 저장, 메일 발송, 예약·일정 신청 관리 장부, 모바일 예약 확인 카드, 방문 통계(동의한 경우)', '제3조의 기간'],
             ['Anthropic PBC (privacy@anthropic.com)', '미국', 'AI 기능을 쓸 때 네트워크로 전송', '이름, 여행 정보(날짜·도시·인원·숙소 주소·항공편 시각·식이 조건·요청사항), AI 상담 대화, 번역할 문의 내용과 커뮤니티 글, 협력사 포털 일정 글', 'AI 여행 일정 작성·수정, 번역(문의·커뮤니티 글), 상담, 협력사 포털 일정 글 읽기(Claude, 먼저 사용). 손님 정보를 AI 학습에 쓰지 않습니다.', '처리 후 업체 방침에 따른 기간'],
             ['Google LLC — Gemini (googlekrsupport@google.com)', '미국', 'Claude를 쓸 수 없을 때 네트워크로 전송', 'Claude와 같은 항목', 'AI 여행 일정 작성·수정, 번역(문의·커뮤니티 글), 상담, 협력사 포털 일정 글 읽기(유료 연결). 손님 정보를 AI 학습에 쓰지 않습니다.', '처리 후 업체 방침에 따른 기간'],
             ['Vercel Inc. (privacy@vercel.com)', '미국 (서버: 워싱턴 D.C.)', '서비스를 이용할 때 네트워크로 전송', '서비스 이용 중 주고받는 개인정보, 접속 기록(IP 주소 등)', '웹사이트와 서버 운영', '처리 후 업체 방침에 따른 기간'],
@@ -439,15 +443,16 @@ const CONTENT: Record<PolicyLang, { pageTitle: string; changeSummary: string; ar
           rows: [
             ['旅行準備の情報（乗車・降車場所、フライト、食事制限、リクエスト・メモ、ドライバーとのやり取り）', '旅行終了日から1か月'],
             ['予約しなかった方が旅行プランのプレビューに残した連絡先', '残した日から1か月'],
+            ['AI旅行プランの申込リスト（Googleスプレッドシート：メールアドレス・氏名・地域・旅行の好み・人数・プラン番号）', '申し込んだ日から1か月'],
             ['会員アカウントと保存した旅行プラン', '退会するまで'],
             ['契約・決済の記録（予約番号、商品、金額、日付、予約者の氏名・メールアドレス）', '5年（電子商取引法施行令第6条）'],
             ['消費者の苦情または紛争処理に関する記録', '3年（電子商取引法施行令第6条）'],
             ['表示・広告に関する記録', '6か月（電子商取引法施行令第6条）'],
             ['税務上の帳簿と証憑書類', '5年（国税基本法第85条の3）'],
-            ['当社のメール受信箱（お問い合わせ箱）で受け付けたお問い合わせ', '対応完了から30日'],
+            ['当社のメール受信箱（お問い合わせ箱）で受け付けたお問い合わせ', '対応完了から30日（紛争の証拠として残したお問い合わせは、消費者の苦情または紛争処理に関する記録として3年）'],
             ['サイトの見積もりフォームから送られたお問い合わせ', '対応完了から30日'],
             ['サイトのチャットの会話（AIチャットを含む）', '最後の会話から1か月'],
-            ['レビュー・コミュニティ投稿（本文と写真）', 'ご自身で削除するか退会するまで'],
+            ['レビュー・コミュニティ投稿（本文と写真）', '退会するまで'],
             ['協力会社ポータルの予約（インフルエンサーの氏名、スタッフのメールアドレス、日付・ルート）', '運行終了から1か月'],
             ['レンタカー会社・ドライバーに提供した情報（第7条）', '運行終了から1か月'],
             ['自動で収集される記録（アクセス記録・エラー記録・訪問統計）', '各事業者の方針と設定による期間（第6条）'],
@@ -467,7 +472,7 @@ const CONTENT: Record<PolicyLang, { pageTitle: string; changeSummary: string; ar
         title: '第5条（個人情報の処理業務の委託）',
         body: '当社は、円滑なサービス提供のため、以下のとおり個人情報の処理業務を委託しています。委託業務の内容または受託者が変わった場合は、本プライバシーポリシーでお知らせします。',
         list: [
-          'Google LLC：会員ログイン、予約・旅行プラン情報とレビュー写真の保存、予約案内メールの送信、予約管理台帳、AIによる旅行プランの作成・修正、翻訳（お問い合わせ・コミュニティ投稿）、相談、協力会社ポータルの日程文の読み取り（Claudeが使えない場合のGemini）、モバイル予約確認カード、訪問統計（同意した場合）',
+          'Google LLC：会員ログイン、予約・旅行プラン情報とレビュー写真の保存、予約案内メールの送信、予約・旅行プラン申込の管理台帳、AIによる旅行プランの作成・修正、翻訳（お問い合わせ・コミュニティ投稿）、相談、協力会社ポータルの日程文の読み取り（Claudeが使えない場合のGemini）、モバイル予約確認カード、訪問統計（同意した場合）',
           'Anthropic PBC：AIによる旅行プランの作成・修正、翻訳（お問い合わせ・コミュニティ投稿）、相談、協力会社ポータルの日程文の読み取り（Claude、優先して使用）',
           'Vercel Inc.：ウェブサイトとサーバーの運用',
           'PayPal Pte. Ltd.：決済処理および返金',
@@ -484,7 +489,7 @@ const CONTENT: Record<PolicyLang, { pageTitle: string; changeSummary: string; ar
         table: {
           head: ['移転先（連絡先）', '移転先の国', '移転の時期・方法', '移転する項目', '利用目的', '保有・利用期間'],
           rows: [
-            ['Google LLC（googlekrsupport@google.com）', '米国', 'サービス利用時にネットワークで送信', '第1条の個人情報すべて', 'ログイン、情報の保存、メール送信、予約管理台帳、モバイル予約確認カード、訪問統計（同意した場合）', '第3条の期間'],
+            ['Google LLC（googlekrsupport@google.com）', '米国', 'サービス利用時にネットワークで送信', '第1条の個人情報すべて', 'ログイン、情報の保存、メール送信、予約・旅行プラン申込の管理台帳、モバイル予約確認カード、訪問統計（同意した場合）', '第3条の期間'],
             ['Anthropic PBC（privacy@anthropic.com）', '米国', 'AI機能の利用時にネットワークで送信', '氏名、旅行情報（日程・都市・人数・宿泊先の住所・フライト時刻・食事制限・リクエスト）、AIチャットの会話内容、翻訳するお問い合わせ内容とコミュニティ投稿、協力会社ポータルの日程文', 'AIによる旅行プランの作成・修正、翻訳（お問い合わせ・コミュニティ投稿）、相談、協力会社ポータルの日程文の読み取り（Claude、優先して使用）。お客様の情報をAIの学習に使いません。', '処理後、移転先の方針で定める期間'],
             ['Google LLC — Gemini（googlekrsupport@google.com）', '米国', 'Claudeが使えない場合にネットワークで送信', 'Claudeと同じ項目', 'AIによる旅行プランの作成・修正、翻訳（お問い合わせ・コミュニティ投稿）、相談、協力会社ポータルの日程文の読み取り（有料接続）。お客様の情報をAIの学習に使いません。', '処理後、移転先の方針で定める期間'],
             ['Vercel Inc.（privacy@vercel.com）', '米国（サーバー：ワシントンD.C.）', 'サービス利用時にネットワークで送信', 'サービス利用中にやり取りされる個人情報、アクセス記録（IPアドレスなど）', 'ウェブサイトとサーバーの運用', '処理後、移転先の方針で定める期間'],
@@ -621,15 +626,16 @@ const CONTENT: Record<PolicyLang, { pageTitle: string; changeSummary: string; ar
           rows: [
             ['旅行准备信息（上车及下车地点、航班、饮食限制、需求及备注、与司机往来的内容）', '旅行结束之日起1个月'],
             ['未预订者在行程预览中留下的联系方式', '留下之日起1个月'],
+            ['AI行程申请名单（Google表格：电子邮箱、姓名、地区、旅行偏好、人数、行程编号）', '申请之日起1个月'],
             ['会员账号及保存的行程', '至注销会员时为止'],
             ['合同及付款记录（预订编号、产品、金额、日期、预订人姓名及电子邮箱）', '5年（电子商务法施行令第6条）'],
             ['消费者投诉或争议处理记录', '3年（电子商务法施行令第6条）'],
             ['标示及广告记录', '6个月（电子商务法施行令第6条）'],
             ['税务账簿及凭证', '5年（国税基本法第85条之3）'],
-            ['通过本公司电子邮箱（咨询箱）收到的咨询', '处理完毕后30日'],
+            ['通过本公司电子邮箱（咨询箱）收到的咨询', '处理完毕后30日（作为争议证据保留的咨询，作为消费者投诉或争议处理记录保存3年）'],
             ['通过网站报价咨询表单提交的咨询', '处理完毕后30日'],
             ['网站聊天对话（含AI聊天）', '最后一次对话后1个月'],
-            ['评价及社区帖子（正文及照片）', '至您自行删除或注销会员时为止'],
+            ['评价及社区帖子（正文及照片）', '至注销会员时为止'],
             ['合作方门户的预订（网红姓名、员工电子邮箱、日期及路线）', '行驶结束后1个月'],
             ['向租车公司及司机提供的信息（第七条）', '行驶结束后1个月'],
             ['自动收集的记录（访问记录、错误记录、访问统计）', '依各企业的政策及设置确定的期限（第六条）'],
@@ -649,7 +655,7 @@ const CONTENT: Record<PolicyLang, { pageTitle: string; changeSummary: string; ar
         title: '第五条（个人信息处理业务的委托）',
         body: '为顺利提供服务，本公司将个人信息处理业务委托如下。委托业务内容或受托方发生变更时，本公司将通过本隐私政策告知。',
         list: [
-          'Google LLC：会员登录、预订及行程信息与评价照片的存储、预订通知邮件发送、预订管理台账、AI行程的制定及修改、翻译（咨询内容及社区帖子）、聊天咨询、读取合作方门户的日程文本（无法使用Claude时使用Gemini）、移动端预订确认卡、访问统计（经同意时）',
+          'Google LLC：会员登录、预订及行程信息与评价照片的存储、预订通知邮件发送、预订及行程申请管理台账、AI行程的制定及修改、翻译（咨询内容及社区帖子）、聊天咨询、读取合作方门户的日程文本（无法使用Claude时使用Gemini）、移动端预订确认卡、访问统计（经同意时）',
           'Anthropic PBC：AI行程的制定及修改、翻译（咨询内容及社区帖子）、聊天咨询、读取合作方门户的日程文本（Claude，优先使用）',
           'Vercel Inc.：网站及服务器运营',
           'PayPal Pte. Ltd.：支付处理及退款',
@@ -666,7 +672,7 @@ const CONTENT: Record<PolicyLang, { pageTitle: string; changeSummary: string; ar
         table: {
           head: ['接收方（联系方式）', '转移国家', '转移时间及方式', '转移项目', '使用目的', '保留及使用期限'],
           rows: [
-            ['Google LLC（googlekrsupport@google.com）', '美国', '使用服务时通过网络传输', '第一条所列全部个人信息', '登录、信息存储、邮件发送、预订管理台账、移动端预订确认卡、访问统计（经同意时）', '第三条规定的期限'],
+            ['Google LLC（googlekrsupport@google.com）', '美国', '使用服务时通过网络传输', '第一条所列全部个人信息', '登录、信息存储、邮件发送、预订及行程申请管理台账、移动端预订确认卡、访问统计（经同意时）', '第三条规定的期限'],
             ['Anthropic PBC（privacy@anthropic.com）', '美国', '使用AI功能时通过网络传输', '姓名、行程信息（日期、城市、人数、住宿地址、航班时间、饮食限制、需求）、AI聊天对话内容、需翻译的咨询内容及社区帖子、合作方门户的日程文本', 'AI行程的制定及修改、翻译（咨询内容及社区帖子）、聊天咨询、读取合作方门户的日程文本（Claude，优先使用）。不将客户信息用于AI训练。', '处理后按接收方政策规定的期限'],
             ['Google LLC — Gemini（googlekrsupport@google.com）', '美国', '无法使用Claude时通过网络传输', '与Claude相同的项目', 'AI行程的制定及修改、翻译（咨询内容及社区帖子）、聊天咨询、读取合作方门户的日程文本（付费连接）。不将客户信息用于AI训练。', '处理后按接收方政策规定的期限'],
             ['Vercel Inc.（privacy@vercel.com）', '美国（服务器：华盛顿特区）', '使用服务时通过网络传输', '使用服务过程中传输的个人信息、访问记录（IP地址等）', '网站及服务器运营', '处理后按接收方政策规定的期限'],
