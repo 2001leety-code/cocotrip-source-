@@ -89,6 +89,8 @@ vi.mock('../../src/components/WizardForm/WizardStep1Food', () => ({
         <button type="button" onClick={() => setSpiceLevel('mild')}>set-spice</button>
         <button type="button" onClick={() => toggleBucketDish('bibimbap')}>set-bucket</button>
         <button type="button" onClick={() => setDietaryConsent(true)}>set-diet-consent</button>
+        <button type="button" onClick={() => toggleDietaryRestriction('None')}>set-restriction-none</button>
+        <span data-testid="diet-consent">{props.dietaryConsent ? 'yes' : 'no'}</span>
         <button type="button" onClick={onNext}>next2</button>
       </div>
     );
@@ -231,5 +233,44 @@ describe('WizardForm — Review display and onSubmit payload agree (real state, 
     expect(payload.companions).toBe('family');
     expect(payload.accomBudget).toBe('luxury');
     expect(payload.luggage).toEqual({ small: 2, medium: 0, large: 0 });
+  });
+
+  // 2026-11-21 처리방침: 식이 조건이 있는데 동의가 없으면 위자드 전체(게이트)가 Food 에서 멈춘다.
+  // '없음'으로 지우면 동의도 거두어, 다시 고르면 새로 동의해야 한다. 식이 조건은 조용히 버리지 않는다.
+  it('diet without consent stops at Food; clearing the diet withdraws consent', async () => {
+    try { localStorage.clear(); sessionStorage.clear(); } catch { /* jsdom */ } // 앞 시험의 자동 저장본이 '이어 하기' 창을 띄우지 않게
+    const onSubmit = vi.fn(async () => ({ ok: true }));
+    const { container, getByTestId } = render(<WizardForm onSubmit={onSubmit} isLoading={false} />);
+    await flushLazy();
+    click(container, 'set-status');
+    click(container, 'set-airport');
+    click(container, 'set-time');
+    click(container, 'next0');
+    await flushLazy();
+    click(container, 'set-city');
+    click(container, 'set-activities');
+    click(container, 'next1');
+    await flushLazy();
+
+    const atFood = () => (container.textContent || '').includes('next2');
+    click(container, 'set-restriction');
+    click(container, 'next2');
+    await flushLazy();
+    expect(atFood()).toBe(true);
+
+    click(container, 'set-diet-consent');
+    expect(getByTestId('diet-consent').textContent).toBe('yes');
+    click(container, 'set-restriction-none');
+    expect(getByTestId('diet-consent').textContent).toBe('no');
+    click(container, 'set-restriction');
+    click(container, 'next2');
+    await flushLazy();
+    expect(atFood()).toBe(true);
+
+    click(container, 'set-diet-consent');
+    click(container, 'next2');
+    await flushLazy();
+    expect(atFood()).toBe(false);
+    expect(onSubmit).not.toHaveBeenCalled();
   });
 });

@@ -33,7 +33,7 @@ export function AgeConfirmPrompt() {
   const ag = t.ageGate;
   const [askUid, setAskUid] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState(false);
+  const [error, setError] = useState<false | 'save' | 'signOut'>(false);
   const [under14Notice, setUnder14Notice] = useState(false);
   const confirmRef = useRef<HTMLButtonElement>(null);
 
@@ -86,13 +86,21 @@ export function AgeConfirmPrompt() {
       } catch { /* 네트워크 — 다시 시도 */ }
       await wait(SAVE_RETRY_MS);
     }
-    setError(true);
+    setError('save');
     setBusy(false);
   };
 
   const declare14Under = async () => {
     setBusy(true);
-    try { await signOutUser(); } catch { /* silent */ }
+    setError(false);
+    try {
+      await signOutUser();
+    } catch {
+      // 로그아웃이 안 됐으면 창을 닫지 않는다 — 닫으면 만 14세 미만이 로그인한 채 남는다.
+      setError('signOut');
+      setBusy(false);
+      return;
+    }
     setAskUid(null);
     setBusy(false);
     setUnder14Notice(true);
@@ -125,7 +133,8 @@ export function AgeConfirmPrompt() {
 
   return (
     <div
-      className="ec-root ec-no-print fixed inset-0 z-[10002] flex items-center justify-center p-4"
+      // pointer-events-auto: 예약 창(Radix 모달)이 열려 있으면 body 클릭이 꺼지는데, 이 창은 눌려야 한다.
+      className="ec-root ec-no-print fixed inset-0 z-[10002] flex items-center justify-center p-4 pointer-events-auto"
       style={{ background: 'rgba(20, 20, 26, 0.55)' }}
       role="dialog"
       aria-modal="true"
@@ -136,7 +145,7 @@ export function AgeConfirmPrompt() {
       <div className="w-full max-w-md rounded-ec-md border border-ec-line bg-ec-raised shadow-ec-overlay p-6">
         <h2 id="age-confirm-title" className="ec-h3">{ag.title}</h2>
         <p id="age-confirm-body" className="ec-body-sm mt-2 text-ec-ink-2">{ag.body}</p>
-        {error && <p className="mt-3 text-[13px] text-ec-critical" role="alert">{ag.error}</p>}
+        {error && <p className="mt-3 text-[13px] text-ec-critical" role="alert">{error === 'signOut' ? ag.signOutError : ag.error}</p>}
         <div className="mt-5 flex flex-col gap-2">
           <button ref={confirmRef} type="button" onClick={confirm} disabled={busy} className="ec-btn ec-btn-primary min-h-[44px]">
             {busy ? ag.saving : ag.confirm}

@@ -74,7 +74,8 @@ export function WizardStep1Food(props: Step1Props) {
 
   const needsDietConsent = dietaryRestrictions.length > 0;
   const consentMissing = needsDietConsent && !dietaryConsent;
-  const [consentError, setConsentError] = useState(false);
+  // 식이 조건은 있는데 동의 없이 이 단계로 돌아온 경우(생성 버튼·스테퍼·복원·수정 진입) 바로 이유를 보여 준다.
+  const [consentError, setConsentError] = useState(consentMissing);
   const consentRef = useRef<HTMLInputElement>(null);
   const handleNext = () => {
     if (consentMissing) {

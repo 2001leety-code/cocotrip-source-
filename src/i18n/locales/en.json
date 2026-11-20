@@ -2724,6 +2724,7 @@
     "saving": "Saving…",
     "error": "We couldn't save this. Please try again in a moment.",
     "under14Notice": "Children under 14 can't create an account, so we signed you out. Please ask a parent or guardian to book.",
+    "signOutError": "We couldn't sign you out. Please tap again in a moment.",
     "close": "Close"
   }
 }

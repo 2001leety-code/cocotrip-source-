@@ -934,8 +934,12 @@ export function WizardForm({ onSubmit, isLoading, initialValues, isRevision = fa
   function toggleDietaryRestriction(key: string) {
     haptic('select');
     setDietaryRestrictionsTouched(true);
-    if (key === 'None') { setDietaryRestrictions([]); return; }
-    setDietaryRestrictions(prev => prev.includes(key) ? prev.filter(k => k !== key) : [...prev.filter(k => k !== 'None'), key]);
+    const next = key === 'None' ? []
+      : dietaryRestrictions.includes(key) ? dietaryRestrictions.filter(k => k !== key)
+      : [...dietaryRestrictions.filter(k => k !== 'None'), key];
+    setDietaryRestrictions(next);
+    // 식이 조건을 다 지우면 동의도 거둔다 — 다시 고르면 새로 동의받는다(처리방침 2026-11-21).
+    if (next.length === 0) setDietaryConsentAt(null);
   }
 
   async function handleGenerate() {

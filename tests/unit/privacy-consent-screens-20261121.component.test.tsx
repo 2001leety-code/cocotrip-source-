@@ -83,6 +83,10 @@ describe('WizardStep1Food — 식이 동의', () => {
     expect(toggleDietaryRestriction).not.toHaveBeenCalled();
     expect(screen.getByRole('alert')).toHaveTextContent(p.wizardDietConsentError);
   });
+  it('식이 조건은 있는데 동의 없이 되돌아오면(생성 버튼·스테퍼·복원) 들어오자마자 이유를 보여 준다', () => {
+    renderFood();
+    expect(screen.getByRole('alert')).toHaveTextContent(p.wizardDietConsentError);
+  });
   it('동의 체크 → setDietaryConsent(true)', () => {
     const { setDietaryConsent } = renderFood();
     fireEvent.click(screen.getByRole('checkbox', { name: new RegExp(p.wizardDietConsentLabel) }));
@@ -230,6 +234,16 @@ describe('AgeConfirmPrompt', () => {
     expect(h.signOut).toHaveBeenCalledTimes(1);
     expect(h.authFetch).not.toHaveBeenCalled();
     expect(screen.queryByRole('dialog')).toBeNull();
+  });
+  it('"만 14세 미만"인데 로그아웃 실패 → 창을 닫지 않고 안내(로그인한 채 남기지 않음)', async () => {
+    h.user = MEMBER;
+    h.getDoc.mockResolvedValue(snap({}));
+    h.signOut.mockRejectedValueOnce(new Error('offline'));
+    render(<AgeConfirmPrompt />);
+    fireEvent.click(await screen.findByRole('button', { name: ag.under14 }));
+    expect(await screen.findByRole('alert')).toHaveTextContent(ag.signOutError);
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
+    expect(screen.queryByText(ag.under14Notice)).toBeNull();
   });
   it('저장 실패 → 창을 닫지 않고 오류 안내', async () => {
     h.user = MEMBER;
