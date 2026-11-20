@@ -9,6 +9,8 @@
  * 월·년은 달력으로, 끝 달에 같은 날이 없으면 그 달 말일에 끝남 → 끝난 다음 날 0시(KST)부터 지울 수 있다.
  */
 
+import { fixedPriceFor } from './mood-pricing.js';
+
 export const RETENTION_VERSION = 1;
 const DAY_MS = 86_400_000;
 const KST_OFFSET_MS = 9 * 3_600_000;
@@ -66,11 +68,20 @@ export function msToKstYmd(value) { const ms = toMs(value); return ms === null ?
 
 const latest = values => values.filter(validYmd).sort().pop() || null;
 
-/** 여행 끝날: 아는 끝날 중 가장 늦은 날. 시작일만 알면 시작일 + 14일. 둘 다 없으면 null. */
+/**
+ * 여행 끝날: 아는 끝날 중 가장 늦은 날. 시작일만 알면 시작일 + 14일. 둘 다 없으면 null.
+ * 끝날이 시작일보다 앞이면(날짜를 뒤로 옮긴 예약의 옛 끝날) 끝날을 모르는 것으로 본다.
+ */
 export function tripEndYmd(startYmd, endCandidates = []) {
   const end = latest(endCandidates);
-  if (end) return latest([end, startYmd]);
+  if (end && (!validYmd(startYmd) || end >= startYmd)) return end;
   return validYmd(startYmd) ? addDays(startYmd, UNKNOWN_END_BUFFER_DAYS) : null;
+}
+
+/** 여러 시각 칸 중 가장 늦은 것(ms). 하나도 없으면 null. */
+export function latestMs(...values) {
+  const list = values.map(toMs).filter(ms => ms !== null);
+  return list.length ? Math.max(...list) : null;
 }
 
 /** 시트 칸 → 다듬은 글자. 비었거나 없으면 ''. */
@@ -115,12 +126,15 @@ export function withoutKeysDeep(value, keys) {
 }
 
 // ── 지우는 칸 (여행 준비 정보). 나머지 칸은 결제·계약 기록으로 남는다. ──────────────────
-/** 예약·수동 결제 문서 맨 위 칸. 메신저 ID 는 memo("Messenger: …")와 itineraryData 안에 있다. */
+/**
+ * 예약·수동 결제 문서 맨 위 칸. 메신저 ID 는 memo("Messenger: …")와 itineraryData 안에 있다.
+ * 기사 배정 칸(driver·driverChatId·dispatchedTo·dispatchedDriverId)은 남긴다 — 손님 정보가 아니라 기사 본인 정보이고
+ * `/sales` 기사별 매출이 읽는다(telegram-webhook-admin.js). 손님 정보를 담은 배차 글(dispatch_messages)은 지운다.
+ */
 export const BOOKING_TRIP_KEYS = Object.freeze([
   'customerPhone', 'pickupLocation', 'dropoffLocation', 'hotelAddress',
   'airport', 'terminal', 'flightNumber', 'luggage', 'luggageSmall', 'luggageMedium', 'luggageLarge', 'luggageTotal',
   'memo', 'notes', 'itineraryData',
-  'driver', 'driverChatId', 'dispatchedTo', 'dispatchedDriverId',
 ]);
 /** 결제 기록 안 사본(used_paypal_orders.intent.body, payment_reviews.bookingPayload, cart_orders.lines[].booking). */
 export const PAYMENT_COPY_TRIP_KEYS = Object.freeze([
@@ -135,17 +149,27 @@ export const MOOD_TRIP_KEYS = Object.freeze([
 const SETTLED_BOOKING_STATUSES = new Set(['confirmed', 'completed', 'canceled', 'cancelled', 'refunded', 'rejected']);
 export const bookingSettled = status => SETTLED_BOOKING_STATUSES.has(String(status || '').trim().toLowerCase());
 
-const SETTLED_MOOD_STATUSES = new Set(['confirmed', 'completed', 'cancelled', 'canceled']);
+/**
+ * 협력사 예약이 끝난 상태. `confirmed` = 운행 확정일 뿐 정산 전이다(정산 승인 때 `completed`).
+ * 정산이 breakdown 정류장 수를 다시 읽으므로 정산 전에 비우면 정산이 409 로 막힌다. 정액(공항)은 정산이 없어 confirmed 도 끝.
+ */
+const SETTLED_MOOD_STATUSES = new Set(['completed', 'cancelled', 'canceled']);
 /** 열린 승인·다툼(운영자 11/21: 정산 다툼이 열린 건은 건너뜀). changes_requested = 협력사가 수정 요청. */
 const OPEN_CHANGE_APPROVALS = new Set(['pending', 'awaiting_mood', 'ready', 'changes_requested']);
 /** 정산은 운영자가 제안을 거둔 것(withdrawn)도 아직 정산 안 끝남. */
 const OPEN_SETTLEMENT_APPROVALS = new Set([...OPEN_CHANGE_APPROVALS, 'withdrawn']);
 const lower = value => String(value || '').trim().toLowerCase();
 export function moodBookingSettled(data) {
-  if (!SETTLED_MOOD_STATUSES.has(lower(data?.status))) return false;
+  const status = lower(data?.status);
+  const settled = SETTLED_MOOD_STATUSES.has(status) || (status === 'confirmed' && fixedPriceFor(data?.serviceType) !== null);
+  if (!settled) return false;
   return !OPEN_CHANGE_APPROVALS.has(lower(data?.bookingChangeApproval?.status))
     && !OPEN_SETTLEMENT_APPROVALS.has(lower(data?.settlementApproval?.status));
 }
+
+/** 돈을 낸 비회원 AI 일정(PayPal·수동 결제). 테스트·운영자 우회·무료 쿠폰은 아님. */
+const UNPAID_PLAN_SOURCES = new Set(['test', 'admin-bypass', 'ai-coupon']);
+export const paidPlan = d => Boolean(d?.input?.paypalOrderId) && !d?.isFreeCoupon && !UNPAID_PLAN_SOURCES.has(lower(d?.paymentSource));
 
 /** 비회원 AI 일정 끝날: input.startDate + durationDays - 1. 일수를 모르면 시작일 + 14일. */
 export function planTripEndYmd(input) {

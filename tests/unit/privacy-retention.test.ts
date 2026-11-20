@@ -6,7 +6,7 @@ import { describe, it, expect } from 'vitest';
 import {
   deletableFrom, isDue, kstYmd, validYmd, toMs, tripEndYmd, findKeyPaths, withoutKeysDeep,
   bookingSettled, moodBookingSettled, inquiryClosed, scanCutoffMs, UNKNOWN_END_BUFFER_DAYS,
-  planTripEndYmd, sheetDateYmd, kstMonth, monthEndYmd,
+  planTripEndYmd, sheetDateYmd, kstMonth, monthEndYmd, latestMs, paidPlan,
 } from '../../api/_shared/privacy-retention.js';
 import { leadSheetRow } from '../../api/_ai_core/emailNotifier.js';
 
@@ -70,9 +70,10 @@ describe('한국 자정 경계', () => {
 });
 
 describe('여행 끝날', () => {
-  it('아는 끝날 중 가장 늦은 날, 시작일보다 앞이면 시작일', () => {
+  it('아는 끝날 중 가장 늦은 날. 끝날이 시작일보다 앞(날짜를 뒤로 옮긴 예약)이면 모르는 것으로 보고 + 14일', () => {
     expect(tripEndYmd('2026-10-01', ['2026-10-03', '', null])).toBe('2026-10-03');
-    expect(tripEndYmd('2026-10-05', ['2026-10-03'])).toBe('2026-10-05');
+    expect(tripEndYmd('2026-10-01', ['2026-10-01'])).toBe('2026-10-01');
+    expect(tripEndYmd('2026-10-05', ['2026-10-03'])).toBe('2026-10-19');
   });
   it('끝날을 모르면 시작일 + 14일 (일찍 지우지 않게)', () => {
     expect(UNKNOWN_END_BUFFER_DAYS).toBe(14);
@@ -119,8 +120,12 @@ describe('상태 판정', () => {
     for (const s of ['CONFIRMED', 'confirmed', 'COMPLETED', 'CANCELED', 'cancelled', 'REFUNDED', 'REJECTED']) expect(bookingSettled(s)).toBe(true);
     for (const s of ['REFUND_PENDING', 'REFUND_UNKNOWN', 'REFUND_FAILED', 'CANCELING', 'AWAITING_VERIFICATION', '', undefined]) expect(bookingSettled(s)).toBe(false);
   });
-  it('협력사 예약은 변경·정산 승인이 열려 있으면 건너뛴다', () => {
-    expect(moodBookingSettled({ status: 'confirmed' })).toBe(true);
+  it('협력사 예약은 정산이 끝나야(completed) 비운다. confirmed = 정산 전, 단 정액(공항)은 정산이 없음', () => {
+    expect(moodBookingSettled({ status: 'confirmed' })).toBe(false);
+    expect(moodBookingSettled({ status: 'confirmed', serviceType: 'vehicle' })).toBe(false);
+    expect(moodBookingSettled({ status: 'confirmed', serviceType: 'airport' })).toBe(true);
+    expect(moodBookingSettled({ status: 'completed' })).toBe(true);
+    expect(moodBookingSettled({ status: 'cancelled' })).toBe(true);
     expect(moodBookingSettled({ status: 'confirmed', bookingChangeApproval: { status: 'pending' } })).toBe(false);
     expect(moodBookingSettled({ status: 'completed', settlementApproval: { status: 'awaiting_mood' } })).toBe(false);
     expect(moodBookingSettled({ status: 'draft' })).toBe(false);
@@ -137,8 +142,26 @@ describe('상태 판정', () => {
     expect(moodBookingSettled({ status: 'completed', settlementApproval: { status: 'changes_requested' } })).toBe(false);
     expect(moodBookingSettled({ status: 'completed', settlementApproval: { status: 'withdrawn' } })).toBe(false);
     expect(moodBookingSettled({ status: 'confirmed', bookingChangeApproval: { status: 'changes_requested' } })).toBe(false);
-    expect(moodBookingSettled({ status: 'confirmed', bookingChangeApproval: { status: 'withdrawn' } })).toBe(true); // 변경 요청 철회 = 끝남
+    expect(moodBookingSettled({ status: 'completed', bookingChangeApproval: { status: 'withdrawn' } })).toBe(true); // 변경 요청 철회 = 끝남
     expect(moodBookingSettled({ status: 'completed', settlementApproval: { status: 'completed' } })).toBe(true);
+  });
+});
+
+describe('여러 시각 중 가장 늦은 것', () => {
+  it('Timestamp·숫자·Date 섞여도, 없으면 null', () => {
+    expect(latestMs(new FakeTimestamp(5), 9, undefined, null, new Date(7))).toBe(9);
+    expect(latestMs(undefined, null)).toBeNull();
+  });
+});
+
+describe('돈을 낸 비회원 일정', () => {
+  it('PayPal·수동 결제만. 테스트·운영자 우회·무료 쿠폰·주문 번호 없음은 아님', () => {
+    expect(paidPlan({ paymentSource: 'paypal', input: { paypalOrderId: '5AB' } })).toBe(true);
+    expect(paidPlan({ paymentSource: 'manual', input: { paypalOrderId: 'MANUAL-1' } })).toBe(true);
+    expect(paidPlan({ input: { paypalOrderId: '5AB' } })).toBe(true); // 예전 일정(결제 출처 칸 없음)
+    for (const source of ['test', 'admin-bypass', 'ai-coupon']) expect(paidPlan({ paymentSource: source, input: { paypalOrderId: 'X' } })).toBe(false);
+    expect(paidPlan({ paymentSource: 'paypal', isFreeCoupon: true, input: { paypalOrderId: 'X' } })).toBe(false);
+    expect(paidPlan({ paymentSource: 'paypal', input: {} })).toBe(false);
   });
 });
 

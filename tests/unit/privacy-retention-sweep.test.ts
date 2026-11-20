@@ -4,9 +4,10 @@
  */
 import { describe, it, expect, vi } from 'vitest';
 
-const { FakeFieldPath, DELETE } = vi.hoisted(() => {
-  class FakeFieldPath { segments: string[]; constructor(...segments: string[]) { this.segments = segments; } }
-  return { FakeFieldPath, DELETE: { __delete: true } };
+const { FakeFieldPath, DELETE, DOC_ID } = vi.hoisted(() => {
+  const DOC_ID = { __documentId: true };
+  class FakeFieldPath { segments: string[]; constructor(...segments: string[]) { this.segments = segments; } static documentId() { return DOC_ID; } }
+  return { FakeFieldPath, DELETE: { __delete: true }, DOC_ID };
 });
 
 vi.mock('firebase-admin/firestore', () => ({
@@ -55,9 +56,9 @@ function makeDb(seed: Record<string, Record<string, Data>> = {}, { failOn = '' }
     const docs = entries.map(([id, data]) => ({ id, ref: ref(path, id), data: () => data }));
     return { docs, size: docs.length, empty: docs.length === 0 };
   };
-  const query = (path: string, filters: [string, string, unknown][] = [], order = '', lim = 0, after = ''): any => ({
+  const query = (path: string, filters: [string, string, unknown][] = [], order: any = '', lim = 0, after = ''): any => ({
     where: (f: string, op: string, v: unknown) => query(path, [...filters, [f, op, v]], order, lim, after),
-    orderBy: (f: string) => query(path, filters, f, lim, after),
+    orderBy: (f: any) => query(path, filters, f, lim, after),
     limit: (n: number) => query(path, filters, order, n, after),
     startAfter: (doc: { id: string }) => query(path, filters, order, lim, doc.id),
     select: () => query(path, filters, order, lim, after),
@@ -69,7 +70,7 @@ function makeDb(seed: Record<string, Record<string, Data>> = {}, { failOn = '' }
         if (op === '==') return have === v;
         return kind(have) === kind(v) && num(have) <= num(v);
       }));
-      if (order) rows.sort((a, b) => { const x = num(a[1][order]); const y = num(b[1][order]); return x < y ? -1 : x > y ? 1 : a[0] < b[0] ? -1 : 1; });
+      if (order) rows.sort((a, b) => { const x = order === DOC_ID ? a[0] : num(a[1][order]); const y = order === DOC_ID ? b[0] : num(b[1][order]); return x < y ? -1 : x > y ? 1 : a[0] < b[0] ? -1 : 1; });
       if (after) rows = rows.slice(rows.findIndex(([id]) => id === after) + 1);
       if (lim) rows = rows.slice(0, lim);
       return snapOf(path, rows);
@@ -108,17 +109,27 @@ function seed() {
         lines: [{ productId: 'tour-1', amount: 300, booking: { dateStart: '2026-10-01', dateEnd: '2026-10-02', customerPhone: '+82', pickupLocation: 'Test Hotel', at: ts('2026-09-25T00:00:00') } }] },
     },
     mood_bookings: {
-      m1: { status: 'confirmed', date: '2026-10-01', price: 500, origin: 'A', destination: 'B', note: 'n', breakdown: { origin: 'A', destination: 'B', fare: 300 } },
+      m1: { status: 'completed', date: '2026-10-01', price: 500, origin: 'A', destination: 'B', note: 'n', breakdown: { origin: 'A', destination: 'B', fare: 300 } },
       m2: { status: 'confirmed', date: '2026-10-02', origin: 'A', bookingChangeApproval: { status: 'pending' } },
       m3: { status: 'completed', date: '2026-10-03', origin: 'A', settlementApproval: { status: 'changes_requested' } }, // 정산 다툼
+      m4: { status: 'confirmed', date: '2026-10-04', serviceType: 'vehicle', origin: 'A', breakdown: { origin: 'A' } }, // 정산 전
+      m5: { status: 'confirmed', date: '2026-10-05', serviceType: 'airport', origin: 'ICN' }, // 정액 = 정산 없음
     },
     mood_booking_change_events: { e1: { bookingId: 'm1', reason: 'time', before: { origin: 'A', price: 500 }, after: { destination: 'C' } } },
     preview_leads: { l1: { lastSeenAtMs: kst('2026-10-01T12:00:00'), email: 'lead@example.test' }, l2: { lastSeenAtMs: kst('2026-11-20T12:00:00'), email: 'x' } },
-    charter_inquiries: { q1: { status: 'responded', updatedAt: ts('2026-10-01T00:00:00') }, q2: { status: 'NEW', updatedAt: ts('2026-10-01T00:00:00') } },
+    charter_inquiries: {
+      q1: { status: 'responded', createdAt: ts('2026-10-01T00:00:00'), updatedAt: ts('2026-10-01T00:00:00'), updatedAtMs: kst('2026-10-28T10:00:00') }, // 답한 날 + 30일 = 11/28 부터
+      q2: { status: 'NEW', createdAt: ts('2026-10-01T00:00:00'), updatedAt: ts('2026-10-01T00:00:00') },
+      q3: { status: 'closed', createdAt: ts('2026-09-01T00:00:00'), updatedAt: ts('2026-09-01T00:00:00'), updatedAtMs: kst('2026-10-01T10:00:00') },
+    },
     chat_sessions: { s1: { lastMessageAt: ts('2026-10-01T00:00:00') } },
     'chat_sessions/s1/messages': { x1: { text: 'hi' }, x2: { text: 'there' } },
     inquiry_messages: { r1: { sessionId: 's1', text: 'relay' } },
-    pending_email_retries: { 'r-done': { status: 'done', sweptAt: ts('2026-10-01T00:00:00') }, 'r-manual': { status: 'manual', sweptAt: ts('2026-10-01T00:00:00') } },
+    pending_email_retries: { 'r-done': { status: 'done', sweptAt: ts('2026-10-01T00:00:00') }, 'r-manual': { status: 'manual-intervention', sweptAt: ts('2026-10-01T00:00:00') } },
+    pending_processor_retries: {
+      'p-ok': { status: 'done', completedAt: ts('2026-10-01T00:00:00'), updatedAt: ts('2026-10-01T00:00:00'), payload: { customerPhone: '+82' } },
+      'p-new': { status: 'done', completedAt: ts('2026-11-15T00:00:00'), payload: { customerPhone: '+82' } },
+    },
     // 10/03 = 정산 다툼이 열린 협력사 예약이 있는 날 → 남김
     mood_schedule_notes: { '2026-10-01': { month: '2026-10', text: 'n' }, '2026-10-03': { month: '2026-10', text: 'n' }, '2026-11-15': { month: '2026-11', text: 'n' } },
     cs_tickets: { t1: { createdAt: ts('2023-11-01T00:00:00') }, t2: { createdAt: ts('2024-06-01T00:00:00') } },
@@ -128,6 +139,7 @@ function seed() {
       g2: { uid: null, createdAtMs: kst('2026-08-20T00:00:00'), input: { startDate: '2026-09-01', durationDays: 3 } }, // 신고 열림
       g3: { uid: null, createdAtMs: kst('2026-10-01T00:00:00'), input: { startDate: '2026-10-15', durationDays: 7 } }, // 끝 10/21 → 11/22 부터
       g4: { uid: null, createdAtMs: kst('2026-10-01T00:00:00'), input: { startDate: '2026-10-10' } }, // 일수 모름 → 10/24 → 11/25 부터
+      g5: { uid: null, createdAtMs: kst('2026-08-20T00:00:00'), paymentSource: 'paypal', input: { startDate: '2026-09-01', durationDays: 3, paypalOrderId: '5AB12345CD678901E' } }, // 돈 냄
       u1: { uid: 'user-1', createdAtMs: kst('2026-08-20T00:00:00'), input: { startDate: '2026-09-01', durationDays: 3 } },
     },
     plan_complaints: { pc1: { planId: 'g2', status: 'open', createdAt: ts('2026-10-01T00:00:00') } },
@@ -156,15 +168,16 @@ describe('기본 = 개수만 셈 (스위치 꺼짐)', () => {
     expect(counts.used_paypal_orders).toEqual({ due: 1 });
     expect(counts.payment_reviews).toEqual({ heldUnresolved: 1 });
     expect(counts.cart_orders).toEqual({ due: 1 });
-    expect(counts.mood_bookings).toEqual({ due: 1, heldStatus: 2 });
+    expect(counts.mood_bookings).toEqual({ due: 2, heldStatus: 3 });
     expect(counts.preview_leads).toEqual({ due: 1 }); // l2 는 범위 밖
-    expect(counts.charter_inquiries).toEqual({ due: 1, heldOpen: 1 });
+    expect(counts.charter_inquiries).toEqual({ due: 1, notYet: 1, heldOpen: 1 });
     expect(counts.chat_sessions).toEqual({ due: 1 });
-    expect(counts.pending_email_retries).toEqual({ due: 1, heldManual: 1 });
+    expect(counts.pending_email_retries).toEqual({ due: 1 }); // 사람이 봐야 하는 것은 아예 안 잡힘
+    expect(counts.pending_processor_retries).toEqual({ due: 1, notYet: 1 });
     expect(counts.mood_schedule_notes).toEqual({ due: 1, heldDispute: 1 });
     expect(counts.cs_tickets).toEqual({ due: 1 });
     expect(counts.external_inbox_cases).toEqual({ dueCountOnly: 1 });
-    expect(counts.plans_guest).toEqual({ due: 1, heldComplaint: 1, notYet: 2, member: 1 });
+    expect(counts.plans_guest).toEqual({ due: 1, heldComplaint: 1, heldPaid: 1, notYet: 2, member: 1 });
     expect(counts.sheet_bookings).toBeUndefined(); // 운영이 아니면 시트는 안 읽음
     expect(counts.sheet_leads).toBeUndefined();
   });
@@ -185,7 +198,8 @@ describe('스위치 켬 = 지움', () => {
     const result = await run(fake, ENV);
     expect(result).toMatchObject({ ok: true, mode: 'delete' });
     const b = fake.col('bookings').get('b-old')!;
-    for (const key of ['customerPhone', 'pickupLocation', 'flightNumber', 'memo', 'itineraryData', 'driverChatId']) expect(b).not.toHaveProperty(key);
+    for (const key of ['customerPhone', 'pickupLocation', 'flightNumber', 'memo', 'itineraryData']) expect(b).not.toHaveProperty(key);
+    expect(b).toHaveProperty('driverChatId', 42); // 기사 배정 = 기사별 매출(/sales)용, 손님 정보 아님
     expect(b).toMatchObject({ ...PAYMENT, status: 'CONFIRMED', tourDate: '2026-10-01', tourEndDate: '2026-10-03', privacyRetention: { version: 1, scrubbedAtMs: NOW } });
     expect(b.createdAt).toBeInstanceOf(Ts); // Timestamp 뭉개지지 않음
     expect(fake.col('dispatch_messages').has('dm1')).toBe(false);
@@ -216,27 +230,30 @@ describe('스위치 켬 = 지움', () => {
     const fake = makeDb(seed());
     await run(fake, ENV);
     expect(fake.col('mood_bookings').get('m1')).toEqual({
-      status: 'confirmed', date: '2026-10-01', price: 500, breakdown: { fare: 300 }, privacyRetention: { version: 1, scrubbedAtMs: NOW } });
+      status: 'completed', date: '2026-10-01', price: 500, breakdown: { fare: 300 }, privacyRetention: { version: 1, scrubbedAtMs: NOW } });
     expect(fake.col('mood_booking_change_events').get('e1')).toEqual({
       bookingId: 'm1', reason: 'time', before: { price: 500 }, after: {}, privacyRetention: { version: 1, scrubbedAtMs: NOW } });
     expect(fake.col('mood_bookings').get('m2')).toHaveProperty('origin', 'A');
     expect(fake.col('mood_bookings').get('m3')).toHaveProperty('origin', 'A'); // 정산 다툼
+    expect(fake.col('mood_bookings').get('m4')).toHaveProperty('breakdown.origin', 'A'); // 정산 전 — 비우면 정산이 막힘
+    expect(fake.col('mood_bookings').get('m5')).not.toHaveProperty('origin'); // 정액은 정산 없음
   });
 
   it('통째로 지우는 곳: 기간 지난 것만, 대화는 메시지·전달 기록까지', async () => {
     const fake = makeDb(seed());
     const { counts } = await run(fake, ENV);
     expect([...fake.col('preview_leads').keys()]).toEqual(['l2']);
-    expect([...fake.col('charter_inquiries').keys()]).toEqual(['q2']);
+    expect([...fake.col('charter_inquiries').keys()]).toEqual(['q1', 'q2']);
     expect(fake.col('chat_sessions').size).toBe(0);
     expect(fake.col('chat_sessions/s1/messages').size).toBe(0);
     expect(fake.col('inquiry_messages').size).toBe(0);
     expect(counts.chat_sessions).toMatchObject({ applied: 1, childrenDeleted: 3 });
     expect([...fake.col('pending_email_retries').keys()]).toEqual(['r-manual']);
+    expect([...fake.col('pending_processor_retries').keys()]).toEqual(['p-new']);
     expect([...fake.col('mood_schedule_notes').keys()]).toEqual(['2026-10-03', '2026-11-15']);
     expect([...fake.col('cs_tickets').keys()]).toEqual(['t2']);
     // 비회원 일정: 여행 끝 + 1개월 지난 것만. 회원·신고 걸린 것·아직인 것은 남김
-    expect([...fake.col('plans').keys()]).toEqual(['g2', 'g3', 'g4', 'u1']);
+    expect([...fake.col('plans').keys()]).toEqual(['g2', 'g3', 'g4', 'g5', 'u1']);
     // 분쟁 보존 문의 3년 = 켜도 세기만
     expect(fake.col('external_inbox_cases').has('k1')).toBe(true);
   });
@@ -245,7 +262,7 @@ describe('스위치 켬 = 지움', () => {
     const fake = makeDb(seed(), { failOn: 'plan_complaints' });
     const result = await run(fake, ENV);
     expect(result.counts.plans_guest).toEqual({ heldComplaintUnknown: 1 });
-    expect(fake.col('plans').size).toBe(5);
+    expect(fake.col('plans').size).toBe(6);
   });
 
   it('협력사 예약 훑기가 실패하면 일정 메모도 안 지움', async () => {
@@ -333,6 +350,21 @@ describe('구글 시트 (운영에서만)', () => {
     expect(api.writeRetentionSheetCells).toHaveBeenCalledWith('bookings', [
       { row: 2, column: 'D', value: '' }, { row: 2, column: 'G', value: '' }, { row: 2, column: 'H', value: '' }, { row: 2, column: 'R', value: '' }]);
     expect(result.counts.sheet_bookings).toEqual({ due: 1, applied: 1, notYet: 1, alreadyClean: 1 });
+  });
+
+  it('예약 장부: 손님이 날짜를 뒤로 옮긴 예약은 장부 날짜가 지나도 예약 문서 날짜까지 남김', async () => {
+    const api = { ...sheets(), readRetentionSheetRows: vi.fn(async (tab: string) => (tab === 'bookings' ? [
+      bookingRows[0],
+      ['2026. 8. 30.', 'Name', 'b@example.test', '+82', 'tour', '2026-09-01', 'Hotel', '', '', '', '', '', '', 'P-moved'],
+      ['2026. 8. 30.', 'Name', 'b@example.test', '+82', 'tour', '2026-09-01', 'Hotel', '', '', '', '', '', '', 'P-old'],
+    ] : [])) };
+    const fake = makeDb({ bookings: {
+      'P-moved': { status: 'CONFIRMED', tourDate: '2026-12-20', tourEndDate: '2026-12-20' }, // 문서 번호 = 주문 번호
+      'doc-x': { status: 'CONFIRMED', orderID: 'P-old', tourDate: '2026-09-01', tourEndDate: '2026-09-01' }, // orderID 칸으로 찾음
+    } });
+    const result = await run(fake, PROD_ON, { sheets: api });
+    expect(api.writeRetentionSheetCells).toHaveBeenCalledWith('bookings', [{ row: 3, column: 'D', value: '' }, { row: 3, column: 'G', value: '' }]);
+    expect(result.counts.sheet_bookings).toEqual({ heldBookingNotDue: 1, due: 1, applied: 1 });
   });
 
   it('Leads: 줄은 남기고 이메일·이름·일정 번호를 비우고 시각을 달로', async () => {

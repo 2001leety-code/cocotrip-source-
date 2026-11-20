@@ -82,17 +82,24 @@ async function snapshotEnd(db, orderId) {
 }
 
 // ── 예약 (결제·계약 칸 남김) ─────────────────────────────────────────────────
+/** 예약 끝날. 결제 스냅샷은 tourEndDate 가 없을 때만 읽는다(읽기 줄이기). */
+async function bookingEndYmd(run, id, d) {
+  const snapshot = R.validYmd(d.tourEndDate) ? null : await snapshotEnd(run.db, d.orderID || String(id).split('__')[0]);
+  return R.tripEndYmd(d.tourDate, [d.tourEndDate, snapshot]);
+}
+
 async function sweepBookings(run) {
   const T = 'bookings';
   await scan(run, run.db.collection(T).where('tourDate', '<=', cutoffYmd(run, MONTH)), 'tourDate', async (doc, d) => {
     const paths = topLevelPaths(d, R.BOOKING_TRIP_KEYS);
     if (!paths.length && alreadyMarked(d)) return run.tally(T, 'alreadyClean');
-    const dispatches = (await run.db.collection('dispatch_messages').where('orderID', '==', doc.id).get()).docs;
-    if (!paths.length && !dispatches.length) return run.tally(T, 'alreadyClean');
+    // 싼 판정 먼저(상태·날짜), 읽기(스냅샷·배차 기록)는 그 뒤 — 쌓인 예약이 많아도 시간 예산 안에 들게.
     if (!R.bookingSettled(d.status)) return run.tally(T, 'heldStatus');
-    const end = R.tripEndYmd(d.tourDate, [d.tourEndDate, await snapshotEnd(run.db, d.orderID || doc.id.split('__')[0])]);
+    const end = await bookingEndYmd(run, doc.id, d);
     if (!end) return run.tally(T, 'noDate');
     if (!R.isDue(end, MONTH, run.nowMs)) return run.tally(T, 'notYet');
+    const dispatches = (await run.db.collection('dispatch_messages').where('orderID', '==', doc.id).get()).docs;
+    if (!paths.length && !dispatches.length) return run.tally(T, 'alreadyClean');
     if (!run.claim(T)) return;
     // 배차 기록 먼저 — 예약에 표시(privacyRetention)가 붙은 뒤엔 배차 기록을 다시 찾지 않는다.
     for (const dispatch of dispatches) { await dispatch.ref.delete(); run.tally('dispatch_messages', 'applied'); }
@@ -164,6 +171,9 @@ async function sweepMoodBookings(run) {
   await scan(run, run.db.collection(T).where('date', '<=', cutoffYmd(run, MONTH)), 'date', async (doc, d) => {
     const paths = moodPaths(d);
     if (!paths.length && alreadyMarked(d)) return run.tally(T, 'alreadyClean');
+    if (!R.moodBookingSettled(d)) { if (R.validYmd(d.date)) run.heldMoodDates.add(d.date); return run.tally(T, 'heldStatus'); }
+    if (!R.validYmd(d.date)) return run.tally(T, 'noDate');
+    if (!R.isDue(d.date, MONTH, run.nowMs)) return run.tally(T, 'notYet');
     const copies = [];
     for (const name of ['mood_booking_change_events', 'mood_booking_change_quotes']) {
       for (const copy of (await run.db.collection(name).where('bookingId', '==', doc.id).get()).docs) {
@@ -172,9 +182,6 @@ async function sweepMoodBookings(run) {
       }
     }
     if (!paths.length && !copies.length) return run.tally(T, 'alreadyClean');
-    if (!R.moodBookingSettled(d)) { if (R.validYmd(d.date)) run.heldMoodDates.add(d.date); return run.tally(T, 'heldStatus'); }
-    if (!R.validYmd(d.date)) return run.tally(T, 'noDate');
-    if (!R.isDue(d.date, MONTH, run.nowMs)) return run.tally(T, 'notYet');
     if (!run.claim(T)) return;
     for (const copy of copies) await scrubPaths(run, copy.name, copy.ref, copy.paths);
     await scrubPaths(run, T, doc.ref, paths);
@@ -221,17 +228,19 @@ async function openComplaintPlanIds(run) {
 
 function wholeDocTargets(run, { complainedPlanIds }) {
   const where = (name, field, value) => run.db.collection(name).where(field, '<=', value);
-  const done = d => (d.status === 'done' ? null : 'heldManual');
   const target = (name, field, value, period, options) => [name, { query: where(name, field, value), orderField: field, period, ...options }];
   return [
     target('preview_leads', 'lastSeenAtMs', cutoffMs(run, MONTH), MONTH, { baseOf: d => d.lastSeenAtMs }),
-    target('charter_inquiries', 'updatedAt', cutoffDate(run, THIRTY_DAYS), THIRTY_DAYS, {
-      baseOf: d => d.updatedAt, hold: d => (R.inquiryClosed(d.status) ? null : 'heldOpen') }),
+    // 처리 끝 시각: 답장·종료는 updatedAtMs(숫자)에, 만들 때는 updatedAt(Timestamp)에 남는다 → 가장 늦은 것. 범위는 만든 날.
+    target('charter_inquiries', 'createdAt', cutoffDate(run, THIRTY_DAYS), THIRTY_DAYS, {
+      baseOf: d => R.latestMs(d.updatedAtMs, d.updatedAt, d.createdAt), hold: d => (R.inquiryClosed(d.status) ? null : 'heldOpen') }),
     target('chat_sessions', 'lastMessageAt', cutoffDate(run, MONTH), MONTH, {
       baseOf: d => d.lastMessageAt, before: doc => deleteChatChildren(run, doc) }),
-    target('pending_email_retries', 'sweptAt', cutoffDate(run, MONTH), MONTH, { baseOf: d => d.sweptAt, hold: done }),
-    target('pending_processor_retries', 'sweptAt', cutoffDate(run, MONTH), MONTH, { baseOf: d => d.sweptAt, hold: done }),
-    target('pending_ai_planner_retries', 'sweptAt', cutoffDate(run, MONTH), MONTH, { baseOf: d => d.sweptAt, hold: done }),
+    // 재시도 대기열: 끝난(done) 것만. 정상 경로는 sweptAt 없이 completedAt·updatedAt 만 남긴다 → 가장 늦은 시각.
+    // 사람이 봐야 하는 것(manual-intervention 등)은 done 이 아니라 아예 안 잡힌다.
+    ...['pending_email_retries', 'pending_processor_retries', 'pending_ai_planner_retries'].map(name => [name, {
+      query: run.db.collection(name).where('status', '==', 'done'), orderField: FieldPath.documentId(), period: MONTH,
+      baseOf: d => R.latestMs(d.sweptAt, d.completedAt, d.updatedAt, d.closedAt, d.lastFailureAt) }]),
     target('quick_book_pending', 'createdAt', cutoffDate(run, MONTH), MONTH, { baseOf: d => d.createdAt }),
     // 문서 번호 = 'YYYY-MM-DD'(그 날 메모). month 칸으로 범위를 좁힌다. 협력사 예약 훑기가 실패했으면 다툼을 모르니 다 남긴다.
     target('mood_schedule_notes', 'month', cutoffYmd(run, MONTH).slice(0, 7), MONTH, {
@@ -245,13 +254,24 @@ function wholeDocTargets(run, { complainedPlanIds }) {
     // 비회원 AI 일정 = 여행 끝 + 1개월에 문서 삭제(운영자 11/21). 회원 일정은 탈퇴 때까지.
     // 만든 날 <= 여행 끝이라 만든 날로 범위를 좁힌다.
     ['plans_guest', {
-      query: where('plans', 'createdAtMs', cutoffMs(run, MONTH)).select('uid', 'createdAtMs', 'input.startDate', 'input.durationDays'),
+      query: where('plans', 'createdAtMs', cutoffMs(run, MONTH))
+        .select('uid', 'createdAtMs', 'paymentSource', 'isFreeCoupon', 'input.startDate', 'input.durationDays', 'input.paypalOrderId'),
       orderField: 'createdAtMs', period: MONTH, baseYmd: d => R.planTripEndYmd(d.input),
-      hold: (d, id) => (d.uid !== null ? 'member' : complainedPlanIds.has(id) ? 'heldComplaint' : null) }],
+      // 돈을 낸 일정 = 결제 분쟁 때 "무엇을 받았나" 증거 → 운영자가 보관 기간을 정할 때까지 세기만.
+      hold: (d, id) => (d.uid !== null ? 'member' : complainedPlanIds.has(id) ? 'heldComplaint' : R.paidPlan(d) ? 'heldPaid' : null) }],
   ];
 }
 
 // ── 구글 시트 예약 장부 `시트1` (운영에서만) ──────────────────────────────────
+/** 장부 N열(PayPal 주문 번호)로 예약 문서 찾기. 문서 번호가 주문 번호이거나, orderID 칸이 주문 번호. */
+async function findBookingByOrderId(run, orderId) {
+  if (!orderId) return null;
+  const direct = await run.db.collection('bookings').doc(orderId).get();
+  if (direct.exists) return { id: orderId, data: direct.data() || {} };
+  const byField = (await run.db.collection('bookings').where('orderID', '==', orderId).limit(1).get()).docs[0];
+  return byField ? { id: byField.id, data: byField.data() || {} } : null;
+}
+
 async function sweepBookingSheet(run, sheets) {
   const T = 'sheet_bookings';
   let rows;
@@ -261,16 +281,23 @@ async function sweepBookingSheet(run, sheets) {
   }
   const columns = Object.entries(sheets.BOOKING_SHEET_TRIP_COLUMNS);
   const cells = [];
-  rows.forEach((row, index) => {
-    if (index === 0) return; // 머리 줄
+  for (const [index, row] of rows.entries()) {
+    if (index === 0) continue; // 머리 줄
+    if (run.clock() > run.deadline) { run.timedOut = true; break; }
     const filled = columns.filter(([, i]) => R.cellText(row?.[i]) !== '');
-    if (!filled.length) return run.tally(T, 'alreadyClean');
+    if (!filled.length) { run.tally(T, 'alreadyClean'); continue; }
     // ponytail: 장부엔 끝날이 없다 → 투어날짜 + 14일을 끝날로 봄(예약 문서보다 늦게 지워짐, 일찍은 안 지움).
     const end = R.tripEndYmd(R.sheetDateYmd(row?.[5]), []);
-    if (!end) return run.tally(T, 'noDate');
-    if (!R.isDue(end, MONTH, run.nowMs)) return run.tally(T, 'notYet');
+    if (!end) { run.tally(T, 'noDate'); continue; }
+    if (!R.isDue(end, MONTH, run.nowMs)) { run.tally(T, 'notYet'); continue; }
+    // 손님이 날짜를 바꾸면 예약 문서만 바뀌고 장부는 손으로 고친다(modifyBooking.js) → 장부 날짜는 옛 날짜일 수 있다.
+    const booking = await findBookingByOrderId(run, R.cellText(row?.[13]));
+    if (booking) {
+      const bookingEnd = await bookingEndYmd(run, booking.id, booking.data);
+      if (!bookingEnd || !R.isDue(bookingEnd, MONTH, run.nowMs)) { run.tally(T, 'heldBookingNotDue'); continue; }
+    }
     if (run.claim(T)) for (const [column] of filled) cells.push({ row: index + 1, column, value: '' });
-  });
+  }
   if (!cells.length) return;
   await sheets.writeRetentionSheetCells('bookings', cells);
   run.tally(T, 'applied', new Set(cells.map(c => c.row)).size);
