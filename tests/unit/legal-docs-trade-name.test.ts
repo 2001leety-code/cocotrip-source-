@@ -34,4 +34,14 @@ describe('legal pages name the registered trade name', () => {
     expect(src).not.toMatch(/(상호|商号|名称|Name)[:：] ?COCOTRIP/);
     expect(src).not.toMatch(/'COCOTRIP'|「COCOTRIP」|'코코트립\(COCOTRIP\)'/);
   });
+
+  // Articles 2-4 say '회사' / 'The Company' / 当社 / 本公司, so article 1 defines that short name right after
+  // the trade name, the way the terms and the travel terms do (operator, 2026-11-20).
+  it('the privacy policy defines the short name it uses later, in every language', () => {
+    const src = read('src/pages/Privacy.tsx');
+    expect(src).toContain(`${TRADE_NAME}(이하 '회사')은`);
+    expect(src).toContain(`${TRADE_NAME} (COCOTRIP, hereinafter referred to as the 'Company')`);
+    expect(src).toContain(`${TRADE_NAME}（COCOTRIP、以下「当社」）は`);
+    expect(src).toContain(`${TRADE_NAME}（COCOTRIP，以下简称"本公司"）`);
+  });
 });
