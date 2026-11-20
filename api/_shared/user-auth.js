@@ -39,7 +39,7 @@ async function getAuthInstance() {
  * 자동 검사(GitHub Actions) 전용 계정의 맞춤 권한 역할 (2026-11-21).
  * 운영자 관리자 계정 대신 이 역할을 가진 테스트 계정이 로그인한다. `admin:true` 가 아니라서
  * 관리자 API 전체가 열리지 않고, 이 역할을 명시적으로 받는 곳에서만 좁게 인정된다:
- * 읽기 관리자 API 3곳(allowRoles), paymentGate 의 자동검사 주문번호, MOOD 조회(개인정보 비움).
+ * 읽기 관리자 API 2곳(allowRoles: admin-ai-ops-center·admin-quality-summary), paymentGate 의 자동검사 주문번호, MOOD 조회(개인정보 비움).
  * 부여 = scripts/provision-health-check-account.mjs (운영자 PC). admin-set-claims 의
  * VALID_ROLES 에는 일부러 넣지 않는다 — 그 API 로 권한을 다시 쓰면 이 역할은 지워진다(안전 쪽).
  */

@@ -78,7 +78,7 @@ if (!apiKey || !email || !password) {
 }
 
 console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-console.log(`🔍 CocoTrip 결제 흐름 회귀 검증 슈트 (8 assertion + 정리 1 / 자율 검증 v2 P0) — [${SCENARIO_NAME}]`);
+console.log(`🔍 CocoTrip 결제 흐름 회귀 검증 슈트 (8 assertion / 자율 검증 v2 P0) — [${SCENARIO_NAME}]`);
 console.log(`   Target: ${BASE_URL}`);
 console.log(`   PayPal Client ID: ${PAYPAL_CLIENT_ID ? PAYPAL_CLIENT_ID.slice(0, 8) + '...' : '(unset)'}`);
 console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
@@ -370,7 +370,7 @@ if (!PAYPAL_CLIENT_ID) {
 
 // ─── Summary ──────────────────────────────────────────────
 console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-console.log(`📊 결제 흐름 회귀 검증 결과 (8 assertion + 정리 1) — [${SCENARIO_NAME}]`);
+console.log(`📊 결제 흐름 회귀 검증 결과 (8 assertion) — [${SCENARIO_NAME}]`);
 console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
 let passCount = 0;
 for (const r of results) {
@@ -392,7 +392,7 @@ console.log('  - admin endpoint: /api/admin-coupon-audit 추가 시 B-PAY5 정�
 if (process.env.GITHUB_STEP_SUMMARY) {
   const { appendFileSync } = await import('fs');
   const md = [
-    `# CocoTrip 결제 흐름 회귀 검증 결과 (8 assertion + 정리 1 / 자율 검증 v2 P0) — [${SCENARIO_NAME}]`,
+    `# CocoTrip 결제 흐름 회귀 검증 결과 (8 assertion / 자율 검증 v2 P0) — [${SCENARIO_NAME}]`,
     '',
     `**Target:** ${BASE_URL}`,
     `**총합:** ${passCount}/${results.length} pass`,

@@ -17,10 +17,12 @@
  *
  *   node --env-file=<운영자 env 파일> scripts/provision-health-check-account.mjs --unlink-password <관리자 이메일>
  *   node --env-file=<운영자 env 파일> scripts/provision-health-check-account.mjs --unlink-password <관리자 이메일> --apply
- *     → 그 계정 하나에서만 비밀번호 로그인 연결을 뗀다. 구글 로그인이 붙어 있지 않으면 거부(잠김 방지).
+ *     → 그 계정 하나에서만 비밀번호 로그인 연결을 뗀다. 운영자 계정이 아니거나 구글 로그인이 붙어 있지 않으면
+ *       거부(잠김 방지). 뗀 뒤 기존 로그인도 모두 끊는다(revokeRefreshTokens) — 구글로 다시 로그인하면 된다.
  *       ⚠️ Firebase 콘솔의 "이메일/비밀번호" 로그인 방식 자체를 끄면 안 된다 — 테스트 계정도 같이 죽는다.
  *
  * 비밀번호는 이 스크립트가 다루지 않는다(콘솔에서 운영자가 정함). 출력에도 안 나온다.
+ * 테스트 계정 이메일은 운영자가 실제로 받는 주소여야 한다 — 이 스크립트가 메일 확인 없이 "확인됨"으로 바꾼다.
  */
 import { pathToFileURL } from 'node:url';
 import { HARDCODED_OPERATOR_EMAILS } from '../api/_shared/admin-bypass-detector.js';
@@ -61,10 +63,11 @@ export function checkProvisionTarget(user, opEmails) {
 }
 
 /**
- * 관리자 계정에서 비밀번호 로그인을 떼도 되는지 (구글 로그인이 남아야 함).
+ * 관리자 계정에서 비밀번호 로그인을 떼도 되는지 (운영자 계정 + 구글 로그인이 남아야 함).
  * @returns {{ ok: true } | { ok: false, reason: string, done?: boolean }}
  */
-export function checkUnlinkTarget(user) {
+export function checkUnlinkTarget(user, opEmails) {
+  if (!opEmails.includes(norm(user?.email))) return { ok: false, reason: '운영자 계정이 아님 — 손님 계정은 건드리지 않는다' };
   const ids = providerIds(user);
   if (!ids.includes('google.com')) return { ok: false, reason: '구글 로그인이 연결돼 있지 않음 — 떼면 계정이 잠긴다' };
   if (!ids.includes('password')) return { ok: false, done: true, reason: '이미 비밀번호 로그인이 없음' };
@@ -106,14 +109,16 @@ async function main() {
   console.log('지금:', describe(user));
 
   if (unlinkIdx >= 0) {
-    const check = checkUnlinkTarget(user);
+    const check = checkUnlinkTarget(user, operatorEmails());
     if (!check.ok) { console.log(check.done ? `할 일 없음 — ${check.reason}` : `거부 — ${check.reason}`); process.exit(check.done ? 0 : 1); }
     if (!apply) { console.log('보기만 — 바꾸려면 --apply. 바꾸면 이 계정은 구글 로그인만 남는다.'); return; }
     await auth.updateUser(user.uid, { providersToUnlink: ['password'] });
     const after = await auth.getUser(user.uid);
     console.log('바뀐 뒤:', describe(after));
     if (providerIds(after).includes('password')) { console.error('❌ 비밀번호 로그인이 아직 남아 있음'); process.exit(1); }
-    console.log('✅ 비밀번호 로그인 연결 끊음. 다음: 구글 계정 2단계 인증 켜기.');
+    // 옛 비밀번호로 이미 받아 둔 로그인(갱신 토큰)도 끊는다. 서버는 verifyIdToken(token, true) 로 폐기를 확인한다.
+    await auth.revokeRefreshTokens(user.uid);
+    console.log('✅ 비밀번호 로그인 연결 끊음 + 기존 로그인 모두 끊음(구글로 다시 로그인). 다음: 구글 계정 2단계 인증 켜기.');
     return;
   }
 

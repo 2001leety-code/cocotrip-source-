@@ -10,7 +10,7 @@
 //   쓰기 관리자 API·결제 캡처·수동 결제 자동 확정·포인트·MOOD 예약은 이 역할을 모른다(예전처럼 막힘).
 // ─────────────────────────────────────────────────────────────────────────────
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 
 const verifyIdTokenMock = vi.fn();
@@ -107,6 +107,16 @@ describe('paymentGate — 자동 검사 역할은 자동 검사 접두사 주문
 });
 
 describe('소스 잠금 — 역할이 열리는 곳은 이름 붙인 곳뿐', () => {
+  it('api/ 전체에서 역할을 보는 파일 = 정해진 9개 (새 파일이 역할을 보기 시작하면 실패)', () => {
+    const walk = (dir: string): string[] => readdirSync(resolve(process.cwd(), dir), { withFileTypes: true })
+      .flatMap((e) => (e.isDirectory() ? walk(`${dir}/${e.name}`) : /\.(c|m)?js$/.test(e.name) ? [`${dir}/${e.name}`] : []));
+    const hits = walk('api').filter((f) => /allowRoles|healthCheck|HEALTH_CHECK_ROLE|health-check/.test(read(f))).sort();
+    expect(hits).toEqual([
+      'api/_ai_core/handlerCore.js', 'api/_ai_core/paymentGate.js', 'api/_shared/admin-auth.js', 'api/_shared/user-auth.js',
+      'api/admin-ai-ops-center.js', 'api/admin-quality-summary.js', 'api/mood-data.js', 'api/mood-parse-schedule.js', 'api/mood-places.js',
+    ]);
+  });
+
   it('allowRoles 는 읽기 관리자 API 2곳에만', () => {
     for (const f of ['api/admin-ai-ops-center.js', 'api/admin-quality-summary.js']) {
       expect(read(f)).toMatch(/verifyAdminToken\(req, \{ allowRoles: \[HEALTH_CHECK_ROLE\] \}\)/);
@@ -182,10 +192,25 @@ describe('provision-health-check-account — 거부 규칙', () => {
     expect(checkProvisionTarget({ email: 'ci@example.test', providerData: pw, customClaims: { roles: ['health-check'] } }, ops)).toEqual({ ok: true });
   });
 
-  it('비밀번호 떼기 — 구글 로그인이 없으면 거부(잠김 방지)', async () => {
+  it('비밀번호 떼기 — 운영자 계정만, 구글 로그인이 없으면 거부(잠김 방지)', async () => {
     const { checkUnlinkTarget } = await import('../../scripts/provision-health-check-account.mjs');
-    expect(checkUnlinkTarget({ providerData: [{ providerId: 'password' }] }).ok).toBe(false);
-    expect(checkUnlinkTarget({ providerData: [{ providerId: 'google.com' }] })).toMatchObject({ ok: false, done: true });
-    expect(checkUnlinkTarget({ providerData: [{ providerId: 'google.com' }, { providerId: 'password' }] })).toEqual({ ok: true });
+    const ops = ['admin@example.com'];
+    const both = [{ providerId: 'google.com' }, { providerId: 'password' }];
+    expect(checkUnlinkTarget({ email: 'guest@example.test', providerData: both }, ops).ok).toBe(false);
+    expect(checkUnlinkTarget({ email: 'admin@example.com', providerData: [{ providerId: 'password' }] }, ops).ok).toBe(false);
+    expect(checkUnlinkTarget({ email: 'admin@example.com', providerData: [{ providerId: 'google.com' }] }, ops)).toMatchObject({ ok: false, done: true });
+    expect(checkUnlinkTarget({ email: 'Admin@Example.com', providerData: both }, ops)).toEqual({ ok: true });
+  });
+
+  it('비밀번호를 뗀 뒤 기존 로그인도 끊는다 (revokeRefreshTokens)', () => {
+    expect(read('scripts/provision-health-check-account.mjs'))
+      .toMatch(/providersToUnlink: \['password'\][\s\S]{0,400}revokeRefreshTokens\(user\.uid\)/);
+  });
+});
+
+describe('mood-smoke — 옛 운영자 계정이면 예전처럼 clientId=mood, 역할 계정이면 서버 고정값', () => {
+  it('역할이 있을 때만 기본 clientId 를 안 보낸다', () => {
+    expect(read('scripts/mood-smoke.mjs'))
+      .toMatch(/const clientId = CLIENT_ID \|\| \(tokenRoles\(idToken\)\.includes\('health-check'\) \? '' : 'mood'\);/);
   });
 });
