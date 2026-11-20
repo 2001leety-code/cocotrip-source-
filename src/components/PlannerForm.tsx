@@ -70,6 +70,8 @@ export interface PlannerFormValues {
   durationDays?: number;
   dietPrefs?: string[];
   dietaryRestrictions?: string[];
+  /** 2026-11-21 처리방침: 식이 조건 = 민감정보 → 따로 동의. 동의한 시각(ISO). 식이 조건이 있을 때만 채운다. */
+  dietaryConsentAt?: string;
   priceRange?: string;
   spiceLevel?: string;          // 'none' | 'mild' | 'medium' | 'hot' (P10)
   bucketDishes?: string[];      // KOREAN_BUCKET_LIST keys (P10)

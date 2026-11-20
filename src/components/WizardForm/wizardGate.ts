@@ -25,11 +25,17 @@ export interface WizardGateInput {
   isRevision?: boolean;
   /** Injectable "today" in KST (yyyy-MM-dd) — omit in production (uses the real clock). */
   nowKstDate?: string;
+  /** 2026-11-21 (privacy policy): Halal/Vegan/Vegetarian picked but the separate
+   *  sensitive-data consent not ticked. Blocks leaving the Food step — the traveler
+   *  must consent or clear the restriction; the restriction is never dropped. */
+  dietaryConsentMissing?: boolean;
 }
 
 export interface WizardGateResult {
   canStep0: boolean;
   canStep1: boolean;
+  /** Food step: no required answers except the dietary consent above. */
+  canStep2: boolean;
   canStep3: boolean;
   unlockedStep: number;
 }
@@ -37,7 +43,7 @@ export interface WizardGateResult {
 export function computeWizardGate(input: WizardGateInput): WizardGateResult {
   const {
     reservationStatus, arrivalAirport, arrivalTime, mainCity, selectedActivities,
-    startDate, endDate, pax, isRevision, nowKstDate,
+    startDate, endDate, pax, isRevision, nowKstDate, dietaryConsentMissing,
   } = input;
 
   const canStep0 = reservationStatus !== null && (
@@ -60,11 +66,14 @@ export function computeWizardGate(input: WizardGateInput): WizardGateResult {
   // that rule doesn't apply to them.
   const startsInTime = isRevision ? true : startDate > today;
   const canStep3 = datesWellFormed && startsInTime && paxValid && arrivalAirport !== '';
+  const canStep2 = !dietaryConsentMissing;
 
   let unlockedStep = 0;
   if (canStep0) unlockedStep = 1;
-  if (unlockedStep >= 1 && canStep1) unlockedStep = 3;
+  // Food (2) has no required answers of its own, so it unlocks together with
+  // Details (3) — unless the dietary consent is missing, which stops at Food.
+  if (unlockedStep >= 1 && canStep1) unlockedStep = canStep2 ? 3 : 2;
   if (unlockedStep >= 3 && canStep3) unlockedStep = 4;
 
-  return { canStep0, canStep1, canStep3, unlockedStep };
+  return { canStep0, canStep1, canStep2, canStep3, unlockedStep };
 }

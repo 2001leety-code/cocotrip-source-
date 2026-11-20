@@ -79,6 +79,7 @@ vi.mock('../../src/components/WizardForm/WizardStep1Food', () => ({
     const setPriceRange = props.setPriceRange as (v: string) => void;
     const setSpiceLevel = props.setSpiceLevel as (v: string) => void;
     const toggleBucketDish = props.toggleBucketDish as (k: string) => void;
+    const setDietaryConsent = props.setDietaryConsent as (v: boolean) => void;
     const onNext = props.onNext as () => void;
     return (
       <div>
@@ -87,6 +88,7 @@ vi.mock('../../src/components/WizardForm/WizardStep1Food', () => ({
         <button type="button" onClick={() => setPriceRange('Premium')}>set-price</button>
         <button type="button" onClick={() => setSpiceLevel('mild')}>set-spice</button>
         <button type="button" onClick={() => toggleBucketDish('bibimbap')}>set-bucket</button>
+        <button type="button" onClick={() => setDietaryConsent(true)}>set-diet-consent</button>
         <button type="button" onClick={onNext}>next2</button>
       </div>
     );
@@ -161,6 +163,8 @@ describe('WizardForm — Review display and onSubmit payload agree (real state, 
     click(container, 'set-price');
     click(container, 'set-spice');
     click(container, 'set-bucket');
+    // 2026-11-21 처리방침: 식이 조건(Vegan)은 따로 동의해야 Food 를 지난다(동의 없으면 게이트가 Food 에서 멈춤).
+    click(container, 'set-diet-consent');
     click(container, 'next2');
     await flushLazy();
 
@@ -219,6 +223,7 @@ describe('WizardForm — Review display and onSubmit payload agree (real state, 
     expect(payload.freeText).toBe('Cherry blossoms please');
     expect(payload.dietPrefs).toEqual(['Seafood']);
     expect(payload.dietaryRestrictions).toEqual(['Vegan']);
+    expect(typeof payload.dietaryConsentAt).toBe('string');
     expect(payload.priceRange).toBe('Premium');
     expect(payload.spiceLevel).toBe('mild');
     expect(payload.bucketDishes).toEqual(['bibimbap']);

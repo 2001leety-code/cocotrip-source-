@@ -448,6 +448,8 @@ export function Step5DateOptions({ state, patch, language = 'en', quote, footerS
           externalAgreeAll={termsAgreed}
           onAgreeAllChange={onTermsChange}
           onMarketingChange={onMarketingChange}
+          // 2026-11-21: Step4 의 아이 수 — 1명 이상이면 보호자 동의가 필수 동의(termsAgreed)에 묶인다.
+          childCount={state.childCount ?? 0}
           onFieldsChange={handleFieldsChange}
           // 2026-10-18 P2: Step6 → Step5 재마운트 시 성·이름·편명·이메일·메신저 표시 복원 (마운트 1회 seed).
           initialLastName={state.customerLastName}

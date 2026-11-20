@@ -133,6 +133,7 @@ const PWAUpdatePrompt = lazy(() => import('@/components/PWAUpdatePrompt').then(m
 const CookieBanner = lazy(() => import('@/components/CookieBanner'));
 const OnboardingCouponModal = lazy(() => import('@/components/OnboardingCouponModal').then(m => ({ default: m.OnboardingCouponModal })));
 const ConnectEmailPrompt = lazy(() => import('@/components/ConnectEmailPrompt').then(m => ({ default: m.ConnectEmailPrompt })));
+const AgeConfirmPrompt = lazy(() => import('@/components/AgeConfirmPrompt').then(m => ({ default: m.AgeConfirmPrompt })));
 import { handleRedirectResult } from '@/lib/firebase-auth';
 import { usePageMeta } from '@/hooks/usePageMeta';
 // ChatFAB 제거됨 — 텔레그램 봇으로 대체
@@ -225,6 +226,8 @@ function GlobalWidgets() {
         {!isBareLanding && <OnboardingCouponModal />}
         {/* 이메일 없는 회원(전화 가입 등) → 구글 계정 연결 안내. 대상이 아니면 아무것도 그리지 않음 */}
         {!isBareLanding && <ConnectEmailPrompt />}
+        {/* 2026-11-21 처리방침: 회원 만 14세 이상 확인(한 번). 커뮤니티·공유 화면에서 가입해도 묻도록 isBareLanding 과 무관 */}
+        <AgeConfirmPrompt />
       </Suspense>
     </>
   );

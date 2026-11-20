@@ -989,6 +989,10 @@
     "wizardFoodSub": "我们将为您推荐最合适的餐厅",
     "wizardFoodDietaryHighlight": "⚠️ 清真 · 纯素 · 素食 — 适用者请务必选择",
     "wizardFoodDietaryHint": "选择后,我们会沿您的路线推荐符合饮食需求的餐厅。未选择可能导致推荐未验证的餐厅。",
+    "wizardDietConsentRequired": "必选",
+    "wizardDietConsentLabel": "我同意将饮食信息用于定制行程和挑选餐厅",
+    "wizardDietConsentNote": "清真、纯素、素食等饮食信息属于敏感个人信息，因此需要您另行同意。如不同意，请在上方选择“无”。",
+    "wizardDietConsentError": "请同意使用您的饮食信息，或将饮食限制改为“无”。",
     "wizardFoodStyleLabel": "饮食偏好",
     "wizardFoodStyleHint": "选择你喜欢的菜系和用餐风格",
     "wizardFoodDietaryRestrictionLabel": "饮食限制",
@@ -1528,10 +1532,12 @@
     "contact": "WhatsApp咨询"
   },
   "cookieBanner": {
-    "bodyBefore": "我们使用Cookie来改善您的体验。继续使用本站即表示您同意我们的",
-    "bodyMiddle": "。如需请求删除数据，请联系 ",
+    "bodyBefore": "我们使用Cookie。只有在您点击「同意」后才会开启访问分析（GA4、PostHog）。不同意也可以正常预订和付款。详情请见",
+    "bodyMiddle": "，分析服务商及所在国家见",
+    "providersLink": "隐私政策第6条",
+    "bodyProviders": "。如需请求删除数据，请联系 ",
     "bodyAfter": "。",
-    "bodyShort": "我们使用Cookie来改善您的体验。",
+    "bodyShort": "只有在您点击「同意」后才会开启访问分析。",
     "accept": "同意",
     "dismiss": "关闭",
     "settingsLink": "Cookie 与分析设置",
@@ -2709,5 +2715,15 @@
     "popupBlocked": "弹出窗口被拦截。请在浏览器中允许弹出窗口后重试。",
     "noEmail": "未能从该Google账户获取电子邮件地址。请换一个Google账户重试。",
     "failed": "未能关联账户。请稍后重试。"
+  },
+  "ageGate": {
+    "title": "年龄确认",
+    "body": "CocoTrip 会员须年满14周岁。未满14周岁儿童的信息，请由监护人在预订时一并提供。",
+    "confirm": "我已年满14周岁",
+    "under14": "我未满14周岁",
+    "saving": "正在保存…",
+    "error": "保存失败，请稍后再试。",
+    "under14Notice": "未满14周岁不能自行注册，已为您退出登录。请由监护人使用其账号预订。",
+    "close": "关闭"
   }
 }
