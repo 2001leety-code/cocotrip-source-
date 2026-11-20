@@ -9,13 +9,16 @@
  *   Bearer 토큰을 발급 → 실 MOOD 엔드포인트를 인증 상태로 호출·검증.
  *
  * 검증 대상(전부 읽기전용/파싱 — 돈 차감 없음. mood-book 은 잔액을 깎으므로 제외):
- *   1. GET  /api/mood-data?clientId=mood   → { client:{balanceKRW}, bookings, isAdmin }
+ *   1. GET  /api/mood-data[?clientId=MOOD_CLIENT_ID] → { client:{balanceKRW}, bookings, isAdmin }
  *   2. GET  /api/mood-places               → { ok, places:[] }  (주소록)
  *   3. POST /api/mood-parse-schedule {text} → { ok, stops[], serviceGuess, needsConfirm:true }
  *
  * 필요 env (CI 시크릿 — validate-planner 와 공유):
- *   - FIREBASE_WEB_API_KEY, HEALTH_CHECK_PASSWORD
- *   - (선택) HEALTH_CHECK_EMAIL(기본 2001leety@gmail.com), MOOD_CLIENT_ID(기본 mood)
+ *   - FIREBASE_WEB_API_KEY, HEALTH_CHECK_EMAIL, HEALTH_CHECK_PASSWORD
+ *     (2026-11-21~ 자동 검사 전용 계정 roles:['health-check'] — MOOD 허용 목록 밖. 서버가 조회는 돌리되
+ *      예약 내용·주소록 내용은 비워서 돌려주고, 일정 파싱은 주소록 매칭을 건너뛴다.)
+ *   - (선택) MOOD_CLIENT_ID — 넣을 때만 ?clientId= 로 보낸다. 운영자가 아니면 허용 목록의 clientId 로 고정되므로
+ *     다른 값을 보내면 403 이다.
  *   시크릿 없으면 SKIP(exit 0) — 로컬에서 안전, CI 에서만 실동작(validate-planner 와 동일 정책).
  *
  * Usage: node scripts/mood-smoke.mjs [base-url]   (기본 https://cocotripkr.com)
@@ -23,8 +26,8 @@
  */
 
 const BASE = process.argv[2] || process.env.BASE_URL || 'https://cocotripkr.com';
-const TEST_EMAIL = process.env.HEALTH_CHECK_EMAIL || '2001leety@gmail.com';
-const CLIENT_ID = process.env.MOOD_CLIENT_ID || 'mood';
+const TEST_EMAIL = process.env.HEALTH_CHECK_EMAIL || '';
+const CLIENT_ID = process.env.MOOD_CLIENT_ID || '';
 
 // MOOD 가 준 자유 텍스트(파싱 정확도 확인용 — 이사님/일반/공항 3종 포함).
 const SAMPLE_SCHEDULE = [
@@ -36,7 +39,7 @@ const SAMPLE_SCHEDULE = [
 async function getIdToken() {
   const apiKey = process.env.FIREBASE_WEB_API_KEY;
   const password = process.env.HEALTH_CHECK_PASSWORD;
-  if (!apiKey || !password) return null; // SKIP 신호
+  if (!apiKey || !password || !TEST_EMAIL) return null; // SKIP 신호
   const url = `https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=${apiKey}`;
   const r = await fetch(url, {
     method: 'POST',
@@ -92,7 +95,7 @@ async function main() {
     process.exit(1);
   }
   if (!idToken) {
-    console.log('⏭️  SKIP — FIREBASE_WEB_API_KEY / HEALTH_CHECK_PASSWORD 미설정 (로컬). CI 에서 실동작.');
+    console.log('⏭️  SKIP — FIREBASE_WEB_API_KEY / HEALTH_CHECK_EMAIL / HEALTH_CHECK_PASSWORD 미설정 (로컬). CI 에서 실동작.');
     process.exit(0);
   }
 
@@ -100,7 +103,7 @@ async function main() {
   //    응답 봉투: { ok, data:{ clientId, client:{name,balanceKRW}, bookings, isAdmin } }
   //    (mood-route 등과 동일 { ok, data } 계약. top-level 폴백도 허용.)
   try {
-    const { status, body } = await jsonFetch(`/api/mood-data?clientId=${encodeURIComponent(CLIENT_ID)}`, idToken);
+    const { status, body } = await jsonFetch(CLIENT_ID ? `/api/mood-data?clientId=${encodeURIComponent(CLIENT_ID)}` : '/api/mood-data', idToken);
     const d = body?.data || body;
     const ok = status === 200 && d?.client && typeof d.client.balanceKRW === 'number' && Array.isArray(d.bookings);
     record('mood-data 잔액/원장 조회', ok, ok ? `balance=${d.client.balanceKRW} bookings=${d.bookings.length} isAdmin=${d.isAdmin}` : `HTTP ${status} ${JSON.stringify(body).slice(0, 160)}`);

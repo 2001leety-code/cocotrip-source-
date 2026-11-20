@@ -16,8 +16,9 @@ name: PR Admin Auth Regression Suite
 #
 # Secrets 필요:
 #   FIREBASE_WEB_API_KEY                — Firebase Web API key (VITE_FIREBASE_API_KEY 와 동일)
-#   HEALTH_CHECK_EMAIL                  — admin 계정 (ADMIN_EMAIL 매칭)
-#   HEALTH_CHECK_PASSWORD               — admin 계정 비밀번호
+#   HEALTH_CHECK_EMAIL                  — 자동 검사 전용 계정 (맞춤 권한 roles:['health-check'], 운영자 관리자 계정 아님 — 2026-11-21)
+#                                         이 계정이면 B-ADM4/5 는 403 이 정상(역할이 쓰기 끝점에 안 열림)
+#   HEALTH_CHECK_PASSWORD               — 위 계정 비밀번호
 #   HEALTH_CHECK_NONADMIN_EMAIL  (신규) — 일반 사용자 계정 (TEST- prefix 없음)
 #   HEALTH_CHECK_NONADMIN_PASSWORD (신규) — 위 계정 비밀번호
 #

@@ -6,7 +6,8 @@
 //             쿠폰 무한 발급, 환불 처리 등 결제 사고로 직결.
 //
 // Auth: Firebase REST signInWithPassword 로 2 종류 token 획득
-//   - admin token   (HEALTH_CHECK_EMAIL / HEALTH_CHECK_PASSWORD)
+//   - check token   (HEALTH_CHECK_EMAIL / HEALTH_CHECK_PASSWORD) — 2026-11-21 부터 운영자 관리자 계정이 아니라
+//     자동 검사 전용 계정(맞춤 권한 roles:['health-check'], admin:true 아님). 옛 관리자 계정 값이어도 그대로 돈다.
 //   - non-admin token (HEALTH_CHECK_NONADMIN_EMAIL / HEALTH_CHECK_NONADMIN_PASSWORD)
 //
 // 5 assertion:
@@ -14,7 +15,9 @@
 //   B-ADM2: 위조/만료/빈 token → 401
 //   B-ADM3: ADMIN_BYPASS_EMAILS / ADMIN_EMAIL env 단일 source 검사 (코드 grep 자체검증)
 //   B-ADM4: admin token + explicit dryRun → 200 + dryRun:true + zero issuance/errors
+//           (자동 검사 계정이면 403 — 그 역할은 이 쓰기 끝점에 안 열려 있어야 정상)
 //   B-ADM5: admin token 으로 admin-booking-action mark-paid (sandbox bookingRef) → 200/404
+//           (자동 검사 계정이면 403)
 //
 // Exit code:
 //   0 — 모두 PASS
@@ -22,8 +25,8 @@
 //
 // 환경변수:
 //   FIREBASE_WEB_API_KEY              — Firebase Web API key (VITE_FIREBASE_API_KEY 와 동일)
-//   HEALTH_CHECK_EMAIL                — admin 계정 이메일 (ADMIN_EMAIL 매칭)
-//   HEALTH_CHECK_PASSWORD             — admin 계정 비밀번호
+//   HEALTH_CHECK_EMAIL                — 자동 검사 전용 계정 이메일 (roles:['health-check'])
+//   HEALTH_CHECK_PASSWORD             — 위 계정 비밀번호
 //   HEALTH_CHECK_NONADMIN_EMAIL       — 일반 사용자 계정 (TEST- prefix 안 됨 — 진짜 일반)
 //   HEALTH_CHECK_NONADMIN_PASSWORD    — 일반 사용자 비밀번호
 //   BASE_URL (선택)                   — 기본 https://cocotripkr.com
@@ -109,6 +112,18 @@ try {
   console.error('❌', err.message);
   process.exit(1);
 }
+
+// 자동 검사 계정인지 = 토큰의 맞춤 권한(roles 에 health-check, admin 아님). 서명 검증은 서버 몫이라 여기선 읽기만.
+function tokenClaims(idToken) {
+  try {
+    return JSON.parse(Buffer.from(String(idToken).split('.')[1] || '', 'base64url').toString('utf8'));
+  } catch { return {}; }
+}
+const checkClaims = tokenClaims(adminAuth.idToken);
+const isHealthCheckAccount = checkClaims.admin !== true
+  && Array.isArray(checkClaims.roles) && checkClaims.roles.includes('health-check');
+console.log(`   검사 계정 종류: ${isHealthCheckAccount ? '자동 검사 역할 (B-ADM4/5 = 403 기대)' : '관리자 (B-ADM4/5 = 통과 기대)'}
+`);
 
 // ─── Step 2: non-admin idToken (optional) ─────────────────────
 let nonAdminAuth = null;
@@ -327,7 +342,11 @@ try {
   const payload = (body && body.results) || {};
   // No legacy fallback: success requires an explicit, bounded read-only response.
   adm4Pass = isSafeOnboardingDryRunResponse(r.status, body);
-  adm4Detail = r.status === 200
+  // 자동 검사 역할은 이 쓰기 끝점에 안 열려 있어야 정상 → 403 만 통과.
+  if (isHealthCheckAccount) adm4Pass = r.status === 403;
+  adm4Detail = isHealthCheckAccount
+    ? `health-check role: status=${r.status} (403 기대)`
+    : r.status === 200
     ? `status=200, dryRun=${payload.dryRun}, candidates=${payload.candidates}, issued=${payload.issued}, alreadyIssued=${payload.alreadyIssued}, errors=${payload.errors} (strict dryRun validation: ${adm4Pass ? 'PASS' : 'FAIL'})`
     : `status=${r.status}, body=${txt.slice(0, 120)}`;
 } catch (err) {
@@ -335,7 +354,9 @@ try {
 }
 results.push({
   id: 'B-ADM4',
-  label: 'admin token + admin-issue-onboarding-coupons → 200 (dryRun, prod 쓰기 0)',
+  label: isHealthCheckAccount
+    ? '자동 검사 역할 token + admin-issue-onboarding-coupons → 403 (역할이 쓰기 끝점에 안 열림)'
+    : 'admin token + admin-issue-onboarding-coupons → 200 (dryRun, prod 쓰기 0)',
   actual: adm4Detail,
   pass: adm4Pass,
 });
@@ -359,14 +380,16 @@ try {
   const txt = await r.text();
   // PASS 조건: 200 또는 401/403 외의 4xx (auth 통과)
   const isAuthOk = r.status !== 401 && r.status !== 403 && r.status < 500;
-  adm5Pass = isAuthOk;
+  adm5Pass = isHealthCheckAccount ? r.status === 403 : isAuthOk;
   adm5Detail = `status=${r.status}, ref=${sandboxRef}, body=${txt.slice(0, 120).replace(/\n/g, ' ')}`;
 } catch (err) {
   adm5Detail = `ERR: ${err.message}`;
 }
 results.push({
   id: 'B-ADM5',
-  label: 'admin token + admin-booking-action (sandbox ref) → 200 또는 비-auth 4xx',
+  label: isHealthCheckAccount
+    ? '자동 검사 역할 token + admin-booking-action → 403 (역할이 쓰기 끝점에 안 열림)'
+    : 'admin token + admin-booking-action (sandbox ref) → 200 또는 비-auth 4xx',
   actual: adm5Detail,
   pass: adm5Pass,
 });

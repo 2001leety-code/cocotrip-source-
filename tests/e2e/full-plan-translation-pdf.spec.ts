@@ -17,14 +17,16 @@
 import { test, expect } from './fixtures/analytics-guard';
 
 const BASE_URL = process.env.BASE_URL || 'https://cocotripkr.com';
-const TEST_EMAIL = process.env.HEALTH_CHECK_EMAIL || '2001leety@gmail.com'; // TEST_ACCOUNTS whitelist
+// 자동 검사 전용 계정 (roles:['health-check']). 운영자 계정 기본값 없음 — 없으면 비밀번호 없을 때와 같이 실패.
+const TEST_EMAIL = process.env.HEALTH_CHECK_EMAIL || '';
 // 🔴 `TEST-` 접두사를 다시 쓰지 말 것 (2026-08-02).
 //   `api/_ai_core/paymentGate.js` 가 2026-07-20 에 `TEST-` 경로를 폐지했다(항상 403).
 //   폐지 사유: admin 검사 없는 무인증 우회였다. 그런데 이 스펙은 계속 `TEST-E2E-` 를 보내서
 //   그 뒤 매 실행 403 으로 죽었고, 워크플로의 continue-on-error 가 그걸 초록으로 덮어
 //   **감시가 고장난 줄 아무도 몰랐다**(실측: 8/2 실행 로그 "expected 200, got 403").
 //   대체 경로 = `ADMIN-BYPASS-` — ADMIN_EMAIL 허용목록 + Firebase ID 토큰 서버 검증의
-//   이중 인증을 통과해야 열린다. HEALTH_CHECK 계정이 그 운영자 계정이라 통과한다.
+//   이중 인증을 통과해야 열린다. 2026-11-21 부터 HEALTH_CHECK 계정 = 자동 검사 전용 계정(맞춤 권한
+//   roles:['health-check']) — 허용목록 밖이라 `ADMIN-BYPASS-E2E-` 같은 자동 검사 접두사만 통과한다.
 //   ⚠️ 이 경로는 **실제 플랜 문서를 운영 Firestore 에 만든다**. 그래서 워크플로에서
 //      주 1회(월)만 돌도록 게이트했다(daily-health.yml 참조).
 const TEST_ORDER_ID = `ADMIN-BYPASS-E2E-${Date.now()}`;
@@ -37,9 +39,9 @@ const LLM_MOCK_HEADER = { 'x-llm-mock': process.env.REAL_LLM === '1' ? '0' : '1'
 async function getIdToken(): Promise<string | null> {
   const apiKey = process.env.FIREBASE_WEB_API_KEY;
   const password = process.env.HEALTH_CHECK_PASSWORD;
-  if (!apiKey || !password) {
+  if (!apiKey || !password || !TEST_EMAIL) {
     console.warn(
-      '⚠️ FIREBASE_WEB_API_KEY + HEALTH_CHECK_PASSWORD env 미설정 — plan 생성 step 401 예상. ' +
+      '⚠️ FIREBASE_WEB_API_KEY + HEALTH_CHECK_EMAIL + HEALTH_CHECK_PASSWORD env 미설정 — plan 생성 step 401 예상. ' +
       'GitHub Actions Secrets 등록 필요 (docs/AUTOMATION.md 참조).'
     );
     return null;
@@ -95,7 +97,7 @@ test.describe('CocoTrip Full E2E — Plan + Translation + PDF Auth', () => {
     const idToken = await getIdToken();
     if (!idToken) {
       throw new Error(
-        'FIREBASE_WEB_API_KEY + HEALTH_CHECK_PASSWORD secrets required for E2E plan creation. ' +
+        'FIREBASE_WEB_API_KEY + HEALTH_CHECK_EMAIL + HEALTH_CHECK_PASSWORD secrets required for E2E plan creation. ' +
         'GitHub Actions Secrets 등록 후 재실행 (docs/AUTOMATION.md 참조).'
       );
     }

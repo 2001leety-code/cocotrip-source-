@@ -18,8 +18,8 @@
 //
 // 환경변수 (GitHub Secrets 또는 .env.local):
 //   FIREBASE_WEB_API_KEY        — Firebase Web API key (auth 가능 확인용 — booking 생성 X)
-//   HEALTH_CHECK_EMAIL          — admin 계정 이메일 (TEST- prefix 바이패스 권한)
-//   HEALTH_CHECK_PASSWORD       — admin 계정 비밀번호
+//   HEALTH_CHECK_EMAIL          — 자동 검사 전용 계정 (맞춤 권한 roles:['health-check'], 운영자 관리자 계정 아님 — 2026-11-21)
+//   HEALTH_CHECK_PASSWORD       — 위 계정 비밀번호
 //   VOUCHER_TEST_BOOKING_ID     — sandbox booking ID (CT-YYYYMMDD-XXX 또는 admin-bypass).
 //                                  미설정 시 3 assertion graceful skip + exit 0.
 //   VOUCHER_TEST_BOOKING_EMAIL  — 해당 booking 의 customerEmail (소문자, voucher.js 매칭용)
