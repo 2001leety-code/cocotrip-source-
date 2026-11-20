@@ -587,7 +587,10 @@ export default async function handler(req, res) {
 
     // ── allowlist 게이트 (조회성이지만 MOOD 내부 데이터라 게이트) ──
     const allowlist = await getMoodAllowlist(db);
-    if (!isAllowedEmail(allowlist, email)) {
+    // 자동 검사 계정 (verifyUserToken().healthCheck = HEALTH_CHECK_ROLE, 허용 목록 밖). 예약·충전·쓰기는 이 표시를 안 본다.
+    //   파싱은 돌리되 주소록 매칭은 건너뛴다(이사님 집 주소 등이 응답에 실리지 않게).
+    const healthCheckOnly = auth.healthCheck === true && !isAllowedEmail(allowlist, email);
+    if (!isAllowedEmail(allowlist, email) && !healthCheckOnly) {
       res.writeHead(403, JSON_HEADERS);
       return res.end(JSON.stringify({ ok: false, error: '접근 권한 없음 (MOOD 허용 목록 전용)', code: 'NOT_ALLOWED' }));
     }
@@ -635,7 +638,7 @@ export default async function handler(req, res) {
     // ── 주소록 로드 (매칭·좌표 재사용용) ──
     let placebook = [];
     try {
-      placebook = await loadPlacebook(db);
+      placebook = healthCheckOnly ? [] : await loadPlacebook(db);
     } catch (pbErr) {
       // 주소록 못 읽어도 geocode 로 진행 (fail-soft) — 매칭만 스킵.
       console.warn('[mood-parse-schedule] 주소록 로드 실패 (geocode 로 진행):', pbErr.message);

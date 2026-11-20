@@ -133,11 +133,14 @@ export default async function handler(req, res) {
     // ── 2) 권한 게이트 ─────────────────────────────────────────
     // GET(조회): 운영자 + 광고사 직원. POST/DELETE(쓰기): 운영자 전용.
     if (method === 'GET') {
-      if (!isAllowedEmail(allowlist, email)) {
+      // 자동 검사 계정 (verifyUserToken().healthCheck = HEALTH_CHECK_ROLE, 허용 목록 밖). 예약·충전·쓰기는 이 표시를 안 본다.
+      //   조회는 돌리되 주소록 내용(이름·주소·좌표)은 비운다.
+      const healthCheckOnly = auth.healthCheck === true && !isAllowedEmail(allowlist, email);
+      if (!isAllowedEmail(allowlist, email) && !healthCheckOnly) {
         res.writeHead(403, JSON_HEADERS);
         return res.end(JSON.stringify({ ok: false, error: '조회 권한 없음' }));
       }
-      return handleGet(db, res, JSON_HEADERS);
+      return handleGet(db, res, JSON_HEADERS, { redact: healthCheckOnly });
     }
 
     // POST / DELETE — 운영자(admins) 전용.
@@ -160,7 +163,7 @@ export default async function handler(req, res) {
 }
 
 /** GET — 주소록 전체 목록. */
-async function handleGet(db, res, JSON_HEADERS) {
+async function handleGet(db, res, JSON_HEADERS, { redact = false } = {}) {
   const snap = await db.collection(COLLECTION).get();
   const places = snap.docs.map((d) => {
     const data = d.data() || {};
@@ -181,7 +184,7 @@ async function handleGet(db, res, JSON_HEADERS) {
     return a.name.localeCompare(b.name);
   });
   res.writeHead(200, JSON_HEADERS);
-  return res.end(JSON.stringify({ ok: true, places }));
+  return res.end(JSON.stringify({ ok: true, places: redact ? places.map(() => ({})) : places }));
 }
 
 /** POST — 추가/수정 + geocode + director 유일성 트랜잭션. */

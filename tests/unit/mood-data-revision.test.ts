@@ -323,3 +323,34 @@ describe('mood-data 예약 변경·정산 필드 회귀', () => {
     expect(JSON.parse(response.body)).toEqual({ ok: false, error: 'INVALID_BOOKING_CHANGE_APPROVAL' });
   });
 });
+
+// 2026-11-21: 자동 검사 전용 계정(HEALTH_CHECK_ROLE)은 허용 목록 밖이어도 조회만 통과 — 예약 내용은 비운다.
+describe('mood-data 자동 검사 계정 — 개인정보 없이 조회만', () => {
+  const request = () => ({
+    method: 'GET',
+    url: '/api/mood-data',
+    headers: { host: 'unit.test', authorization: 'Bearer token' },
+  } as any);
+
+  it('역할 계정은 200 + 예약 건수는 같고 내용은 빈 객체', async () => {
+    verifyUserTokenMock.mockResolvedValue({ ok: true, email: 'ci-check@example.test', uid: 'ci-1', emailVerified: true, healthCheck: true });
+    const { default: handler } = await import('../../api/mood-data.js');
+    const response = makeResponse();
+    await handler(request(), response as any);
+
+    expect(response.statusCode).toBe(200);
+    const json = JSON.parse(response.body);
+    expect(json.data.bookings).toHaveLength(baseBookingDocs().length);
+    expect(json.data.bookings.every((b: any) => Object.keys(b).length === 0)).toBe(true);
+    expect(response.body).not.toContain('staff@x.com');
+    expect(json.data.isAdmin).toBe(false);
+  });
+
+  it('역할 없는 허용 목록 밖 계정은 예전처럼 403', async () => {
+    verifyUserTokenMock.mockResolvedValue({ ok: true, email: 'ci-check@example.test', uid: 'ci-1', emailVerified: true, healthCheck: false });
+    const { default: handler } = await import('../../api/mood-data.js');
+    const response = makeResponse();
+    await handler(request(), response as any);
+    expect(response.statusCode).toBe(403);
+  });
+});

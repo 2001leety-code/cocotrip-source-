@@ -394,7 +394,10 @@ export default async function handler(req, res) {
     }
 
     const allowlist = await getMoodAllowlist(db);
-    if (!isAllowedEmail(allowlist, email)) {
+    // 자동 검사 계정 (verifyUserToken().healthCheck = HEALTH_CHECK_ROLE, 허용 목록 밖). 예약·충전·쓰기는 이 표시를 안 본다.
+    //   조회·잔액 검증은 끝까지 돌리고 예약 내용(주소·메모·이메일)은 비워서 돌려준다.
+    const healthCheckOnly = auth.healthCheck === true && !isAllowedEmail(allowlist, email);
+    if (!isAllowedEmail(allowlist, email) && !healthCheckOnly) {
       res.writeHead(403, JSON_HEADERS);
       return res.end(JSON.stringify({ ok: false, error: '접근 권한 없음' }));
     }
@@ -517,7 +520,7 @@ export default async function handler(req, res) {
       data: {
         clientId,
         client: { name: clientData.name || clientId, balanceKRW: currentBalanceKRW },
-        bookings,
+        bookings: healthCheckOnly ? bookings.map(() => ({})) : bookings,
         bookingAvailability,
         isAdmin: admin,
         canApproveSettlement,

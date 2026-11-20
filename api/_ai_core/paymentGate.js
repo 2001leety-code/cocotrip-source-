@@ -20,6 +20,7 @@ import { toMinorUnits, verifyCaptureIntegrity } from '../_shared/paypal-capture-
 import { claimPlanIssuance, isPlanIssuanceComplete, PLAN_ISSUANCE_CODE } from '../_shared/plan-issuance.js';
 import { isVoidTombstone } from '../_shared/payment-fulfillment-recovery.js';
 import { shapeRequest } from './requestShaper.js';
+import { isAutomatedCheckOrderId } from '../_shared/admin-bypass-detector.js';
 import { enforceDietaryCoverage, hasSafetyDiet } from './dietaryCoverageGate.js';
 import { normalizePrepayInput, prepayFingerprint, prepayInputSummary, loadPrepayFoodIndex } from '../_shared/prepay-coverage.js';
 
@@ -246,7 +247,9 @@ async function markManualOrderUsed(adminDb, usedRef, data) {
   }
 }
 
-export async function enforcePaymentAndRevision(body, adminDb, authenticatedEmail, authenticatedUid, couponContext = null, { loadFoodIndex = loadPrepayFoodIndex, ownerUid = authenticatedUid } = {}) {
+// healthCheck: verifyUserToken 의 healthCheck(이메일 확인 + HEALTH_CHECK_ROLE 맞춤 권한). 자동 검사 계정은
+//   ADMIN_BYPASS_EMAILS 에 없지만, 자동 검사 접두사(isAutomatedCheckOrderId) 주문번호에 한해서만 ADMIN-BYPASS 통과.
+export async function enforcePaymentAndRevision(body, adminDb, authenticatedEmail, authenticatedUid, couponContext = null, { loadFoodIndex = loadPrepayFoodIndex, ownerUid = authenticatedUid, healthCheck = false } = {}) {
   let prepayVerified = false;
 
   const revisionOf = body.revisionOf;
@@ -356,7 +359,9 @@ export async function enforcePaymentAndRevision(body, adminDb, authenticatedEmai
           'No email returned from Firebase ID token verification. Sign out + sign in again.');
       }
       const allowedEmails = getAdminBypassEmails();
-      if (!allowedEmails.includes(requestEmail)) {
+      const viaEmail = allowedEmails.includes(requestEmail);
+      const viaHealthCheck = !viaEmail && healthCheck === true && isAutomatedCheckOrderId(paypalOrderId);
+      if (!viaEmail && !viaHealthCheck) {
         // batch 9 fix (B9-6): reject 메시지에 원인 — 본인 이메일은 본인에게만 가니 OK.
         // 2026-11-22: 관리자 허용 목록은 관리자 아닌 계정에게 내보내지 않는다(목록 개수만 기록).
         console.warn('[planner] ADMIN-BYPASS- rejected for non-admin account | allowedCount:', allowedEmails.length);
@@ -371,6 +376,7 @@ export async function enforcePaymentAndRevision(body, adminDb, authenticatedEmai
           adminEmail: requestEmail,
           orderId: paypalOrderId,
           route: 'ai-planner-full',
+          via: viaHealthCheck ? 'health-check-role' : 'admin-email',
           bypassedAt: new Date().toISOString(),
         }).catch((e) => console.warn('[planner] admin_bypass_audit write failed:', e.message));
       }

@@ -164,7 +164,7 @@ export default async function handler(req, res) {
     const couponOwner = body.aiCouponCode && !body.revisionOf ? await resolveGuestAnonOwner(req, body.uid) : null;
     const couponContext = couponOwner ? { ...couponOwner, verifiedHistoryUid: auth.uid } : null;
     const ownerUid = auth.ok ? auth.uid : ((await verifyFirebaseIdentityToken(req)).uid || null);
-    const gate = await withStep('paymentGate', () => enforcePaymentAndRevision(body, adminDb, authenticatedEmail, auth.uid, couponContext, { ownerUid }));
+    const gate = await withStep('paymentGate', () => enforcePaymentAndRevision(body, adminDb, authenticatedEmail, auth.uid, couponContext, { ownerUid, healthCheck: auth.ok && auth.healthCheck === true }));
     if (gate.rejection) {
       const { statusCode, code, message, details } = gate.rejection;
       res.writeHead(statusCode, { ...CORS, 'Content-Type': 'application/json' });
