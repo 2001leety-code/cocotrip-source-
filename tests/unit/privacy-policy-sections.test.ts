@@ -2,12 +2,15 @@
  * The privacy policy carries the articles Korean law expects (destruction, entrustment, overseas
  * transfer, provision to third parties, data subject rights, safety measures, cookies, policy
  * changes) in all four languages, with the same article order, the same overseas recipients and
- * the same effective date (draft 2026-11-20). The text is read from the source the way
- * legal-docs-trade-name.test.ts does.
+ * one effective date taken from privacyVersions.ts (operator decisions 2026-11-20). The text is
+ * read from the source the way legal-docs-trade-name.test.ts does; the rendered page is checked in
+ * privacy-policy-page.component.test.tsx.
  */
+import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
+import { PREVIOUS_PRIVACY, PRIVACY_EFFECTIVE_DATE, formatPolicyDate, isRevisionPending } from '../../src/pages/privacyVersions';
 
 const read = (p: string) => readFileSync(resolve(__dirname, '../..', p), 'utf-8');
 const src = read('src/pages/Privacy.tsx');
@@ -73,18 +76,27 @@ const TITLES: Record<string, string[]> = {
   ],
 };
 
-// Overseas recipients (article 6) and their contacts. Each recipient is named in article 5 and
-// article 6 of every language (8 times); each contact once per language (4 times).
-const RECIPIENTS = [
-  ['Google LLC', 'googlekrsupport@google.com'],
-  ['Anthropic PBC', 'privacy@anthropic.com'],
-  ['Vercel Inc.', 'privacy@vercel.com'],
-  ['PayPal Pte. Ltd.', 'paypal.com/kr'],
-  ['Inngest Inc.', 'hello@inngest.com'],
-  ['Functional Software, Inc.', 'compliance@sentry.io'],
-  ['Telegram Messenger Inc.', 'telegram.org/support'],
-  ['Discord Inc.', 'privacy@discord.com'],
-  ['PostHog Inc.', 'privacy@posthog.com'],
+// Overseas recipients (article 6): [name, contact, times named, times the contact appears]. Each is named in
+// article 5 and article 6 of every language (8 times) with its contact once per language (4 times); Google LLC
+// has a second article 6 row for Gemini, the AI used when Claude is unavailable (12 and 8).
+const RECIPIENTS: Array<[string, string, number, number]> = [
+  ['Google LLC', 'googlekrsupport@google.com', 12, 8],
+  ['Anthropic PBC', 'privacy@anthropic.com', 8, 4],
+  ['Vercel Inc.', 'privacy@vercel.com', 8, 4],
+  ['PayPal Pte. Ltd.', 'skrprivacy@paypal.com', 8, 4],
+  ['Inngest Inc.', 'hello@inngest.com', 8, 4],
+  ['Functional Software, Inc.', 'compliance@sentry.io', 8, 4],
+  ['Telegram Messenger Inc.', 'edpo.com/telegram-gdpr-data-request', 8, 4],
+  ['PostHog Inc.', 'privacy@posthog.com', 8, 4],
+];
+
+// Companies behind the messengers the 'Company' contacts customers through (article 6), once per language.
+const MESSENGERS = [
+  'WhatsApp LLC',
+  'Kakao Corp.',
+  'LY Corporation',
+  'WeChat International Pte. Ltd.',
+  'Shenzhen Tencent Computer Systems Company Limited',
 ];
 
 // How each language quotes a button name in running text.
@@ -102,16 +114,48 @@ describe('privacy policy articles', () => {
     expect(titles).toEqual([...TITLES.en, ...TITLES.ko, ...TITLES.ja, ...TITLES.zh]);
   });
 
-  it.each(RECIPIENTS)('%s is named in articles 5 and 6 of every language, with its contact', (name, contact) => {
-    expect(count(name)).toBe(8);
-    expect(count(contact)).toBe(4);
+  it.each(RECIPIENTS)('%s is named in articles 5 and 6 of every language, with its contact', (name, contact, named, contacts) => {
+    expect(count(name)).toBe(named);
+    expect(count(contact)).toBe(contacts);
   });
 
-  it('every language shows the same effective date', () => {
-    expect(src).toContain('2026년 11월 20일부터 적용됩니다');
-    expect(src).toContain('applies from November 20, 2026');
-    expect(src).toContain('2026年11月20日から適用されます');
-    expect(src).toContain('自2026年11月20日起施行');
+  // Checked 2026-11-20: the code sends no Discord notifications, and Telegram's privacy policy names no country.
+  it('names no recipient the service does not use and no country the recipient does not state', () => {
+    expect(src).not.toMatch(/Discord|telegram\.org\/support|Arab Emirates|아랍에미리트|アラブ首長国連邦|阿拉伯联合酋长国/);
+  });
+
+  it.each(MESSENGERS)('%s is named as a messenger company in every language', (name) => {
+    expect(count(name)).toBe(4);
+  });
+
+  it('every language takes the effective date from privacyVersions.ts, with no date written by hand', () => {
+    expect(src).toContain('applies from ${DATE.en}');
+    expect(src).toContain('${DATE.ko}부터 적용됩니다');
+    expect(src).toContain('${DATE.ja}から適用されます');
+    expect(src).toContain('自${DATE.zh}起施行');
+    expect(src).not.toMatch(/\d{4}년 \d{1,2}월 \d{1,2}일|\d{4}年\d{1,2}月\d{1,2}日|(January|February|March|April|May|June|July|August|September|October|November|December) \d{1,2}, \d{4}/);
+  });
+
+  it('the effective date is written the way each language writes dates', () => {
+    expect(PRIVACY_EFFECTIVE_DATE).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+    expect(formatPolicyDate('2026-11-27', 'en')).toBe('November 27, 2026');
+    expect(formatPolicyDate('2026-11-27', 'ko')).toBe('2026년 11월 27일');
+    expect(formatPolicyDate('2026-11-27', 'ja')).toBe('2026年11月27日');
+    expect(formatPolicyDate('2026-11-27', 'zh')).toBe('2026年11月27日');
+    // The previous version applied until the day before, which may fall in the previous month or year.
+    expect(formatPolicyDate('2026-12-01', 'ko', -1)).toBe('2026년 11월 30일');
+    expect(formatPolicyDate('2027-01-01', 'en', -1)).toBe('December 31, 2026');
+  });
+
+  // The previous version is the text published before PRIVACY_EFFECTIVE_DATE (origin/main 1a10f616), word for word.
+  // Replace it, and this fingerprint, only when the next revision takes effect.
+  it('the previous version stays the published text, unchanged', () => {
+    expect(createHash('sha256').update(JSON.stringify(PREVIOUS_PRIVACY)).digest('hex').slice(0, 16)).toBe('669b4a436e716a3c');
+  });
+
+  it('the upcoming-change notice runs until the effective date begins in Korea (UTC+9)', () => {
+    expect(isRevisionPending(new Date('2026-11-26T14:59:59Z'), '2026-11-27')).toBe(true); // 23:59:59 on 26 Nov in Korea
+    expect(isRevisionPending(new Date('2026-11-26T15:00:00Z'), '2026-11-27')).toBe(false); // midnight on 27 Nov in Korea
   });
 
   // The refusal steps name the buttons on this page; a renamed button would leave them pointing nowhere.
