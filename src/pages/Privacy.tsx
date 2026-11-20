@@ -37,6 +37,8 @@ const DATE: Record<PolicyLang, string> = {
 // 🔴 제3조 AI 일정 신청 목록 줄은 시트 Leads 에 이메일·이름·일정 번호를 적지 않고 있던 줄은 1개월 뒤 비우는 코드(자동 삭제 작업)가
 //    운영에 먼저 나가야 사실이 된다.
 // 🔴 구글 지갑(api/_create-wallet-pass.js)은 운영에서 아직 꺼져 있다(설정 2개 없음) — 켜는 것을 전제로 썼다(운영자 2026-11-21 "켜기").
+//    구글이 받은 정보를 자기 서비스에도 쓰므로 위탁(제5조)이 아니라 제공(제7조)·국외 이전(제6조)으로 썼다(검토 3회차).
+//    켜기 전에 메일의 지갑 버튼 옆에 "누르면 이 정보가 구글(미국)로 감 — 제6조" 안내(4개 언어)가 먼저 나가야 한다.
 //    카드에 넣는 칸이 바뀌면 제6조 구글 지갑 줄의 항목도 고친다.
 // 🔴 운영에 설정이 없어 꺼져 있다(2026-11-20, 설정 이름만 확인): 알림을 디스코드로도 보내는 길(api/_shared/notify.js, DISCORD_WEBHOOK_URL)과
 //    WhatsApp 받은편지함(api/whatsapp-inbox-webhook.js). 켜기 전에 제3·5·6조에 4개 언어로 먼저 넣는다.
@@ -71,7 +73,7 @@ const CONTENT: Record<PolicyLang, { pageTitle: string; changeSummary: string; ar
           'Implementation of contracts related to providing travel services and payment settlement',
           'Securing smooth communication channels such as customer consultation and complaint handling',
           'Developing new services, providing customized services, and guidance on event information',
-          'Usage trend statistics (using only the month, region, travel style and number of travelers, which cannot identify anyone)',
+          'Usage trend statistics (using only the month, region, travel preferences and number of travelers, without email addresses or names)',
         ],
       },
       {
@@ -82,7 +84,7 @@ const CONTENT: Record<PolicyLang, { pageTitle: string; changeSummary: string; ar
           rows: [
             ['Trip preparation details (pickup and drop-off places, flights, dietary requirements, requests and notes, messages exchanged with drivers)', '1 month after the trip ends'],
             ['Contact details left for an itinerary preview by people who did not book', '1 month after they were left'],
-            ['Email address, name and itinerary number in the AI itinerary request list (Google Sheets)', '1 month after the request (after that, only the month, region, travel style and number of travelers, which cannot identify anyone, are kept as usage trend statistics)'],
+            ['Email address, name and itinerary number still in the AI itinerary request list (Google Sheets)', '1 month after the request (after that, only the month, region, travel preferences and number of travelers, without the email address, name or itinerary number, are kept as usage trend statistics)'],
             ['Member account and saved itineraries', 'Until you delete your account'],
             ["Contract and payment records (booking number, product, amount, dates, booker's name and email address)", '5 years (Article 6 of the Enforcement Decree of the E-Commerce Act)'],
             ['Records of consumer complaints or dispute handling', '3 years (Article 6 of the Enforcement Decree of the E-Commerce Act)'],
@@ -111,7 +113,7 @@ const CONTENT: Record<PolicyLang, { pageTitle: string; changeSummary: string; ar
         title: 'Article 5 (Entrustment of Personal Information Processing)',
         body: "To provide its services smoothly, the 'Company' entrusts the processing of personal information as follows. If the entrusted work or the entrusted companies change, the 'Company' will announce it through this Privacy Policy.",
         list: [
-          'Google LLC: Member sign-in, storage of booking and itinerary information and review photos, booking emails, booking records and usage trend statistics (Google Sheets), AI itinerary planning and editing, translation (inquiries and community posts), chat, reading partner portal schedules (Gemini, when Claude is unavailable), mobile booking pass (Google Wallet, only when you choose to save it; Article 6), visit analytics (with consent)',
+          'Google LLC: Member sign-in, storage of booking and itinerary information and review photos, booking emails, booking records and usage trend statistics (Google Sheets), AI itinerary planning and editing, translation (inquiries and community posts), chat, reading partner portal schedules (Gemini, when Claude is unavailable), visit analytics (with consent)',
           'Anthropic PBC: AI itinerary planning and editing, translation (inquiries and community posts), chat, reading partner portal schedules (Claude, used first)',
           'Vercel Inc.: Operation of the website and servers',
           'PayPal Pte. Ltd.: Payment processing and refunds',
@@ -120,18 +122,18 @@ const CONTENT: Record<PolicyLang, { pageTitle: string; changeSummary: string; ar
           "Telegram Messenger Inc.: Sending booking, dispatch, payment, inquiry and community post review notifications to the 'Company' operator, relaying website chat consultations, and sending dispatch requests to rental car companies and drivers",
           'PostHog Inc.: Visit analytics (with consent)',
         ],
-        footer: 'Route search and maps: Naver Cloud, TMAP and ODsay receive only the addresses and coordinates needed to find routes, not names or contact details. Naver maps are loaded by your browser directly from Naver, so Naver then receives your access IP, browser information and the address of the page you are viewing.',
+        footer: 'Route search and maps: Naver Cloud, TMAP and ODsay receive only the addresses and coordinates needed to find routes, not names or contact details. Naver maps are loaded by your browser directly from Naver, so Naver then receives your access IP, browser information and the address of the page you are viewing. Google Wallet: when you press the Google Wallet button in the booking confirmation email, your browser sends the pass details to Google. Google also uses them for its own services, so this is not entrustment; see Articles 6 and 7.',
       },
       {
         title: 'Article 6 (Overseas Transfer of Personal Information)',
-        body: "To provide its services, the 'Company' transfers personal information overseas as follows. Transfers needed to carry out your contract are made by disclosing them in this Privacy Policy under Article 28-8 (1) 3 (a) of the Personal Information Protection Act. Visit analytics (Google Analytics, PostHog) are transferred only if you consent in the cookie notice. The Google Wallet pass is transferred only when you press its save button.",
+        body: "To provide its services, the 'Company' transfers personal information overseas as follows. Transfers needed to carry out your contract are made by disclosing them in this Privacy Policy under Article 28-8 (1) 3 (a) of the Personal Information Protection Act. Visit analytics (Google Analytics, PostHog) are transferred only if you consent in the cookie notice. The Google Wallet pass is transferred only when you press its button in the booking confirmation email.",
         table: {
           head: ['Recipient (contact)', 'Country', 'When and how', 'Items', 'Purpose', 'Retention and use period'],
           rows: [
             ['Google LLC (googlekrsupport@google.com)', 'USA', 'Sent over the network when you use the service', 'All personal information in Article 1', 'Sign-in, data storage, emails, booking records and usage trend statistics (Google Sheets), visit analytics (with consent)', 'The periods in Article 3'],
             ['Anthropic PBC (privacy@anthropic.com)', 'USA', 'Sent over the network when AI features are used', 'Name, trip details (dates, cities, number of travelers, accommodation address, flight times, dietary requirements, requests), AI chat conversations, inquiry text and community posts to be translated, partner portal schedule text', 'AI itinerary planning and editing, translation (inquiries and community posts), chat, reading partner portal schedules (Claude, used first). Customer information is not used to train AI.', "After processing, as set in the recipient's own policy"],
             ['Google LLC — Gemini (googlekrsupport@google.com)', 'USA', 'Sent over the network when Claude is unavailable', 'The same items as Claude', 'AI itinerary planning and editing, translation (inquiries and community posts), chat, reading partner portal schedules (paid connection). Customer information is not used to train AI.', "After processing, as set in the recipient's own policy"],
-            ['Google LLC — Google Wallet (googlekrsupport@google.com)', 'USA (Google does not state the country of the servers that store it)', "Sent from your browser over the network when you press 'Add to Google Wallet' in the booking confirmation email (nothing is sent unless you press it)", 'Name, booking number, product name, number of travelers, travel date, QR code (PayPal transaction number, or the booking number if there is none)', 'Saving and showing the mobile booking pass in your Google Wallet. Under the Google Wallet API terms of service, Google may also use the information it receives to provide and improve its services.', "As set in the recipient's own policy"],
+            ['Google LLC — Google Wallet (googlekrsupport@google.com)', 'USA (Google states only that it processes data on servers in many countries)', "Sent from your browser over the network when you press 'Add to Google Wallet' in the booking confirmation email (the 'Company' servers do not send it to Google Wallet)", 'Name, booking number, product name, number of travelers, travel date, PayPal order number (used for the QR code and the pass ID; the booking number if there is none)', 'Saving and showing the mobile booking pass in your Google Wallet. Under the Google Wallet API terms of service, Google may also use the information it receives to provide and improve its services.', "As set in the recipient's own policy"],
             ['Vercel Inc. (privacy@vercel.com)', 'USA (servers in Washington, D.C.)', 'Sent over the network when you use the service', 'Personal information exchanged while using the service, access records (IP address, etc.)', 'Operation of the website and servers', "After processing, as set in the recipient's own policy"],
             ['PayPal Pte. Ltd. (agent in Korea: PayPal Korea Services LLC, 27F & 30F Trade Tower, 511 Yeongdong-daero, Gangnam-gu, Seoul, +82-2-737-5775, skrprivacy@paypal.com)', 'Singapore', 'Sent over the network when you pay or get a refund', 'Payment amount, order details (product, dates, number of travelers), refund details', 'Payment processing and refunds', "The periods in Article 3 (records PayPal keeps under its own legal duties follow PayPal's policy)"],
             ['Inngest Inc. (600 California St, Suite 1200, San Francisco, CA 94109, USA · hello@inngest.com)', 'USA', 'Sent over the network after an AI itinerary is created', 'Name, email address, member ID, trip details (dates, cities, number of travelers, accommodation address, arrival and departure airports, flight times, dietary requirements, travel preferences, requests), the AI itinerary, PayPal order number, coupon code', 'Finishing work after AI itinerary planning', "After processing, as set in the recipient's own policy"],
@@ -141,7 +143,7 @@ const CONTENT: Record<PolicyLang, { pageTitle: string; changeSummary: string; ar
           ],
         },
         contacts: [
-          { label: 'How to refuse and its effect', value: "You can refuse the overseas transfer by emailing the Protection Officer in Article 11. However, the companies above are essential for sign-in, booking, payment and itinerary planning, so if you refuse, you cannot use those services. You can refuse visit analytics (Google Analytics, PostHog) at any time in 'Cookie & analytics settings', and refusing does not limit your use of the service." },
+          { label: 'How to refuse and its effect', value: "You can refuse the overseas transfer by emailing the Protection Officer in Article 11. However, the companies above are essential for sign-in, booking, payment and itinerary planning, so if you refuse, you cannot use those services. Google Wallet data is not transferred unless you press the button in the email, and not pressing it does not limit your use of the service. You can refuse visit analytics (Google Analytics, PostHog) at any time in 'Cookie & analytics settings', and refusing does not limit your use of the service." },
         ],
         footer: "Messengers: The 'Company' contacts you through the messenger you choose. Your conversations stay on that messenger company's servers, and that company's privacy policy applies.",
         footerList: [
@@ -161,6 +163,7 @@ const CONTENT: Record<PolicyLang, { pageTitle: string; changeSummary: string; ar
           "Retention and use period: 1 month after the ride ends. The booking details in a dispatch request are removed from the driver's chat when the driver accepts or declines it, or when it ends unanswered.",
           'You may refuse to consent, but if you refuse, you cannot book a vehicle.',
         ],
+        footer: "Google Wallet pass: provided to Google LLC (USA) only if you press 'Add to Google Wallet' in the booking confirmation email. Google may also use this information to provide and improve its own services, so this is a provision rather than entrustment; the items, purpose and period are those in the Google Wallet row of the Article 6 table. Not pressing it does not limit your use of the service.",
       },
       {
         title: 'Article 8 (Rights and Obligations of Data Subjects and How to Exercise Them)',
@@ -256,7 +259,7 @@ const CONTENT: Record<PolicyLang, { pageTitle: string; changeSummary: string; ar
           '여행 서비스 제공에 따른 계약 이행 및 대금 정산',
           '고객 상담 및 민원 처리 등 원활한 의사소통 경로 확보',
           '신규 서비스 개발, 맞춤형 서비스 제공 및 이벤트 정보 안내',
-          '서비스 이용 동향 통계(사람을 알아볼 수 없는 달·지역·여행 취향·인원만 사용)',
+          '서비스 이용 동향 통계(이메일·이름 없이 달·지역·여행 취향·인원만 사용)',
         ],
       },
       {
@@ -267,7 +270,7 @@ const CONTENT: Record<PolicyLang, { pageTitle: string; changeSummary: string; ar
           rows: [
             ['여행 준비 정보(픽업·하차 장소, 항공편, 식이 조건, 요청사항·메모, 기사와 주고받은 내용)', '여행이 끝난 날부터 1개월'],
             ['예약하지 않은 분이 일정 미리보기에 남긴 연락처', '남긴 날부터 1개월'],
-            ['AI 일정 신청 목록(구글 시트)의 이메일·이름·일정 번호', '신청한 날부터 1개월 (그 뒤에는 사람을 알아볼 수 없는 달·지역·여행 취향·인원만 이용 동향 통계로 남깁니다)'],
+            ['AI 일정 신청 목록(구글 시트)에 남아 있는 이메일·이름·일정 번호', '신청한 날부터 1개월 (그 뒤에는 이메일·이름·일정 번호를 뺀 달·지역·여행 취향·인원만 이용 동향 통계로 남깁니다)'],
             ['회원 계정과 저장한 여행 일정', '회원 탈퇴 시까지'],
             ['계약·결제 기록(예약 번호, 상품, 금액, 날짜, 예약자 이름·이메일)', '5년 (전자상거래법 시행령 제6조)'],
             ['소비자 불만 또는 분쟁 처리 기록', '3년 (전자상거래법 시행령 제6조)'],
@@ -296,7 +299,7 @@ const CONTENT: Record<PolicyLang, { pageTitle: string; changeSummary: string; ar
         title: '제5조 (개인정보 처리업무의 위탁)',
         body: "'회사'는 원활한 서비스 제공을 위해 아래와 같이 개인정보 처리업무를 위탁하고 있습니다. 위탁 업무의 내용이나 수탁자가 바뀌면 이 개인정보처리방침을 통해 알리겠습니다.",
         list: [
-          'Google LLC: 회원 로그인, 예약·일정 정보와 후기 사진 저장, 예약 안내 메일 발송, 예약 관리 장부와 이용 동향 통계(구글 시트), AI 여행 일정 작성·수정, 번역(문의·커뮤니티 글), 상담, 협력사 포털 일정 글 읽기(Claude를 쓸 수 없을 때 Gemini), 모바일 예약 확인 카드(구글 지갑, 손님이 저장하기로 한 경우만 — 제6조), 방문 통계(동의한 경우)',
+          'Google LLC: 회원 로그인, 예약·일정 정보와 후기 사진 저장, 예약 안내 메일 발송, 예약 관리 장부와 이용 동향 통계(구글 시트), AI 여행 일정 작성·수정, 번역(문의·커뮤니티 글), 상담, 협력사 포털 일정 글 읽기(Claude를 쓸 수 없을 때 Gemini), 방문 통계(동의한 경우)',
           'Anthropic PBC: AI 여행 일정 작성·수정, 번역(문의·커뮤니티 글), 상담, 협력사 포털 일정 글 읽기(Claude, 먼저 사용)',
           'Vercel Inc.: 웹사이트와 서버 운영',
           'PayPal Pte. Ltd.: 결제 처리 및 환불',
@@ -305,18 +308,18 @@ const CONTENT: Record<PolicyLang, { pageTitle: string; changeSummary: string; ar
           "Telegram Messenger Inc.: '회사' 운영자에게 예약·배차·결제·문의·커뮤니티 글 검토 알림 전달, 사이트 채팅 상담 중계, 렌터카 회사·기사에게 배차 요청 전달",
           'PostHog Inc.: 방문 통계(동의한 경우)',
         ],
-        footer: '길찾기·지도: 네이버 클라우드·TMAP·ODsay에는 길을 찾는 데 필요한 주소·좌표만 보내고, 이름·연락처는 보내지 않습니다. 네이버 지도는 손님의 브라우저가 네이버에서 직접 불러오므로, 그때 네이버는 접속 IP·브라우저 정보·보고 있는 화면 주소를 받습니다.',
+        footer: '길찾기·지도: 네이버 클라우드·TMAP·ODsay에는 길을 찾는 데 필요한 주소·좌표만 보내고, 이름·연락처는 보내지 않습니다. 네이버 지도는 손님의 브라우저가 네이버에서 직접 불러오므로, 그때 네이버는 접속 IP·브라우저 정보·보고 있는 화면 주소를 받습니다. 구글 지갑: 예약 확인 메일의 구글 지갑 버튼을 누르면 손님의 브라우저가 카드 정보를 구글에 보냅니다. 구글은 이 정보를 자기 서비스에도 쓰므로 위탁이 아니며, 제6조·제7조에 따릅니다.',
       },
       {
         title: '제6조 (개인정보의 국외 이전)',
-        body: "'회사'는 서비스 제공을 위해 아래와 같이 개인정보를 국외로 이전합니다. 계약 이행에 필요한 이전은 「개인정보 보호법」 제28조의8 제1항 제3호 가목에 따라 이 처리방침에 공개하여 하고, 방문 통계(Google Analytics·PostHog)는 쿠키 안내에서 동의하신 경우에만 이전하고, 구글 지갑 카드는 손님이 저장 버튼을 누를 때에만 이전합니다.",
+        body: "'회사'는 서비스 제공을 위해 아래와 같이 개인정보를 국외로 이전합니다. 계약 이행에 필요한 이전은 「개인정보 보호법」 제28조의8 제1항 제3호 가목에 따라 이 처리방침에 공개하여 하고, 방문 통계(Google Analytics·PostHog)는 쿠키 안내에서 동의하신 경우에만 이전하고, 구글 지갑 카드는 손님이 예약 확인 메일의 버튼을 누를 때에만 이전합니다.",
         table: {
           head: ['이전받는 자(연락처)', '이전되는 나라', '이전 시기·방법', '이전 항목', '이용 목적', '보유·이용 기간'],
           rows: [
             ['Google LLC (googlekrsupport@google.com)', '미국', '서비스를 이용할 때 네트워크로 전송', '제1조의 개인정보 전부', '로그인, 정보 저장, 메일 발송, 예약 관리 장부와 이용 동향 통계(구글 시트), 방문 통계(동의한 경우)', '제3조의 기간'],
             ['Anthropic PBC (privacy@anthropic.com)', '미국', 'AI 기능을 쓸 때 네트워크로 전송', '이름, 여행 정보(날짜·도시·인원·숙소 주소·항공편 시각·식이 조건·요청사항), AI 상담 대화, 번역할 문의 내용과 커뮤니티 글, 협력사 포털 일정 글', 'AI 여행 일정 작성·수정, 번역(문의·커뮤니티 글), 상담, 협력사 포털 일정 글 읽기(Claude, 먼저 사용). 손님 정보를 AI 학습에 쓰지 않습니다.', '처리 후 업체 방침에 따른 기간'],
             ['Google LLC — Gemini (googlekrsupport@google.com)', '미국', 'Claude를 쓸 수 없을 때 네트워크로 전송', 'Claude와 같은 항목', 'AI 여행 일정 작성·수정, 번역(문의·커뮤니티 글), 상담, 협력사 포털 일정 글 읽기(유료 연결). 손님 정보를 AI 학습에 쓰지 않습니다.', '처리 후 업체 방침에 따른 기간'],
-            ['Google LLC — 구글 지갑 (googlekrsupport@google.com)', '미국 (저장 서버의 나라는 구글이 밝히지 않음)', "손님이 예약 확인 메일의 'Add to Google Wallet' 버튼을 누를 때 손님의 브라우저에서 네트워크로 전송(누르지 않으면 보내지 않음)", '이름, 예약 번호, 상품명, 인원, 여행 날짜, QR 코드(PayPal 거래 번호, 없으면 예약 번호)', '모바일 예약 확인 카드를 손님의 구글 지갑에 저장하고 보여 줌. 구글은 Google Wallet API 이용약관에 따라 받은 정보를 자기 서비스 제공·개선에도 쓸 수 있습니다.', '업체 방침에 따른 기간'],
+            ['Google LLC — 구글 지갑 (googlekrsupport@google.com)', '미국 (구글은 세계 여러 나라의 서버에서 처리한다고만 밝힘)', "손님이 예약 확인 메일의 'Add to Google Wallet' 버튼을 누를 때 손님의 브라우저에서 네트워크로 전송('회사' 서버가 구글 지갑으로 따로 보내지는 않음)", '이름, 예약 번호, 상품명, 인원, 여행 날짜, PayPal 주문 번호(QR 코드와 카드 식별 번호로 씀, 없으면 예약 번호)', '모바일 예약 확인 카드를 손님의 구글 지갑에 저장하고 보여 줌. 구글은 Google Wallet API 이용약관에 따라 받은 정보를 자기 서비스 제공·개선에도 쓸 수 있습니다.', '업체 방침에 따른 기간'],
             ['Vercel Inc. (privacy@vercel.com)', '미국 (서버: 워싱턴 D.C.)', '서비스를 이용할 때 네트워크로 전송', '서비스 이용 중 주고받는 개인정보, 접속 기록(IP 주소 등)', '웹사이트와 서버 운영', '처리 후 업체 방침에 따른 기간'],
             ['PayPal Pte. Ltd. (국내대리인: PayPal Korea Services LLC, 서울 강남구 영동대로 511 트레이드타워 27·30층, 02-737-5775, skrprivacy@paypal.com)', '싱가포르', '결제·환불할 때 네트워크로 전송', '결제 금액, 주문 내용(상품·날짜·인원), 환불 내용', '결제 처리 및 환불', '제3조의 기간(PayPal이 법에 따라 따로 보관하는 기록은 PayPal 방침에 따름)'],
             ['Inngest Inc. (600 California St, Suite 1200, San Francisco, CA 94109, USA · hello@inngest.com)', '미국', 'AI 여행 일정을 만든 뒤 네트워크로 전송', '이름, 이메일, 회원 번호, 여행 정보(날짜·도시·인원·숙소 주소·도착·출발 공항·항공편 시각·식이 조건·여행 취향·요청사항), AI가 만든 여행 일정, PayPal 주문 번호, 쿠폰 코드', 'AI 여행 일정 작성 후 마무리 작업', '처리 후 업체 방침에 따른 기간'],
@@ -326,7 +329,7 @@ const CONTENT: Record<PolicyLang, { pageTitle: string; changeSummary: string; ar
           ],
         },
         contacts: [
-          { label: '이전 거부 방법 및 효과', value: "제11조의 보호책임자에게 이메일로 국외 이전을 거부할 수 있습니다. 다만 위 업체들은 로그인·예약·결제·일정 작성에 꼭 필요하여, 거부하시면 해당 서비스를 이용하실 수 없습니다. 방문 통계(Google Analytics·PostHog)는 '쿠키·분석 설정'에서 언제든 거부할 수 있으며, 거부해도 서비스 이용에 제한이 없습니다." },
+          { label: '이전 거부 방법 및 효과', value: "제11조의 보호책임자에게 이메일로 국외 이전을 거부할 수 있습니다. 다만 위 업체들은 로그인·예약·결제·일정 작성에 꼭 필요하여, 거부하시면 해당 서비스를 이용하실 수 없습니다. 구글 지갑은 메일의 버튼을 누르지 않으면 이전되지 않고, 누르지 않아도 서비스 이용에 제한이 없습니다. 방문 통계(Google Analytics·PostHog)는 '쿠키·분석 설정'에서 언제든 거부할 수 있으며, 거부해도 서비스 이용에 제한이 없습니다." },
         ],
         footer: "연락용 메신저: '회사'는 손님이 고른 메신저로 연락드립니다. 대화는 그 메신저 회사의 서버에 남고, 그 회사의 개인정보처리방침이 적용됩니다.",
         footerList: [
@@ -346,6 +349,7 @@ const CONTENT: Record<PolicyLang, { pageTitle: string; changeSummary: string; ar
           '보유 및 이용 기간: 운행이 끝난 뒤 1개월. 배차 요청 메시지의 예약 정보는 기사가 수락하거나 거절할 때, 또는 답이 없어 요청이 끝날 때 기사의 대화창에서 지워집니다.',
           '동의를 거부할 수 있으나, 거부하면 차량 예약을 이용할 수 없습니다.',
         ],
+        footer: "구글 지갑 카드: 손님이 예약 확인 메일의 'Add to Google Wallet' 버튼을 누르는 경우에만 Google LLC(미국)에 제공합니다. 구글은 이 정보를 자기 서비스 제공·개선에도 쓸 수 있어 위탁이 아닌 제공이며, 제공 항목·목적·기간은 제6조 표의 구글 지갑 줄과 같습니다. 누르지 않아도 서비스 이용에 제한이 없습니다.",
       },
       {
         title: '제8조 (정보주체의 권리·의무 및 행사 방법)',
@@ -441,7 +445,7 @@ const CONTENT: Record<PolicyLang, { pageTitle: string; changeSummary: string; ar
           '旅行サービス提供に関する契約の履行および代金決済',
           'カスタマーサポートおよび苦情処理など円滑なコミュニケーションチャネルの確保',
           '新サービスの開発、カスタマイズサービスの提供、イベント情報のご案内',
-          'サービス利用動向の統計（個人を識別できない月・地域・旅行の好み・人数のみを使用）',
+          'サービス利用動向の統計（メールアドレス・氏名を含まない月・地域・旅行の好み・人数のみを使用）',
         ],
       },
       {
@@ -452,7 +456,7 @@ const CONTENT: Record<PolicyLang, { pageTitle: string; changeSummary: string; ar
           rows: [
             ['旅行準備の情報（乗車・降車場所、フライト、食事制限、リクエスト・メモ、ドライバーとのやり取り）', '旅行終了日から1か月'],
             ['予約しなかった方が旅行プランのプレビューに残した連絡先', '残した日から1か月'],
-            ['AI旅行プランの申込リスト（Googleスプレッドシート）のメールアドレス・氏名・プラン番号', '申し込んだ日から1か月（その後は、個人を識別できない月・地域・旅行の好み・人数のみを利用動向の統計として残します）'],
+            ['AI旅行プランの申込リスト（Googleスプレッドシート）に残っているメールアドレス・氏名・プラン番号', '申し込んだ日から1か月（その後は、メールアドレス・氏名・プラン番号を除いた月・地域・旅行の好み・人数のみを利用動向の統計として残します）'],
             ['会員アカウントと保存した旅行プラン', '退会するまで'],
             ['契約・決済の記録（予約番号、商品、金額、日付、予約者の氏名・メールアドレス）', '5年（電子商取引法施行令第6条）'],
             ['消費者の苦情または紛争処理に関する記録', '3年（電子商取引法施行令第6条）'],
@@ -481,7 +485,7 @@ const CONTENT: Record<PolicyLang, { pageTitle: string; changeSummary: string; ar
         title: '第5条（個人情報の処理業務の委託）',
         body: '当社は、円滑なサービス提供のため、以下のとおり個人情報の処理業務を委託しています。委託業務の内容または受託者が変わった場合は、本プライバシーポリシーでお知らせします。',
         list: [
-          'Google LLC：会員ログイン、予約・旅行プラン情報とレビュー写真の保存、予約案内メールの送信、予約管理台帳と利用動向の統計（Googleスプレッドシート）、AIによる旅行プランの作成・修正、翻訳（お問い合わせ・コミュニティ投稿）、相談、協力会社ポータルの日程文の読み取り（Claudeが使えない場合のGemini）、モバイル予約確認カード（Googleウォレット、お客様が保存を選んだ場合のみ — 第6条）、訪問統計（同意した場合）',
+          'Google LLC：会員ログイン、予約・旅行プラン情報とレビュー写真の保存、予約案内メールの送信、予約管理台帳と利用動向の統計（Googleスプレッドシート）、AIによる旅行プランの作成・修正、翻訳（お問い合わせ・コミュニティ投稿）、相談、協力会社ポータルの日程文の読み取り（Claudeが使えない場合のGemini）、訪問統計（同意した場合）',
           'Anthropic PBC：AIによる旅行プランの作成・修正、翻訳（お問い合わせ・コミュニティ投稿）、相談、協力会社ポータルの日程文の読み取り（Claude、優先して使用）',
           'Vercel Inc.：ウェブサイトとサーバーの運用',
           'PayPal Pte. Ltd.：決済処理および返金',
@@ -490,18 +494,18 @@ const CONTENT: Record<PolicyLang, { pageTitle: string; changeSummary: string; ar
           'Telegram Messenger Inc.：当社の運営者への予約・配車・決済・お問い合わせ・コミュニティ投稿の確認の通知、サイトのチャット相談の中継、レンタカー会社・ドライバーへの配車依頼の送信',
           'PostHog Inc.：訪問統計（同意した場合）',
         ],
-        footer: 'ルート検索・地図：Naver Cloud・TMAP・ODsayには、ルート検索に必要な住所・座標のみを送り、氏名・連絡先は送りません。Naverの地図はお客様のブラウザがNaverから直接読み込むため、その際Naverは接続IPアドレス・ブラウザ情報・閲覧中のページのアドレスを受け取ります。',
+        footer: 'ルート検索・地図：Naver Cloud・TMAP・ODsayには、ルート検索に必要な住所・座標のみを送り、氏名・連絡先は送りません。Naverの地図はお客様のブラウザがNaverから直接読み込むため、その際Naverは接続IPアドレス・ブラウザ情報・閲覧中のページのアドレスを受け取ります。Googleウォレット：予約確認メールのGoogleウォレットのボタンを押すと、お客様のブラウザがカードの情報をGoogleに送ります。Googleはこの情報を自社のサービスにも使うため委託ではなく、第6条・第7条に従います。',
       },
       {
         title: '第6条（個人情報の国外移転）',
-        body: '当社は、サービス提供のため、以下のとおり個人情報を国外へ移転しています。契約の履行に必要な移転は、韓国「個人情報保護法」第28条の8第1項第3号イ（本ポリシーでの公開）に基づいて行い、訪問統計（Google Analytics・PostHog）はCookieのお知らせで同意した場合にのみ、Googleウォレットのカードはお客様が保存ボタンを押したときにのみ移転します。',
+        body: '当社は、サービス提供のため、以下のとおり個人情報を国外へ移転しています。契約の履行に必要な移転は、韓国「個人情報保護法」第28条の8第1項第3号イ（本ポリシーでの公開）に基づいて行い、訪問統計（Google Analytics・PostHog）はCookieのお知らせで同意した場合にのみ、Googleウォレットのカードはお客様が予約確認メールのボタンを押したときにのみ移転します。',
         table: {
           head: ['移転先（連絡先）', '移転先の国', '移転の時期・方法', '移転する項目', '利用目的', '保有・利用期間'],
           rows: [
             ['Google LLC（googlekrsupport@google.com）', '米国', 'サービス利用時にネットワークで送信', '第1条の個人情報すべて', 'ログイン、情報の保存、メール送信、予約管理台帳と利用動向の統計（Googleスプレッドシート）、訪問統計（同意した場合）', '第3条の期間'],
             ['Anthropic PBC（privacy@anthropic.com）', '米国', 'AI機能の利用時にネットワークで送信', '氏名、旅行情報（日程・都市・人数・宿泊先の住所・フライト時刻・食事制限・リクエスト）、AIチャットの会話内容、翻訳するお問い合わせ内容とコミュニティ投稿、協力会社ポータルの日程文', 'AIによる旅行プランの作成・修正、翻訳（お問い合わせ・コミュニティ投稿）、相談、協力会社ポータルの日程文の読み取り（Claude、優先して使用）。お客様の情報をAIの学習に使いません。', '処理後、移転先の方針で定める期間'],
             ['Google LLC — Gemini（googlekrsupport@google.com）', '米国', 'Claudeが使えない場合にネットワークで送信', 'Claudeと同じ項目', 'AIによる旅行プランの作成・修正、翻訳（お問い合わせ・コミュニティ投稿）、相談、協力会社ポータルの日程文の読み取り（有料接続）。お客様の情報をAIの学習に使いません。', '処理後、移転先の方針で定める期間'],
-            ['Google LLC — Googleウォレット（googlekrsupport@google.com）', '米国（保存するサーバーの国はGoogleが明らかにしていません）', '予約確認メールの「Add to Google Wallet」ボタンを押したときに、お客様のブラウザからネットワークで送信（押さなければ送信しません）', '氏名、予約番号、商品名、人数、旅行日、QRコード（PayPal取引番号、ない場合は予約番号）', 'モバイル予約確認カードをお客様のGoogleウォレットに保存・表示。GoogleはGoogle Wallet APIの利用規約に基づき、受け取った情報を自社サービスの提供・改善にも使うことがあります。', '移転先の方針で定める期間'],
+            ['Google LLC — Googleウォレット（googlekrsupport@google.com）', '米国（Googleは世界各国のサーバーで処理するとのみ説明しています）', '予約確認メールの「Add to Google Wallet」ボタンを押したときに、お客様のブラウザからネットワークで送信（当社のサーバーからGoogleウォレットへ送ることはありません）', '氏名、予約番号、商品名、人数、旅行日、PayPal注文番号（QRコードとカードの識別番号に使用、ない場合は予約番号）', 'モバイル予約確認カードをお客様のGoogleウォレットに保存・表示。GoogleはGoogle Wallet APIの利用規約に基づき、受け取った情報を自社サービスの提供・改善にも使うことがあります。', '移転先の方針で定める期間'],
             ['Vercel Inc.（privacy@vercel.com）', '米国（サーバー：ワシントンD.C.）', 'サービス利用時にネットワークで送信', 'サービス利用中にやり取りされる個人情報、アクセス記録（IPアドレスなど）', 'ウェブサイトとサーバーの運用', '処理後、移転先の方針で定める期間'],
             ['PayPal Pte. Ltd.（韓国内の代理人：PayPal Korea Services LLC、ソウル特別市江南区永東大路511 トレードタワー27・30階、+82-2-737-5775、skrprivacy@paypal.com）', 'シンガポール', '決済・返金時にネットワークで送信', '決済金額、注文内容（商品・日付・人数）、返金内容', '決済処理および返金', '第3条の期間（PayPalが法令により別途保管する記録はPayPalの方針による）'],
             ['Inngest Inc.（600 California St, Suite 1200, San Francisco, CA 94109, USA・hello@inngest.com）', '米国', 'AIの旅行プラン作成後にネットワークで送信', '氏名、メールアドレス、会員番号、旅行情報（日程・都市・人数・宿泊先の住所・到着・出発空港・フライト時刻・食事制限・旅行の好み・リクエスト）、AIが作成した旅行プラン、PayPal注文番号、クーポンコード', 'AIによる旅行プラン作成後の仕上げ処理', '処理後、移転先の方針で定める期間'],
@@ -511,7 +515,7 @@ const CONTENT: Record<PolicyLang, { pageTitle: string; changeSummary: string; ar
           ],
         },
         contacts: [
-          { label: '移転の拒否方法および効果', value: '第11条の保護責任者へのメールで国外移転を拒否できます。ただし、上記の事業者はログイン・予約・決済・旅行プラン作成に欠かせないため、拒否された場合は該当サービスをご利用いただけません。訪問統計（Google Analytics・PostHog）は「Cookie・分析設定」からいつでも拒否でき、拒否してもサービスの利用に制限はありません。' },
+          { label: '移転の拒否方法および効果', value: '第11条の保護責任者へのメールで国外移転を拒否できます。ただし、上記の事業者はログイン・予約・決済・旅行プラン作成に欠かせないため、拒否された場合は該当サービスをご利用いただけません。Googleウォレットは、メールのボタンを押さなければ移転されず、押さなくてもサービスのご利用に制限はありません。訪問統計（Google Analytics・PostHog）は「Cookie・分析設定」からいつでも拒否でき、拒否してもサービスの利用に制限はありません。' },
         ],
         footer: '連絡用メッセンジャー：当社は、お客様が選んだメッセンジャーでご連絡します。会話はそのメッセンジャー会社のサーバーに残り、その会社のプライバシーポリシーが適用されます。',
         footerList: [
@@ -531,6 +535,7 @@ const CONTENT: Record<PolicyLang, { pageTitle: string; changeSummary: string; ar
           '保有・利用期間：運行終了から1か月。配車依頼メッセージの予約情報は、ドライバーが承諾または辞退したとき、または応答がなく依頼が終了したときに、ドライバーのチャットから削除されます。',
           '同意を拒否することができますが、拒否された場合は車両のご予約をご利用いただけません。',
         ],
+        footer: 'Googleウォレットのカード：予約確認メールの「Add to Google Wallet」ボタンを押した場合にのみGoogle LLC（米国）に提供します。Googleはこの情報を自社サービスの提供・改善にも使うことがあるため委託ではなく提供であり、提供項目・目的・期間は第6条の表のGoogleウォレットの行と同じです。押さなくてもサービスのご利用に制限はありません。',
       },
       {
         title: '第8条（情報主体の権利・義務およびその行使方法）',
@@ -626,7 +631,7 @@ const CONTENT: Record<PolicyLang, { pageTitle: string; changeSummary: string; ar
           '履行与旅行服务提供相关的合同及结算',
           '确保客户咨询及投诉处理等顺畅沟通渠道',
           '开发新服务、提供定制化服务及活动信息通知',
-          '服务使用趋势统计（仅使用无法识别个人的月份、地区、旅行偏好及人数）',
+          '服务使用趋势统计（仅使用不含电子邮箱和姓名的月份、地区、旅行偏好及人数）',
         ],
       },
       {
@@ -637,7 +642,7 @@ const CONTENT: Record<PolicyLang, { pageTitle: string; changeSummary: string; ar
           rows: [
             ['旅行准备信息（上车及下车地点、航班、饮食限制、需求及备注、与司机往来的内容）', '旅行结束之日起1个月'],
             ['未预订者在行程预览中留下的联系方式', '留下之日起1个月'],
-            ['AI行程申请名单（Google表格）中的电子邮箱、姓名及行程编号', '申请之日起1个月（此后仅保留无法识别个人的月份、地区、旅行偏好及人数，作为使用趋势统计）'],
+            ['AI行程申请名单（Google表格）中仍保留的电子邮箱、姓名及行程编号', '申请之日起1个月（此后仅保留去除电子邮箱、姓名及行程编号后的月份、地区、旅行偏好及人数，作为使用趋势统计）'],
             ['会员账号及保存的行程', '至注销会员时为止'],
             ['合同及付款记录（预订编号、产品、金额、日期、预订人姓名及电子邮箱）', '5年（电子商务法施行令第6条）'],
             ['消费者投诉或争议处理记录', '3年（电子商务法施行令第6条）'],
@@ -666,7 +671,7 @@ const CONTENT: Record<PolicyLang, { pageTitle: string; changeSummary: string; ar
         title: '第五条（个人信息处理业务的委托）',
         body: '为顺利提供服务，本公司将个人信息处理业务委托如下。委托业务内容或受托方发生变更时，本公司将通过本隐私政策告知。',
         list: [
-          'Google LLC：会员登录、预订及行程信息与评价照片的存储、预订通知邮件发送、预订管理台账及使用趋势统计（Google表格）、AI行程的制定及修改、翻译（咨询内容及社区帖子）、聊天咨询、读取合作方门户的日程文本（无法使用Claude时使用Gemini）、移动端预订确认卡（Google钱包，仅在您选择保存时——第六条）、访问统计（经同意时）',
+          'Google LLC：会员登录、预订及行程信息与评价照片的存储、预订通知邮件发送、预订管理台账及使用趋势统计（Google表格）、AI行程的制定及修改、翻译（咨询内容及社区帖子）、聊天咨询、读取合作方门户的日程文本（无法使用Claude时使用Gemini）、访问统计（经同意时）',
           'Anthropic PBC：AI行程的制定及修改、翻译（咨询内容及社区帖子）、聊天咨询、读取合作方门户的日程文本（Claude，优先使用）',
           'Vercel Inc.：网站及服务器运营',
           'PayPal Pte. Ltd.：支付处理及退款',
@@ -675,18 +680,18 @@ const CONTENT: Record<PolicyLang, { pageTitle: string; changeSummary: string; ar
           'Telegram Messenger Inc.：向本公司运营者发送预订、派车、付款、咨询及社区帖子审核通知，中转网站聊天咨询，向租车公司及司机发送派车请求',
           'PostHog Inc.：访问统计（经同意时）',
         ],
-        footer: '路线查询及地图：向Naver Cloud、TMAP及ODsay仅发送查询路线所需的地址和坐标，不发送姓名及联系方式。Naver地图由您的浏览器直接从Naver加载，届时Naver会收到您的访问IP、浏览器信息及所浏览页面的地址。',
+        footer: '路线查询及地图：向Naver Cloud、TMAP及ODsay仅发送查询路线所需的地址和坐标，不发送姓名及联系方式。Naver地图由您的浏览器直接从Naver加载，届时Naver会收到您的访问IP、浏览器信息及所浏览页面的地址。Google钱包：您点击预订确认邮件中的Google钱包按钮时，您的浏览器会将卡片信息发送给Google。Google也会将这些信息用于其自身服务，因此不属于委托，适用第六条及第七条。',
       },
       {
         title: '第六条（个人信息的跨境转移）',
-        body: '为提供服务，本公司将个人信息转移至境外，具体如下。履行合同所需的转移，依据韩国《个人信息保护法》第28条之8第1款第3项第1目（在本隐私政策中公开）进行；访问统计（Google Analytics、PostHog）仅在您于Cookie提示中同意后转移；Google钱包卡仅在您点击保存按钮时转移。',
+        body: '为提供服务，本公司将个人信息转移至境外，具体如下。履行合同所需的转移，依据韩国《个人信息保护法》第28条之8第1款第3项第1目（在本隐私政策中公开）进行；访问统计（Google Analytics、PostHog）仅在您于Cookie提示中同意后转移；Google钱包卡仅在您点击预订确认邮件中的按钮时转移。',
         table: {
           head: ['接收方（联系方式）', '转移国家', '转移时间及方式', '转移项目', '使用目的', '保留及使用期限'],
           rows: [
             ['Google LLC（googlekrsupport@google.com）', '美国', '使用服务时通过网络传输', '第一条所列全部个人信息', '登录、信息存储、邮件发送、预订管理台账及使用趋势统计（Google表格）、访问统计（经同意时）', '第三条规定的期限'],
             ['Anthropic PBC（privacy@anthropic.com）', '美国', '使用AI功能时通过网络传输', '姓名、行程信息（日期、城市、人数、住宿地址、航班时间、饮食限制、需求）、AI聊天对话内容、需翻译的咨询内容及社区帖子、合作方门户的日程文本', 'AI行程的制定及修改、翻译（咨询内容及社区帖子）、聊天咨询、读取合作方门户的日程文本（Claude，优先使用）。不将客户信息用于AI训练。', '处理后按接收方政策规定的期限'],
             ['Google LLC — Gemini（googlekrsupport@google.com）', '美国', '无法使用Claude时通过网络传输', '与Claude相同的项目', 'AI行程的制定及修改、翻译（咨询内容及社区帖子）、聊天咨询、读取合作方门户的日程文本（付费连接）。不将客户信息用于AI训练。', '处理后按接收方政策规定的期限'],
-            ['Google LLC — Google钱包（googlekrsupport@google.com）', '美国（Google未说明存储服务器所在的国家）', '您点击预订确认邮件中的"Add to Google Wallet"按钮时，从您的浏览器通过网络传输（不点击则不传输）', '姓名、预订编号、产品名称、人数、旅行日期、二维码（PayPal交易编号，无则为预订编号）', '将移动端预订确认卡保存并显示在您的Google钱包中。根据Google Wallet API服务条款，Google也可能将收到的信息用于提供和改进其服务。', '按接收方政策规定的期限'],
+            ['Google LLC — Google钱包（googlekrsupport@google.com）', '美国（Google仅说明其在世界多个国家的服务器上处理数据）', '您点击预订确认邮件中的"Add to Google Wallet"按钮时，从您的浏览器通过网络传输（本公司服务器不会向Google钱包另行发送）', '姓名、预订编号、产品名称、人数、旅行日期、PayPal订单编号（用于二维码和卡片识别编号，无则为预订编号）', '将移动端预订确认卡保存并显示在您的Google钱包中。根据Google Wallet API服务条款，Google也可能将收到的信息用于提供和改进其服务。', '按接收方政策规定的期限'],
             ['Vercel Inc.（privacy@vercel.com）', '美国（服务器：华盛顿特区）', '使用服务时通过网络传输', '使用服务过程中传输的个人信息、访问记录（IP地址等）', '网站及服务器运营', '处理后按接收方政策规定的期限'],
             ['PayPal Pte. Ltd.（韩国境内代理人：PayPal Korea Services LLC，首尔特别市江南区永东大路511 Trade Tower 27、30层，+82-2-737-5775，skrprivacy@paypal.com）', '新加坡', '付款及退款时通过网络传输', '付款金额、订单内容（产品、日期、人数）、退款内容', '支付处理及退款', '第三条规定的期限（PayPal依法另行保存的记录按PayPal的政策处理）'],
             ['Inngest Inc.（600 California St, Suite 1200, San Francisco, CA 94109, USA；hello@inngest.com）', '美国', '生成AI行程后通过网络传输', '姓名、电子邮箱、会员编号、行程信息（日期、城市、人数、住宿地址、到达及出发机场、航班时间、饮食限制、旅行偏好、需求）、AI生成的行程、PayPal订单号、优惠券代码', 'AI行程制定后的收尾处理', '处理后按接收方政策规定的期限'],
@@ -696,7 +701,7 @@ const CONTENT: Record<PolicyLang, { pageTitle: string; changeSummary: string; ar
           ],
         },
         contacts: [
-          { label: '拒绝转移的方法及后果', value: '您可通过电子邮件联系第十一条的保护负责人，拒绝个人信息跨境转移。但上述企业是登录、预订、付款及制定行程所必需的，拒绝后将无法使用相关服务。访问统计（Google Analytics、PostHog）可随时在"Cookie 与分析设置"中拒绝，拒绝后不影响服务的使用。' },
+          { label: '拒绝转移的方法及后果', value: '您可通过电子邮件联系第十一条的保护负责人，拒绝个人信息跨境转移。但上述企业是登录、预订、付款及制定行程所必需的，拒绝后将无法使用相关服务。Google钱包仅在您点击邮件中的按钮时才会转移，不点击也不影响您使用服务。访问统计（Google Analytics、PostHog）可随时在"Cookie 与分析设置"中拒绝，拒绝后不影响服务的使用。' },
         ],
         footer: '联系用即时通讯软件：本公司通过您选择的即时通讯软件与您联系。对话内容保存在该软件公司的服务器上，并适用该公司的隐私政策。',
         footerList: [
@@ -716,6 +721,7 @@ const CONTENT: Record<PolicyLang, { pageTitle: string; changeSummary: string; ar
           '保留及使用期限：行驶结束后1个月。司机接受或拒绝派车请求时，或请求因无人回应而结束时，派车消息中的预订信息将从司机的聊天窗口中删除。',
           '您可以拒绝同意，但拒绝后将无法预订车辆。',
         ],
+        footer: 'Google钱包卡：仅在您点击预订确认邮件中的"Add to Google Wallet"按钮时向Google LLC（美国）提供。Google也可能将这些信息用于提供和改进其自身服务，因此属于提供而非委托，提供的项目、目的及期限与第六条表中Google钱包一行相同。不点击也不影响您使用服务。',
       },
       {
         title: '第八条（信息主体的权利、义务及行使方法）',
