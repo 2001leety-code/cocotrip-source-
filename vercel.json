@@ -104,6 +104,10 @@
     {
       "path": "/api/cron-runner?job=preview-lead-recovery",
       "schedule": "0 3 * * *"
+    },
+    {
+      "path": "/api/cron-runner?job=privacy-retention-sweep",
+      "schedule": "41 19 * * *"
     }
   ],
   "functions": {

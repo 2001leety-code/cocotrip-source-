@@ -453,6 +453,49 @@ export async function getWeekSummary() {
 
 // SkippedError sentinel — caller 가 env 누락(skipped) 과 실제 API 오류를 구분.
 // `err instanceof SheetsEnvSkipped` 또는 `err?.skipped === true` 둘 다 가능.
+// ── 개인정보 보관 기간(api/_crons/privacy-retention-sweep.js) ────────────────
+/** 여행 준비 열: D 전화번호 · G 출발지 · H 도착지 · R 메모 (0-기반 열 번호). 나머지 열은 결제·계약 기록. */
+export const BOOKING_SHEET_TRIP_COLUMNS = Object.freeze({ D: 3, G: 6, H: 7, R: 17 });
+
+function sheetIdOrSkip() {
+  const spreadsheetId = process.env.GOOGLE_SHEETS_SPREADSHEET_ID;
+  if (!spreadsheetId) throw new SheetsEnvSkipped('GOOGLE_SHEETS_SPREADSHEET_ID missing');
+  return spreadsheetId;
+}
+
+/** 시트 `Leads`(일정 만들 때마다 한 줄): B 이메일 · C 이름 · G 일정 번호 = 사람을 알아보는 칸. D 지역 · E 취향 · F 인원은 동향용으로 남김. */
+export const LEADS_IDENTIFYING_COLUMNS = Object.freeze({ B: 1, C: 2, G: 6 });
+
+const RETENTION_TABS = Object.freeze({ bookings: { sheet: SHEET_NAME, range: `${SHEET_NAME}!A:R` }, leads: { sheet: 'Leads', range: 'Leads!A:G' } });
+
+/**
+ * 탭 전체(머리 줄 포함). 날짜 칸은 숫자(1899-12-30 부터 센 날)로 받는다 — 화면 글꼴(로캘)에 따라 꼴이 바뀌지 않게.
+ * 읽기 실패는 throw — "빈 장부"로 취급하지 않는다.
+ */
+export async function readRetentionSheetRows(tab) {
+  const { range } = RETENTION_TABS[tab];
+  const spreadsheetId = sheetIdOrSkip();
+  const accessToken = await getAccessToken();
+  const res = await fetch(`${SHEETS_BASE_URL}/${spreadsheetId}/values/${encodeURIComponent(range)}?valueRenderOption=UNFORMATTED_VALUE&dateTimeRenderOption=SERIAL_NUMBER`,
+    { headers: { Authorization: `Bearer ${accessToken}` } });
+  if (!res.ok) throw new Error(`SHEETS_READ_${res.status}`);
+  return (await res.json()).values || [];
+}
+
+/** cells = [{ row: 1-기반 행, column: 'D', value: '' }] → 그 칸만 바꾼다(RAW: 글자 그대로, 날짜로 바뀌지 않음). */
+export async function writeRetentionSheetCells(tab, cells) {
+  if (!cells.length) return;
+  const { sheet } = RETENTION_TABS[tab];
+  const spreadsheetId = sheetIdOrSkip();
+  const accessToken = await getAccessToken();
+  const res = await fetch(`${SHEETS_BASE_URL}/${spreadsheetId}/values:batchUpdate`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ valueInputOption: 'RAW', data: cells.map(c => ({ range: `${sheet}!${c.column}${c.row}`, values: [[c.value]] })) }),
+  });
+  if (!res.ok) throw new Error(`SHEETS_WRITE_${res.status}`);
+}
+
 export { SheetsEnvSkipped };
 
 export default {

@@ -1,0 +1,190 @@
+/**
+ * 개인정보 보관 기간 규칙 — 날짜 계산과 "지울 칸 찾기"만 하는 순수 모듈 (I/O 없음).
+ *
+ * 운영자 결정 2026-11-20 (처리방침 제3조): 여행 준비 정보·예약 안 한 사람 연락처 = 1개월,
+ * 결제·계약 기록 = 5년(문서·칸 남김), 불만·분쟁 = 3년. 칸별 표 = 작업 보고서
+ * `reports/보관기간-자동삭제-칸표-20261121.md`. 실제 읽기·지우기는 `api/_crons/privacy-retention-sweep.js`.
+ *
+ * 날짜는 모두 한국 날짜(KST). 기간은 민법 제157·160조처럼 센다: 기준일 다음 날부터,
+ * 월·년은 달력으로, 끝 달에 같은 날이 없으면 그 달 말일에 끝남 → 끝난 다음 날 0시(KST)부터 지울 수 있다.
+ */
+
+export const RETENTION_VERSION = 1;
+const DAY_MS = 86_400_000;
+const KST_OFFSET_MS = 9 * 3_600_000;
+const YMD = /^(\d{4})-(\d{2})-(\d{2})$/;
+/** 결제 예약 문서엔 시작일만 있다. 끝날을 어디서도 못 찾으면 시작일 + 이만큼을 끝날로 본다(일찍 지우지 않게). */
+export const UNKNOWN_END_BUFFER_DAYS = 14;
+
+const fmt = (y, m0, d) => new Date(Date.UTC(y, m0, d)).toISOString().slice(0, 10);
+
+export function validYmd(value) {
+  const m = typeof value === 'string' && YMD.exec(value);
+  return Boolean(m) && fmt(+m[1], +m[2] - 1, +m[3]) === value;
+}
+
+export function kstYmd(ms) {
+  if (!Number.isFinite(ms)) return null;
+  return new Date(ms + KST_OFFSET_MS).toISOString().slice(0, 10);
+}
+
+export function addDays(ymd, days) {
+  if (!validYmd(ymd)) return null;
+  const [y, m, d] = ymd.split('-').map(Number);
+  return fmt(y, m - 1, d + days);
+}
+
+/** 기준일(KST 'YYYY-MM-DD') + 기간 → 지워도 되는 첫날. 예) 1/10 + 1개월 → 2/11, 1/31 + 1개월 → 3/1. */
+export function deletableFrom(baseYmd, { months = 0, years = 0, days = 0 } = {}) {
+  if (!validYmd(baseYmd)) return null;
+  if (days) return addDays(baseYmd, days + 1);
+  const total = months + years * 12;
+  if (!(total > 0)) return null;
+  const [y, m, d] = addDays(baseYmd, 1).split('-').map(Number);
+  const targetY = y + Math.floor((m - 1 + total) / 12);
+  const targetM0 = (m - 1 + total) % 12;
+  const daysInTarget = new Date(Date.UTC(targetY, targetM0 + 1, 0)).getUTCDate();
+  return d <= daysInTarget ? fmt(targetY, targetM0, d) : fmt(targetY, targetM0 + 1, 1);
+}
+
+export function isDue(baseYmd, period, nowMs) {
+  const from = deletableFrom(baseYmd, period);
+  const today = kstYmd(nowMs);
+  return Boolean(from && today && today >= from);
+}
+
+/** Timestamp·Date·ms 숫자·ISO 문자열 → ms. 모르는 꼴은 null(= 날짜 없음, 지우지 않음). */
+export function toMs(value) {
+  if (typeof value === 'number') return Number.isFinite(value) && value > 0 ? value : null;
+  if (value instanceof Date) return Number.isFinite(value.getTime()) ? value.getTime() : null;
+  if (value && typeof value.toMillis === 'function') return value.toMillis();
+  if (typeof value === 'string' && value) { const ms = Date.parse(value); return Number.isFinite(ms) ? ms : null; }
+  return null;
+}
+
+export function msToKstYmd(value) { const ms = toMs(value); return ms === null ? null : kstYmd(ms); }
+
+const latest = values => values.filter(validYmd).sort().pop() || null;
+
+/** 여행 끝날: 아는 끝날 중 가장 늦은 날. 시작일만 알면 시작일 + 14일. 둘 다 없으면 null. */
+export function tripEndYmd(startYmd, endCandidates = []) {
+  const end = latest(endCandidates);
+  if (end) return latest([end, startYmd]);
+  return validYmd(startYmd) ? addDays(startYmd, UNKNOWN_END_BUFFER_DAYS) : null;
+}
+
+/** 시트 칸 → 다듬은 글자. 비었거나 없으면 ''. */
+export const cellText = value => (value === null || value === undefined ? '' : String(value)).trim();
+
+function isPlainObject(value) {
+  if (value === null || typeof value !== 'object') return false;
+  const proto = Object.getPrototypeOf(value);
+  return proto === Object.prototype || proto === null;
+}
+
+/**
+ * 평범한 객체 안에서 이름이 keys 인 칸의 경로를 찾는다(배열·Timestamp 안으로는 안 들어감).
+ * 찾은 칸 아래로는 더 내려가지 않는다. 결과 = [['airport'], ['intent', 'body', 'memo'], ...].
+ */
+export function findKeyPaths(data, keys, { under = [], maxDepth = 4 } = {}) {
+  const wanted = new Set(keys);
+  let root = data;
+  for (const segment of under) root = isPlainObject(root) ? root[segment] : undefined;
+  const out = [];
+  const walk = (node, path) => {
+    if (!isPlainObject(node) || path.length - under.length >= maxDepth) return;
+    for (const [key, value] of Object.entries(node)) {
+      if (wanted.has(key)) { if (value !== undefined) out.push([...path, key]); }
+      else walk(value, [...path, key]);
+    }
+  };
+  walk(root, [...under]);
+  return out;
+}
+
+/** 배열 칸을 통째로 다시 쓸 때만 쓴다: 평범한 객체만 복사하며 keys 를 빼고, Timestamp 등은 그대로 둔다. */
+export function withoutKeysDeep(value, keys) {
+  const wanted = keys instanceof Set ? keys : new Set(keys);
+  if (Array.isArray(value)) return value.map(item => withoutKeysDeep(item, wanted));
+  if (!isPlainObject(value)) return value;
+  const out = {};
+  for (const [key, item] of Object.entries(value)) {
+    if (!wanted.has(key) && item !== undefined) out[key] = withoutKeysDeep(item, wanted);
+  }
+  return out;
+}
+
+// ── 지우는 칸 (여행 준비 정보). 나머지 칸은 결제·계약 기록으로 남는다. ──────────────────
+/** 예약·수동 결제 문서 맨 위 칸. 메신저 ID 는 memo("Messenger: …")와 itineraryData 안에 있다. */
+export const BOOKING_TRIP_KEYS = Object.freeze([
+  'customerPhone', 'pickupLocation', 'dropoffLocation', 'hotelAddress',
+  'airport', 'terminal', 'flightNumber', 'luggage', 'luggageSmall', 'luggageMedium', 'luggageLarge', 'luggageTotal',
+  'memo', 'notes', 'itineraryData',
+  'driver', 'driverChatId', 'dispatchedTo', 'dispatchedDriverId',
+]);
+/** 결제 기록 안 사본(used_paypal_orders.intent.body, payment_reviews.bookingPayload, cart_orders.lines[].booking). */
+export const PAYMENT_COPY_TRIP_KEYS = Object.freeze([
+  'customerPhone', 'pickupLocation', 'dropoffLocation', 'hotelAddress', 'airport', 'memo', 'itineraryData',
+]);
+/** 협력사 예약과 그 변경 이력·견적 사본. */
+export const MOOD_TRIP_KEYS = Object.freeze([
+  'origin', 'destination', 'waypoints', 'routeSnapshot', 'routeSchedule', 'note', 'influencerName',
+]);
+
+/** 끝난 예약만 비운다. 환불·취소 진행 중, 입금 확인 대기, 모르는 상태는 건너뛴다(개수만). */
+const SETTLED_BOOKING_STATUSES = new Set(['confirmed', 'completed', 'canceled', 'cancelled', 'refunded', 'rejected']);
+export const bookingSettled = status => SETTLED_BOOKING_STATUSES.has(String(status || '').trim().toLowerCase());
+
+const SETTLED_MOOD_STATUSES = new Set(['confirmed', 'completed', 'cancelled', 'canceled']);
+/** 열린 승인·다툼(운영자 11/21: 정산 다툼이 열린 건은 건너뜀). changes_requested = 협력사가 수정 요청. */
+const OPEN_CHANGE_APPROVALS = new Set(['pending', 'awaiting_mood', 'ready', 'changes_requested']);
+/** 정산은 운영자가 제안을 거둔 것(withdrawn)도 아직 정산 안 끝남. */
+const OPEN_SETTLEMENT_APPROVALS = new Set([...OPEN_CHANGE_APPROVALS, 'withdrawn']);
+const lower = value => String(value || '').trim().toLowerCase();
+export function moodBookingSettled(data) {
+  if (!SETTLED_MOOD_STATUSES.has(lower(data?.status))) return false;
+  return !OPEN_CHANGE_APPROVALS.has(lower(data?.bookingChangeApproval?.status))
+    && !OPEN_SETTLEMENT_APPROVALS.has(lower(data?.settlementApproval?.status));
+}
+
+/** 비회원 AI 일정 끝날: input.startDate + durationDays - 1. 일수를 모르면 시작일 + 14일. */
+export function planTripEndYmd(input) {
+  const start = input?.startDate;
+  const days = Number(input?.durationDays);
+  if (validYmd(start) && Number.isInteger(days) && days > 0) return addDays(start, days - 1);
+  return tripEndYmd(start, []);
+}
+
+/**
+ * 구글 시트 칸 → 한국 날짜. 시트는 날짜를 숫자(1899-12-30 부터 센 날)로 돌려주거나(UNFORMATTED_VALUE),
+ * 글자로 둔다('2026-10-01', '2026. 10. 1', ISO 시각). 모르는 꼴은 null(= 지우지 않음).
+ */
+export function sheetDateYmd(value) {
+  if (typeof value === 'number') {
+    if (!(value > 0)) return null;
+    return new Date(Date.UTC(1899, 11, 30) + Math.floor(value) * DAY_MS).toISOString().slice(0, 10);
+  }
+  const text = cellText(value);
+  if (text.includes('T')) return msToKstYmd(text);
+  const m = /^(\d{4})\s*[-./]\s*(\d{1,2})\s*[-./]\s*(\d{1,2})/.exec(text);
+  if (!m) return null;
+  const ymd = `${m[1]}-${m[2].padStart(2, '0')}-${m[3].padStart(2, '0')}`;
+  return validYmd(ymd) ? ymd : null;
+}
+
+/** 시트 `Leads` 줄의 동향용 시각 = 한국 달(YYYY-MM). 사람을 알아볼 수 없게 날짜·시각은 버린다. */
+export function kstMonth(ms) { const ymd = kstYmd(ms); return ymd ? ymd.slice(0, 7) : null; }
+export const MONTH_ONLY = /^\d{4}-\d{2}$/;
+/** 'YYYY-MM' → 그 달 말일. */
+export function monthEndYmd(month) {
+  if (!MONTH_ONLY.test(String(month)) || !validYmd(`${month}-01`)) return null;
+  const [y, m] = month.split('-').map(Number);
+  return fmt(y, m, 0);
+}
+
+/** inquiry-response-workflow 등과 같은 종료 상태(처리 끝난 견적 문의). */
+const TERMINAL_INQUIRY_STATUSES = new Set(['rejected', 'responded', 'closed', 'converted']);
+export const inquiryClosed = status => TERMINAL_INQUIRY_STATUSES.has(String(status || '').trim().toLowerCase());
+
+/** 쿼리 범위용: 기간이 아무리 짧아도 이보다 최근 것은 볼 필요가 없다(1개월 ≥ 28일, 30일 기간 ≥ 30일). */
+export const scanCutoffMs = (nowMs, period) => nowMs - (period.years ? 365 * period.years : period.days || 28 * (period.months || 1)) * DAY_MS;

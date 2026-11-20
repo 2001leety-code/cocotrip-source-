@@ -1,0 +1,183 @@
+/**
+ * 2026-11-21 개인정보 보관 기간 규칙(api/_shared/privacy-retention.js) — 날짜·칸 찾기.
+ * 날짜는 한국(KST) 달력, 기간은 민법처럼(기준일 다음 날부터, 끝 달에 같은 날 없으면 말일) 센다.
+ */
+import { describe, it, expect } from 'vitest';
+import {
+  deletableFrom, isDue, kstYmd, validYmd, toMs, tripEndYmd, findKeyPaths, withoutKeysDeep,
+  bookingSettled, moodBookingSettled, inquiryClosed, scanCutoffMs, UNKNOWN_END_BUFFER_DAYS,
+  planTripEndYmd, sheetDateYmd, kstMonth, monthEndYmd,
+} from '../../api/_shared/privacy-retention.js';
+import { leadSheetRow } from '../../api/_ai_core/emailNotifier.js';
+
+const MONTH = { months: 1 };
+const kst = (iso: string) => Date.parse(`${iso}+09:00`);
+
+class FakeTimestamp { constructor(private ms: number) {} toMillis() { return this.ms; } }
+
+describe('지워도 되는 첫날 (민법식 기간)', () => {
+  it.each([
+    ['2026-01-10', '2026-02-11'],
+    ['2026-01-30', '2026-03-01'], // 시작 1/31 → 2/31 없음 → 2월 말일 끝 → 3/1
+    ['2026-01-31', '2026-03-01'],
+    ['2027-02-28', '2027-04-01'], // 시작 3/1 → 4/1 전날(3/31) 끝
+    ['2026-12-31', '2027-02-01'], // 해 넘김
+    ['2028-01-28', '2028-02-29'], // 윤년: 2/29 있음
+    ['2027-01-28', '2027-03-01'], // 평년: 2/29 없음
+  ])('%s + 1개월 → %s', (base, expected) => {
+    expect(deletableFrom(base, MONTH)).toBe(expected);
+  });
+
+  it('30일 = 기준일 다음 날부터 30일 지난 다음 날', () => {
+    expect(deletableFrom('2026-11-01', { days: 30 })).toBe('2026-12-02');
+    expect(deletableFrom('2026-12-15', { days: 30 })).toBe('2027-01-15');
+  });
+
+  it('3년 — 윤년 2/29 시작은 평년 3/1', () => {
+    expect(deletableFrom('2026-11-21', { years: 3 })).toBe('2029-11-22');
+    expect(deletableFrom('2028-02-28', { years: 3 })).toBe('2031-03-01');
+  });
+
+  it('날짜가 아니면 null (지우지 않음)', () => {
+    for (const bad of ['', '2026-02-30', '2026/01/10', '20260110', null, undefined, 20260110]) {
+      expect(deletableFrom(bad as never, MONTH)).toBeNull();
+      expect(isDue(bad as never, MONTH, kst('2030-01-01T00:00:00'))).toBe(false);
+    }
+    expect(deletableFrom('2026-01-10', {})).toBeNull();
+  });
+});
+
+describe('한국 자정 경계', () => {
+  it('2/10 23:59:59 KST 에는 아직, 2/11 00:00:00 KST 부터 지움', () => {
+    expect(isDue('2026-01-10', MONTH, kst('2026-02-10T23:59:59'))).toBe(false);
+    expect(isDue('2026-01-10', MONTH, kst('2026-02-11T00:00:00'))).toBe(true);
+    // 같은 순간을 UTC 로 보면 2/10 15:00 — UTC 날짜로 셌다면 하루 늦거나 빨랐을 것.
+    expect(new Date(kst('2026-02-11T00:00:00')).toISOString()).toBe('2026-02-10T15:00:00.000Z');
+  });
+
+  it('kstYmd 는 UTC 15:00 에 날짜가 바뀐다', () => {
+    expect(kstYmd(Date.parse('2026-03-31T14:59:59Z'))).toBe('2026-03-31');
+    expect(kstYmd(Date.parse('2026-03-31T15:00:00Z'))).toBe('2026-04-01');
+  });
+
+  it('쿼리 범위(scanCutoffMs)는 지울 것을 하나도 빠뜨리지 않는다', () => {
+    const now = kst('2026-03-01T00:00:00');
+    // 1개월: 1/31 끝 → 3/1 부터 지움. 그 기준일 시각(1/31 23:59 KST)이 범위 안이어야 한다.
+    expect(kst('2026-01-31T23:59:59')).toBeLessThanOrEqual(scanCutoffMs(now, MONTH));
+    expect(kst('2026-01-29T23:59:59')).toBeLessThanOrEqual(scanCutoffMs(kst('2026-03-01T00:00:00'), { days: 30 }));
+    expect(kst('2023-02-27T23:59:59')).toBeLessThanOrEqual(scanCutoffMs(now, { years: 3 }));
+  });
+});
+
+describe('여행 끝날', () => {
+  it('아는 끝날 중 가장 늦은 날, 시작일보다 앞이면 시작일', () => {
+    expect(tripEndYmd('2026-10-01', ['2026-10-03', '', null])).toBe('2026-10-03');
+    expect(tripEndYmd('2026-10-05', ['2026-10-03'])).toBe('2026-10-05');
+  });
+  it('끝날을 모르면 시작일 + 14일 (일찍 지우지 않게)', () => {
+    expect(UNKNOWN_END_BUFFER_DAYS).toBe(14);
+    expect(tripEndYmd('2026-10-15', [])).toBe('2026-10-29');
+    expect(tripEndYmd('', [])).toBeNull();
+    expect(tripEndYmd(undefined as never, ['2026-10-03'])).toBe('2026-10-03');
+  });
+});
+
+describe('toMs', () => {
+  it('Timestamp·Date·숫자·ISO 를 읽고 나머지는 null', () => {
+    expect(toMs(new FakeTimestamp(5))).toBe(5);
+    expect(toMs(new Date(7))).toBe(7);
+    expect(toMs(9)).toBe(9);
+    expect(toMs('2026-01-01T00:00:00Z')).toBe(Date.parse('2026-01-01T00:00:00Z'));
+    for (const bad of [0, -1, NaN, '', 'not a date', null, undefined, {}]) expect(toMs(bad as never)).toBeNull();
+  });
+});
+
+describe('지울 칸 찾기', () => {
+  it('평범한 객체만 내려가고, 배열·Timestamp 안은 건드리지 않는다', () => {
+    const data = {
+      memo: 'm', keep: 1,
+      intent: { body: { memo: 'x', amount: 3, nested: { memo: 'deep' } } },
+      lines: [{ memo: 'in array' }],
+      createdAt: new FakeTimestamp(1),
+    };
+    expect(findKeyPaths(data, ['memo'], { maxDepth: 4 })).toEqual([['memo'], ['intent', 'body', 'memo'], ['intent', 'body', 'nested', 'memo']]);
+    expect(findKeyPaths(data, ['memo'], { under: ['intent', 'body'], maxDepth: 1 })).toEqual([['intent', 'body', 'memo']]);
+    expect(findKeyPaths(data, ['memo'], { under: ['missing'] })).toEqual([]);
+    expect(findKeyPaths({ memo: undefined }, ['memo'])).toEqual([]);
+  });
+
+  it('withoutKeysDeep 은 Timestamp 같은 특수 값을 그대로(같은 객체) 둔다', () => {
+    const ts = new FakeTimestamp(1);
+    const out = withoutKeysDeep({ memo: 'x', at: ts, list: [{ memo: 'y', at: ts }], keep: { a: 1, b: undefined } }, ['memo']);
+    expect(out).toEqual({ at: ts, list: [{ at: ts }], keep: { a: 1 } });
+    expect((out as { at: unknown }).at).toBe(ts);
+  });
+});
+
+describe('상태 판정', () => {
+  it('끝난 예약만 비운다', () => {
+    for (const s of ['CONFIRMED', 'confirmed', 'COMPLETED', 'CANCELED', 'cancelled', 'REFUNDED', 'REJECTED']) expect(bookingSettled(s)).toBe(true);
+    for (const s of ['REFUND_PENDING', 'REFUND_UNKNOWN', 'REFUND_FAILED', 'CANCELING', 'AWAITING_VERIFICATION', '', undefined]) expect(bookingSettled(s)).toBe(false);
+  });
+  it('협력사 예약은 변경·정산 승인이 열려 있으면 건너뛴다', () => {
+    expect(moodBookingSettled({ status: 'confirmed' })).toBe(true);
+    expect(moodBookingSettled({ status: 'confirmed', bookingChangeApproval: { status: 'pending' } })).toBe(false);
+    expect(moodBookingSettled({ status: 'completed', settlementApproval: { status: 'awaiting_mood' } })).toBe(false);
+    expect(moodBookingSettled({ status: 'draft' })).toBe(false);
+  });
+  it('견적 문의 종료 상태', () => {
+    for (const s of ['rejected', 'responded', 'closed', 'converted', 'CLOSED']) expect(inquiryClosed(s)).toBe(true);
+    for (const s of ['NEW', 'open', '', undefined]) expect(inquiryClosed(s)).toBe(false);
+  });
+  it('validYmd', () => {
+    expect(validYmd('2028-02-29')).toBe(true);
+    expect(validYmd('2027-02-29')).toBe(false);
+  });
+  it('협력사 정산 다툼(수정 요청)·거둔 정산 제안은 건너뛴다', () => {
+    expect(moodBookingSettled({ status: 'completed', settlementApproval: { status: 'changes_requested' } })).toBe(false);
+    expect(moodBookingSettled({ status: 'completed', settlementApproval: { status: 'withdrawn' } })).toBe(false);
+    expect(moodBookingSettled({ status: 'confirmed', bookingChangeApproval: { status: 'changes_requested' } })).toBe(false);
+    expect(moodBookingSettled({ status: 'confirmed', bookingChangeApproval: { status: 'withdrawn' } })).toBe(true); // 변경 요청 철회 = 끝남
+    expect(moodBookingSettled({ status: 'completed', settlementApproval: { status: 'completed' } })).toBe(true);
+  });
+});
+
+describe('비회원 AI 일정 끝날', () => {
+  it('시작일 + 일수 - 1, 일수 모르면 + 14일, 시작일 없으면 null', () => {
+    expect(planTripEndYmd({ startDate: '2026-09-29', durationDays: 3 })).toBe('2026-10-01');
+    expect(planTripEndYmd({ startDate: '2026-09-29', durationDays: 1 })).toBe('2026-09-29');
+    expect(planTripEndYmd({ startDate: '2026-09-29', durationDays: null })).toBe('2026-10-13');
+    expect(planTripEndYmd({ startDate: '2026-09-29', durationDays: 'x' })).toBe('2026-10-13');
+    expect(planTripEndYmd({ startDate: null, durationDays: 3 })).toBeNull();
+    expect(planTripEndYmd(undefined)).toBeNull();
+  });
+});
+
+describe('구글 시트 날짜 칸', () => {
+  it('숫자(1899-12-30 부터 센 날)·글자 날짜·ISO 시각을 한국 날짜로', () => {
+    expect(sheetDateYmd(46296)).toBe('2026-10-01');
+    expect(sheetDateYmd(46296.75)).toBe('2026-10-01'); // 시각 붙은 날짜
+    expect(sheetDateYmd('2026-10-01')).toBe('2026-10-01');
+    expect(sheetDateYmd('2026. 10. 1')).toBe('2026-10-01');
+    expect(sheetDateYmd('2026. 10. 1. 오후 3:00:00')).toBe('2026-10-01');
+    expect(sheetDateYmd('2026/1/5')).toBe('2026-01-05');
+    expect(sheetDateYmd('2026-09-30T15:30:00.000Z')).toBe('2026-10-01'); // UTC 15:30 = 한국 다음 날
+    for (const bad of ['', '시각', '2026-13-01', 0, -1, null, undefined]) expect(sheetDateYmd(bad as never)).toBeNull();
+  });
+  it('달·말일', () => {
+    expect(kstMonth(Date.parse('2026-10-31T15:00:00Z'))).toBe('2026-11');
+    expect(monthEndYmd('2026-02')).toBe('2026-02-28');
+    expect(monthEndYmd('2028-02')).toBe('2028-02-29');
+    expect(monthEndYmd('2026-12')).toBe('2026-12-31');
+    expect(monthEndYmd('2026-13')).toBeNull();
+  });
+});
+
+describe('Leads 새 줄 = 동향만', () => {
+  it('이메일·이름·일정 번호 없이, 시각은 한국 달', () => {
+    expect(leadSheetRow({ area: 'Seoul', styles: ['food', 'cafe'], pax: 2 }, Date.parse('2026-10-31T15:00:00Z')))
+      .toEqual(['2026-11', '', '', 'Seoul', 'food, cafe', 2, '']);
+    expect(leadSheetRow({ area: undefined, styles: undefined, pax: undefined } as never, Date.parse('2026-10-01T00:00:00Z')))
+      .toEqual(['2026-10', '', '', '', '', '', '']);
+  });
+});
