@@ -23,7 +23,7 @@ const CONTENT = {
           'When planning or booking a trip: Travel dates and cities, number of travelers and who you travel with, accommodation address, pickup or meeting place, flight arrival and departure times, dietary requirements (halal, vegan, vegetarian) and food preferences, travel preferences',
           'When signing in: Name, email address and profile photo of your Google or LINE account; your phone number if you sign in with it',
           "When paying: Payment amount, PayPal transaction ID, payer's name and email address (payment details such as card numbers are entered directly with PayPal; the 'Company' does not receive them)",
-          'When writing reviews or chatting: Review text and photos, AI chat conversations',
+          'When writing reviews, chatting or sending inquiries: Review text and photos, AI chat conversations, inquiry details',
           'Automatically Collected: Service use record, access log, cookie, access IP information',
         ],
       },
@@ -50,13 +50,13 @@ const CONTENT = {
         body: "When the retention period ends or the purpose of processing is achieved and personal information is no longer needed, the 'Company' destroys it without delay.",
         list: [
           'Procedure: Personal information to be destroyed is selected and destroyed with the approval of the Personal Information Protection Officer.',
-          'Retention required by law: Personal information that other laws require to be kept, as in Article 3, is stored separately from other personal information only for that period and then destroyed.',
+          'Retention required by law: Personal information that other laws require to be kept, as in Article 3 (name, contact number, email address, booking, payment and refund records, and records of consultations and complaints), is stored separately from other personal information only for that period and then destroyed.',
           'Method: Electronic files are deleted so that they cannot be restored, and personal information printed on paper is shredded or incinerated.',
         ],
       },
       {
         title: 'Article 5 (Entrustment of Personal Information Processing)',
-        body: "To provide its services smoothly, the 'Company' entrusts the processing of personal information as follows. When entrusting, the 'Company' sets out, in accordance with Article 26 of the Personal Information Protection Act, a ban on processing for purposes other than the entrusted work, safeguards, limits on re-entrustment and responsibility such as compensation for damages, and supervises whether the entrusted companies process personal information safely. If the entrusted work or the entrusted companies change, the 'Company' will announce it through this Privacy Policy.",
+        body: "To provide its services smoothly, the 'Company' entrusts the processing of personal information as follows. If the entrusted work or the entrusted companies change, the 'Company' will announce it through this Privacy Policy.",
         list: [
           'Google LLC: Member sign-in, storage of booking and itinerary information and review photos, booking emails, booking records, AI itinerary planning, translation and chat, mobile booking pass, visit analytics (with consent)',
           'Anthropic PBC: AI itinerary planning, editing, translation and chat',
@@ -73,24 +73,35 @@ const CONTENT = {
         title: 'Article 6 (Overseas Transfer of Personal Information)',
         body: "To provide its services, the 'Company' transfers personal information overseas to the entrusted companies in Article 5 as follows (Article 28-8 of the Personal Information Protection Act).",
         list: [
-          'Google LLC (USA, googlekrsupport@google.com) — Items: all personal information in Article 1 / Purpose: sign-in, data storage, emails, booking records, AI itinerary planning, visit analytics (with consent)',
-          'Anthropic PBC (USA, privacy@anthropic.com) — Items: name, trip details (dates, cities, number of travelers, accommodation address, flight times, dietary requirements, requests), AI chat conversations / Purpose: AI itinerary planning, editing, translation and chat',
+          'Google LLC (USA, googlekrsupport@google.com) — Items: all personal information in Article 1 / Purpose: sign-in, data storage, emails, booking records, AI itinerary planning, translation and chat, mobile booking pass, visit analytics (with consent)',
+          'Anthropic PBC (USA, privacy@anthropic.com) — Items: name, trip details (dates, cities, number of travelers, accommodation address, flight times, dietary requirements, requests), AI chat conversations, inquiry text to be translated / Purpose: AI itinerary planning, editing, translation and chat',
           'Vercel Inc. (USA, privacy@vercel.com) — Items: personal information exchanged while using the service, access records (IP address, etc.) / Purpose: operation of the website and servers',
           'PayPal Pte. Ltd. (Singapore, paypal.com/kr) — Items: payment amount, order details (product, dates, number of travelers), refund details / Purpose: payment processing and refunds',
-          'Inngest Inc. (USA, hello@inngest.com) — Items: name, email address, member ID, trip dates, number of travelers, dietary requirements, requests / Purpose: finishing work after AI itinerary planning',
-          'Functional Software, Inc. (Sentry) (USA, compliance@sentry.io) — Items: error details, address of the page where the error occurred, device and browser information, access IP information / Purpose: checking service errors',
-          "Telegram Messenger Inc. (United Arab Emirates, telegram.org/support) — Items: name, contact number, email address, pickup and drop-off places, flight number, requests, inquiry and chat content / Purpose: delivering booking and inquiry notifications to staff of the 'Company' and drivers",
+          'Inngest Inc. (USA, hello@inngest.com) — Items: name, email address, member ID, trip details (dates, cities, number of travelers, accommodation address, arrival and departure airports, flight times, dietary requirements, travel preferences, requests), the AI itinerary, PayPal order number, coupon code / Purpose: finishing work after AI itinerary planning',
+          'Functional Software, Inc. (Sentry) (USA, compliance@sentry.io) — Items: error details, address of the page where the error occurred, device and browser information, access IP information, member ID and account email address in some error reports / Purpose: checking service errors',
+          "Telegram Messenger Inc. (United Arab Emirates, telegram.org/support) — Items: name, contact number, email address, messenger ID, booking details (product, date, number of travelers, vehicle), pickup and drop-off places, flight number, terminal and number of bags, payment amount and PayPal transaction ID, requests, inquiry and chat content / Purpose: delivering booking and inquiry notifications to staff of the 'Company' and drivers",
           "Discord Inc. (USA, privacy@discord.com) — Items: the same items as the Telegram notifications / Purpose: delivering notifications to staff of the 'Company'",
-          'PostHog Inc. (USA, privacy@posthog.com) — Items: pages visited, device and browser information, cookie ID / Purpose: visit analytics (with consent)',
+          'PostHog Inc. (USA, privacy@posthog.com) — Items: pages visited, device and browser information, cookie ID, access IP information / Purpose: visit analytics (with consent)',
         ],
         contacts: [
           { label: 'Time and method of transfer', value: 'Sent over the network whenever the service is used' },
           { label: 'Retention and use period', value: 'Until the retention period in Article 3 ends or the entrustment contract ends' },
-          { label: 'How to refuse and its effect', value: "You can refuse the overseas transfer by emailing the Protection Officer in Article 10. However, the companies above are essential for sign-in, booking, payment and itinerary planning, so if you refuse, you cannot use those services. You can refuse visit analytics (Google Analytics, PostHog) at any time in 'Cookie & analytics settings', and refusing does not limit your use of the service." },
+          { label: 'How to refuse and its effect', value: "You can refuse the overseas transfer by emailing the Protection Officer in Article 11. However, the companies above are essential for sign-in, booking, payment and itinerary planning, so if you refuse, you cannot use those services. You can refuse visit analytics (Google Analytics, PostHog) at any time in 'Cookie & analytics settings', and refusing does not limit your use of the service." },
         ],
       },
       {
-        title: 'Article 7 (Rights and Obligations of Data Subjects and How to Exercise Them)',
+        title: 'Article 7 (Provision of Personal Information to Third Parties)',
+        body: "The 'Company' provides personal information to third parties only when you consent or when the law specifically allows it. When you book a vehicle, the 'Company' asks for your consent and provides personal information as follows.",
+        list: [
+          'Recipients: Vehicle suppliers and drivers who receive the dispatch request for your booking',
+          'Purpose: Providing the vehicle service you booked, such as pickup and transfers',
+          'Items: Booking number, product, date of use, number of travelers, pickup and drop-off places, requests',
+          "Retention and use period: Until the vehicle service is completed. The booking details in a dispatch request are removed from the driver's chat when the driver accepts or declines it, or when it ends unanswered.",
+          'You may refuse to consent, but if you refuse, you cannot book a vehicle.',
+        ],
+      },
+      {
+        title: 'Article 8 (Rights and Obligations of Data Subjects and How to Exercise Them)',
         body: "You may at any time ask the 'Company' to let you view, correct, delete or stop processing your personal information, or withdraw your consent.",
         list: [
           "Viewing: You can see the personal information the 'Company' holds about you and how it is processed.",
@@ -99,24 +110,24 @@ const CONTENT = {
         ],
         footer: 'You can exercise these rights as follows:',
         footerList: [
-          "Email the Personal Information Protection Officer in Article 10 (cocotripkr@gmail.com). The 'Company' will act within 10 days and tell you the result.",
+          "Email the Personal Information Protection Officer in Article 11 (cocotripkr@gmail.com). The 'Company' will act within 10 days and tell you the result.",
           'You can also make a request through a representative, such as a legal representative or a person you have authorized. In that case, please send a power of attorney with the request.',
           "The 'Company' checks that the person making the request is you or your rightful representative.",
           "Please enter your own personal information accurately and do not enter other people's personal information. When you enter details of people traveling with you, please get their consent first.",
         ],
       },
       {
-        title: 'Article 8 (Measures to Ensure the Safety of Personal Information)',
+        title: 'Article 9 (Measures to Ensure the Safety of Personal Information)',
         body: "The 'Company' takes the following measures to process personal information safely.",
         list: [
           'Administrative: Only the minimum number of people who need it can handle personal information.',
           'Technical: All communication between the website and the servers is encrypted (HTTPS); database access rules let members reach only their own information; administrator functions are limited to designated accounts.',
           "No storage of payment details or passwords: Payment details such as card numbers are handled directly by PayPal, and sign-in uses Google, LINE or phone number verification, so the 'Company' does not keep this information or any passwords.",
-          'Physical: Personal information is stored in the data centers of the entrusted company (Google), which control physical access and encrypt stored data.',
+          'Physical: Personal information is mainly stored in the data centers of the entrusted company (Google), which control physical access and encrypt stored data.',
         ],
       },
       {
-        title: 'Article 9 (Installation, Operation and Refusal of Cookies and Other Automatic Collection Tools)',
+        title: 'Article 10 (Installation, Operation and Refusal of Cookies and Other Automatic Collection Tools)',
         body: "The 'Company' uses cookies and browser storage to remember information needed for the service and to measure visits. A cookie is a small piece of information that a website sends to your browser and that is stored on your device.",
         list: [
           'Essential storage: Remembers your sign-in, the itinerary and cart you are working on, and your language and cookie settings. It is needed to use the service, so it is used regardless of your cookie settings.',
@@ -129,7 +140,7 @@ const CONTENT = {
         ],
       },
       {
-        title: 'Article 10 (Personal Information Protection Officer)',
+        title: 'Article 11 (Personal Information Protection Officer)',
         body: "The 'Company' has designated relevant departments and personal information protection officers as follows to protect customers' personal information and handle complaints related to personal information.",
         contacts: [
           { label: 'Protection Officer', value: 'Kim Hyemi' },
@@ -143,10 +154,10 @@ const CONTENT = {
         ],
       },
       {
-        title: 'Article 11 (Changes to This Privacy Policy)',
+        title: 'Article 12 (Changes to This Privacy Policy)',
         body: 'This Privacy Policy applies from November 20, 2026. If it changes, the change will be announced on the website.',
         list: [
-          'November 20, 2026: Added the articles on destruction, entrustment, overseas transfer, data subject rights, safety measures, cookies and changes to this policy, and completed the list of collected items. The Protection Officer article moved from Article 4 to Article 10.',
+          'November 20, 2026: Added the articles on destruction, entrustment, overseas transfer, provision to third parties, data subject rights, safety measures, cookies and changes to this policy, and completed the list of collected items. The Protection Officer article moved from Article 4 to Article 11.',
           'Previous versions: Available on request from the Personal Information Protection Officer.',
         ],
       },
@@ -164,7 +175,7 @@ const CONTENT = {
           '여행 일정 작성·예약 시: 여행 날짜와 도시, 인원과 동행 유형, 숙소 주소, 픽업·만남 장소, 항공편 도착·출발 시각, 식이 조건(할랄·비건·채식)과 음식 취향, 여행 취향',
           '로그인 시: Google·LINE 계정의 이름·이메일·프로필 사진, 전화번호로 로그인하는 경우 전화번호',
           "결제 시: 결제 금액, PayPal 거래 번호, 결제자 이름·이메일(카드 번호 등 결제 수단 정보는 PayPal이 직접 받으며 '회사'는 받지 않습니다)",
-          '후기·상담 이용 시: 후기 내용과 사진, AI 상담 대화 내용',
+          '후기·상담·문의 이용 시: 후기 내용과 사진, AI 상담 대화 내용, 문의 내용',
           '자동 수집: 서비스 이용기록, 접속 로그, 쿠키, 접속 IP 정보',
         ],
       },
@@ -191,13 +202,13 @@ const CONTENT = {
         body: "'회사'는 개인정보 보유 기간이 끝나거나 처리 목적을 이루어 개인정보가 필요 없게 되면 지체 없이 그 개인정보를 파기합니다.",
         list: [
           '파기 절차: 파기할 개인정보를 골라 개인정보 보호책임자의 승인을 받아 파기합니다.',
-          '법령에 따른 보존: 제3조와 같이 다른 법령에 따라 보존해야 하는 개인정보는 다른 개인정보와 분리하여 그 기간 동안만 보관한 뒤 파기합니다.',
+          '법령에 따른 보존: 제3조와 같이 다른 법령에 따라 보존해야 하는 개인정보(성명, 연락처, 이메일, 예약·결제·환불 내역, 상담·불만 처리 기록)는 다른 개인정보와 분리하여 그 기간 동안만 보관한 뒤 파기합니다.',
           '파기 방법: 전자 파일은 되살릴 수 없는 방법으로 지우고, 종이에 출력된 개인정보는 분쇄하거나 소각합니다.',
         ],
       },
       {
         title: '제5조 (개인정보 처리업무의 위탁)',
-        body: "'회사'는 원활한 서비스 제공을 위해 아래와 같이 개인정보 처리업무를 위탁하고 있습니다. 위탁 계약 시 「개인정보 보호법」 제26조에 따라 위탁 업무 수행 목적 외 개인정보 처리 금지, 안전성 확보 조치, 재위탁 제한, 손해배상 등 책임에 관한 사항을 정하고, 수탁자가 개인정보를 안전하게 처리하는지 감독합니다. 위탁 업무의 내용이나 수탁자가 바뀌면 이 개인정보처리방침을 통해 알리겠습니다.",
+        body: "'회사'는 원활한 서비스 제공을 위해 아래와 같이 개인정보 처리업무를 위탁하고 있습니다. 위탁 업무의 내용이나 수탁자가 바뀌면 이 개인정보처리방침을 통해 알리겠습니다.",
         list: [
           'Google LLC: 회원 로그인, 예약·일정 정보와 후기 사진 저장, 예약 안내 메일 발송, 예약 관리 장부, AI 여행 일정 작성·번역·상담, 모바일 예약 확인 카드, 방문 통계(동의한 경우)',
           'Anthropic PBC: AI 여행 일정 작성·수정·번역·상담',
@@ -214,24 +225,35 @@ const CONTENT = {
         title: '제6조 (개인정보의 국외 이전)',
         body: "'회사'는 서비스 제공을 위해 제5조의 수탁자에게 아래와 같이 개인정보를 국외로 이전합니다(「개인정보 보호법」 제28조의8).",
         list: [
-          'Google LLC(미국, googlekrsupport@google.com) — 항목: 제1조의 개인정보 전부 / 목적: 로그인, 정보 저장, 메일 발송, 예약 관리, AI 여행 일정 작성, 방문 통계(동의한 경우)',
-          'Anthropic PBC(미국, privacy@anthropic.com) — 항목: 이름, 여행 정보(날짜·도시·인원·숙소 주소·항공편 시각·식이 조건·요청사항), AI 상담 대화 / 목적: AI 여행 일정 작성·수정·번역·상담',
+          'Google LLC(미국, googlekrsupport@google.com) — 항목: 제1조의 개인정보 전부 / 목적: 로그인, 정보 저장, 메일 발송, 예약 관리, AI 여행 일정 작성·번역·상담, 모바일 예약 확인 카드, 방문 통계(동의한 경우)',
+          'Anthropic PBC(미국, privacy@anthropic.com) — 항목: 이름, 여행 정보(날짜·도시·인원·숙소 주소·항공편 시각·식이 조건·요청사항), AI 상담 대화, 번역할 문의 내용 / 목적: AI 여행 일정 작성·수정·번역·상담',
           'Vercel Inc.(미국, privacy@vercel.com) — 항목: 서비스 이용 중 주고받는 개인정보, 접속 기록(IP 주소 등) / 목적: 웹사이트와 서버 운영',
           'PayPal Pte. Ltd.(싱가포르, paypal.com/kr) — 항목: 결제 금액, 주문 내용(상품·날짜·인원), 환불 내용 / 목적: 결제 처리 및 환불',
-          'Inngest Inc.(미국, hello@inngest.com) — 항목: 이름, 이메일, 회원 번호, 여행 날짜, 인원, 식이 조건, 요청사항 / 목적: AI 여행 일정 작성 후 마무리 작업',
-          'Functional Software, Inc.(Sentry, 미국, compliance@sentry.io) — 항목: 오류 내용, 오류가 난 화면 주소, 기기·브라우저 정보, 접속 IP 정보 / 목적: 서비스 오류 확인',
-          "Telegram Messenger Inc.(아랍에미리트, telegram.org/support) — 항목: 성명, 연락처, 이메일, 픽업·하차 장소, 항공편명, 요청사항, 문의·상담 내용 / 목적: '회사' 직원과 기사에게 예약·문의 알림 전달",
+          'Inngest Inc.(미국, hello@inngest.com) — 항목: 이름, 이메일, 회원 번호, 여행 정보(날짜·도시·인원·숙소 주소·도착·출발 공항·항공편 시각·식이 조건·여행 취향·요청사항), AI가 만든 여행 일정, PayPal 주문 번호, 쿠폰 코드 / 목적: AI 여행 일정 작성 후 마무리 작업',
+          'Functional Software, Inc.(Sentry, 미국, compliance@sentry.io) — 항목: 오류 내용, 오류가 난 화면 주소, 기기·브라우저 정보, 접속 IP 정보, 일부 오류 기록의 회원 번호·계정 이메일 / 목적: 서비스 오류 확인',
+          "Telegram Messenger Inc.(아랍에미리트, telegram.org/support) — 항목: 성명, 연락처, 이메일, 메신저 아이디, 예약 내용(상품·날짜·인원·차종), 픽업·하차 장소, 항공편명·터미널·짐 개수, 결제 금액·PayPal 거래 번호, 요청사항, 문의·상담 내용 / 목적: '회사' 직원과 기사에게 예약·문의 알림 전달",
           "Discord Inc.(미국, privacy@discord.com) — 항목: 텔레그램 알림과 같은 항목 / 목적: '회사' 직원에게 알림 전달",
-          'PostHog Inc.(미국, privacy@posthog.com) — 항목: 방문한 화면, 기기·브라우저 정보, 쿠키 아이디 / 목적: 방문 통계(동의한 경우)',
+          'PostHog Inc.(미국, privacy@posthog.com) — 항목: 방문한 화면, 기기·브라우저 정보, 쿠키 아이디, 접속 IP 정보 / 목적: 방문 통계(동의한 경우)',
         ],
         contacts: [
           { label: '이전 일시 및 방법', value: '서비스를 이용할 때 정보통신망을 통해 수시로 전송' },
           { label: '보유 및 이용 기간', value: '제3조의 보유 기간이 끝나거나 위탁 계약이 끝날 때까지' },
-          { label: '이전 거부 방법 및 효과', value: "제10조의 보호책임자에게 이메일로 국외 이전을 거부할 수 있습니다. 다만 위 업체들은 로그인·예약·결제·일정 작성에 꼭 필요하여, 거부하시면 해당 서비스를 이용하실 수 없습니다. 방문 통계(Google Analytics·PostHog)는 '쿠키·분석 설정'에서 언제든 거부할 수 있으며, 거부해도 서비스 이용에 제한이 없습니다." },
+          { label: '이전 거부 방법 및 효과', value: "제11조의 보호책임자에게 이메일로 국외 이전을 거부할 수 있습니다. 다만 위 업체들은 로그인·예약·결제·일정 작성에 꼭 필요하여, 거부하시면 해당 서비스를 이용하실 수 없습니다. 방문 통계(Google Analytics·PostHog)는 '쿠키·분석 설정'에서 언제든 거부할 수 있으며, 거부해도 서비스 이용에 제한이 없습니다." },
         ],
       },
       {
-        title: '제7조 (정보주체의 권리·의무 및 행사 방법)',
+        title: '제7조 (개인정보의 제3자 제공)',
+        body: "'회사'는 정보주체가 동의한 경우나 법률에 특별한 규정이 있는 경우 등에만 개인정보를 제3자에게 제공합니다. 차량을 예약할 때 동의를 받아 아래와 같이 제공합니다.",
+        list: [
+          '제공받는 자: 예약한 차량의 배차 요청을 받는 차량 공급업체와 기사',
+          '제공 목적: 픽업·이동 등 예약한 차량 서비스 제공',
+          '제공 항목: 예약 번호, 상품, 이용 날짜, 인원, 픽업·하차 장소, 요청사항',
+          '보유 및 이용 기간: 차량 서비스를 마칠 때까지. 배차 요청 메시지의 예약 정보는 기사가 수락하거나 거절할 때, 또는 답이 없어 요청이 끝날 때 기사의 대화창에서 지워집니다.',
+          '동의를 거부할 수 있으나, 거부하면 차량 예약을 이용할 수 없습니다.',
+        ],
+      },
+      {
+        title: '제8조 (정보주체의 권리·의무 및 행사 방법)',
         body: "정보주체는 '회사'에 대해 언제든지 개인정보 열람·정정·삭제·처리정지를 요구하거나 동의를 철회할 수 있습니다.",
         list: [
           "열람 요구: '회사'가 가진 본인의 개인정보와 그 처리 내용을 볼 수 있습니다.",
@@ -240,24 +262,24 @@ const CONTENT = {
         ],
         footer: '권리는 다음과 같이 행사하실 수 있습니다:',
         footerList: [
-          "제10조의 개인정보 보호책임자에게 이메일(cocotripkr@gmail.com)로 요청하시면 '회사'는 10일 이내에 조치하고 결과를 알려 드립니다.",
+          "제11조의 개인정보 보호책임자에게 이메일(cocotripkr@gmail.com)로 요청하시면 '회사'는 10일 이내에 조치하고 결과를 알려 드립니다.",
           '법정대리인이나 위임을 받은 사람 등 대리인을 통해서도 요청할 수 있으며, 이 경우 위임장을 함께 보내 주셔야 합니다.',
           "'회사'는 요청한 사람이 본인이거나 정당한 대리인인지 확인합니다.",
           '정보주체는 자신의 개인정보를 정확하게 입력해야 하며 다른 사람의 개인정보를 입력해서는 안 됩니다. 함께 여행하는 분의 정보를 입력할 때는 먼저 그분의 동의를 받아 주십시오.',
         ],
       },
       {
-        title: '제8조 (개인정보의 안전성 확보 조치)',
+        title: '제9조 (개인정보의 안전성 확보 조치)',
         body: "'회사'는 개인정보를 안전하게 처리하기 위해 다음과 같은 조치를 하고 있습니다.",
         list: [
           '관리적 조치: 개인정보를 다룰 수 있는 사람을 꼭 필요한 최소 인원으로 정하고 있습니다.',
           '기술적 조치: 웹사이트와 서버 사이의 모든 통신을 암호화(HTTPS)하고, 회원은 본인 정보에만 접근할 수 있도록 데이터베이스 접근 권한을 제한하며, 관리자 기능은 지정된 계정만 쓸 수 있습니다.',
           "결제 정보·비밀번호 미보관: 카드 번호 등 결제 수단 정보는 PayPal이 직접 처리하고 로그인은 Google·LINE·전화번호 인증으로 하므로, '회사'는 이 정보와 비밀번호를 보관하지 않습니다.",
-          '물리적 조치: 개인정보는 출입을 통제하고 저장된 정보를 암호화하는 수탁자(Google)의 데이터센터에 보관합니다.',
+          '물리적 조치: 개인정보는 주로 출입을 통제하고 저장된 정보를 암호화하는 수탁자(Google)의 데이터센터에 보관합니다.',
         ],
       },
       {
-        title: '제9조 (쿠키 등 개인정보 자동 수집 장치의 설치·운영 및 거부)',
+        title: '제10조 (쿠키 등 개인정보 자동 수집 장치의 설치·운영 및 거부)',
         body: "'회사'는 서비스 이용에 필요한 정보를 기억하고 방문 통계를 내기 위해 쿠키와 브라우저 저장소를 사용합니다. 쿠키는 웹사이트가 이용자의 브라우저에 보내 기기에 저장되는 작은 정보입니다.",
         list: [
           '꼭 필요한 저장: 로그인 상태, 작성 중인 여행 일정과 장바구니, 언어와 쿠키 설정을 기억합니다. 서비스 이용에 꼭 필요하므로 쿠키 설정과 관계없이 사용합니다.',
@@ -270,7 +292,7 @@ const CONTENT = {
         ],
       },
       {
-        title: '제10조 (개인정보 보호책임자)',
+        title: '제11조 (개인정보 보호책임자)',
         body: "'회사'는 고객의 개인정보를 보호하고 개인정보와 관련한 불만을 처리하기 위하여 아래와 같이 관련 부서 및 개인정보보호 책임자를 지정하고 있습니다.",
         contacts: [
           { label: '보호책임자', value: '김혜미' },
@@ -284,10 +306,10 @@ const CONTENT = {
         ],
       },
       {
-        title: '제11조 (개인정보처리방침의 변경)',
+        title: '제12조 (개인정보처리방침의 변경)',
         body: '이 개인정보처리방침은 2026년 11월 20일부터 적용됩니다. 내용이 바뀌면 웹사이트를 통해 알리겠습니다.',
         list: [
-          '2026년 11월 20일: 개인정보 파기, 처리 위탁, 국외 이전, 정보주체의 권리, 안전성 확보 조치, 쿠키, 처리방침 변경 조항을 새로 넣고 수집 항목을 보완했습니다. 보호책임자 조항은 제4조에서 제10조로 옮겼습니다.',
+          '2026년 11월 20일: 개인정보 파기, 처리 위탁, 국외 이전, 제3자 제공, 정보주체의 권리, 안전성 확보 조치, 쿠키, 처리방침 변경 조항을 새로 넣고 수집 항목을 보완했습니다. 보호책임자 조항은 제4조에서 제11조로 옮겼습니다.',
           '이전 개인정보처리방침: 개인정보 보호책임자에게 요청하시면 보내 드립니다.',
         ],
       },
@@ -305,7 +327,7 @@ const CONTENT = {
           '旅行プランの作成・予約時：旅行の日程と都市、人数と同行者の種類、宿泊先の住所、送迎・待ち合わせ場所、フライトの到着・出発時刻、食事制限（ハラール・ヴィーガン・ベジタリアン）と食の好み、旅行の好み',
           'ログイン時：GoogleまたはLINEアカウントの氏名・メールアドレス・プロフィール写真、電話番号でログインする場合は電話番号',
           '決済時：決済金額、PayPal取引番号、支払者の氏名・メールアドレス（カード番号などの決済手段の情報はPayPalが直接受け取り、当社は受け取りません）',
-          'レビュー・相談のご利用時：レビューの内容と写真、AIチャットの会話内容',
+          'レビュー・相談・お問い合わせのご利用時：レビューの内容と写真、AIチャットの会話内容、お問い合わせ内容',
           '自動収集：サービス利用記録、アクセスログ、Cookie、接続IPアドレス',
         ],
       },
@@ -332,13 +354,13 @@ const CONTENT = {
         body: '当社は、個人情報の保有期間が終了した場合、または処理目的が達成され個人情報が不要になった場合は、遅滞なく当該個人情報を破棄します。',
         list: [
           '破棄の手続き：破棄する個人情報を選定し、個人情報保護責任者の承認を得て破棄します。',
-          '法令による保存：第3条のとおり他の法令により保存が必要な個人情報は、他の個人情報と分けてその期間のみ保管した後に破棄します。',
+          '法令による保存：第3条のとおり他の法令により保存が必要な個人情報（氏名、連絡先、メールアドレス、予約・決済・返金の記録、相談・苦情処理の記録）は、他の個人情報と分けてその期間のみ保管した後に破棄します。',
           '破棄の方法：電子ファイルは復元できない方法で削除し、紙に印刷された個人情報は粉砕または焼却します。',
         ],
       },
       {
         title: '第5条（個人情報の処理業務の委託）',
-        body: '当社は、円滑なサービス提供のため、以下のとおり個人情報の処理業務を委託しています。委託契約の際は、韓国「個人情報保護法」第26条に基づき、委託業務の目的以外の処理の禁止、安全性確保措置、再委託の制限、損害賠償などの責任に関する事項を定め、受託者が個人情報を安全に処理しているかを監督します。委託業務の内容または受託者が変わった場合は、本プライバシーポリシーでお知らせします。',
+        body: '当社は、円滑なサービス提供のため、以下のとおり個人情報の処理業務を委託しています。委託業務の内容または受託者が変わった場合は、本プライバシーポリシーでお知らせします。',
         list: [
           'Google LLC：会員ログイン、予約・旅行プラン情報とレビュー写真の保存、予約案内メールの送信、予約管理台帳、AIによる旅行プランの作成・翻訳・相談、モバイル予約確認カード、訪問統計（同意した場合）',
           'Anthropic PBC：AIによる旅行プランの作成・修正・翻訳・相談',
@@ -355,24 +377,35 @@ const CONTENT = {
         title: '第6条（個人情報の国外移転）',
         body: '当社は、サービス提供のため、第5条の受託者に以下のとおり個人情報を国外へ移転しています（韓国「個人情報保護法」第28条の8）。',
         list: [
-          'Google LLC（米国、googlekrsupport@google.com）— 項目：第1条の個人情報すべて／目的：ログイン、情報の保存、メール送信、予約管理、AIによる旅行プラン作成、訪問統計（同意した場合）',
-          'Anthropic PBC（米国、privacy@anthropic.com）— 項目：氏名、旅行情報（日程・都市・人数・宿泊先の住所・フライト時刻・食事制限・リクエスト）、AIチャットの会話内容／目的：AIによる旅行プランの作成・修正・翻訳・相談',
+          'Google LLC（米国、googlekrsupport@google.com）— 項目：第1条の個人情報すべて／目的：ログイン、情報の保存、メール送信、予約管理、AIによる旅行プランの作成・翻訳・相談、モバイル予約確認カード、訪問統計（同意した場合）',
+          'Anthropic PBC（米国、privacy@anthropic.com）— 項目：氏名、旅行情報（日程・都市・人数・宿泊先の住所・フライト時刻・食事制限・リクエスト）、AIチャットの会話内容、翻訳するお問い合わせ内容／目的：AIによる旅行プランの作成・修正・翻訳・相談',
           'Vercel Inc.（米国、privacy@vercel.com）— 項目：サービス利用中にやり取りされる個人情報、アクセス記録（IPアドレスなど）／目的：ウェブサイトとサーバーの運用',
           'PayPal Pte. Ltd.（シンガポール、paypal.com/kr）— 項目：決済金額、注文内容（商品・日付・人数）、返金内容／目的：決済処理および返金',
-          'Inngest Inc.（米国、hello@inngest.com）— 項目：氏名、メールアドレス、会員番号、旅行日、人数、食事制限、リクエスト／目的：AIによる旅行プラン作成後の仕上げ処理',
-          'Functional Software, Inc.（Sentry、米国、compliance@sentry.io）— 項目：エラーの内容、エラーが発生したページのアドレス、端末・ブラウザ情報、接続IPアドレス／目的：サービスエラーの確認',
-          'Telegram Messenger Inc.（アラブ首長国連邦、telegram.org/support）— 項目：氏名、連絡先、メールアドレス、乗車・降車場所、フライト番号、リクエスト、お問い合わせ・相談内容／目的：予約・お問い合わせの通知を当社スタッフとドライバーに送信',
+          'Inngest Inc.（米国、hello@inngest.com）— 項目：氏名、メールアドレス、会員番号、旅行情報（日程・都市・人数・宿泊先の住所・到着・出発空港・フライト時刻・食事制限・旅行の好み・リクエスト）、AIが作成した旅行プラン、PayPal注文番号、クーポンコード／目的：AIによる旅行プラン作成後の仕上げ処理',
+          'Functional Software, Inc.（Sentry、米国、compliance@sentry.io）— 項目：エラーの内容、エラーが発生したページのアドレス、端末・ブラウザ情報、接続IPアドレス、一部のエラー記録に含まれる会員番号・アカウントのメールアドレス／目的：サービスエラーの確認',
+          'Telegram Messenger Inc.（アラブ首長国連邦、telegram.org/support）— 項目：氏名、連絡先、メールアドレス、メッセンジャーID、予約内容（商品・日付・人数・車種）、乗車・降車場所、フライト番号・ターミナル・荷物の数、決済金額・PayPal取引番号、リクエスト、お問い合わせ・相談内容／目的：予約・お問い合わせの通知を当社スタッフとドライバーに送信',
           'Discord Inc.（米国、privacy@discord.com）— 項目：Telegram通知と同じ項目／目的：当社スタッフへの通知の送信',
-          'PostHog Inc.（米国、privacy@posthog.com）— 項目：閲覧したページ、端末・ブラウザ情報、Cookie ID／目的：訪問統計（同意した場合）',
+          'PostHog Inc.（米国、privacy@posthog.com）— 項目：閲覧したページ、端末・ブラウザ情報、Cookie ID、接続IPアドレス／目的：訪問統計（同意した場合）',
         ],
         contacts: [
           { label: '移転の日時および方法', value: 'サービス利用時にネットワークを通じて随時送信' },
           { label: '保有および利用期間', value: '第3条の保有期間が終了するか、委託契約が終了するまで' },
-          { label: '移転の拒否方法および効果', value: '第10条の保護責任者へのメールで国外移転を拒否できます。ただし、上記の事業者はログイン・予約・決済・旅行プラン作成に欠かせないため、拒否された場合は該当サービスをご利用いただけません。訪問統計（Google Analytics・PostHog）は「Cookie・分析設定」からいつでも拒否でき、拒否してもサービスの利用に制限はありません。' },
+          { label: '移転の拒否方法および効果', value: '第11条の保護責任者へのメールで国外移転を拒否できます。ただし、上記の事業者はログイン・予約・決済・旅行プラン作成に欠かせないため、拒否された場合は該当サービスをご利用いただけません。訪問統計（Google Analytics・PostHog）は「Cookie・分析設定」からいつでも拒否でき、拒否してもサービスの利用に制限はありません。' },
         ],
       },
       {
-        title: '第7条（情報主体の権利・義務およびその行使方法）',
+        title: '第7条（個人情報の第三者提供）',
+        body: '当社は、お客様の同意がある場合や法律に特別の定めがある場合などに限り、個人情報を第三者に提供します。車両のご予約時に同意をいただき、以下のとおり提供します。',
+        list: [
+          '提供先：ご予約の車両の配車依頼を受ける車両供給業者とドライバー',
+          '提供目的：送迎・移動など、ご予約の車両サービスの提供',
+          '提供項目：予約番号、商品、利用日、人数、乗車・降車場所、リクエスト',
+          '保有・利用期間：車両サービスが終わるまで。配車依頼メッセージの予約情報は、ドライバーが承諾または辞退したとき、または応答がなく依頼が終了したときに、ドライバーのチャットから削除されます。',
+          '同意を拒否することができますが、拒否された場合は車両のご予約をご利用いただけません。',
+        ],
+      },
+      {
+        title: '第8条（情報主体の権利・義務およびその行使方法）',
         body: 'お客様は当社に対し、いつでも個人情報の閲覧・訂正・削除・処理停止を求め、または同意を撤回することができます。',
         list: [
           '閲覧の請求：当社が保有するご自身の個人情報とその処理内容を確認できます。',
@@ -381,24 +414,24 @@ const CONTENT = {
         ],
         footer: '権利は次の方法で行使できます：',
         footerList: [
-          '第10条の個人情報保護責任者にメール（cocotripkr@gmail.com）でご請求ください。当社は10日以内に対応し、結果をお知らせします。',
+          '第11条の個人情報保護責任者にメール（cocotripkr@gmail.com）でご請求ください。当社は10日以内に対応し、結果をお知らせします。',
           '法定代理人や委任を受けた方などの代理人を通じて請求することもできます。この場合は委任状を添えてお送りください。',
           '当社は、請求者がご本人または正当な代理人であることを確認します。',
           'ご自身の個人情報は正確に入力し、他人の個人情報を入力しないでください。同行者の情報を入力する場合は、事前にその方の同意を得てください。',
         ],
       },
       {
-        title: '第8条（個人情報の安全性確保措置）',
+        title: '第9条（個人情報の安全性確保措置）',
         body: '当社は、個人情報を安全に処理するため、以下の措置を講じています。',
         list: [
           '管理的措置：個人情報を取り扱う者を必要最小限に限定しています。',
           '技術的措置：ウェブサイトとサーバー間のすべての通信を暗号化（HTTPS）し、会員がご自身の情報にのみアクセスできるようデータベースのアクセス権限を制限し、管理者機能は指定されたアカウントのみが使用できます。',
           '決済情報・パスワードの非保管：カード番号などの決済手段の情報はPayPalが直接処理し、ログインはGoogle・LINE・電話番号認証で行うため、当社はこれらの情報およびパスワードを保管しません。',
-          '物理的措置：個人情報は、入退室を管理し保存データを暗号化している受託者（Google）のデータセンターに保管しています。',
+          '物理的措置：個人情報は、主に入退室を管理し保存データを暗号化している受託者（Google）のデータセンターに保管しています。',
         ],
       },
       {
-        title: '第9条（Cookieなど個人情報の自動収集装置の設置・運用および拒否）',
+        title: '第10条（Cookieなど個人情報の自動収集装置の設置・運用および拒否）',
         body: '当社は、サービスの利用に必要な情報を記憶し、訪問統計をとるために、Cookieとブラウザのストレージを使用します。Cookieとは、ウェブサイトがお客様のブラウザに送信し、端末に保存される小さな情報です。',
         list: [
           '必須の保存：ログイン状態、作成中の旅行プランとカート、言語とCookie設定を記憶します。サービスの利用に欠かせないため、Cookie設定にかかわらず使用します。',
@@ -411,7 +444,7 @@ const CONTENT = {
         ],
       },
       {
-        title: '第10条（個人情報保護責任者）',
+        title: '第11条（個人情報保護責任者）',
         body: "当社はお客様の個人情報を保護し、個人情報に関する苦情を処理するため、以下のとおり関連部門および個人情報保護責任者を指定しています。",
         contacts: [
           { label: '保護責任者', value: 'Kim Hyemi' },
@@ -425,10 +458,10 @@ const CONTENT = {
         ],
       },
       {
-        title: '第11条（プライバシーポリシーの変更）',
+        title: '第12条（プライバシーポリシーの変更）',
         body: '本プライバシーポリシーは2026年11月20日から適用されます。内容が変更される場合は、ウェブサイトでお知らせします。',
         list: [
-          '2026年11月20日：個人情報の破棄、処理の委託、国外移転、情報主体の権利、安全性確保措置、Cookie、ポリシー変更の条項を追加し、収集項目を補いました。個人情報保護責任者の条項は第4条から第10条に移りました。',
+          '2026年11月20日：個人情報の破棄、処理の委託、国外移転、第三者提供、情報主体の権利、安全性確保措置、Cookie、ポリシー変更の条項を追加し、収集項目を補いました。個人情報保護責任者の条項は第4条から第11条に移りました。',
           '以前のポリシー：個人情報保護責任者にご請求いただければお送りします。',
         ],
       },
@@ -446,7 +479,7 @@ const CONTENT = {
           '制定行程或预订时：旅行日期及城市、人数及同行类型、住宿地址、接送或碰面地点、航班到达及出发时间、饮食限制（清真、纯素、素食）及饮食偏好、旅行偏好',
           '登录时：Google或LINE账号的姓名、电子邮箱及头像；使用手机号登录时的手机号码',
           '付款时：付款金额、PayPal交易编号、付款人姓名及电子邮箱（银行卡号等支付信息由PayPal直接接收，本公司不接收）',
-          '撰写评价或咨询时：评价内容及照片、AI聊天对话内容',
+          '撰写评价或咨询时：评价内容及照片、AI聊天对话内容、咨询内容',
           '自动收集：服务使用记录、访问日志、Cookie、访问IP信息',
         ],
       },
@@ -473,13 +506,13 @@ const CONTENT = {
         body: '个人信息的保留期限届满，或处理目的已实现、不再需要该个人信息时，本公司将立即销毁该个人信息。',
         list: [
           '销毁程序：选定需销毁的个人信息，经个人信息保护负责人批准后销毁。',
-          '依法保存：如第三条所述，根据其他法律法规需保存的个人信息，将与其他个人信息分开保管，仅在规定期限内保存，期满后销毁。',
+          '依法保存：如第三条所述，根据其他法律法规需保存的个人信息（姓名、联系方式、电子邮箱、预订、付款及退款记录、咨询及投诉处理记录），将与其他个人信息分开保管，仅在规定期限内保存，期满后销毁。',
           '销毁方法：电子文件以无法恢复的方式删除；打印在纸上的个人信息予以粉碎或焚烧。',
         ],
       },
       {
         title: '第五条（个人信息处理业务的委托）',
-        body: '为顺利提供服务，本公司将个人信息处理业务委托如下。签订委托合同时，本公司依据韩国《个人信息保护法》第26条，明确禁止将个人信息用于委托业务以外的目的、安全保障措施、再委托限制及损害赔偿等责任事项，并监督受托方是否安全处理个人信息。委托业务内容或受托方发生变更时，本公司将通过本隐私政策告知。',
+        body: '为顺利提供服务，本公司将个人信息处理业务委托如下。委托业务内容或受托方发生变更时，本公司将通过本隐私政策告知。',
         list: [
           'Google LLC：会员登录、预订及行程信息与评价照片的存储、预订通知邮件发送、预订管理台账、AI行程制定、翻译及咨询、移动端预订确认卡、访问统计（经同意时）',
           'Anthropic PBC：AI行程的制定、修改、翻译及咨询',
@@ -496,24 +529,35 @@ const CONTENT = {
         title: '第六条（个人信息的跨境转移）',
         body: '为提供服务，本公司将个人信息转移至境外的第五条受托方，具体如下（韩国《个人信息保护法》第28条之8）。',
         list: [
-          'Google LLC（美国，googlekrsupport@google.com）— 项目：第一条所列全部个人信息／目的：登录、信息存储、邮件发送、预订管理、AI行程制定、访问统计（经同意时）',
-          'Anthropic PBC（美国，privacy@anthropic.com）— 项目：姓名、行程信息（日期、城市、人数、住宿地址、航班时间、饮食限制、需求）、AI聊天对话内容／目的：AI行程的制定、修改、翻译及咨询',
+          'Google LLC（美国，googlekrsupport@google.com）— 项目：第一条所列全部个人信息／目的：登录、信息存储、邮件发送、预订管理、AI行程制定、翻译及咨询、移动端预订确认卡、访问统计（经同意时）',
+          'Anthropic PBC（美国，privacy@anthropic.com）— 项目：姓名、行程信息（日期、城市、人数、住宿地址、航班时间、饮食限制、需求）、AI聊天对话内容、需翻译的咨询内容／目的：AI行程的制定、修改、翻译及咨询',
           'Vercel Inc.（美国，privacy@vercel.com）— 项目：使用服务过程中传输的个人信息、访问记录（IP地址等）／目的：网站及服务器运营',
           'PayPal Pte. Ltd.（新加坡，paypal.com/kr）— 项目：付款金额、订单内容（产品、日期、人数）、退款内容／目的：支付处理及退款',
-          'Inngest Inc.（美国，hello@inngest.com）— 项目：姓名、电子邮箱、会员编号、旅行日期、人数、饮食限制、需求／目的：AI行程制定后的收尾处理',
-          'Functional Software, Inc.（Sentry，美国，compliance@sentry.io）— 项目：错误内容、发生错误的页面地址、设备及浏览器信息、访问IP信息／目的：服务错误排查',
-          'Telegram Messenger Inc.（阿拉伯联合酋长国，telegram.org/support）— 项目：姓名、联系方式、电子邮箱、上车及下车地点、航班号、需求、咨询及聊天内容／目的：向本公司员工及司机发送预订及咨询通知',
+          'Inngest Inc.（美国，hello@inngest.com）— 项目：姓名、电子邮箱、会员编号、行程信息（日期、城市、人数、住宿地址、到达及出发机场、航班时间、饮食限制、旅行偏好、需求）、AI生成的行程、PayPal订单号、优惠券代码／目的：AI行程制定后的收尾处理',
+          'Functional Software, Inc.（Sentry，美国，compliance@sentry.io）— 项目：错误内容、发生错误的页面地址、设备及浏览器信息、访问IP信息、部分错误记录中的会员编号及账号电子邮箱／目的：服务错误排查',
+          'Telegram Messenger Inc.（阿拉伯联合酋长国，telegram.org/support）— 项目：姓名、联系方式、电子邮箱、即时通讯账号、预订内容（产品、日期、人数、车型）、上车及下车地点、航班号、航站楼及行李件数、付款金额及PayPal交易编号、需求、咨询及聊天内容／目的：向本公司员工及司机发送预订及咨询通知',
           'Discord Inc.（美国，privacy@discord.com）— 项目：与Telegram通知相同的项目／目的：向本公司员工发送通知',
-          'PostHog Inc.（美国，privacy@posthog.com）— 项目：浏览的页面、设备及浏览器信息、Cookie ID／目的：访问统计（经同意时）',
+          'PostHog Inc.（美国，privacy@posthog.com）— 项目：浏览的页面、设备及浏览器信息、Cookie ID、访问IP信息／目的：访问统计（经同意时）',
         ],
         contacts: [
           { label: '转移时间及方式', value: '使用服务时通过网络随时传输' },
           { label: '保留及使用期限', value: '至第三条规定的保留期限届满或委托合同终止时为止' },
-          { label: '拒绝转移的方法及后果', value: '您可通过电子邮件联系第十条的保护负责人，拒绝个人信息跨境转移。但上述企业是登录、预订、付款及制定行程所必需的，拒绝后将无法使用相关服务。访问统计（Google Analytics、PostHog）可随时在"Cookie 与分析设置"中拒绝，拒绝后不影响服务的使用。' },
+          { label: '拒绝转移的方法及后果', value: '您可通过电子邮件联系第十一条的保护负责人，拒绝个人信息跨境转移。但上述企业是登录、预订、付款及制定行程所必需的，拒绝后将无法使用相关服务。访问统计（Google Analytics、PostHog）可随时在"Cookie 与分析设置"中拒绝，拒绝后不影响服务的使用。' },
         ],
       },
       {
-        title: '第七条（信息主体的权利、义务及行使方法）',
+        title: '第七条（向第三方提供个人信息）',
+        body: '本公司仅在您同意或法律有特别规定等情形下向第三方提供个人信息。预订车辆时，本公司在征得您同意后按以下方式提供。',
+        list: [
+          '接收方：接收您所预订车辆派车请求的车辆供应商及司机',
+          '提供目的：提供接送、出行等您预订的车辆服务',
+          '提供项目：预订编号、产品、使用日期、人数、上车及下车地点、需求',
+          '保留及使用期限：至车辆服务结束为止。司机接受或拒绝派车请求时，或请求因无人回应而结束时，派车消息中的预订信息将从司机的聊天窗口中删除。',
+          '您可以拒绝同意，但拒绝后将无法预订车辆。',
+        ],
+      },
+      {
+        title: '第八条（信息主体的权利、义务及行使方法）',
         body: '您可随时向本公司要求查阅、更正、删除个人信息或停止处理，也可撤回同意。',
         list: [
           '查阅：您可以查看本公司持有的您的个人信息及其处理情况。',
@@ -522,24 +566,24 @@ const CONTENT = {
         ],
         footer: '您可通过以下方式行使上述权利：',
         footerList: [
-          '请通过电子邮件（cocotripkr@gmail.com）联系第十条的个人信息保护负责人。本公司将在10日内处理并告知结果。',
+          '请通过电子邮件（cocotripkr@gmail.com）联系第十一条的个人信息保护负责人。本公司将在10日内处理并告知结果。',
           '您也可以通过法定代理人或受委托人等代理人提出要求，此时请一并提交委托书。',
           '本公司将确认提出要求者是否为本人或正当代理人。',
           '请准确填写您本人的个人信息，不得填写他人的个人信息。填写同行者信息时，请事先征得其同意。',
         ],
       },
       {
-        title: '第八条（个人信息安全保障措施）',
+        title: '第九条（个人信息安全保障措施）',
         body: '本公司为安全处理个人信息，采取以下措施。',
         list: [
           '管理措施：将可处理个人信息的人员限定在必要的最小范围内。',
           '技术措施：网站与服务器之间的所有通信均加密（HTTPS）；通过限制数据库访问权限，会员只能访问本人信息；管理员功能仅限指定账号使用。',
           '不保存支付信息及密码：银行卡号等支付信息由PayPal直接处理，登录通过Google、LINE或手机号验证进行，因此本公司不保存此类信息及密码。',
-          '物理措施：个人信息存储于受托方（Google）的数据中心，该数据中心实行出入管控并对存储数据加密。',
+          '物理措施：个人信息主要存储于受托方（Google）的数据中心，该数据中心实行出入管控并对存储数据加密。',
         ],
       },
       {
-        title: '第九条（Cookie等个人信息自动收集装置的设置、运营及拒绝）',
+        title: '第十条（Cookie等个人信息自动收集装置的设置、运营及拒绝）',
         body: '本公司使用Cookie及浏览器存储来记住使用服务所需的信息并进行访问统计。Cookie是网站发送至您的浏览器并保存在您设备上的少量信息。',
         list: [
           '必要存储：记住您的登录状态、正在制定的行程和购物车以及语言和Cookie设置。此类存储为使用服务所必需，因此与Cookie设置无关。',
@@ -552,7 +596,7 @@ const CONTENT = {
         ],
       },
       {
-        title: '第十条（个人信息保护负责人）',
+        title: '第十一条（个人信息保护负责人）',
         body: "本公司为保护客户个人信息并处理与个人信息相关的投诉，指定了以下部门及个人信息保护负责人。",
         contacts: [
           { label: '保护负责人', value: 'Kim Hyemi' },
@@ -566,10 +610,10 @@ const CONTENT = {
         ],
       },
       {
-        title: '第十一条（隐私政策的变更）',
+        title: '第十二条（隐私政策的变更）',
         body: '本隐私政策自2026年11月20日起施行。如有变更，将通过网站告知。',
         list: [
-          '2026年11月20日：新增个人信息销毁、处理委托、跨境转移、信息主体权利、安全保障措施、Cookie及政策变更条款，并补充了收集项目。个人信息保护负责人条款由第四条移至第十条。',
+          '2026年11月20日：新增个人信息销毁、处理委托、跨境转移、向第三方提供、信息主体权利、安全保障措施、Cookie及政策变更条款，并补充了收集项目。个人信息保护负责人条款由第四条移至第十一条。',
           '以往版本：可向个人信息保护负责人申请提供。',
         ],
       },

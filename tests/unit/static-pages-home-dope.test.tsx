@@ -63,7 +63,7 @@ describe('static pages on the home-dope vocabulary', () => {
     expect(document.querySelectorAll('h1')).toHaveLength(1);
     expect(document.querySelector('main')!.classList.contains('home-dope')).toBe(true);
     expect(document.body.textContent).toContain(sample);
-    expect(document.body.textContent).not.toMatch(/\?{2,}|�/);
+    expect(document.body.textContent).not.toMatch(/\?{2,}|\uFFFD/);
   });
 
   it('/links keeps every pre-edit destination, UTM-preserving', () => {
@@ -83,7 +83,7 @@ describe('static pages on the home-dope vocabulary', () => {
     expect(hrefs()).toEqual(WHATSAPP_CONSENTED_BEFORE);
   });
 
-  it.each([['terms', Terms, 4], ['privacy', Privacy, 4], ['travel-terms', TravelTerms, 7]] as const)(
+  it.each([['terms', Terms, 4], ['privacy', Privacy, 12], ['travel-terms', TravelTerms, 7]] as const)(
     '%s: no hrefs of its own beyond the table of contents, each row anchoring an article',
     (_name, Page, count) => {
       view(Page);
