@@ -45,10 +45,10 @@ const cellsPerRow = (article: number) =>
   [...document.querySelectorAll(`#article-${article} tbody tr`)].map((tr) => tr.querySelectorAll('td').length);
 
 describe('privacy policy page', () => {
-  it.each(LANGS)('%s: retention table 15 × 2, overseas transfer table 9 × 6', (lang) => {
+  it.each(LANGS)('%s: retention table 15 × 2, overseas transfer table 10 × 6', (lang) => {
     show(lang);
     expect(cellsPerRow(3)).toEqual(Array(15).fill(2));
-    expect(cellsPerRow(6)).toEqual(Array(9).fill(6));
+    expect(cellsPerRow(6)).toEqual(Array(10).fill(6));
     expect(document.querySelectorAll('#article-6 thead th[scope="col"]')).toHaveLength(6);
     // A table wider than the screen scrolls inside its own box; the box takes keyboard focus and is named by its article.
     const box = document.querySelector('#article-6 [role="region"]')!;
@@ -61,7 +61,7 @@ describe('privacy policy page', () => {
     expect(document.querySelector('table')).toBeNull();
     expect(document.querySelectorAll('#article-3 dl')).toHaveLength(15);
     const cards = document.querySelectorAll('#article-6 dl');
-    expect(cards).toHaveLength(9);
+    expect(cards).toHaveLength(10);
     expect([...cards[0].querySelectorAll('dt')].map((dt) => dt.textContent)).toEqual([
       '이전받는 자(연락처)', '이전되는 나라', '이전 시기·방법', '이전 항목', '이용 목적', '보유·이용 기간',
     ]);

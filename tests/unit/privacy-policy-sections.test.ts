@@ -78,9 +78,10 @@ const TITLES: Record<string, string[]> = {
 
 // Overseas recipients (article 6): [name, contact, times named, times the contact appears]. Each is named in
 // article 5 and article 6 of every language (8 times) with its contact once per language (4 times); Google LLC
-// has a second article 6 row for Gemini, the AI used when Claude is unavailable (12 and 8).
+// has two more article 6 rows, for Gemini (the AI used when Claude is unavailable) and for Google Wallet (sent
+// only when the customer presses its save button) (16 and 12).
 const RECIPIENTS: Array<[string, string, number, number]> = [
-  ['Google LLC', 'googlekrsupport@google.com', 12, 8],
+  ['Google LLC', 'googlekrsupport@google.com', 16, 12],
   ['Anthropic PBC', 'privacy@anthropic.com', 8, 4],
   ['Vercel Inc.', 'privacy@vercel.com', 8, 4],
   ['PayPal Pte. Ltd.', 'skrprivacy@paypal.com', 8, 4],
