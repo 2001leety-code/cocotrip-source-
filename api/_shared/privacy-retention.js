@@ -167,9 +167,15 @@ export function moodBookingSettled(data) {
     && !OPEN_SETTLEMENT_APPROVALS.has(lower(data?.settlementApproval?.status));
 }
 
-/** 돈을 낸 비회원 AI 일정(PayPal·수동 결제). 테스트·운영자 우회·무료 쿠폰은 아님. */
+/**
+ * 돈을 냈을 수 있는 비회원 AI 일정. 안 낸 것이 확실한 것(테스트·운영자 우회·무료 쿠폰)만 false.
+ * 돈을 낸 뒤 일정 만들기가 멈춘 문서(streaming·error)엔 주문 번호가 없고 결제 출처는 기본값 'paypal' 이라
+ * 주문 번호로는 못 가른다 → 모르면 낸 것으로 본다(운영자 11/21 "판단이 안 되면 남기는 쪽").
+ */
 const UNPAID_PLAN_SOURCES = new Set(['test', 'admin-bypass', 'ai-coupon']);
-export const paidPlan = d => Boolean(d?.input?.paypalOrderId) && !d?.isFreeCoupon && !UNPAID_PLAN_SOURCES.has(lower(d?.paymentSource));
+export const paidPlan = d => !(d?.isFreeCoupon || d?.isAdminBypass === true || UNPAID_PLAN_SOURCES.has(lower(d?.paymentSource)));
+/** 돈 낸 비회원 일정은 만든 날 + 180일(PayPal 분쟁 기간)과 여행 끝 + 1개월 중 늦은 날까지 남긴다(운영자 11/21). */
+export const PAID_PLAN_MIN = Object.freeze({ days: 180 });
 
 /** 비회원 AI 일정 끝날: input.startDate + durationDays - 1. 일수를 모르면 시작일 + 14일. */
 export function planTripEndYmd(input) {

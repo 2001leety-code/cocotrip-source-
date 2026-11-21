@@ -6,7 +6,7 @@ import { describe, it, expect } from 'vitest';
 import {
   deletableFrom, isDue, kstYmd, validYmd, toMs, tripEndYmd, findKeyPaths, withoutKeysDeep,
   bookingSettled, moodBookingSettled, inquiryClosed, scanCutoffMs, UNKNOWN_END_BUFFER_DAYS,
-  planTripEndYmd, sheetDateYmd, kstMonth, monthEndYmd, latestMs, paidPlan,
+  planTripEndYmd, sheetDateYmd, kstMonth, monthEndYmd, latestMs, paidPlan, PAID_PLAN_MIN,
 } from '../../api/_shared/privacy-retention.js';
 import { leadSheetRow } from '../../api/_ai_core/emailNotifier.js';
 
@@ -161,7 +161,15 @@ describe('돈을 낸 비회원 일정', () => {
     expect(paidPlan({ input: { paypalOrderId: '5AB' } })).toBe(true); // 예전 일정(결제 출처 칸 없음)
     for (const source of ['test', 'admin-bypass', 'ai-coupon']) expect(paidPlan({ paymentSource: source, input: { paypalOrderId: 'X' } })).toBe(false);
     expect(paidPlan({ paymentSource: 'paypal', isFreeCoupon: true, input: { paypalOrderId: 'X' } })).toBe(false);
-    expect(paidPlan({ paymentSource: 'paypal', input: {} })).toBe(false);
+    expect(paidPlan({ paymentSource: 'paypal', isAdminBypass: true, input: { paypalOrderId: 'X' } })).toBe(false);
+    // 돈 낸 뒤 만들기가 멈춘 문서엔 주문 번호가 없다 → 모르면 낸 것으로 봄(남기는 쪽)
+    expect(paidPlan({ status: 'error', paymentSource: 'paypal', input: {} })).toBe(true);
+    expect(paidPlan({})).toBe(true);
+  });
+
+  it('돈 낸 비회원 일정 180일: 기준일 빼고 세고 한국 자정에 넘어감', () => {
+    expect(isDue('2026-06-01', PAID_PLAN_MIN, kst('2026-11-28T23:59:59'))).toBe(false);
+    expect(isDue('2026-06-01', PAID_PLAN_MIN, kst('2026-11-29T00:00:00'))).toBe(true);
   });
 });
 

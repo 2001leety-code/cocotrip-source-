@@ -98,7 +98,8 @@ function seed() {
     paypal_order_snapshots: { 'P-snap': { dateEnd: '2026-10-12' }, P1: { dateEnd: '2026-10-03' } },
     pending_bookings: {
       pb1: { ...PAYMENT, status: 'CONFIRMED', dateStart: '2026-10-01', dateEnd: '2026-10-02', customerPhone: '+82', memo: 'm' },
-      pb2: { ...PAYMENT, status: 'AWAITING_VERIFICATION', dateStart: '2026-10-01', memo: 'm' },
+      pb2: { ...PAYMENT, status: 'AWAITING_VERIFICATION', dateStart: '2026-10-01', memo: 'm', createdAt: ts('2026-10-01T00:00:00') }, // 신청 + 1개월 지남
+      pb3: { ...PAYMENT, status: 'AWAITING_VERIFICATION', dateStart: '2026-12-01', memo: 'm', createdAt: ts('2026-11-01T00:00:00') }, // 아직
     },
     used_paypal_orders: {
       P1: { createdAtMs: kst('2026-09-25T00:00:00'), intent: { body: { tourDate: '2026-10-01', amount: 100, payerEmail: 'buyer@example.test', customerPhone: '+82', memo: 'm' } } },
@@ -136,11 +137,17 @@ function seed() {
     cs_tickets: { t1: { createdAt: ts('2023-11-01T00:00:00') }, t2: { createdAt: ts('2024-06-01T00:00:00') } },
     external_inbox_cases: { k1: { status: 'protected', updatedAtMs: kst('2023-01-01T00:00:00') } },
     plans: {
-      g1: { uid: null, createdAtMs: kst('2026-08-20T00:00:00'), guestEmail: 'guest@example.test', input: { startDate: '2026-09-01', durationDays: 3 } }, // 끝 9/03
+      g1: { uid: null, createdAtMs: kst('2026-08-20T00:00:00'), guestEmail: 'guest@example.test', paymentSource: 'ai-coupon', isFreeCoupon: true, input: { startDate: '2026-09-01', durationDays: 3 } }, // 무료 쿠폰, 끝 9/03
       g2: { uid: null, createdAtMs: kst('2026-08-20T00:00:00'), input: { startDate: '2026-09-01', durationDays: 3 } }, // 신고 열림
-      g3: { uid: null, createdAtMs: kst('2026-10-01T00:00:00'), input: { startDate: '2026-10-15', durationDays: 7 } }, // 끝 10/21 → 11/22 부터
-      g4: { uid: null, createdAtMs: kst('2026-10-01T00:00:00'), input: { startDate: '2026-10-10' } }, // 일수 모름 → 10/24 → 11/25 부터
-      g5: { uid: null, createdAtMs: kst('2026-08-20T00:00:00'), paymentSource: 'paypal', input: { startDate: '2026-09-01', durationDays: 3, paypalOrderId: '5AB12345CD678901E' } }, // 돈 냄
+      g3: { uid: null, createdAtMs: kst('2026-10-01T00:00:00'), paymentSource: 'test', input: { startDate: '2026-10-15', durationDays: 7 } }, // 끝 10/21 → 11/22 부터
+      g4: { uid: null, createdAtMs: kst('2026-10-01T00:00:00'), paymentSource: 'admin-bypass', isAdminBypass: true, input: { startDate: '2026-10-10' } }, // 일수 모름 → 10/24 → 11/25 부터
+      g5: { uid: null, createdAtMs: kst('2026-08-20T00:00:00'), paymentSource: 'paypal', input: { startDate: '2026-09-01', durationDays: 3, paypalOrderId: '5AB12345CD678901E' } }, // 돈 냄, 180일 안 됨
+      // 돈 낸 뒤 만들기가 멈춘 일정(주문 번호 없음) = 낸 것으로 봄. 180일·여행 끝 + 1개월 둘 다 지남 → 지움
+      g6: { uid: null, createdAtMs: kst('2026-03-01T00:00:00'), status: 'error', paymentSource: 'paypal', input: { startDate: '2026-03-10' } },
+      // 여행 끝 + 1개월은 지났지만 180일(6/01 → 11/29 부터)이 안 됨 → 남김
+      g7: { uid: null, createdAtMs: kst('2026-06-01T00:00:00'), status: 'streaming', paymentSource: 'paypal', input: { startDate: '2026-06-10' } },
+      // 180일은 지났지만 여행 끝(11/03) + 1개월이 안 됨 → 남김
+      g8: { uid: null, createdAtMs: kst('2026-03-01T00:00:00'), paymentSource: 'manual', input: { startDate: '2026-11-01', durationDays: 3, paypalOrderId: 'MANUAL-1' } },
       u1: { uid: 'user-1', createdAtMs: kst('2026-08-20T00:00:00'), input: { startDate: '2026-09-01', durationDays: 3 } },
     },
     plan_complaints: { pc1: { planId: 'g2', status: 'open', createdAt: ts('2026-10-01T00:00:00') } },
@@ -178,7 +185,8 @@ describe('기본 = 개수만 셈 (스위치 꺼짐)', () => {
     expect(counts.mood_schedule_notes).toEqual({ due: 1, heldDispute: 1 });
     expect(counts.cs_tickets).toEqual({ due: 1 });
     expect(counts.external_inbox_cases).toEqual({ dueCountOnly: 1 });
-    expect(counts.plans_guest).toEqual({ due: 1, heldComplaint: 1, heldPaid: 1, notYet: 2, member: 1 });
+    expect(counts.plans_guest).toEqual({ due: 2, heldComplaint: 1, heldPaid: 2, notYet: 3, member: 1 }); // g1·g6 / g5·g7 / g3·g4·g8
+    expect(counts.pending_bookings_unverified).toEqual({ due: 1, notYet: 1 });
     expect(counts.sheet_bookings).toBeUndefined(); // 운영이 아니면 시트는 안 읽음
     expect(counts.sheet_leads).toBeUndefined();
   });
@@ -224,7 +232,8 @@ describe('스위치 켬 = 지움', () => {
     expect(c1.lines[0].booking.at).toBeInstanceOf(Ts);
     expect(fake.col('pending_bookings').get('pb1')).toMatchObject({ ...PAYMENT, dateStart: '2026-10-01' });
     expect(fake.col('pending_bookings').get('pb1')).not.toHaveProperty('customerPhone');
-    expect(fake.col('pending_bookings').get('pb2')).toHaveProperty('memo', 'm');
+    expect(fake.col('pending_bookings').has('pb2')).toBe(false); // 입금 확인 대기 신청 + 1개월 = 문서 삭제
+    expect(fake.col('pending_bookings').get('pb3')).toHaveProperty('memo', 'm');
   });
 
   it('협력사 예약: 출발·도착·메모와 변경 이력 사본까지 비우고 요금은 남김', async () => {
@@ -255,7 +264,7 @@ describe('스위치 켬 = 지움', () => {
     expect([...fake.col('mood_schedule_notes').keys()]).toEqual(['2026-10-03', '2026-11-15']);
     expect([...fake.col('cs_tickets').keys()]).toEqual(['t2']);
     // 비회원 일정: 여행 끝 + 1개월 지난 것만. 회원·신고 걸린 것·아직인 것은 남김
-    expect([...fake.col('plans').keys()]).toEqual(['g2', 'g3', 'g4', 'g5', 'u1']);
+    expect([...fake.col('plans').keys()]).toEqual(['g2', 'g3', 'g4', 'g5', 'g7', 'g8', 'u1']);
     // 분쟁 보존 문의 3년 = 켜도 세기만
     expect(fake.col('external_inbox_cases').has('k1')).toBe(true);
   });
@@ -264,7 +273,7 @@ describe('스위치 켬 = 지움', () => {
     const fake = makeDb(seed(), { failOn: 'plan_complaints' });
     const result = await run(fake, ENV);
     expect(result.counts.plans_guest).toEqual({ heldComplaintUnknown: 1 });
-    expect(fake.col('plans').size).toBe(6);
+    expect(fake.col('plans').size).toBe(9);
   });
 
   it('협력사 예약 훑기가 실패하면 일정 메모도 안 지움', async () => {

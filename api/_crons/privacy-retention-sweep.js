@@ -255,10 +255,16 @@ function wholeDocTargets(run, { complainedPlanIds }) {
     // 만든 날 <= 여행 끝이라 만든 날로 범위를 좁힌다.
     ['plans_guest', {
       query: where('plans', 'createdAtMs', cutoffMs(run, MONTH))
-        .select('uid', 'createdAtMs', 'paymentSource', 'isFreeCoupon', 'input.startDate', 'input.durationDays', 'input.paypalOrderId'),
+        .select('uid', 'createdAtMs', 'paymentSource', 'isFreeCoupon', 'isAdminBypass', 'input.startDate', 'input.durationDays'),
       orderField: 'createdAtMs', period: MONTH, baseYmd: d => R.planTripEndYmd(d.input),
-      // 돈을 낸 일정 = 결제 분쟁 때 "무엇을 받았나" 증거 → 운영자가 보관 기간을 정할 때까지 세기만.
-      hold: (d, id) => (d.uid !== null ? 'member' : complainedPlanIds.has(id) ? 'heldComplaint' : R.paidPlan(d) ? 'heldPaid' : null) }],
+      // 돈을 낸(또는 모르는) 일정 = 결제 분쟁 증거 → 만든 날 + 180일까지 남기고, 그 뒤엔 여행 끝 + 1개월 규칙(= 늦은 날).
+      // 만든 날을 모르면 계속 남긴다.
+      hold: (d, id) => (d.uid !== null ? 'member' : complainedPlanIds.has(id) ? 'heldComplaint'
+        : R.paidPlan(d) && !R.isDue(R.msToKstYmd(d.createdAtMs), R.PAID_PLAN_MIN, run.nowMs) ? 'heldPaid' : null) }],
+    // 입금 확인을 기다리는 수동 결제 신청 = 신청 + 1개월에 문서 삭제(운영자 11/21). 확인된 신청은 위 예약 규칙(결제 칸 5년).
+    ['pending_bookings_unverified', {
+      query: run.db.collection('pending_bookings').where('status', '==', 'AWAITING_VERIFICATION'),
+      orderField: FieldPath.documentId(), period: MONTH, baseOf: d => d.createdAt }],
   ];
 }
 
