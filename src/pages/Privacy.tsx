@@ -40,7 +40,7 @@ const DATE: Record<PolicyLang, string> = {
 //    입금이 확인되지 않은 PayPal QR 신청 줄(신청 + 1개월, pending_bookings) = 운영자 확정(2026-11-21 "Both as recommended").
 //    자동 삭제 코드가 같은 기준으로 지워야 사실이 된다. 처리 중인 불만 신고(plan_complaints)가 걸린 일정은 지우지 않는다.
 // 🔴 제3조 소비자 불만·분쟁 처리 기록 줄 = 3년, 3년이 지나도 처리 중인 불만·분쟁은 처리를 마칠 때까지(운영자 확정 2026-11-22).
-//    문의함 줄과 제4조는 기간을 되풀이하지 않고 이 줄·이 표를 가리킨다. 자동 삭제 코드가 처리 중인 기록을 3년이 지나도 지우지 않아야 사실이 된다.
+//    제3조 본문·문의함 줄·제4조는 기간을 되풀이하지 않고 이 줄·이 표를 가리킨다. 자동 삭제 코드가 처리 중인 기록을 3년이 지나도 지우지 않아야 사실이 된다.
 // 🔴 구글 지갑(api/_create-wallet-pass.js)은 운영에서 아직 꺼져 있다(설정 2개 없음) — 켜는 것을 전제로 썼다(운영자 2026-11-21 "켜기").
 //    구글이 받은 정보를 자기 서비스에도 쓰므로 위탁(제5조)이 아니라 제공(제7조)·국외 이전(제6조)으로 썼다(검토 3회차).
 //    켜기 전에 메일의 지갑 버튼 옆에 "누르면 이 정보가 구글(미국)로 감 — 제6조" 안내(4개 언어)가 먼저 나가야 한다.
@@ -86,7 +86,7 @@ const CONTENT: Record<PolicyLang, { pageTitle: string; changeSummary: string; ar
       },
       {
         title: 'Article 3 (Retention and Use Period of Personal Information)',
-        body: "The 'Company' keeps personal information only for the periods in the table below and destroys it without delay under Article 4 when the period ends. Information that the law requires to be kept is kept for the period set by the Act on Consumer Protection in Electronic Commerce, etc. (the 'E-Commerce Act') and the Framework Act on National Taxes.",
+        body: "The 'Company' keeps personal information only for the periods in the table below and destroys it without delay under Article 4 when the period ends. Information that the law requires to be kept is kept for the period in the table below, under the Act on Consumer Protection in Electronic Commerce, etc. (the 'E-Commerce Act') and the Framework Act on National Taxes.",
         table: {
           head: ['Information', 'Retention period'],
           rows: [
@@ -275,7 +275,7 @@ const CONTENT: Record<PolicyLang, { pageTitle: string; changeSummary: string; ar
       },
       {
         title: '제3조 (개인정보 보유 및 이용 기간)',
-        body: "'회사'는 개인정보를 아래 표의 기간 동안만 보관하고, 기간이 지나면 제4조에 따라 지체 없이 파기합니다. 법령이 보관을 정한 정보는 「전자상거래 등에서의 소비자보호에 관한 법률」(이하 '전자상거래법')과 「국세기본법」이 정한 기간 동안 보관합니다.",
+        body: "'회사'는 개인정보를 아래 표의 기간 동안만 보관하고, 기간이 지나면 제4조에 따라 지체 없이 파기합니다. 법령이 보관을 정한 정보는 「전자상거래 등에서의 소비자보호에 관한 법률」(이하 '전자상거래법')과 「국세기본법」에 따라 아래 표에 적은 기간 동안 보관합니다.",
         table: {
           head: ['정보', '보관 기간'],
           rows: [
@@ -464,7 +464,7 @@ const CONTENT: Record<PolicyLang, { pageTitle: string; changeSummary: string; ar
       },
       {
         title: '第3条（個人情報の保有および利用期間）',
-        body: '当社は、個人情報を下表の期間に限り保管し、期間が過ぎたら第4条に従い遅滞なく破棄します。法令により保管が必要な情報は、韓国「電子商取引等における消費者保護に関する法律」（以下「電子商取引法」）および「国税基本法」が定める期間保管します。',
+        body: '当社は、個人情報を下表の期間に限り保管し、期間が過ぎたら第4条に従い遅滞なく破棄します。法令により保管が必要な情報は、韓国「電子商取引等における消費者保護に関する法律」（以下「電子商取引法」）および「国税基本法」に基づき、下表に記載した期間保管します。',
         table: {
           head: ['情報', '保管期間'],
           rows: [
@@ -653,7 +653,7 @@ const CONTENT: Record<PolicyLang, { pageTitle: string; changeSummary: string; ar
       },
       {
         title: '第三条（个人信息保留及使用期间）',
-        body: '本公司仅在下表所列期限内保存个人信息，期限届满后依照第四条立即销毁。法律法规要求保存的信息，按照韩国《电子商务等消费者保护法》（以下简称"电子商务法"）及《国税基本法》规定的期限保存。',
+        body: '本公司仅在下表所列期限内保存个人信息，期限届满后依照第四条立即销毁。法律法规要求保存的信息，按照韩国《电子商务等消费者保护法》（以下简称"电子商务法"）及《国税基本法》，在下表所列期限内保存。',
         table: {
           head: ['信息', '保存期限'],
           rows: [
