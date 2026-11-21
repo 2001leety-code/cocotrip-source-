@@ -2,8 +2,9 @@
 /**
  * The privacy policy page as rendered (operator decisions 2026-11-20): the retention and overseas
  * transfer tables, the phone cards, the upcoming-change notice that runs until the effective date in
- * privacyVersions.ts, the previous version kept on the page, and the cookie article's link to the
- * overseas transfer article. The wording itself is checked in privacy-policy-sections.test.ts.
+ * privacyVersions.ts, the previous version kept on the page, the cookie article's link to the
+ * overseas transfer article, and the complaint records row (operator decision 2026-11-22). The rest of
+ * the wording is checked in privacy-policy-sections.test.ts.
  */
 import React from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -41,6 +42,14 @@ const show = (language: PolicyLang, mobile = false) => {
   state.mobile = mobile;
   render(<Privacy />);
 };
+// Operator decision 2026-11-22: complaint and dispute records are kept 3 years, and past that while still being handled.
+// Only that row states the 3 years; the inbox row points to it instead of repeating the number.
+const COMPLAINTS: Record<PolicyLang, { years: string; handled: string }> = {
+  en: { years: '3 years', handled: 'Complaints or disputes still being handled: until they are handled' },
+  ko: { years: '3년', handled: '처리 중인 불만·분쟁은 처리를 마칠 때까지' },
+  ja: { years: '3年', handled: '対応中の苦情・紛争は、対応を終えるまで' },
+  zh: { years: '3年', handled: '尚在处理中的投诉或争议，保留至处理完毕为止' },
+};
 const cellsPerRow = (article: number) =>
   [...document.querySelectorAll(`#article-${article} tbody tr`)].map((tr) => tr.querySelectorAll('td').length);
 
@@ -54,6 +63,14 @@ describe('privacy policy page', () => {
     const box = document.querySelector('#article-6 [role="region"]')!;
     expect(box.getAttribute('tabindex')).toBe('0');
     expect(box.getAttribute('aria-label')).toBe(document.querySelector('#article-6 h2')!.textContent!.replace(/^06/, ''));
+  });
+
+  it.each(LANGS)('%s: complaint records stay past 3 years while still being handled, stated in one row', (lang) => {
+    show(lang);
+    const rows = [...document.querySelectorAll('#article-3 tbody tr')].map((tr) => tr.textContent || '');
+    const withYears = rows.filter((row) => row.includes(COMPLAINTS[lang].years));
+    expect(withYears).toHaveLength(1);
+    expect(withYears[0]).toContain(COMPLAINTS[lang].handled);
   });
 
   it('on a phone every table row becomes a card labelled by the column names', () => {
