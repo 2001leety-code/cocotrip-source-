@@ -155,7 +155,7 @@ describe('여러 시각 중 가장 늦은 것', () => {
 });
 
 describe('돈을 낸 비회원 일정', () => {
-  it('PayPal·수동 결제만. 테스트·운영자 우회·무료 쿠폰·주문 번호 없음은 아님', () => {
+  it('안 낸 것 = 테스트·운영자 우회·무료 쿠폰만. 주문 번호가 없거나 출처를 모르면 낸 것으로 봄', () => {
     expect(paidPlan({ paymentSource: 'paypal', input: { paypalOrderId: '5AB' } })).toBe(true);
     expect(paidPlan({ paymentSource: 'manual', input: { paypalOrderId: 'MANUAL-1' } })).toBe(true);
     expect(paidPlan({ input: { paypalOrderId: '5AB' } })).toBe(true); // 예전 일정(결제 출처 칸 없음)

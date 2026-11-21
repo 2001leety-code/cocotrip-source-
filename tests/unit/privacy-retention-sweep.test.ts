@@ -66,7 +66,7 @@ function makeDb(seed: Record<string, Record<string, Data>> = {}, { failOn = '' }
     async get() {
       if (failOn && path === failOn) throw new Error('boom secret@example.test');
       let rows = [...col(path).entries()].filter(([, d]) => filters.every(([f, op, v]) => {
-        const have = d[f];
+        const have = String(f).split('.').reduce((o: any, k) => (o == null ? undefined : o[k]), d);
         if (op === '==') return have === v;
         return kind(have) === kind(v) && num(have) <= num(v);
       }));
@@ -100,6 +100,12 @@ function seed() {
       pb1: { ...PAYMENT, status: 'CONFIRMED', dateStart: '2026-10-01', dateEnd: '2026-10-02', customerPhone: '+82', memo: 'm' },
       pb2: { ...PAYMENT, status: 'AWAITING_VERIFICATION', dateStart: '2026-10-01', memo: 'm', createdAt: ts('2026-10-01T00:00:00') }, // 신청 + 1개월 지남
       pb3: { ...PAYMENT, status: 'AWAITING_VERIFICATION', dateStart: '2026-12-01', memo: 'm', createdAt: ts('2026-11-01T00:00:00') }, // 아직
+      pb4: { ...PAYMENT, status: 'AWAITING_VERIFICATION', dateStart: '2026-12-01', memo: 'm' }, // 신청 시각 모름 → 남김
+      // 기간은 지났지만 PayPal 이 이 번호로 돈을 보낸 기록(금액 불일치로 자동 확정 안 됨)이 있음 → 남김
+      pb5: { ...PAYMENT, status: 'AWAITING_VERIFICATION', dateStart: '2026-12-01', memo: 'm', createdAt: ts('2026-10-01T00:00:00') },
+    },
+    paypal_webhook_log: {
+      ev1: { status: 'unmatched', detail: { reason: 'amount_mismatch', bookingRef: 'pb5' } },
     },
     used_paypal_orders: {
       P1: { createdAtMs: kst('2026-09-25T00:00:00'), intent: { body: { tourDate: '2026-10-01', amount: 100, payerEmail: 'buyer@example.test', customerPhone: '+82', memo: 'm' } } },
@@ -148,6 +154,8 @@ function seed() {
       g7: { uid: null, createdAtMs: kst('2026-06-01T00:00:00'), status: 'streaming', paymentSource: 'paypal', input: { startDate: '2026-06-10' } },
       // 180일은 지났지만 여행 끝(11/03) + 1개월이 안 됨 → 남김
       g8: { uid: null, createdAtMs: kst('2026-03-01T00:00:00'), paymentSource: 'manual', input: { startDate: '2026-11-01', durationDays: 3, paypalOrderId: 'MANUAL-1' } },
+      // 결제 출처 칸이 하나도 없는 옛 일정 = 모름 → 낸 것으로 보고 180일 남김
+      g9: { uid: null, createdAtMs: kst('2026-08-20T00:00:00'), input: { startDate: '2026-09-01', durationDays: 3 } },
       u1: { uid: 'user-1', createdAtMs: kst('2026-08-20T00:00:00'), input: { startDate: '2026-09-01', durationDays: 3 } },
     },
     plan_complaints: { pc1: { planId: 'g2', status: 'open', createdAt: ts('2026-10-01T00:00:00') } },
@@ -185,8 +193,8 @@ describe('기본 = 개수만 셈 (스위치 꺼짐)', () => {
     expect(counts.mood_schedule_notes).toEqual({ due: 1, heldDispute: 1 });
     expect(counts.cs_tickets).toEqual({ due: 1 });
     expect(counts.external_inbox_cases).toEqual({ dueCountOnly: 1 });
-    expect(counts.plans_guest).toEqual({ due: 2, heldComplaint: 1, heldPaid: 2, notYet: 3, member: 1 }); // g1·g6 / g5·g7 / g3·g4·g8
-    expect(counts.pending_bookings_unverified).toEqual({ due: 1, notYet: 1 });
+    expect(counts.plans_guest).toEqual({ due: 2, heldComplaint: 1, heldPaid: 3, notYet: 3, member: 1 }); // g1·g6 / g5·g7·g9 / g3·g4·g8
+    expect(counts.pending_bookings_unverified).toEqual({ due: 1, notYet: 1, noDate: 1, heldPaymentSeen: 1 });
     expect(counts.sheet_bookings).toBeUndefined(); // 운영이 아니면 시트는 안 읽음
     expect(counts.sheet_leads).toBeUndefined();
   });
@@ -234,6 +242,8 @@ describe('스위치 켬 = 지움', () => {
     expect(fake.col('pending_bookings').get('pb1')).not.toHaveProperty('customerPhone');
     expect(fake.col('pending_bookings').has('pb2')).toBe(false); // 입금 확인 대기 신청 + 1개월 = 문서 삭제
     expect(fake.col('pending_bookings').get('pb3')).toHaveProperty('memo', 'm');
+    expect(fake.col('pending_bookings').has('pb4')).toBe(true);
+    expect(fake.col('pending_bookings').has('pb5')).toBe(true);
   });
 
   it('협력사 예약: 출발·도착·메모와 변경 이력 사본까지 비우고 요금은 남김', async () => {
@@ -264,7 +274,7 @@ describe('스위치 켬 = 지움', () => {
     expect([...fake.col('mood_schedule_notes').keys()]).toEqual(['2026-10-03', '2026-11-15']);
     expect([...fake.col('cs_tickets').keys()]).toEqual(['t2']);
     // 비회원 일정: 여행 끝 + 1개월 지난 것만. 회원·신고 걸린 것·아직인 것은 남김
-    expect([...fake.col('plans').keys()]).toEqual(['g2', 'g3', 'g4', 'g5', 'g7', 'g8', 'u1']);
+    expect([...fake.col('plans').keys()]).toEqual(['g2', 'g3', 'g4', 'g5', 'g7', 'g8', 'g9', 'u1']);
     // 분쟁 보존 문의 3년 = 켜도 세기만
     expect(fake.col('external_inbox_cases').has('k1')).toBe(true);
   });
@@ -273,7 +283,7 @@ describe('스위치 켬 = 지움', () => {
     const fake = makeDb(seed(), { failOn: 'plan_complaints' });
     const result = await run(fake, ENV);
     expect(result.counts.plans_guest).toEqual({ heldComplaintUnknown: 1 });
-    expect(fake.col('plans').size).toBe(9);
+    expect(fake.col('plans').size).toBe(10);
   });
 
   it('협력사 예약 훑기가 실패하면 일정 메모도 안 지움', async () => {

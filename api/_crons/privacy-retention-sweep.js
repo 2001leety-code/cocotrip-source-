@@ -189,14 +189,19 @@ async function sweepMoodBookings(run) {
 }
 
 // ── 문서 통째로 지우는 곳 ───────────────────────────────────────────────────
-/** baseOf(data) = 기준 시각, 또는 baseYmd(data, id) = 기준 한국 날짜. hold(data, id) = 건너뛸 이유 또는 null. countOnly = 세기만. */
-async function sweepWholeDocs(run, T, { query, orderField, period, baseOf, baseYmd = null, hold = () => null, countOnly = false, before = null }) {
+/**
+ * baseOf(data) = 기준 시각, 또는 baseYmd(data, id) = 기준 한국 날짜. hold(data, id) = 건너뛸 이유 또는 null.
+ * holdWhenDue(data, id) = 때가 된 문서만 한 번 더 보는 (비싼) 확인, 건너뛸 이유 또는 null. countOnly = 세기만.
+ */
+async function sweepWholeDocs(run, T, { query, orderField, period, baseOf, baseYmd = null, hold = () => null, holdWhenDue = null, countOnly = false, before = null }) {
   await scan(run, query, orderField, async (doc, d) => {
     const reason = hold(d, doc.id);
     if (reason) return run.tally(T, reason);
     const base = baseYmd ? baseYmd(d, doc.id) : R.msToKstYmd(baseOf(d, doc.id));
     if (!base) return run.tally(T, 'noDate');
     if (!R.isDue(base, period, run.nowMs)) return run.tally(T, 'notYet');
+    const dueReason = holdWhenDue ? await holdWhenDue(d, doc.id) : null;
+    if (dueReason) return run.tally(T, dueReason);
     if (countOnly) return run.tally(T, 'dueCountOnly');
     if (!run.claim(T)) return;
     if (before) await before(doc);
@@ -262,9 +267,13 @@ function wholeDocTargets(run, { complainedPlanIds }) {
       hold: (d, id) => (d.uid !== null ? 'member' : complainedPlanIds.has(id) ? 'heldComplaint'
         : R.paidPlan(d) && !R.isDue(R.msToKstYmd(d.createdAtMs), R.PAID_PLAN_MIN, run.nowMs) ? 'heldPaid' : null) }],
     // 입금 확인을 기다리는 수동 결제 신청 = 신청 + 1개월에 문서 삭제(운영자 11/21). 확인된 신청은 위 예약 규칙(결제 칸 5년).
+    // 이 신청은 "손님이 송금했다"는 신고다. PayPal 이 이 예약 번호로 돈을 보냈다는 기록(금액 불일치·확정 실패 등으로
+    // 자동 확정이 안 된 것)이 있으면 돈 기록이라 남긴다(paypal-webhook.js 가 detail.bookingRef 로 남김).
     ['pending_bookings_unverified', {
       query: run.db.collection('pending_bookings').where('status', '==', 'AWAITING_VERIFICATION'),
-      orderField: FieldPath.documentId(), period: MONTH, baseOf: d => d.createdAt }],
+      orderField: FieldPath.documentId(), period: MONTH, baseOf: d => d.createdAt,
+      holdWhenDue: async (d, id) => ((await run.db.collection('paypal_webhook_log').where('detail.bookingRef', '==', id).limit(1).get()).empty
+        ? null : 'heldPaymentSeen') }],
   ];
 }
 
