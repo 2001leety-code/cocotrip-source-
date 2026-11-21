@@ -38,8 +38,10 @@ function makeRun({ db, nowMs, mode, clock }) {
     /** 지금 대상의 몫(runTargets 가 정함). 한 대상이 시간을 다 써서 뒤 대상이 세지도 못하는 일을 막는다. */
     targetDeadline: clock() + TIME_BUDGET_MS,
     outOfTime: () => clock() > run.targetDeadline,
+    /** 시간 몫을 다 써서 멈춘 대상 — 끝까지 못 봤으니 그 대상이 채우는 목록(heldMoodDates 등)도 믿지 않는다. */
+    stopped: new Set(),
     /** 시간 몫을 다 써서 멈춤 — 그 대상 개수는 빠진 것이지 0 이 아니다. */
-    stop(target) { run.timedOut = true; run.tally(target, 'timedOut'); },
+    stop(target) { run.timedOut = true; run.stopped.add(target); run.tally(target, 'timedOut'); },
     tally(target, key, n = 1) { const c = (counts[target] ||= {}); c[key] = (c[key] || 0) + n; },
     /** 지울 것 하나를 센다. 실제로 써도 되면 true(삭제 모드 + 하루 상한·시간 안). */
     claim(target) {
@@ -356,10 +358,12 @@ function wholeDocTargets(run, ctx) {
       query: run.db.collection(name).where('status', '==', 'done'), orderField: FieldPath.documentId(), period: MONTH,
       baseOf: d => R.latestMs(d.sweptAt, d.completedAt, d.updatedAt, d.closedAt, d.lastFailureAt) }]),
     target('quick_book_pending', 'createdAt', cutoffDate(run, MONTH), MONTH, { baseOf: d => d.createdAt }),
-    // 문서 번호 = 'YYYY-MM-DD'(그 날 메모). month 칸으로 범위를 좁힌다. 협력사 예약 훑기가 실패했으면 다툼을 모르니 다 남긴다.
+    // 문서 번호 = 'YYYY-MM-DD'(그 날 메모). month 칸으로 범위를 좁힌다. 협력사 예약 훑기가 실패했거나 시간 몫에 걸려
+    // 멈췄으면 다툼 날짜를 다 모르니 다 남긴다.
     target('mood_schedule_notes', 'month', cutoffYmd(run, MONTH).slice(0, 7), MONTH, {
       baseYmd: (d, id) => (R.validYmd(id) ? id : null),
-      hold: (d, id) => (run.errors.includes('mood_bookings') ? 'heldMoodUnknown' : run.heldMoodDates.has(id) ? 'heldDispute' : null) }),
+      hold: (d, id) => (run.errors.includes('mood_bookings') || run.stopped.has('mood_bookings') ? 'heldMoodUnknown'
+        : run.heldMoodDates.has(id) ? 'heldDispute' : null) }),
     // 불만·분쟁 3년: 처리를 마친(resolved) 것만 지운다. 처리 중인 것은 마칠 때까지 남긴다(운영자 11/22).
     ...['cs_tickets', 'plan_complaints'].map(name => target(name, 'createdAt', cutoffDate(run, THREE_YEARS), THREE_YEARS, {
       baseOf: d => d.createdAt, hold: d => (R.disputeClosed(d.status) ? null : 'heldOpen') })),

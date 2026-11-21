@@ -452,6 +452,24 @@ describe('스위치 켬 = 지움', () => {
     expect(fake.col('mood_schedule_notes').size).toBe(3);
   });
 
+  it('협력사 예약 훑기가 시간 몫에 걸려 멈춰도 일정 메모는 안 지움', async () => {
+    // 2026-11-22 검토: 오류가 아니라 시간 몫으로 멈추면 다툼 날짜(m3 = 10/03)를 못 보고 메모를 지웠다.
+    let t = 0;
+    const fake = makeDb(seed());
+    const db = { collection: (name: string) => {
+      const c = fake.db.collection(name);
+      if (name !== 'mood_booking_change_events') return c;
+      return { ...c, where: (f: string, op: string, v: unknown) => {
+        const q = c.where(f, op, v); // 예약마다 변경 이력 읽기 한 번 = 10초 → m1 뒤에서 멈춤
+        return f === 'bookingId' ? { ...q, get: async () => { t += 10_000; return q.get(); } } : q;
+      } };
+    } };
+    const result = await run(fake, ENV, { clock: () => t, db });
+    expect(result.counts.mood_bookings).toHaveProperty('timedOut', 1);
+    expect(result.counts.mood_schedule_notes).toEqual({ heldMoodUnknown: 2 });
+    expect(fake.col('mood_schedule_notes').size).toBe(3);
+  });
+
   it('다시 돌려도 이미 비운 것은 다시 쓰지 않는다', async () => {
     const fake = makeDb(seed());
     await run(fake, ENV);
