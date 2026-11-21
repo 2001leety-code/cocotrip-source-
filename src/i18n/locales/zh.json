@@ -2327,7 +2327,7 @@
     "minutesUnit": "分钟",
     "paxLabel": "人数",
     "adultLabel": "成人",
-    "childLabel": "儿童",
+    "childLabel": "儿童（未满14岁）",
     "totalPaxNote": "合计{pax}人 / 车辆最多{cap}人",
     "vehicleLabel": "车型",
     "recommendedTag": "推荐",
@@ -2715,6 +2715,13 @@
     "popupBlocked": "弹出窗口被拦截。请在浏览器中允许弹出窗口后重试。",
     "noEmail": "未能从该Google账户获取电子邮件地址。请换一个Google账户重试。",
     "failed": "未能关联账户。请稍后重试。"
+  },
+  "payConsent": {
+    "before": "付款即表示您同意",
+    "terms": "服务条款",
+    "middle": "和",
+    "privacy": "隐私政策",
+    "after": "。"
   },
   "ageGate": {
     "title": "年龄确认",

@@ -26,6 +26,7 @@ import { fetchMonthAvailability, type AvailabilityEntry } from '@/lib/tour-avail
 import { PayPalBookingButton } from '@/components/PayPalBookingButton';
 import { CartAddButton } from '@/components/CartButton';
 import { BookingInfoForm } from '@/components/booking/BookingInfoForm';
+import { guardianMemoLine, type GuardianConsent } from '@/lib/guardianConsent';
 import { charterUsdFromKrw } from '@/lib/charterUsd';
 import { FEATURE_TOUR_BOOKING_MINIMAL, isTourStep2Complete, computeTourBookingTotalKRW, clampHanbokCount } from './tourBookingValidation';
 import { SlotPicker } from '@/components/tours/SlotPicker';
@@ -252,6 +253,9 @@ export function TourBookingDialog({ tour, language, trigger }: Props) {
   // 2026-06-29 마케팅(선택) 정보 수신 동의 — 약관(termsAgreed)과 독립. 결제 게이트(step2Complete)에
   //   절대 미포함(미동의해도 결제 진행). capture body 로만 전달돼 booking 레코드에 보존.
   const [marketingConsent, setMarketingConsent] = useState<boolean>(false);
+  // 2026-11-22 만 14세 미만 동반·보호자 동의 — 폼(2단계)이 1단계로 갔다 오면 다시 만들어지므로 여기 들고 있다가
+  //   initialGuardian 으로 돌려준다. 약관처럼 저장(sessionStorage)하지 않는다 — 새로 열면 다시 묻는다.
+  const [guardian, setGuardian] = useState<GuardianConsent | null>(null);
 
   // 2026-06-11 가입 프로필 prefill — phone 만 빈칸일 때 채움 (픽업/WhatsApp/LINE/메모는 프로필 미수집 → 무변경).
   // localStorage 직전입력/사용자 타이핑은 절대 안 덮음(functional update 로 최신 phone 확인). 실패/로그아웃=빈칸 graceful.
@@ -448,6 +452,8 @@ export function TourBookingDialog({ tour, language, trigger }: Props) {
       //   (결제 로직 무관 — backend 가 memo 를 그대로 booking 에 보존. 운영자 컴플라이언스 추적용.)
       `Terms agreed: ${termsAgreed ? 'yes' : 'no'}`,
       `Marketing: ${marketingConsent ? 'yes' : 'no'}`,
+      // 2026-11-22 처리방침: 만 14세 미만 동반·보호자 동의(여부·시각·문구 판만, 새 개인정보 없음).
+      guardianMemoLine(guardian) || 'Child under 14: no',
     ];
     if (selectedSlot) {
       const mod = selectedSlot.price_modifier_krw ?? 0;
@@ -456,7 +462,7 @@ export function TourBookingDialog({ tour, language, trigger }: Props) {
       lines.push(`Slot: ${selectedSlot.id} @ ${selectedSlot.start_time}${labelStr ? ` "${labelStr}"` : ''}${modStr}`);
     }
     return lines.join(' | ');
-  }, [tour.title.en, pax, driverLang, phone, pickupAddress, messenger, effectiveAddons, hanbokCount, memoText, selectedSlot, termsAgreed, marketingConsent]);
+  }, [tour.title.en, pax, driverLang, phone, pickupAddress, messenger, effectiveAddons, hanbokCount, memoText, selectedSlot, termsAgreed, marketingConsent, guardian]);
 
   // 투어 적용 가능 addon만 (driver lang 옵션은 lang select에서 자동 처리)
   // batch 9 fix (B9-5): attraction_pass 는 tour.stops 합계가 0 이면 노출 안 함
@@ -816,6 +822,8 @@ export function TourBookingDialog({ tour, language, trigger }: Props) {
           externalAgreeAll={termsAgreed}
           onAgreeAllChange={setTermsAgreed}
           onMarketingChange={setMarketingConsent}
+          initialGuardian={guardian}
+          onGuardianChange={setGuardian}
           onFieldsChange={(d) => {
             // CRITICAL-1: 미팅장소→픽업, 요청사항→메모, 메신저(드롭다운+id)→단일 messenger
             //   (차터 패턴 "WhatsApp: id" — KakaoTalk/WeChat 까지 커버, fullMemo·게이트 반영).

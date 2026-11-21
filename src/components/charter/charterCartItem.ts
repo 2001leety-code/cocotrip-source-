@@ -9,6 +9,7 @@ import { isAiPlannerProduct, type CartItemBooking } from '@/lib/cart-types';
 import { charterUsdFromKrw } from '@/lib/charterUsd';
 import type { ResolvedPayment } from './resolveProductType';
 import type { WizardState } from './types';
+import { guardianMemoLine, type GuardianConsent } from '@/lib/guardianConsent';
 
 export interface CharterCartItem {
   id: string;
@@ -22,7 +23,7 @@ export interface CharterCartItem {
  * 차터 결제 가능 항목 → 장바구니 항목. 부적합이면 null(담기 버튼 미노출).
  * 제외: 비결제(payable=false) / 견적문의(charter_custom_estimate, backend SSOT 미해석=INVALID_LINE) / AI플래너(정책).
  */
-export function buildCharterCartItem(state: WizardState, resolved: ResolvedPayment, opts: { hasRoute?: boolean } = {}): CharterCartItem | null {
+export function buildCharterCartItem(state: WizardState, resolved: ResolvedPayment, opts: { hasRoute?: boolean; guardian?: GuardianConsent | null } = {}): CharterCartItem | null {
   if (!resolved.payable || !resolved.productType || resolved.priceKRW == null || resolved.priceKRW <= 0) return null;
   if (resolved.productType === 'charter_custom_estimate') return null; // backend 미해석 → cart 전체거부 회피
   if (isAiPlannerProduct(resolved.productType)) return null;            // 방어적(차터엔 미발생)
@@ -52,6 +53,8 @@ export function buildCharterCartItem(state: WizardState, resolved: ResolvedPayme
     state.customerPhone ? `Phone: ${state.customerPhone}` : '',
     state.customerMessenger ? `Messenger: ${state.customerMessenger}` : '',
     state.notes ? `Notes: ${state.notes}` : '',
+    // 2026-11-22 처리방침: 만 14세 미만 동반·보호자 동의(여부·시각·문구 판). 가격 키 아님.
+    guardianMemoLine(opts.guardian),
   ].filter(Boolean).join(' | ');
 
   // ⚠️ backend resolveLineItemKrw 가 읽는 키만 신뢰됨 (priceKRW 는 표시 전용 = 재계산 시 무시).

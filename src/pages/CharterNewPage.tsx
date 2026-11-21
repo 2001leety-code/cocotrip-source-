@@ -31,6 +31,7 @@ import { AIRPORTS_CATALOG, CITIES_CATALOG, VEHICLE_TYPES } from '@/data/charterP
 import { charterUsdFromKrw, formatCharterKrwUsd } from '@/lib/charterUsd';
 import { EstimateConsentBox } from '@/components/charter/EstimateConsentBox';
 import { ESTIMATE_POLICY_VERSION } from '@/lib/estimateConsent';
+import { guardianMemoLine, type GuardianConsent } from '@/lib/guardianConsent';
 import { originCodeLabel, resolveDestinationKeyLabel } from '@/components/charter/destinationDisplayLabels';
 import '@/styles/editorial-charter-funnel.css';
 
@@ -45,7 +46,7 @@ export default function CharterNewPage() {
   const [completedState, setCompletedState] = useState<WizardState | null>(null);
   // 2026-06-30 트립닷컴식 예약정보 (SMS 인증 제거 운영자) — 위저드 Step 5 의 약관 동의 결과.
   //   WizardState(스냅샷)에 안 넣고 별도 보관(매 결제마다 재동의). 결제 패널 → PayPalBookingButton 전달.
-  const [consent, setConsent] = useState<{ termsAgreed: boolean; marketingConsent: boolean }>({ termsAgreed: false, marketingConsent: false });
+  const [consent, setConsent] = useState<{ termsAgreed: boolean; marketingConsent: boolean; guardian?: GuardianConsent | null }>({ termsAgreed: false, marketingConsent: false });
 
   usePageMeta({
     title: t.pageMeta?.charterNew?.title ?? 'Charter Quote — Private Car in Korea',
@@ -155,7 +156,7 @@ function PaymentPanel({
 }: {
   state: WizardState;
   /** 2026-06-30 트립닷컴식 예약정보 (SMS 인증 제거 운영자) — 위저드 Step 5 의 약관 동의 결과 (PayPalBookingButton 으로 전달). */
-  consent: { termsAgreed: boolean; marketingConsent: boolean };
+  consent: { termsAgreed: boolean; marketingConsent: boolean; guardian?: GuardianConsent | null };
   userEmail: string;
   language: 'ko' | 'en' | 'ja' | 'zh';
   /** PayPal SDK 오류 패널의 재시도 버튼 레이블 (t.planner.paypalRetry). */
@@ -232,7 +233,9 @@ function PaymentPanel({
   // 2026-06-11 장바구니 담기 — 결제 가능 항목만(estimate/AI플래너/비결제=null). CartAddButton 은 플래그 OFF 시 자체 null.
   // 🔴 2026-07-18: 경유지(routeKm) 견적은 cart 담기 금지 — cart 재계산(resolve-line-item)이
   //   routeCoords 를 모른 채 matrix 직선가로 회귀해 표시≠청구가 되므로 단건 결제만 허용.
-  const cartItem = buildCharterCartItem(state, resolved, { hasRoute: routeKm != null });
+  const cartItem = buildCharterCartItem(state, resolved, { hasRoute: routeKm != null, guardian: consent.guardian });
+  // 2026-11-22 처리방침: 예약 memo 에 만 14세 미만 동반·보호자 동의(여부·시각·문구 판)를 남긴다. 가격 키 아님.
+  const bookingMemo = [state.notes || '', guardianMemoLine(consent.guardian)].filter(Boolean).join(' | ');
 
   // 2026-06-11 검수 인라인 편집 — 가격무영향(이름/연락처/메모/항공편) + 가벼운 재계산(날짜/시각) 필드만.
   // 저장 → onPatchState → CharterNewPage state patch → useQuoteCalculator/resolveProductType 자동 재계산.
@@ -357,7 +360,7 @@ function PaymentPanel({
           // FEATURE_CHARTER_WAYPOINTS: 경유지 좌표 → 백엔드가 동일 좌표로 TMAP km 재조회해 청구(P311).
           //   null(무경유/플래그OFF)이면 미전달 → 기존 matrix 경로.
           routeCoords={routeCoords ?? undefined}
-          memo={state.notes ?? ''}
+          memo={bookingMemo}
           itineraryData={{ wizard: state, airport: state.airport ?? null }}
           userEmail={userEmail}
           // 2026-06-30 트립닷컴식 예약정보 — 위저드 Step 5 약관 동의 → capture body 보존 (SMS 인증 제거).
@@ -412,7 +415,7 @@ function PaymentPanel({
             pickupLocation={state.origin ?? state.originCustom ?? ''}
             dropoffLocation={state.destinationKey ?? state.destinationCustom ?? ''}
             vehicleType={state.vehicle ?? 'staria'}
-            memo={state.notes ?? ''}
+            memo={bookingMemo}
             itineraryData={{ wizard: state, airport: state.airport ?? null, estimateBreakdown: quote }}
             userEmail={userEmail}
             // 2026-06-30 트립닷컴식 예약정보 — 위저드 Step 5 약관 동의 → capture body 보존 (SMS 인증 제거).

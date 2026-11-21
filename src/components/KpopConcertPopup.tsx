@@ -1,6 +1,7 @@
 import { useState, useMemo } from 'react';
 import { X, Music, Calendar, MapPin, ExternalLink, Star, Minus, Plus, Info, ArrowRight } from 'lucide-react';
 import { getUpcomingConcerts } from '@/data/kpopConcerts';
+import { PayConsentNote } from '@/components/booking/PayConsentNote';
 import { PayPalBookingButton } from '@/components/PayPalBookingButton';
 import { useLanguage } from '@/hooks/useLanguage';
 
@@ -241,6 +242,7 @@ export function KpopConcertPopup() {
                     memo={`${selected.artist} - ${selected.tourName}`}
                   />
                 )}
+                {canBook && <PayConsentNote className="text-[11px] text-white/55" />}
 
                 {/* 안내 */}
                 <div className="flex items-start gap-2 text-[11px] text-white/55 leading-relaxed">

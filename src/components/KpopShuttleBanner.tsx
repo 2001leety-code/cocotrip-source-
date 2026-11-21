@@ -2,6 +2,7 @@ import { lazy, Suspense, useState, useMemo } from 'react';
 import { Music, MapPin, Calendar, ExternalLink, Star, Minus, Plus, ArrowRight, Info } from 'lucide-react';
 import { getUpcomingConcerts } from '@/data/kpopConcerts';
 import { useLanguage } from '@/hooks/useLanguage';
+import { PayConsentNote } from '@/components/booking/PayConsentNote';
 
 const PayPalBookingButton = lazy(() => import('@/components/PayPalBookingButton').then(({ PayPalBookingButton }) => ({ default: PayPalBookingButton })));
 
@@ -257,6 +258,7 @@ export function KpopShuttleBanner({ p }: Props) {
                 vehicleType="staria"
                 memo={`${selected.artist} - ${selected.tourName}`}
               />
+              <PayConsentNote className="mt-2 text-[11px] text-white/55" />
             </Suspense>
           )}
 

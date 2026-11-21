@@ -2327,7 +2327,7 @@
     "minutesUnit": "분",
     "paxLabel": "인원수",
     "adultLabel": "어른",
-    "childLabel": "아이",
+    "childLabel": "아이 (만 14세 미만)",
     "totalPaxNote": "합계 {pax}인 / 차량 최대 {cap}인",
     "vehicleLabel": "차종",
     "recommendedTag": "추천",
@@ -2715,6 +2715,13 @@
     "popupBlocked": "팝업이 차단되었습니다. 브라우저에서 팝업을 허용한 뒤 다시 시도해 주세요.",
     "noEmail": "연결한 구글 계정에서 이메일을 받지 못했습니다. 다른 구글 계정으로 다시 시도해 주세요.",
     "failed": "연결하지 못했습니다. 잠시 후 다시 시도해 주세요."
+  },
+  "payConsent": {
+    "before": "결제하면 ",
+    "terms": "이용약관",
+    "middle": "과 ",
+    "privacy": "개인정보 처리방침",
+    "after": "에 동의합니다."
   },
   "ageGate": {
     "title": "나이 확인",

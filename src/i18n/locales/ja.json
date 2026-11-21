@@ -2327,7 +2327,7 @@
     "minutesUnit": "分",
     "paxLabel": "人数",
     "adultLabel": "大人",
-    "childLabel": "子供",
+    "childLabel": "子供（14歳未満）",
     "totalPaxNote": "合計{pax}名 / 車両定員{cap}名",
     "vehicleLabel": "車種",
     "recommendedTag": "おすすめ",
@@ -2715,6 +2715,13 @@
     "popupBlocked": "ポップアップがブロックされました。ブラウザでポップアップを許可してから、もう一度お試しください。",
     "noEmail": "連携したGoogleアカウントからメールアドレスを取得できませんでした。別のGoogleアカウントでお試しください。",
     "failed": "連携できませんでした。しばらくしてからもう一度お試しください。"
+  },
+  "payConsent": {
+    "before": "お支払いいただくと、",
+    "terms": "利用規約",
+    "middle": "と",
+    "privacy": "プライバシーポリシー",
+    "after": "に同意したことになります。"
   },
   "ageGate": {
     "title": "年齢の確認",

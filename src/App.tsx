@@ -140,6 +140,7 @@ import { usePageMeta } from '@/hooks/usePageMeta';
 import { trackPageView, initWhatsAppTracking, initBlogTracking, initUtmCapture } from '@/lib/analytics';
 import { capturePageView as posthogPageView } from '@/lib/posthog';
 import { signalAppReady } from '@/lib/appReady';
+import { HashScroll } from '@/components/HashScroll';
 
 function RouteFallback({ ground }: { ground?: 'paper' | 'legacy' }) {
   const { t } = useLanguage();
@@ -791,6 +792,8 @@ function App() {
             → chrome 숨김과 계측을 분리한다. PageViewTracker 는 null 만 반환하므로
               "무드는 별도 사이트처럼" 이라는 원래 의도는 하나도 안 깨진다. */}
         <PageViewTracker />
+        {/* 2026-11-22: `/privacy#article-6` 처럼 다른 페이지에서 #조각을 달고 오면 그 칸까지 내린다. */}
+        <HashScroll />
         <CustomerNightScope>
           <GlobalWidgets />
           <NonMoodChrome />

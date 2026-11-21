@@ -2327,7 +2327,7 @@
     "minutesUnit": "min",
     "paxLabel": "Pax",
     "adultLabel": "Adult",
-    "childLabel": "Child",
+    "childLabel": "Child (under 14)",
     "totalPaxNote": "Total {pax} pax / vehicle cap {cap}",
     "vehicleLabel": "Vehicle",
     "recommendedTag": "recommended",
@@ -2715,6 +2715,13 @@
     "popupBlocked": "The pop-up was blocked. Allow pop-ups in your browser and try again.",
     "noEmail": "We didn't receive an email address from that Google account. Please try another Google account.",
     "failed": "We couldn't connect the account. Please try again in a moment."
+  },
+  "payConsent": {
+    "before": "By paying, you agree to the ",
+    "terms": "Terms of Service",
+    "middle": " and ",
+    "privacy": "Privacy Policy",
+    "after": "."
   },
   "ageGate": {
     "title": "Age confirmation",

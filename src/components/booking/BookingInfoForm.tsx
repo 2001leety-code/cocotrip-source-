@@ -14,6 +14,7 @@ import { Link } from 'react-router-dom';
 import { DEFAULT_DIAL_BY_LANG, parsePhoneValue, normalizeNationalNumber, composePhoneValue, type DialLang } from '@/lib/country-dials';
 import { CountryDialPicker } from '@/components/booking/CountryDialPicker';
 import { AddressAutocomplete, type AddressResult } from '@/components/charter/AddressAutocomplete';
+import { GUARDIAN_CONSENT_VERSION, type GuardianConsent } from '@/lib/guardianConsent';
 
 export interface BookingFormData {
   lastName: string;
@@ -106,6 +107,12 @@ export interface BookingInfoFormProps {
    *  > 0 이면 보호자 동의가 필수 동의에 들어간다. 미제공(투어 — 아이 칸 없음)이면
    *  폼이 "만 14세 미만 아이와 함께 가요" 를 묻고, 고르면 보호자 동의가 필수가 된다. */
   childCount?: number;
+  /** 2026-11-22: 재마운트 복원용 보호자 동의 값(마운트 때 1회만 읽음). 투어는 1단계로 갔다 오면 폼이
+   *  다시 만들어져 "아이와 함께 가요"·보호자 동의가 꺼진 채 약관만 되살아났다 → 호출처가 아래 onGuardianChange 로
+   *  받은 값을 여기로 돌려준다. */
+  initialGuardian?: GuardianConsent | null;
+  /** 보호자 동의 상태 변화 emit(마운트 때도 1회) — 호출처가 예약 기록(memo·위저드 상태)에 남긴다. */
+  onGuardianChange?: (g: GuardianConsent) => void;
 }
 
 const MESSENGER_OPTIONS = ['WhatsApp', 'KakaoTalk', 'LINE', 'WeChat'];
@@ -439,10 +446,26 @@ export function BookingInfoForm(props: BookingInfoFormProps) {
   // 약관 SSOT 외부 제어 — externalAgreeAll 제공 시 단일 동의 상태(호출처)와 동기.
   const externallyControlledTerms = props.externalAgreeAll !== undefined;
   // 2026-11-21 보호자 동의(만 14세 미만 동반). 필요한지는 호출처 아이 수, 없으면(투어) 폼의 질문.
-  const [travelingWithMinor, setTravelingWithMinor] = useState(false);
-  const [agreeGuardian, setAgreeGuardian] = useState(false);
+  //   재마운트면 호출처가 준 initialGuardian 으로 시작한다(투어 1단계 왕복 때 꺼지던 버그의 원인 = 이 state 가
+  //   폼과 함께 사라지는데 약관은 호출처 값으로 되살아났다).
+  const initialG = props.initialGuardian || null;
+  const [travelingWithMinor, setTravelingWithMinor] = useState(!!initialG && initialG.minor);
+  const [agreeGuardian, setAgreeGuardian] = useState(!!initialG && initialG.minor && initialG.agreed && !!initialG.at);
+  const [guardianAt, setGuardianAt] = useState<string | null>(initialG && initialG.agreed && initialG.at ? initialG.at : null);
+  const setGuardian = (v: boolean) => { setAgreeGuardian(v); setGuardianAt(v ? new Date().toISOString() : null); };
   const guardianNeeded = props.childCount !== undefined ? props.childCount > 0 : travelingWithMinor;
   const guardianOk = !guardianNeeded || agreeGuardian;
+  const guardianAgreed = guardianNeeded && agreeGuardian;
+  const { onGuardianChange } = props;
+  useEffect(() => {
+    onGuardianChange?.({
+      minor: guardianNeeded,
+      agreed: guardianAgreed,
+      at: guardianAgreed ? guardianAt : null,
+      version: GUARDIAN_CONSENT_VERSION,
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [guardianNeeded, guardianAgreed, guardianAt]);
   // 외부모드의 agree1~3 표시값. 예전엔 호출처 termsAgreed 를 그대로 보였지만, 이제 호출처 값 =
   //   (agree1~3 && 보호자 동의) 라서 줄 표시는 폼이 따로 든다. 재마운트(Step6→5) 시 호출처 값으로 시작.
   const [termsTicked, setTermsTicked] = useState<boolean>(!!props.externalAgreeAll);
@@ -462,7 +485,7 @@ export function BookingInfoForm(props: BookingInfoFormProps) {
   const agreeAll = requiredAgreed && f.agree4;
   const toggleAll = () => {
     const v = !agreeAll;
-    if (guardianNeeded) setAgreeGuardian(v);
+    if (guardianNeeded) setGuardian(v);
     // 필수(외부 or 내부 agree1~3) + 마케팅(내부 agree4) 분리 호출.
     if (externallyControlledTerms) {
       setTermsTicked(v);
@@ -705,7 +728,7 @@ export function BookingInfoForm(props: BookingInfoFormProps) {
           {/* 2026-11-21: 아이 수를 모르는 호출처(투어)만 묻는다. 사실 확인이라 "모두 동의" 에 안 묶는다. */}
           {props.childCount === undefined && (
             <>
-              <AgreeRow checked={travelingWithMinor} onChange={(v) => { setTravelingWithMinor(v); if (!v) setAgreeGuardian(false); }} reqLabel={s.req} optLabel={s.minorIfApplies} text={s.minorQuestion} />
+              <AgreeRow checked={travelingWithMinor} onChange={(v) => { setTravelingWithMinor(v); if (!v) setGuardian(false); }} reqLabel={s.req} optLabel={s.minorIfApplies} text={s.minorQuestion} />
               <div style={{ height: 1, background: 'rgba(255,255,255,0.07)', margin: '10px 0' }} />
             </>
           )}
@@ -720,7 +743,7 @@ export function BookingInfoForm(props: BookingInfoFormProps) {
             <AgreeRow checked={externallyControlledTerms ? termsTicked : f.agree2} onChange={(v) => externallyControlledTerms ? setTermsTicked(v) : set({ agree2: v })} req reqLabel={s.req} optLabel={s.opt} text={s.agree2} />
             <AgreeRow checked={externallyControlledTerms ? termsTicked : f.agree3} onChange={(v) => externallyControlledTerms ? setTermsTicked(v) : set({ agree3: v })} req reqLabel={s.req} optLabel={s.opt} text={s.agree3} />
             {guardianNeeded && (
-              <AgreeRow checked={agreeGuardian} onChange={setAgreeGuardian} req reqLabel={s.req} optLabel={s.opt} text={s.agreeGuardian} />
+              <AgreeRow checked={agreeGuardian} onChange={setGuardian} req reqLabel={s.req} optLabel={s.opt} text={s.agreeGuardian} />
             )}
             {/* 마케팅(선택) — 외부모드에서도 내부 state(f.agree4)로만. onMarketingChange 미배선이면 payload 미반영(강제동의 제거 목적). */}
             <AgreeRow checked={f.agree4} onChange={(v) => { set({ agree4: v }); if (externallyControlledTerms) props.onMarketingChange?.(v); }} reqLabel={s.req} optLabel={s.opt} text={s.agree4} />

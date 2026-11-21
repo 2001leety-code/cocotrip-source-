@@ -33,6 +33,7 @@ import { charterUsdFromKrw } from '@/lib/charterUsd';
 //   투어 8시간(api/_shared/booking-cutoff.js = lib/bookingCutoff)이라 화면만 거짓이었다.
 //   숫자는 정책 상수에서 파생한다 — 하드코딩 재발은 booking-cutoff-parity 테스트가 막는다.
 import { CHARTER_VEHICLE_CUTOFF_HOURS, getCutoffHours } from '@/lib/bookingCutoff';
+import type { GuardianConsent } from '@/lib/guardianConsent';
 
 const Step2Service = lazy(() => import('./Step2Service').then(({ Step2Service }) => ({ default: Step2Service })));
 const Step3Destination = lazy(() => import('./Step3Destination').then(({ Step3Destination }) => ({ default: Step3Destination })));
@@ -50,7 +51,7 @@ type CharterWizardProps = {
   initialState?: Partial<WizardState>;
   // 2026-06-30 트립닷컴식 예약정보 (SMS 인증 제거 운영자): consent 는 WizardState(스냅샷 저장)에
   //   안 넣고 — 매 결제마다 재동의 — onComplete 두 번째 인자로 결제 패널에 전달. 미전달=하위호환.
-  onComplete?: (state: WizardState, consent?: { termsAgreed: boolean; marketingConsent: boolean }) => void;
+  onComplete?: (state: WizardState, consent?: { termsAgreed: boolean; marketingConsent: boolean; guardian?: GuardianConsent | null }) => void;
   language?: 'ko' | 'en' | 'ja' | 'zh';
 };
 
@@ -186,6 +187,9 @@ export function CharterWizard({ initialState, onComplete, language = 'en' }: Cha
   // 2026-06-29 마케팅(선택) 동의 — 약관과 독립. canAdvance(case5/case6) 게이트에 절대 미포함
   //   (미동의해도 결제 진행). onComplete 로 결제 패널 → capture body 보존.
   const [marketingConsent, setMarketingConsent] = useState<boolean>(false);
+  // 2026-11-22 보호자 동의(만 14세 미만) — 약관처럼 세션 상태(snapshot 미저장, 다시 오면 다시 동의).
+  //   Step5 재마운트 복원 + 결제 패널의 예약 memo 기록용. 결제 게이트는 여전히 termsAgreed 하나.
+  const [guardian, setGuardian] = useState<GuardianConsent | null>(null);
   // Resume modal — 사용자가 '이어서/새로 시작' 결정할 때까지 main snapshot 보존.
   const [resumeOpen, setResumeOpen] = useState<boolean>(!!initialSnap);
 
@@ -336,8 +340,8 @@ export function CharterWizard({ initialState, onComplete, language = 'en' }: Cha
   //   clearWizardSnapshot + onComplete(state, consent) — canAdvance(case6)가 약관 동의 이미 보장.
   const handleProceedPayment = useCallback(() => {
     clearWizardSnapshot('charter');
-    onComplete?.(state, { termsAgreed, marketingConsent });
-  }, [state, termsAgreed, marketingConsent, onComplete]);
+    onComplete?.(state, { termsAgreed, marketingConsent, guardian });
+  }, [state, termsAgreed, marketingConsent, guardian, onComplete]);
   // sticky 바 가격 — quote.subtotalKRW 파생값 재사용(재계산 X). 결제가능 견적일 때만 노출,
   //   custom/미산출이면 null → 가격 숨김(formatPrice SSOT 포맷터, P311 표시가=청구가).
   const stickyAmountKRW = quote && !quote.needsCustomQuote && quote.subtotalKRW > 0 ? quote.subtotalKRW : null;
@@ -456,6 +460,8 @@ export function CharterWizard({ initialState, onComplete, language = 'en' }: Cha
                 termsAgreed={termsAgreed}
                 onTermsChange={setTermsAgreed}
                 onMarketingChange={setMarketingConsent}
+                guardian={guardian}
+                onGuardianChange={setGuardian}
               />
             )}
             {currentStep === 6 && (
