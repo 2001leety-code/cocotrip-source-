@@ -262,6 +262,14 @@ export async function enforcePaymentAndRevision(body, adminDb, authenticatedEmai
   // dispatch 조기 return 이 catch 를 건너뛰어 유실된다. 상세 = _shared/plan-issuance.js.
   let planClaim = null;
 
+  // 2026-11-22 (독립 검토 2회차 꼭 고칠 것): 자동 검사 역할은 재생성 금지. 재생성은 하루 상한
+  //   (claimHealthCheckQuota)도 mock 채택(handlerCore — isAdminBypass 일 때만)도 안 지나 실제 AI 를 부른다.
+  //   자동 검사 스크립트·e2e 는 revisionOf 를 쓰지 않는다. 횟수 차감 전에 막는다.
+  if (revisionOf && healthCheck === true) {
+    console.warn('[planner] revision rejected | healthCheckRole: true');
+    return reject(403, 'FORBIDDEN', 'Revision not allowed for automated-check account');
+  }
+
   if (revisionOf && adminDb) {
     console.log('[planner] Revision mode — checking credits for plan:', revisionOf);
     const origRef = adminDb.collection('plans').doc(revisionOf);

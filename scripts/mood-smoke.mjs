@@ -113,7 +113,8 @@ async function main() {
     console.log('⏭️  SKIP — FIREBASE_WEB_API_KEY / HEALTH_CHECK_EMAIL / HEALTH_CHECK_PASSWORD 미설정 (로컬). CI 에서 실동작.');
     process.exit(0);
   }
-  const clientId = CLIENT_ID || (tokenRoles(idToken).includes('health-check') ? '' : 'mood');
+  const isHealthCheckRole = tokenRoles(idToken).includes('health-check');
+  const clientId = CLIENT_ID || (isHealthCheckRole ? '' : 'mood');
   console.log(`   client: ${clientId || '(허용 목록 값 — 서버가 고정)'}\n`);
 
   // 1) mood-data — 잔액/원장 조회 (로그인-뒤 조회 게이트)
@@ -123,8 +124,10 @@ async function main() {
     const { status, body } = await jsonFetch(clientId ? `/api/mood-data?clientId=${encodeURIComponent(clientId)}` : '/api/mood-data', idToken);
     const d = body?.data || body;
     // 2026-11-22 운영자 결정 4: 자동 검사 계정은 잔액이 null(빈 값)로 온다. CI 기록에는 숫자 대신 읽힘/안 읽힘만.
+    //   계정 종류와 묶는다 — 역할 계정에 숫자가 오면(빈 값 깨짐) 실패, 허용 목록 계정에 null 이 오면 실패.
     const balanceRead = typeof d?.client?.balanceKRW === 'number';
-    const ok = status === 200 && d?.client && (balanceRead || d.client.balanceKRW === null) && Array.isArray(d.bookings);
+    const moneyOk = isHealthCheckRole ? d?.client?.balanceKRW === null : balanceRead;
+    const ok = status === 200 && d?.client && moneyOk && Array.isArray(d.bookings);
     record('mood-data 잔액/원장 조회', ok, ok ? `잔액=${balanceRead ? '읽힘' : '안 읽힘(빈 값)'} 원장=읽힘 isAdmin=${d.isAdmin}` : failDetail(status, body));
   } catch (err) {
     record('mood-data 잔액/원장 조회', false, err.message);

@@ -110,15 +110,23 @@ async function main() {
 
   if (unlinkIdx >= 0) {
     const check = checkUnlinkTarget(user, operatorEmails());
-    if (!check.ok) { console.log(check.done ? `할 일 없음 — ${check.reason}` : `거부 — ${check.reason}`); process.exit(check.done ? 0 : 1); }
-    if (!apply) { console.log('보기만 — 바꾸려면 --apply. 바꾸면 이 계정은 구글 로그인만 남는다.'); return; }
-    await auth.updateUser(user.uid, { providersToUnlink: ['password'] });
-    const after = await auth.getUser(user.uid);
-    console.log('바뀐 뒤:', describe(after));
-    if (providerIds(after).includes('password')) { console.error('❌ 비밀번호 로그인이 아직 남아 있음'); process.exit(1); }
+    if (!check.ok && !check.done) { console.log(`거부 — ${check.reason}`); process.exit(1); }
+    if (!apply) {
+      console.log(check.done
+        ? `${check.reason} — --apply 면 기존 로그인(갱신 토큰)만 다시 끊는다.`
+        : '보기만 — 바꾸려면 --apply. 바꾸면 이 계정은 구글 로그인만 남는다.');
+      return;
+    }
+    // 비밀번호가 이미 없어도(콘솔에서 뗐거나, 앞 실행이 끊기 직전에 실패) 끊기는 다시 돈다 — 여러 번 해도 해가 없다.
+    if (!check.done) {
+      await auth.updateUser(user.uid, { providersToUnlink: ['password'] });
+      const after = await auth.getUser(user.uid);
+      console.log('바뀐 뒤:', describe(after));
+      if (providerIds(after).includes('password')) { console.error('❌ 비밀번호 로그인이 아직 남아 있음'); process.exit(1); }
+    }
     // 옛 비밀번호로 이미 받아 둔 로그인(갱신 토큰)도 끊는다. 서버는 verifyIdToken(token, true) 로 폐기를 확인한다.
     await auth.revokeRefreshTokens(user.uid);
-    console.log('✅ 비밀번호 로그인 연결 끊음 + 기존 로그인 모두 끊음(구글로 다시 로그인). 다음: 구글 계정 2단계 인증 켜기.');
+    console.log(`✅ ${check.done ? '비밀번호 로그인은 이미 없음' : '비밀번호 로그인 연결 끊음'} + 기존 로그인 모두 끊음(구글로 다시 로그인). 다음: 구글 계정 2단계 인증 켜기.`);
     return;
   }
 

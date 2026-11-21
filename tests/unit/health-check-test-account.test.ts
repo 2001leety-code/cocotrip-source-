@@ -145,6 +145,29 @@ describe('paymentGate — 자동 검사 역할은 자동 검사 접두사 주문
     expect(r.rejection).toMatchObject({ statusCode: 403, code: 'FORBIDDEN' });
   });
 
+  it('역할 계정의 재생성(revisionOf) → 403, 플랜 문서·횟수를 건드리지 않는다 (상한·mock 을 안 지나는 길)', async () => {
+    const collection = vi.fn(() => { throw new Error('db must not be touched'); });
+    // @ts-expect-error — JS 모듈
+    const { enforcePaymentAndRevision } = await import('../../api/_ai_core/paymentGate.js');
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    try {
+      const r = await enforcePaymentAndRevision({ revisionOf: 'plan-1', paypalOrderId: 'ADMIN-BYPASS-E2E-1' }, { collection }, HC.email, HC.uid, null, { healthCheck: true });
+      expect(r.rejection).toMatchObject({ statusCode: 403, code: 'FORBIDDEN' });
+      expect(collection).not.toHaveBeenCalled();
+    } finally {
+      warn.mockRestore();
+    }
+  });
+
+  it('역할 없는 계정의 재생성은 예전 그대로 플랜 문서를 본다', async () => {
+    const get = vi.fn(async () => ({ exists: false }));
+    // @ts-expect-error — JS 모듈
+    const { enforcePaymentAndRevision } = await import('../../api/_ai_core/paymentGate.js');
+    const r = await enforcePaymentAndRevision({ revisionOf: 'plan-1' }, { collection: () => ({ doc: () => ({ get }) }) }, 'u@example.test', 'uid-u', null, { healthCheck: false });
+    expect(r.rejection).toMatchObject({ statusCode: 404, code: 'NOT_FOUND' });
+    expect(get).toHaveBeenCalledTimes(1);
+  });
+
   it('거절 응답·서버 기록에 허용 이메일 목록과 요청 이메일이 없다', async () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
     try {
@@ -254,12 +277,17 @@ describe('자동 검사 스크립트·워크플로 — 운영자 계정으로 �
     const src = read('scripts/mood-smoke.mjs');
     expect(src).not.toMatch(/balance=\$\{|bookings=\$\{|places=\$\{|JSON\.stringify\(body\)/);
     expect(src).toContain("잔액=${balanceRead ? '읽힘' : '안 읽힘(빈 값)'}");
+    // 빈 값/숫자를 계정 종류와 묶는다 (역할 계정에 숫자가 와도, 허용 목록 계정에 null 이 와도 실패)
+    expect(src).toContain("const moneyOk = isHealthCheckRole ? d?.client?.balanceKRW === null : balanceRead;");
+    expect(src).toMatch(/const ok = status === 200 && d\?\.client && moneyOk && /);
   });
 
-  it('바우처 슈트는 기본으로 로그인 토큰을 보낸다', () => {
+  it('바우처 슈트는 기본으로 로그인 토큰을 보내고, 주소에 이메일을 싣지 않는다', () => {
     const src = read('scripts/validate-prod-voucher.mjs');
     expect(src).toMatch(/async function fetchVoucher\(\{ extraQuery = '', withAuth = true,/);
     expect(src).toMatch(/pass: noAuthStatus === 401 && notFoundStatus === 404/);
+    expect(src).toContain('const params = new URLSearchParams({ bookingID });');
+    expect(src).not.toMatch(/userEmail:\s*VOUCHER_BOOKING_EMAIL/);
   });
 
   it('daily-health.yml — 비밀번호를 넘기는 단계마다 이메일도 넘긴다', () => {
@@ -303,11 +331,19 @@ describe('provision-health-check-account — 거부 규칙', () => {
     expect(read('scripts/provision-health-check-account.mjs'))
       .toMatch(/providersToUnlink: \['password'\][\s\S]{0,400}revokeRefreshTokens\(user\.uid\)/);
   });
+
+  it('비밀번호가 이미 없어도(--apply) 끊기는 다시 돈다 — "할 일 없음"으로 끝나지 않는다', () => {
+    const src = read('scripts/provision-health-check-account.mjs');
+    expect(src).not.toContain('process.exit(check.done ? 0 : 1)');
+    expect(src).toContain('if (!check.ok && !check.done) {');
+    // 떼기만 done 이 아닐 때로 감싸고, 끊기는 그 밖(항상)에서
+    expect(src).toMatch(/if \(!check\.done\) \{\s*await auth\.updateUser[\s\S]*?\n {4}\}\n[\s\S]{0,200}await auth\.revokeRefreshTokens\(user\.uid\);/);
+  });
 });
 
 describe('mood-smoke — 옛 운영자 계정이면 예전처럼 clientId=mood, 역할 계정이면 서버 고정값', () => {
   it('역할이 있을 때만 기본 clientId 를 안 보낸다', () => {
     expect(read('scripts/mood-smoke.mjs'))
-      .toMatch(/const clientId = CLIENT_ID \|\| \(tokenRoles\(idToken\)\.includes\('health-check'\) \? '' : 'mood'\);/);
+      .toMatch(/const isHealthCheckRole = tokenRoles\(idToken\)\.includes\('health-check'\);\s*const clientId = CLIENT_ID \|\| \(isHealthCheckRole \? '' : 'mood'\);/);
   });
 });

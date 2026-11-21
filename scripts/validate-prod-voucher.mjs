@@ -139,10 +139,8 @@ const results = [];
 
 // 공통 fetch helper — voucher endpoint 호출. 기본 = 로그인 토큰 보냄 (voucher.js 는 Bearer 필수).
 async function fetchVoucher({ extraQuery = '', withAuth = true, bookingID = VOUCHER_BOOKING_ID } = {}) {
-  const params = new URLSearchParams({
-    bookingID,
-    userEmail: VOUCHER_BOOKING_EMAIL,
-  });
+  // userEmail 은 안 보낸다 — 서버(voucher.js)는 토큰 이메일과 bookingID 만 읽는다. 주소창에 이메일을 싣지 않는다.
+  const params = new URLSearchParams({ bookingID });
   if (extraQuery) {
     for (const [k, v] of new URLSearchParams(extraQuery).entries()) {
       params.set(k, v);
