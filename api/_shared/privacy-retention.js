@@ -191,6 +191,31 @@ export function paymentAttemptClosed(lock, review) {
 export const cartPaid = status => lower(status) === 'captured';
 
 /**
+ * 결제 시도 기록이 "돈을 안 가져갔다"를 확실히 말하는가(운영자 11/22: 결제 전 장바구니는 이때만 지움).
+ * not_captured 이면서 돈 증거(captureVerified·captureID·격리)가 하나도 없을 때만 true. 나머지(진행 중·모름·옛 꼴)는 false.
+ */
+export const attemptTookNoMoney = lock => lock?.captureState === 'not_captured'
+  && lock?.reviewQuarantined !== true && !lock?.captureVerified && !lock?.captureID;
+
+/**
+ * 무료 플랜 신청 영수증 다운로드 URL → { bucket, path }. 우리 버킷의 `free_claims/{slug}/…` 파일만,
+ * 나머지(다른 버킷·다른 경로·모르는 꼴)는 null(= 지우지 않고 그 신청도 남김).
+ * 꼴: https://firebasestorage.googleapis.com/v0/b/<bucket>/o/<encodedPath>?alt=media&token=…
+ */
+export function freeClaimReceiptObject(raw, buckets) {
+  let url;
+  try { url = new URL(String(raw)); } catch { return null; }
+  if (url.protocol !== 'https:' || url.hostname !== 'firebasestorage.googleapis.com') return null;
+  const m = /^\/v0\/b\/([^/]+)\/o\/([^/]+)$/.exec(url.pathname);
+  if (!m || !buckets.has(m[1])) return null;
+  let path;
+  try { path = decodeURIComponent(m[2]); } catch { return null; }
+  const parts = path.split('/');
+  if (parts[0] !== 'free_claims' || parts.length < 3 || parts.some(p => !p || p === '.' || p === '..')) return null;
+  return { bucket: m[1], path };
+}
+
+/**
  * 불만·분쟁 기록(3년)은 처리를 마친 것만 지운다(운영자 11/22). 처리 중이거나 모르는 상태는 남긴다.
  * plan_complaints: open | reviewed | resolved (submit-plan-complaint.js) · cs_tickets: open | in_progress | resolved (telegram-webhook-admin.js).
  */
@@ -238,5 +263,5 @@ export function monthEndYmd(month) {
 const TERMINAL_INQUIRY_STATUSES = new Set(['rejected', 'responded', 'closed', 'converted']);
 export const inquiryClosed = status => TERMINAL_INQUIRY_STATUSES.has(String(status || '').trim().toLowerCase());
 
-/** 쿼리 범위용: 기간이 아무리 짧아도 이보다 최근 것은 볼 필요가 없다(1개월 ≥ 28일, 30일 기간 ≥ 30일). */
+/** 쿼리 범위용(일 단위는 그 일수): 기간이 아무리 짧아도 이보다 최근 것은 볼 필요가 없다(1개월 ≥ 28일, 30일 기간 ≥ 30일). */
 export const scanCutoffMs = (nowMs, period) => nowMs - (period.years ? 365 * period.years : period.days || 28 * (period.months || 1)) * DAY_MS;

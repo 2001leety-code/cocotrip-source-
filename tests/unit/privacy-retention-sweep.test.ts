@@ -68,6 +68,7 @@ function makeDb(seed: Record<string, Record<string, Data>> = {}, { failOn = '' }
       let rows = [...col(path).entries()].filter(([, d]) => filters.every(([f, op, v]) => {
         const have = String(f).split('.').reduce((o: any, k) => (o == null ? undefined : o[k]), d);
         if (op === '==') return have === v;
+        if (op === 'in') return (v as unknown[]).includes(have);
         return kind(have) === kind(v) && num(have) <= num(v);
       }));
       if (order) rows.sort((a, b) => { const x = order === DOC_ID ? a[0] : num(a[1][order]); const y = order === DOC_ID ? b[0] : num(b[1][order]); return x < y ? -1 : x > y ? 1 : a[0] < b[0] ? -1 : 1; });
@@ -76,8 +77,20 @@ function makeDb(seed: Record<string, Record<string, Data>> = {}, { failOn = '' }
       return snapOf(path, rows);
     },
   });
-  return { db: { collection: (name: string) => query(name) }, store, writes, col };
+  // 가짜 Storage — 지운 파일도 writes 에 남겨 "세기만이면 아무것도 안 바꿈"을 같이 본다.
+  const storage = {
+    fail: false,
+    async deleteFile(bucket: string, path: string) {
+      if (storage.fail) throw new Error('storage boom secret@example.test');
+      writes.push(`storage delete ${bucket}/${path}`);
+    },
+  };
+  return { db: { collection: (name: string) => query(name) }, store, writes, col, storage };
 }
+
+const BUCKET = 'proj.firebasestorage.app';
+const receiptUrl = (path: string, bucket = BUCKET) =>
+  `https://firebasestorage.googleapis.com/v0/b/${bucket}/o/${encodeURIComponent(path)}?alt=media&token=t`;
 
 // ── 시드: 지금 = 2026-11-21 04:41 KST(정기 작업 시각) ─────────────────────────
 const NOW = kst('2026-11-21T04:41:00');
@@ -118,6 +131,9 @@ function seed() {
       P4: { createdAtMs: kst('2026-09-25T00:00:00'), captureState: 'posted', intent: { body: { tourDate: '2026-10-01', memo: 'm' } } }, // 미완료
       P5: { createdAtMs: kst('2026-09-25T00:00:00'), finalized: true, intent: { body: { tourDate: '2026-10-01', memo: 'm' } } }, // 예약은 11/10 으로 옮김
       P6: { createdAtMs: kst('2026-09-25T00:00:00'), finalized: true, intent: { body: { tourDate: '2026-10-01', memo: 'm' } } }, // 예약 환불 중
+      // 결제 전 장바구니의 결제 시도 기록(같은 번호). createdAtMs 가 없어 위 사본 훑기엔 안 잡힘.
+      c3: { captureState: 'captured', captureID: 'CAPX' }, // 돈 가져감 → 장바구니 남김
+      c4: { captureState: 'not_captured' }, // 돈 안 가져감 → 장바구니 지움
     },
     payment_reviews: {
       P2: { createdAt: ts('2026-09-25T00:00:00'), resolvedAt: null, bookingPayload: { tourDate: '2026-10-01', memo: 'm' } },
@@ -126,9 +142,40 @@ function seed() {
     cart_orders: {
       c1: { status: 'captured', createdAt: ts('2026-09-25T00:00:00'), total: 300,
         lines: [{ productId: 'tour-1', amount: 300, booking: { dateStart: '2026-10-01', dateEnd: '2026-10-02', customerPhone: '+82', pickupLocation: 'Test Hotel', at: ts('2026-09-25T00:00:00') } }] },
-      // 결제 전(created) = 결제 기록을 못 남긴 결제일 수도 있어 남김
-      c2: { status: 'created', createdAt: ts('2026-09-25T00:00:00'), lines: [{ booking: { dateStart: '2026-10-01', memo: 'm' } }] },
+      // 결제 전(created) = 만든 날 + 1개월, 결제 시도 기록이 없거나 돈을 안 가져갔을 때만 문서 삭제(운영자 11/22)
+      c2: { status: 'created', createdAt: ts('2026-09-25T00:00:00'), lines: [{ booking: { dateStart: '2026-10-01', memo: 'm' } }] }, // 시도 기록 없음
+      c3: { status: 'created', createdAt: ts('2026-09-25T00:00:00'), lines: [{ booking: { memo: 'm' } }] }, // 돈 가져감 → 남김
+      c4: { status: 'created', createdAt: ts('2026-09-25T00:00:00'), lines: [{ booking: { memo: 'm' } }] }, // not_captured
+      c5: { status: 'created', createdAt: ts('2026-10-22T00:00:00'), lines: [] }, // 11/23 부터
     },
+    intent_classifier_logs: {
+      ic1: { ts: '2026-10-01T03:00:00.000Z', email: 'guest@example.test', raw_text: 'pick me up at Test Hotel' },
+      ic2: { ts: '2026-11-20T03:00:00.000Z', email: 'guest@example.test' }, // 범위 밖
+    },
+    error_log: { el1: { createdAt: kst('2026-10-01T00:00:00'), message: 'CT-1 buyer@example.test' }, el2: { createdAt: kst('2026-11-20T00:00:00'), message: 'x' } },
+    pending_free_claims: {
+      fc1: { status: 'approved', email: 'claim@example.test', flightRef: 'PNR1', createdAt: ts('2026-09-28T00:00:00'), reviewedAt: ts('2026-10-01T00:00:00'),
+        receipts: [{ name: 'a.pdf', url: receiptUrl('free_claims/claim_example_test/a.pdf'), size: 1 }] },
+      fc2: { status: 'pending', email: 'claim@example.test', createdAt: ts('2026-09-01T00:00:00') }, // 처리 전 = 세기만
+      fc3: { status: 'rejected', email: 'claim@example.test', createdAt: ts('2026-11-01T00:00:00'), reviewedAt: ts('2026-11-15T00:00:00') }, // 아직
+      fc4: { status: 'approved', email: 'claim@example.test', reviewedAt: ts('2026-10-01T00:00:00'), receipts: [{ url: receiptUrl('community/u1/a.jpg') }] }, // free_claims/ 밖
+      fc5: { status: 'rejected', email: 'claim@example.test', reviewedAt: ts('2026-10-01T00:00:00'),
+        receipts: [{ url: receiptUrl('free_claims/x/a.pdf', 'other-project.appspot.com') }] }, // 남의 버킷
+      fc6: { status: 'rejected', email: 'claim@example.test', reviewedAt: ts('2026-10-01T00:00:00') }, // 영수증 없음 → 문서만
+    },
+    mood_booking_change_idempotency: {
+      mi1: { action: 'approve', bookingId: 'm1', actorEmail: 'partner@example.test', payloadHash: 'h', quoteId: 'q', status: 'completed',
+        response: { ok: true, data: { newAmountKRW: 1 } }, createdAt: kst('2026-10-01T00:00:00'), completedAt: kst('2026-10-01T00:00:00') },
+      mi2: { actorEmail: 'partner@example.test', status: 'completed', response: { ok: true }, completedAt: kst('2026-10-22T12:00:00') }, // 11/23 부터
+    },
+    chat_rate_limits: {
+      'u:user-1': { t: [1], updatedAt: kst('2026-11-17T00:00:00') },
+      'usr:user-1:2026-11-17': { c: 3, lastUpdated: kst('2026-11-17T00:00:00') },
+      'u:user-2': { t: [], updatedAt: kst('2026-11-19T00:30:00') }, // 11/22 부터
+    },
+    preview_lead_rate_limits: { h1: { count: 1, lastSeenAtMs: kst('2026-11-18T00:00:00') }, h2: { count: 1, lastSeenAtMs: kst('2026-11-20T01:00:00') } },
+    inquiry_rate_limits: { h1: { count: 1, lastSeenAtMs: kst('2026-11-18T00:00:00') } },
+    inquiry_auto_ack_recipients: { '2026-11-17-abc': { day: '2026-11-17', reservedAtMs: kst('2026-11-17T09:00:00') } },
     mood_bookings: {
       m1: { status: 'completed', date: '2026-10-01', price: 500, origin: 'A', destination: 'B', note: 'n', breakdown: { origin: 'A', destination: 'B', fare: 300 },
         courseMoodPercentages: [100, 0], courseShareSchemaVersion: 2 }, // 부담률 = 돈 기록, 남김
@@ -183,7 +230,7 @@ function seed() {
 }
 
 const run = (fake: ReturnType<typeof makeDb>, env: Record<string, string> = {}, extra: Record<string, unknown> = {}) =>
-  privacyRetentionSweepTask({ env, now: () => NOW, clock: () => 0, db: fake.db, ...extra } as never) as Promise<any>;
+  privacyRetentionSweepTask({ env: { FIREBASE_PROJECT_ID: 'proj', ...env }, now: () => NOW, clock: () => 0, db: fake.db, storage: fake.storage, ...extra } as never) as Promise<any>;
 
 const dump = (store: Map<string, Map<string, Data>>) => [...store.entries()].filter(([, v]) => v.size).map(([k, v]) => [k, [...v.entries()]]);
 
@@ -203,7 +250,18 @@ describe('기본 = 개수만 셈 (스위치 꺼짐)', () => {
     expect(counts.pending_bookings).toEqual({ due: 1, heldStatus: 1 });
     expect(counts.used_paypal_orders).toEqual({ due: 1, heldQuarantined: 1, heldUnfinished: 1, notYet: 1, heldBookingStatus: 1 }); // P1 / P3 / P4 / P5 / P6
     expect(counts.payment_reviews).toEqual({ heldUnresolved: 1, alreadyClean: 1 });
-    expect(counts.cart_orders).toEqual({ due: 1, heldUnpaid: 1 });
+    expect(counts.cart_orders).toEqual({ due: 1 });
+    expect(counts.cart_orders_unpaid).toEqual({ due: 2, heldPaymentAttempt: 1, notYet: 1 }); // c2·c4 / c3 / c5
+    expect(counts.intent_classifier_logs).toEqual({ due: 1 });
+    expect(counts.error_log).toEqual({ due: 1 });
+    // fc1·fc6 / fc1 영수증 1개 / fc2 / fc3 / fc4·fc5
+    expect(counts.pending_free_claims).toEqual({ due: 2, receiptFilesDue: 1, heldPending: 1, notYet: 1, heldReceiptUnknown: 2 });
+    expect(counts.mood_booking_change_idempotency).toEqual({ due: 1, notYet: 1 });
+    expect(counts.chat_rate_limits).toEqual({ due: 1, notYet: 1 });
+    expect(counts.chat_rate_limits_daily).toEqual({ due: 1 });
+    expect(counts.preview_lead_rate_limits).toEqual({ due: 1, notYet: 1 });
+    expect(counts.inquiry_rate_limits).toEqual({ due: 1 });
+    expect(counts.inquiry_auto_ack_recipients).toEqual({ due: 1 });
     expect(counts.mood_bookings).toEqual({ due: 2, heldStatus: 3 });
     expect(counts.preview_leads).toEqual({ due: 1 }); // l2 는 범위 밖
     expect(counts.charter_inquiries).toEqual({ due: 1, notYet: 1, heldOpen: 1 });
@@ -256,7 +314,10 @@ describe('스위치 켬 = 지움', () => {
       privacyRetention: { version: 1, scrubbedAtMs: NOW },
     });
     for (const id of ['P3', 'P4', 'P5', 'P6']) expect(fake.col('used_paypal_orders').get(id)).toHaveProperty('intent.body.memo', 'm');
-    expect((fake.col('cart_orders').get('c2') as any).lines[0].booking).toHaveProperty('memo', 'm');
+    // 결제 전 장바구니: 시도 기록 없음(c2)·돈 안 가져감(c4) = 지움, 돈 가져감(c3)·아직(c5) = 남김. 결제 시도 기록은 그대로.
+    expect([...fake.col('cart_orders').keys()]).toEqual(['c1', 'c3', 'c5']);
+    expect((fake.col('cart_orders').get('c3') as any).lines[0].booking).toHaveProperty('memo', 'm');
+    expect(fake.col('used_paypal_orders').get('c4')).toEqual({ captureState: 'not_captured' });
     expect(fake.col('payment_reviews').get('P2')).toHaveProperty('bookingPayload.memo', 'm'); // 미해결 = 보류
     const c1 = fake.col('cart_orders').get('c1') as any;
     expect(c1).toMatchObject({ status: 'captured', total: 300, lines: [{ productId: 'tour-1', amount: 300, booking: { dateStart: '2026-10-01', dateEnd: '2026-10-02' } }] });
@@ -303,6 +364,48 @@ describe('스위치 켬 = 지움', () => {
     expect([...fake.col('plans').keys()]).toEqual(['g2', 'g3', 'g4', 'g5', 'g7', 'g8', 'g9', 'u1']);
     // 분쟁 보존 문의 3년 = 켜도 세기만
     expect(fake.col('external_inbox_cases').has('k1')).toBe(true);
+  });
+
+  it('운영자 11/22 대상: 기록·무료 신청(영수증 파일 포함)·중복 막기 칸·속도 제한', async () => {
+    const fake = makeDb(seed());
+    const { counts } = await run(fake, ENV);
+    expect([...fake.col('intent_classifier_logs').keys()]).toEqual(['ic2']);
+    expect([...fake.col('error_log').keys()]).toEqual(['el2']);
+    // 무료 신청: 처리 + 1개월 지난 것만 문서·영수증 삭제. 처리 전·아직·영수증 위치가 이상한 것은 남김
+    expect([...fake.col('pending_free_claims').keys()]).toEqual(['fc2', 'fc3', 'fc4', 'fc5']);
+    expect(fake.writes.filter(w => w.startsWith('storage'))).toEqual([`storage delete ${BUCKET}/free_claims/claim_example_test/a.pdf`]);
+    // 파일 먼저, 문서는 그 뒤
+    expect(fake.writes.indexOf('delete pending_free_claims/fc1')).toBeGreaterThan(fake.writes.indexOf(`storage delete ${BUCKET}/free_claims/claim_example_test/a.pdf`));
+    expect(counts.pending_free_claims).toMatchObject({ applied: 2, receiptFilesDeleted: 1 });
+    // 중복 막기 기록: 문서·요청 지문은 남기고(늦은 재전송 = 409) 이메일·응답만 비움
+    expect(fake.col('mood_booking_change_idempotency').get('mi1')).toEqual({
+      action: 'approve', bookingId: 'm1', payloadHash: 'h', quoteId: 'q', status: 'completed',
+      createdAt: kst('2026-10-01T00:00:00'), completedAt: kst('2026-10-01T00:00:00'), privacyRetention: { version: 1, scrubbedAtMs: NOW } });
+    expect(fake.col('mood_booking_change_idempotency').get('mi2')).toHaveProperty('actorEmail');
+    expect([...fake.col('chat_rate_limits').keys()]).toEqual(['u:user-2']);
+    expect([...fake.col('preview_lead_rate_limits').keys()]).toEqual(['h2']);
+    expect(fake.col('inquiry_rate_limits').size).toBe(0);
+    expect(fake.col('inquiry_auto_ack_recipients').size).toBe(0);
+  });
+
+  it('영수증 파일 지우기가 실패하면 신청 문서를 남긴다(다음 날 다시 찾게)', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const fake = makeDb(seed());
+    fake.storage.fail = true;
+    const result = await run(fake, ENV);
+    expect(result).toMatchObject({ ok: false, code: 'RETENTION_REVIEW_REQUIRED' });
+    expect(fake.col('pending_free_claims').has('fc1')).toBe(true);
+    expect(fake.col('pending_free_claims').has('fc6')).toBe(false); // 영수증 없는 신청은 그대로 진행
+    expect(result.counts.pending_free_claims).toMatchObject({ docError: 1, applied: 1 });
+    expect(JSON.stringify(warn.mock.calls)).not.toContain('example.test');
+    warn.mockRestore();
+  });
+
+  it('우리 버킷을 모르면(프로젝트 설정 없음) 영수증 있는 신청은 하나도 안 지움', async () => {
+    const fake = makeDb(seed());
+    const result = await run(fake, { ...ENV, FIREBASE_PROJECT_ID: '' });
+    expect(fake.col('pending_free_claims').has('fc1')).toBe(true);
+    expect(result.counts.pending_free_claims).toMatchObject({ heldReceiptUnknown: 3 });
   });
 
   it('신고 목록을 못 읽으면 비회원 일정은 하나도 안 지움', async () => {
@@ -353,6 +456,30 @@ describe('날짜 경계 (한국 자정)', () => {
     expect(early.counts.bookings).toEqual({ notYet: 1 });
     const onTime = await privacyRetentionSweepTask({ env: {}, now: () => kst('2026-11-21T00:00:00'), clock: () => 0, db: one().db } as never) as any;
     expect(onTime.counts.bookings).toEqual({ due: 1 });
+  });
+
+  // 기준 시각 10/21 00:30 KST = UTC 로는 10/20 — UTC 날짜로 세면 하루 일찍 지운다.
+  const BASE = kst('2026-10-21T00:30:00');
+  const RULES: [string, string, Data, string][] = [
+    // 1개월: 정확히 한 달 되는 날(11/21)까지 남기고 11/22 0시(KST)부터
+    ['intent_classifier_logs', 'intent_classifier_logs', { ts: new Date(BASE).toISOString(), email: 'e' }, '2026-11-22'],
+    ['error_log', 'error_log', { createdAt: BASE }, '2026-11-22'],
+    ['mood_booking_change_idempotency', 'mood_booking_change_idempotency', { status: 'completed', actorEmail: 'e', completedAt: BASE }, '2026-11-22'],
+    ['pending_free_claims', 'pending_free_claims', { status: 'approved', reviewedAt: new Ts(BASE) }, '2026-11-22'],
+    ['cart_orders_unpaid', 'cart_orders', { status: 'created', createdAt: new Ts(BASE) }, '2026-11-22'],
+    // 2일: 10/23 까지 남기고 10/24 부터 · 1일: 10/22 까지 남기고 10/23 부터
+    ['chat_rate_limits', 'chat_rate_limits', { updatedAt: BASE }, '2026-10-24'],
+    ['chat_rate_limits_daily', 'chat_rate_limits', { lastUpdated: BASE }, '2026-10-24'],
+    ['inquiry_auto_ack_recipients', 'inquiry_auto_ack_recipients', { reservedAtMs: BASE }, '2026-10-24'],
+    ['preview_lead_rate_limits', 'preview_lead_rate_limits', { lastSeenAtMs: BASE }, '2026-10-23'],
+    ['inquiry_rate_limits', 'inquiry_rate_limits', { lastSeenAtMs: BASE }, '2026-10-23'],
+  ];
+  it.each(RULES)('%s: 전날 23:59:59 KST 에는 아직, %s 00:00 KST 부터', async (target, collection, data, from) => {
+    const at = async (iso: string) => ((await privacyRetentionSweepTask({ env: {}, now: () => kst(iso), clock: () => 0,
+      db: makeDb({ [collection]: { x: data } }).db } as never)) as { counts: Record<string, unknown> }).counts[target];
+    const dayBefore = new Date(Date.parse(`${from}T00:00:00Z`) - 86_400_000).toISOString().slice(0, 10);
+    expect(await at(`${dayBefore}T23:59:59`)).toEqual({ notYet: 1 });
+    expect(await at(`${from}T00:00:00`)).toEqual({ due: 1 });
   });
 
   it('300건 넘게도 끝까지 넘겨 센다', async () => {

@@ -7,7 +7,7 @@ import {
   deletableFrom, isDue, kstYmd, validYmd, toMs, tripEndYmd, findKeyPaths, withoutKeysDeep,
   bookingSettled, moodBookingSettled, inquiryClosed, scanCutoffMs, UNKNOWN_END_BUFFER_DAYS,
   planTripEndYmd, sheetDateYmd, kstMonth, monthEndYmd, latestMs, paidPlan, PAID_PLAN_MIN,
-  paymentAttemptClosed, cartPaid, disputeClosed,
+  paymentAttemptClosed, cartPaid, disputeClosed, attemptTookNoMoney, freeClaimReceiptObject,
 } from '../../api/_shared/privacy-retention.js';
 import { leadSheetRow } from '../../api/_ai_core/emailNotifier.js';
 
@@ -232,5 +232,33 @@ describe('Leads 새 줄 = 동향만', () => {
       .toEqual(['2026-11', '', '', 'Seoul', 'food, cafe', 2, '']);
     expect(leadSheetRow({ area: undefined, styles: undefined, pax: undefined } as never, Date.parse('2026-10-01T00:00:00Z')))
       .toEqual(['2026-10', '', '', '', '', '', '']);
+  });
+});
+
+describe('운영자 11/22 — 결제 전 장바구니·무료 신청 영수증', () => {
+  it('결제 시도가 돈을 안 가져간 것이 확실할 때만 true', () => {
+    expect(attemptTookNoMoney({ captureState: 'not_captured' })).toBe(true);
+    for (const lock of [{}, { captureState: 'none' }, { captureState: 'posted' }, { captureState: 'unknown' }, { captureState: 'captured' },
+      { status: 'pending' }, { captureState: 'not_captured', captureID: 'C' }, { captureState: 'not_captured', captureVerified: { ok: true } },
+      { captureState: 'not_captured', reviewQuarantined: true }]) expect(attemptTookNoMoney(lock)).toBe(false);
+  });
+
+  it('영수증 URL: 우리 버킷 free_claims/{slug}/파일 만', () => {
+    const buckets = new Set(['proj.firebasestorage.app']);
+    const url = (bucket: string, path: string) => `https://firebasestorage.googleapis.com/v0/b/${bucket}/o/${encodeURIComponent(path)}?alt=media&token=t`;
+    expect(freeClaimReceiptObject(url('proj.firebasestorage.app', 'free_claims/a_b/r 1.pdf'), buckets))
+      .toEqual({ bucket: 'proj.firebasestorage.app', path: 'free_claims/a_b/r 1.pdf' });
+    for (const bad of [
+      url('other.appspot.com', 'free_claims/a/r.pdf'), // 남의 버킷
+      url('proj.firebasestorage.app', 'community/u/r.jpg'), // 다른 경로
+      url('proj.firebasestorage.app', 'free_claims/r.pdf'), // slug 없음
+      url('proj.firebasestorage.app', 'free_claims/../reviews/r.jpg'),
+      'https://firebasestorage.googleapis.com/v0/b/proj.firebasestorage.app/o/free_claims/a/r.pdf', // 인코딩 안 된 꼴
+      'http://firebasestorage.googleapis.com/v0/b/proj.firebasestorage.app/o/free_claims%2Fa%2Fr.pdf',
+      'https://evil.test/v0/b/proj.firebasestorage.app/o/free_claims%2Fa%2Fr.pdf',
+      'https://firebasestorage.googleapis.com/v0/b/proj.firebasestorage.app/o/free_claims%2Fa%2F%E0%A4%A',
+      'free_claims/a/r.pdf', '', null, undefined,
+    ]) expect(freeClaimReceiptObject(bad, buckets)).toBeNull();
+    expect(freeClaimReceiptObject(url('proj.firebasestorage.app', 'free_claims/a/r.pdf'), new Set())).toBeNull();
   });
 });

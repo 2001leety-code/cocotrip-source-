@@ -9,6 +9,7 @@
  *   배열 칸(cart_orders.lines)만 다시 쓰며, 그때도 평범한 객체만 복사한다(withoutKeysDeep).
  * - 칸·기간 근거: api/_shared/privacy-retention.js 머리말, 칸별 표(작업 보고서).
  * - 시트 `Leads` 탭은 동향용으로 남기되(운영자 11/21) 1개월 지난 줄의 이메일·이름·일정 번호를 비우고 시각을 달로 줄인다.
+ * - 무료 플랜 신청 영수증(Storage `free_claims/`)도 스위치가 켜졌을 때만 지운다. 꺼져 있으면 개수(receiptFilesDue)만.
  */
 import { FieldPath, FieldValue } from 'firebase-admin/firestore';
 import * as R from '../_shared/privacy-retention.js';
@@ -16,6 +17,10 @@ import * as R from '../_shared/privacy-retention.js';
 const MONTH = Object.freeze({ months: 1 });
 const THIRTY_DAYS = Object.freeze({ days: 30 });
 const THREE_YEARS = Object.freeze({ years: 3 });
+/** 속도 제한·자동 답장 표(운영자 11/22): 창이 1시간(IP)·하루(대화·자동 답장)라 그 뒤엔 쓸 데가 없다. */
+const ONE_DAY = Object.freeze({ days: 1 });
+const TWO_DAYS = Object.freeze({ days: 2 });
+const lower = value => String(value || '').trim().toLowerCase();
 const PAGE = 300;
 const TIME_BUDGET_MS = 45_000;
 /** 켠 뒤에도 하루 이만큼만 바꾼다(문서 하나 또는 예약 하나와 그 사본 묶음 = 1). 남은 것은 다음 날. */
@@ -158,13 +163,30 @@ async function sweepPaymentCopy(run, T, query, orderField, under, hold) {
   });
 }
 
+/**
+ * 결제 전(created) 장바구니 = 만든 날 + 1개월에 문서 삭제(운영자 11/22). 결제 시도 기록(used_paypal_orders, 같은 번호)이
+ * 없거나 돈을 안 가져간 것이 확실할 때만. 돈을 가져갔을 수 있으면 결제 복구가 이 문서를 읽으므로 남긴다.
+ */
+async function sweepUnpaidCart(run, doc, d) {
+  const T = 'cart_orders_unpaid';
+  const base = R.msToKstYmd(d.createdAt);
+  if (!base) return run.tally(T, 'noDate');
+  if (!R.isDue(base, MONTH, run.nowMs)) return run.tally(T, 'notYet');
+  const lock = await run.db.collection('used_paypal_orders').doc(doc.id).get();
+  if (lock.exists && !R.attemptTookNoMoney(lock.data() || {})) return run.tally(T, 'heldPaymentAttempt');
+  if (!run.claim(T)) return;
+  await doc.ref.delete();
+  run.tally(T, 'applied');
+}
+
 async function sweepCartOrders(run) {
   const T = 'cart_orders';
   await scan(run, T, run.db.collection(T).where('createdAt', '<=', cutoffDate(run, MONTH)), 'createdAt', async (doc, d) => {
+    if (lower(d.status) === 'created') return sweepUnpaidCart(run, doc, d);
     const lines = Array.isArray(d.lines) ? d.lines : [];
     if (!lines.some(line => topLevelPaths(line?.booking, R.PAYMENT_COPY_TRIP_KEYS).length)) return run.tally(T, 'alreadyClean');
-    // 결제 끝난 것만(칸표). 결제 전(created)은 결제 기록을 못 남긴 결제일 수도 있어 남기고 개수만 센다.
-    if (!R.cartPaid(d.status)) return run.tally(T, String(d.status || '').trim().toLowerCase() === 'created' ? 'heldUnpaid' : 'heldStatus');
+    // 결제 끝난 것만(칸표). payment_review 등은 남기고 개수만 센다.
+    if (!R.cartPaid(d.status)) return run.tally(T, 'heldStatus');
     const ends = lines.map(line => R.tripEndYmd(line?.booking?.dateStart, [line?.booking?.dateEnd]));
     if (ends.some(end => !end)) return run.tally(T, 'noDate');
     if (!R.isDue([...ends].sort().pop(), MONTH, run.nowMs)) return run.tally(T, 'notYet');
@@ -210,6 +232,50 @@ async function sweepMoodBookings(run) {
     if (!run.claim(T)) return;
     for (const copy of copies) await scrubPaths(run, copy.name, copy.ref, copy.paths);
     await scrubPaths(run, T, doc.ref, paths);
+  });
+}
+
+/**
+ * 협력사 예약 변경 중복 막기 기록 = 끝난 뒤 + 1개월에 요청자 이메일·응답 사본만 비우고 문서는 남긴다(운영자 11/22).
+ * 문서가 남아 있으면 늦게 다시 온 같은 요청은 다시 처리되지 않고 409(IDEMPOTENCY_RESPONSE_MISSING)를 받는다(mood-change.js).
+ */
+async function sweepMoodIdempotency(run) {
+  const T = 'mood_booking_change_idempotency';
+  await scan(run, T, run.db.collection(T).where('completedAt', '<=', cutoffMs(run, MONTH)), 'completedAt', async (doc, d) => {
+    const paths = topLevelPaths(d, ['actorEmail', 'response']);
+    if (!paths.length) return run.tally(T, 'alreadyClean');
+    if (lower(d.status) !== 'completed') return run.tally(T, 'heldStatus');
+    const base = R.msToKstYmd(d.completedAt);
+    if (!base) return run.tally(T, 'noDate');
+    if (!R.isDue(base, MONTH, run.nowMs)) return run.tally(T, 'notYet');
+    if (run.claim(T)) await scrubPaths(run, T, doc.ref, paths);
+  });
+}
+
+/**
+ * "이미 예약했어요 → 무료 플랜" 신청 = 승인·거절된 날 + 1개월에 문서와 그 문서가 가리키는 영수증 파일 삭제(운영자 11/22).
+ * 처리 전(pending)은 세기만. 영수증 하나라도 우리 버킷 `free_claims/` 파일로 못 읽으면 신청째 남긴다(파일을 놓치지 않게).
+ * 파일 먼저 지우고 문서는 마지막 — 중간에 실패하면 다음 날 문서로 다시 찾는다(없는 파일은 넘어감).
+ * ponytail: 작은 컬렉션이라 세 상태를 매일 다 읽는다 — 커지면 reviewedAt 범위 쿼리로.
+ */
+async function sweepFreeClaims(run, storage, buckets) {
+  const T = 'pending_free_claims';
+  const query = run.db.collection(T).where('status', 'in', ['pending', 'approved', 'rejected']);
+  await scan(run, T, query, FieldPath.documentId(), async (doc, d) => {
+    if (d.status === 'pending') {
+      const created = R.msToKstYmd(d.createdAt);
+      return run.tally(T, created && !R.isDue(created, MONTH, run.nowMs) ? 'notYet' : 'heldPending');
+    }
+    const base = R.msToKstYmd(d.reviewedAt);
+    if (!base) return run.tally(T, 'noDate');
+    if (!R.isDue(base, MONTH, run.nowMs)) return run.tally(T, 'notYet');
+    const files = (Array.isArray(d.receipts) ? d.receipts : []).map(receipt => R.freeClaimReceiptObject(receipt?.url, buckets));
+    if (files.some(file => !file)) return run.tally(T, 'heldReceiptUnknown');
+    if (files.length) run.tally(T, 'receiptFilesDue', files.length);
+    if (!run.claim(T)) return;
+    for (const file of files) { await storage.deleteFile(file.bucket, file.path); run.tally(T, 'receiptFilesDeleted'); }
+    await doc.ref.delete();
+    run.tally(T, 'applied');
   });
 }
 
@@ -301,6 +367,26 @@ function wholeDocTargets(run, ctx) {
       orderField: FieldPath.documentId(), period: MONTH, baseOf: d => d.createdAt,
       holdWhenDue: async (d, id) => ((await run.db.collection('paypal_webhook_log').where('detail.bookingRef', '==', id).limit(1).get()).empty
         ? null : 'heldPaymentSeen') }],
+    // 운영자 11/22: 손님 말(raw_text)·이메일이 든 분류기 기록 = 만든 날 + 1개월. ts 는 ISO 글자라 ISO 글자로 비교한다.
+    target('intent_classifier_logs', 'ts', new Date(cutoffMs(run, MONTH)).toISOString(), MONTH, { baseOf: d => d.ts }),
+    // 알림 본문에 예약 번호·이메일이 섞일 수 있는 오류 기록 = 1개월(읽는 곳은 길어야 주간 보고).
+    target('error_log', 'createdAt', cutoffMs(run, MONTH), MONTH, { baseOf: d => d.createdAt }),
+  ];
+}
+
+/**
+ * 문서 번호에 사람 식별값(uid·IP 해시·이메일 해시·게스트 세션)이 든 속도 제한·중복 막기 표. 개인정보 대상보다 뒤에 돌려
+ * 하루 상한을 먼저 쓰지 않게 한다. 대화 표는 문서 꼴에 따라 시각 칸 이름이 둘(updatedAt / lastUpdated)이라 두 번 훑는다.
+ */
+function lowPriorityTargets(run) {
+  const target = (name, collection, field, period) => [name, {
+    query: run.db.collection(collection).where(field, '<=', cutoffMs(run, period)), orderField: field, period, baseOf: d => d[field] }];
+  return [
+    target('chat_rate_limits', 'chat_rate_limits', 'updatedAt', TWO_DAYS),
+    target('chat_rate_limits_daily', 'chat_rate_limits', 'lastUpdated', TWO_DAYS),
+    target('preview_lead_rate_limits', 'preview_lead_rate_limits', 'lastSeenAtMs', ONE_DAY),
+    target('inquiry_rate_limits', 'inquiry_rate_limits', 'lastSeenAtMs', ONE_DAY),
+    target('inquiry_auto_ack_recipients', 'inquiry_auto_ack_recipients', 'reservedAtMs', TWO_DAYS),
   ];
 }
 
@@ -413,7 +499,30 @@ async function runTargets(run, jobs) {
   }
 }
 
-export async function privacyRetentionSweepTask({ env = process.env, now = Date.now, clock = Date.now, db = null, sheets = null } = {}) {
+/** 영수증을 지워도 되는 우리 버킷. 미리보기는 그 DB 프로젝트 버킷만(운영 버킷 이름을 넣지 않는다). 하나도 모르면 빈 목록 = 다 남김. */
+function receiptBuckets(env, database) {
+  let projectId = '';
+  try { projectId = String(database.projectId || '').trim(); } catch { /* 첫 요청 전엔 모를 수 있다 */ }
+  if (!projectId) projectId = String(env.FIREBASE_PROJECT_ID || '').trim();
+  const buckets = new Set(projectId ? [`${projectId}.appspot.com`, `${projectId}.firebasestorage.app`] : []);
+  const explicit = String(env.FIREBASE_STORAGE_BUCKET || '').trim();
+  if (explicit && env.VERCEL_ENV !== 'preview') buckets.add(explicit);
+  return buckets;
+}
+
+function adminStorage(env) {
+  return {
+    async deleteFile(bucket, path) {
+      const [{ getStorage }, { getApps }, admin] = await Promise.all([
+        import('firebase-admin/storage'), import('firebase-admin/app'), import('../_shared/firebase-admin.js')]);
+      const app = env.VERCEL_ENV === 'preview' ? admin.initAdminApp() : getApps()[0];
+      if (!app) throw Object.assign(new Error('storage unavailable'), { code: 'STORAGE_UNAVAILABLE' });
+      await getStorage(app).bucket(bucket).file(path).delete({ ignoreNotFound: true });
+    },
+  };
+}
+
+export async function privacyRetentionSweepTask({ env = process.env, now = Date.now, clock = Date.now, db = null, sheets = null, storage = null } = {}) {
   try {
     const nowMs = now();
     if (!Number.isSafeInteger(nowMs) || nowMs <= 0) return { ok: false, code: 'RETENTION_CLOCK_INVALID' };
@@ -440,6 +549,8 @@ export async function privacyRetentionSweepTask({ env = process.env, now = Date.
         d => (d.resolvedAt === null || d.resolvedAt === undefined ? 'heldUnresolved' : null))],
       ['cart_orders', () => sweepCartOrders(run)],
       ['mood_bookings', () => sweepMoodBookings(run)],
+      ['mood_booking_change_idempotency', () => sweepMoodIdempotency(run)],
+      ['pending_free_claims', () => sweepFreeClaims(run, storage || adminStorage(env), receiptBuckets(env, database))],
       ['plan_complaints_open', async () => { ctx.complainedPlanIds = await openComplaintPlanIds(run); }],
       ...wholeDocTargets(run, ctx).map(([target, options]) => [target, async () => {
         // 신고 목록을 못 읽었으면 비회원 일정은 건너뛴다(신고 걸린 일정을 지울 수 있어서).
@@ -451,6 +562,7 @@ export async function privacyRetentionSweepTask({ env = process.env, now = Date.
         ['sheet_bookings', async () => sweepBookingSheet(run, await loadSheets())],
         ['sheet_leads', async () => sweepLeadsSheet(run, await loadSheets())],
       ] : []),
+      ...lowPriorityTargets(run).map(([target, options]) => [target, () => sweepWholeDocs(run, target, options)]),
     ]);
 
     const ok = run.errors.length === 0;
