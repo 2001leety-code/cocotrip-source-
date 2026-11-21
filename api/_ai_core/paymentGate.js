@@ -359,7 +359,7 @@ export async function enforcePaymentAndRevision(body, adminDb, authenticatedEmai
       if (!allowedEmails.includes(requestEmail)) {
         // batch 9 fix (B9-6): reject 메시지에 정확한 디버깅 정보 — 운영자가 prod 에서
         // 즉시 원인 식별 가능. 이메일 노출은 본인이라 OK.
-        console.warn('[planner] ADMIN-BYPASS- rejected for non-admin email:', requestEmail, '| allowed:', allowedEmails);
+        console.warn('[planner] ADMIN-BYPASS- rejected for non-admin account | allowedCount:', allowedEmails.length);
         return reject(403, 'FORBIDDEN', 'Admin bypass not allowed for this account',
           `Authenticated as "${requestEmail}" but not in admin allowlist. Allowed: [${allowedEmails.join(', ')}]. Configure ADMIN_BYPASS_EMAILS env var or sign in with the admin account.`);
       }
@@ -470,7 +470,7 @@ export async function enforcePaymentAndRevision(body, adminDb, authenticatedEmai
     } else {
       // PayPal Smart Buttons (5/7 복구) — order capture 이미 capturePaypalOrder.js 에서 완료.
       // 여기서는 PayPal API 로 status sanity check + used_paypal_orders 멱등 가드.
-      console.log('[planner] PayPal mode | email:', requestEmail);
+      console.log('[planner] PayPal mode | hasEmail:', !!requestEmail);
 
       let ppToken, ppBase;
       try {

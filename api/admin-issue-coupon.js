@@ -145,7 +145,7 @@ export default async function handler(req, res) {
       ...couponData,
     }).catch((e) => console.warn('[admin-issue-coupon] audit write failed:', e.message));
 
-    console.log('[admin-issue-coupon] issued:', auth.email, '→', resolvedEmail, '|', type, value, '| coupon:', couponRef.id);
+    console.log('[admin-issue-coupon] issued:', auth.email, '|', type, value, '| coupon:', couponRef.id);
 
     res.writeHead(200, JSON_HEADERS);
     return res.end(JSON.stringify({

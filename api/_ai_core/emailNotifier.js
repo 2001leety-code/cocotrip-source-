@@ -35,7 +35,7 @@ export async function sendNotificationEmail({ email, guestName, tourTitle, planI
       subject: `✅ Your CocoTrip Plan: ${tourTitle || 'Korea Itinerary'}`,
       html,
     });
-    console.log('[ai-planner-full] Email sent to:', email);
+    console.log('[ai-planner-full] Email sent');
   } catch (e) {
     console.warn('[ai-planner-full] Email failed:', e.message);
   }

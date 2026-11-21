@@ -248,7 +248,7 @@ export default async function handler(req, res) {
       return res.end(JSON.stringify(_err(aiPlannerGate.error, aiPlannerGate.code)));
     }
 
-    console.log('[capturePaypalOrder] LIVE mode | email:', userEmail);
+    console.log('[capturePaypalOrder] LIVE mode | hasEmail:', !!userEmail);
 
     // 🔴 Same-order authority (2026-10-10 recovery contract): the browser that created the order
     //   (HttpOnly capability cookie) or the authenticated owner. Proof is what lets a caller read, adopt or

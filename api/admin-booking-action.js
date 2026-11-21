@@ -124,7 +124,7 @@ async function sendCustomerNotification(kind, booking) {
     }
     const { subject, html, text } = buildManualPaymentEmail(kind, booking);
     await sendEmail({ to: booking.customerEmail, subject, html, text });
-    console.log(`[admin-booking-action] customer email sent (${kind}):`, booking.customerEmail);
+    console.log(`[admin-booking-action] customer email sent (${kind})`);
   } catch (e) {
     console.error(`[admin-booking-action] customer email (${kind}) failed:`, e.message);
   }

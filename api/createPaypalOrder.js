@@ -269,7 +269,7 @@ export default async function handler(req, res) {
     // paymentGate 가 PayPal 검증 자체를 skip, 이건 진짜 PayPal sandbox API 를 거침.
     const isSandbox = resolveIsSandbox();
     void TEST_ACCOUNTS; void userEmail;
-    console.log(`[createPaypalOrder] mode: ${isSandbox ? 'SANDBOX (preview e2e)' : 'LIVE'} | email:`, userEmail, '| product:', productType);
+    console.log(`[createPaypalOrder] mode: ${isSandbox ? 'SANDBOX (preview e2e)' : 'LIVE'} | hasEmail: ${!!userEmail}`, '| product:', productType);
 
     // FEATURE_DISCOUNT_V2 (운영자 2026-06-07): 왕복/다일 5% + 가입 WELCOME 쿠폰 5% = 10%, EARLY50 비활성.
     // OFF(기본) = 현행 동작(다일/왕복 10%, EARLY50 20%, 쿠폰 미적용). 라이브 전 운영자 검토 후 활성화.

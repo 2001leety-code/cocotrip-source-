@@ -524,7 +524,7 @@ export default async function handler(req, res) {
           language: booking.language || 'en',
         });
         await sendEmail({ to: userEmail, subject, html, text });
-        console.log('[cancelBooking] refund email sent:', userEmail);
+        console.log('[cancelBooking] refund email sent');
       } catch (e) {
         console.error('[cancelBooking] refund email failed (non-fatal):', e.message);
       }
