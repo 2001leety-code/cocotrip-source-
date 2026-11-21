@@ -103,6 +103,8 @@ function seed() {
       pb4: { ...PAYMENT, status: 'AWAITING_VERIFICATION', dateStart: '2026-12-01', memo: 'm' }, // 신청 시각 모름 → 남김
       // 기간은 지났지만 PayPal 이 이 번호로 돈을 보낸 기록(금액 불일치로 자동 확정 안 됨)이 있음 → 남김
       pb5: { ...PAYMENT, status: 'AWAITING_VERIFICATION', dateStart: '2026-12-01', memo: 'm', createdAt: ts('2026-10-01T00:00:00') },
+      // 신청 때 가격 확인 실패 표시가 있어도 예외 없음(운영자 11/22) → 신청 + 1개월에 지움
+      pb6: { ...PAYMENT, status: 'AWAITING_VERIFICATION', operatorReviewRequired: true, dateStart: '2026-12-01', memo: 'm', createdAt: ts('2026-10-01T00:00:00') },
     },
     paypal_webhook_log: {
       ev1: { status: 'unmatched', detail: { reason: 'amount_mismatch', bookingRef: 'pb5' } },
@@ -194,7 +196,7 @@ describe('기본 = 개수만 셈 (스위치 꺼짐)', () => {
     expect(counts.cs_tickets).toEqual({ due: 1 });
     expect(counts.external_inbox_cases).toEqual({ dueCountOnly: 1 });
     expect(counts.plans_guest).toEqual({ due: 2, heldComplaint: 1, heldPaid: 3, notYet: 3, member: 1 }); // g1·g6 / g5·g7·g9 / g3·g4·g8
-    expect(counts.pending_bookings_unverified).toEqual({ due: 1, notYet: 1, noDate: 1, heldPaymentSeen: 1 });
+    expect(counts.pending_bookings_unverified).toEqual({ due: 2, notYet: 1, noDate: 1, heldPaymentSeen: 1 }); // pb2·pb6 / pb3 / pb4 / pb5
     expect(counts.sheet_bookings).toBeUndefined(); // 운영이 아니면 시트는 안 읽음
     expect(counts.sheet_leads).toBeUndefined();
   });
@@ -244,6 +246,7 @@ describe('스위치 켬 = 지움', () => {
     expect(fake.col('pending_bookings').get('pb3')).toHaveProperty('memo', 'm');
     expect(fake.col('pending_bookings').has('pb4')).toBe(true);
     expect(fake.col('pending_bookings').has('pb5')).toBe(true);
+    expect(fake.col('pending_bookings').has('pb6')).toBe(false); // 가격 확인 실패 표시도 예외 없이 지움
   });
 
   it('협력사 예약: 출발·도착·메모와 변경 이력 사본까지 비우고 요금은 남김', async () => {
