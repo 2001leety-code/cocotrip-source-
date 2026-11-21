@@ -21,6 +21,7 @@ import { claimPlanIssuance, isPlanIssuanceComplete, PLAN_ISSUANCE_CODE } from '.
 import { isVoidTombstone } from '../_shared/payment-fulfillment-recovery.js';
 import { shapeRequest } from './requestShaper.js';
 import { isAutomatedCheckOrderId } from '../_shared/admin-bypass-detector.js';
+import { claimHealthCheckQuota, quotaRejection } from '../_shared/health-check-quota.js';
 import { enforceDietaryCoverage, hasSafetyDiet } from './dietaryCoverageGate.js';
 import { normalizePrepayInput, prepayFingerprint, prepayInputSummary, loadPrepayFoodIndex } from '../_shared/prepay-coverage.js';
 
@@ -362,21 +363,31 @@ export async function enforcePaymentAndRevision(body, adminDb, authenticatedEmai
       const viaEmail = allowedEmails.includes(requestEmail);
       const viaHealthCheck = !viaEmail && healthCheck === true && isAutomatedCheckOrderId(paypalOrderId);
       if (!viaEmail && !viaHealthCheck) {
-        // batch 9 fix (B9-6): reject 메시지에 원인 — 본인 이메일은 본인에게만 가니 OK.
-        // 2026-11-22: 관리자 허용 목록은 관리자 아닌 계정에게 내보내지 않는다(목록 개수만 기록).
-        console.warn('[planner] ADMIN-BYPASS- rejected for non-admin account | allowedCount:', allowedEmails.length);
+        // 2026-11-22: 응답·서버 기록에 허용 이메일 목록과 요청 이메일을 싣지 않는다 (운영자 주소 노출 방지).
+        // 원인 구분에 필요한 것만 남긴다: 자동 검사 역할 여부, 주문번호가 자동 검사 접두사인지.
+        console.warn('[planner] ADMIN-BYPASS- rejected | healthCheckRole:', healthCheck === true,
+          '| automatedPrefix:', isAutomatedCheckOrderId(paypalOrderId));
         return reject(403, 'FORBIDDEN', 'Admin bypass not allowed for this account',
-          `Authenticated as "${requestEmail}" but not in admin allowlist. Configure ADMIN_BYPASS_EMAILS env var or sign in with the admin account.`);
+          'This account is not allowed to use admin bypass. Sign in with an admin account.');
       }
-      console.log('[planner] 🟢 ADMIN BYPASS accepted — LIVE mode, no payment | admin:', requestEmail, '| orderId:', paypalOrderId);
+      if (viaHealthCheck) {
+        // 2026-11-22 운영자 결정 3: 자동 검사 역할은 하루 상한 안에서만 (감사 문서도 여기서 쓴다).
+        const quota = await claimHealthCheckQuota(adminDb, { route: 'ai-planner-full', orderId: paypalOrderId, email: requestEmail });
+        if (!quota.ok) {
+          const q = quotaRejection(quota.reason);
+          console.warn('[planner] ADMIN-BYPASS- health-check quota rejected:', quota.reason);
+          return reject(q.status, q.code, q.message, 'Automated-check calls are capped per KST day. Try again tomorrow.');
+        }
+      }
+      console.log('[planner] 🟢 ADMIN BYPASS accepted — LIVE mode, no payment | via:', viaHealthCheck ? 'health-check-role' : 'admin-email', '| orderId:', paypalOrderId);
       isAdminBypass = true;
-      // 감사 기록 (비치명적 — 실패해도 bypass 허용)
-      if (adminDb) {
+      // 감사 기록 (비치명적 — 실패해도 bypass 허용). 자동 검사 역할은 위 상한 확인에서 이미 썼다.
+      if (adminDb && !viaHealthCheck) {
         adminDb.collection('admin_bypass_audit').add({
           adminEmail: requestEmail,
           orderId: paypalOrderId,
           route: 'ai-planner-full',
-          via: viaHealthCheck ? 'health-check-role' : 'admin-email',
+          via: 'admin-email',
           bypassedAt: new Date().toISOString(),
         }).catch((e) => console.warn('[planner] admin_bypass_audit write failed:', e.message));
       }

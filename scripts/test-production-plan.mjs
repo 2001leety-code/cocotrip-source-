@@ -8,6 +8,7 @@
 // 구 TEST- bypass 경로도 2026-07-20 폐지돼 ADMIN-BYPASS- 로 이주했다.
 import {
   loadDotEnv,
+  requireHealthCheckEmail,
   getIdToken,
   futureDate,
   adminBypassOrderId,
@@ -22,7 +23,7 @@ const START_DATE = futureDate(14);
 const body = {
   paypalOrderId: adminBypassOrderId('SMOKE'),
   guestName: 'SmokeTest',
-  email: process.env.HEALTH_CHECK_EMAIL || '2001leety@gmail.com',
+  email: requireHealthCheckEmail(),
   startDate: START_DATE,
   endDate: futureDate(15),
   destination: 'Seoul',

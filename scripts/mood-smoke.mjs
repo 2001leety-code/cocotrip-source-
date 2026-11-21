@@ -29,6 +29,11 @@ const BASE = process.argv[2] || process.env.BASE_URL || 'https://cocotripkr.com'
 const TEST_EMAIL = process.env.HEALTH_CHECK_EMAIL || '';
 const CLIENT_ID = process.env.MOOD_CLIENT_ID || '';
 
+/** 실패 기록 — 응답 본문(잔액·이름이 실릴 수 있음) 대신 상태·코드만. */
+function failDetail(status, body) {
+  return `HTTP ${status} ${(body && (body.code || body.error)) || ''}`.trim();
+}
+
 /** 토큰의 맞춤 권한 roles (서명 검증 아님 — 어떤 쿼리를 보낼지 고르는 데만 쓴다). */
 function tokenRoles(idToken) {
   try {
@@ -117,8 +122,10 @@ async function main() {
   try {
     const { status, body } = await jsonFetch(clientId ? `/api/mood-data?clientId=${encodeURIComponent(clientId)}` : '/api/mood-data', idToken);
     const d = body?.data || body;
-    const ok = status === 200 && d?.client && typeof d.client.balanceKRW === 'number' && Array.isArray(d.bookings);
-    record('mood-data 잔액/원장 조회', ok, ok ? `balance=${d.client.balanceKRW} bookings=${d.bookings.length} isAdmin=${d.isAdmin}` : `HTTP ${status} ${JSON.stringify(body).slice(0, 160)}`);
+    // 2026-11-22 운영자 결정 4: 자동 검사 계정은 잔액이 null(빈 값)로 온다. CI 기록에는 숫자 대신 읽힘/안 읽힘만.
+    const balanceRead = typeof d?.client?.balanceKRW === 'number';
+    const ok = status === 200 && d?.client && (balanceRead || d.client.balanceKRW === null) && Array.isArray(d.bookings);
+    record('mood-data 잔액/원장 조회', ok, ok ? `잔액=${balanceRead ? '읽힘' : '안 읽힘(빈 값)'} 원장=읽힘 isAdmin=${d.isAdmin}` : failDetail(status, body));
   } catch (err) {
     record('mood-data 잔액/원장 조회', false, err.message);
   }
@@ -127,7 +134,7 @@ async function main() {
   try {
     const { status, body } = await jsonFetch('/api/mood-places', idToken);
     const ok = status === 200 && body?.ok === true && Array.isArray(body.places);
-    record('mood-places 주소록 조회', ok, ok ? `places=${body.places.length}` : `HTTP ${status} ${JSON.stringify(body).slice(0, 160)}`);
+    record('mood-places 주소록 조회', ok, ok ? '주소록=읽힘' : failDetail(status, body));
   } catch (err) {
     record('mood-places 주소록 조회', false, err.message);
   }
@@ -146,7 +153,7 @@ async function main() {
     const ok = status === 200 && body?.ok === true && Array.isArray(body.stops) && body.stops.length >= 1 && svcOk && body.needsConfirm === true;
     const detail = ok
       ? `stops=${body.stops.length} service=${body.serviceGuess} needsConfirm=${body.needsConfirm} (기대 airport=${body.serviceGuess === 'airport'})`
-      : `HTTP ${status} ${JSON.stringify(body).slice(0, 200)}`;
+      : failDetail(status, body);
     record('mood-parse-schedule AI 파싱', ok, detail);
     // 서비스 추천 오분류 경고(비차단 — Gemini 비결정성). 공항 샘플인데 airport 아니면 눈에 띄게.
     if (ok && body.serviceGuess !== 'airport') {

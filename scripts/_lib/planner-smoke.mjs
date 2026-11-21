@@ -31,6 +31,13 @@ export function loadDotEnv(files = ['.env', '.env.admin.local', '.env.test.local
   }
 }
 
+/** HEALTH_CHECK_EMAIL 을 돌려준다. 없으면 안내와 함께 멈춘다 (운영자 계정으로 떨어지지 않게). */
+export function requireHealthCheckEmail() {
+  const email = process.env.HEALTH_CHECK_EMAIL;
+  if (!email) throw new Error("HEALTH_CHECK_EMAIL 이 없음 — 운영자 계정 기본값은 뺐다(2026-11-22, 관리자 비밀번호 로그인 해제). 테스트 계정 이메일·비밀번호를 env 로 넣을 것. 자동 검사 역할 계정은 ADMIN-BYPASS-VALIDATE-/E2E-/REGRESSION- 주문만 무료 통과한다.");
+  return email;
+}
+
 /**
  * Firebase Auth REST API 로 admin 계정 idToken 발급.
  * scripts/validate-planner.cjs::getIdToken 과 동일 방식 (env 이름까지 맞춤).
@@ -38,12 +45,12 @@ export function loadDotEnv(files = ['.env', '.env.admin.local', '.env.test.local
  * 필수 env:
  *   FIREBASE_WEB_API_KEY   Firebase Console → Project settings → General → Web API Key
  *   HEALTH_CHECK_PASSWORD  admin 계정 비밀번호
- *   (선택) HEALTH_CHECK_EMAIL  기본값 2001leety@gmail.com
+ *   HEALTH_CHECK_EMAIL     테스트 계정 이메일 (기본값 없음 — 2026-11-22)
  */
 export async function getIdToken() {
   const apiKey = process.env.FIREBASE_WEB_API_KEY;
   const password = process.env.HEALTH_CHECK_PASSWORD;
-  const email = process.env.HEALTH_CHECK_EMAIL || '2001leety@gmail.com';
+  const email = requireHealthCheckEmail();
   if (!apiKey || !password) {
     throw new Error(
       'FIREBASE_WEB_API_KEY + HEALTH_CHECK_PASSWORD env 필수. 로컬 .env 또는 GitHub Actions ' +

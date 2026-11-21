@@ -9,8 +9,9 @@
 //   B-VCH2 — Voucher 다국어 (4-lang) ?lang= 요청 모두 valid PDF 응답
 //             (현재 voucher.js 는 lang 파라미터 무시 — Helvetica only. lang 추가돼도
 //              endpoint resilience 확인 + 응답 시간 < 10s 4-lang 모두)
-//   B-VCH3 — Voucher 공유 URL public access (auth header 없이 GET → 200,
-//             email 매칭만으로 인증 통과 — PR #229 batch 2 정책)
+//   B-VCH3 — 인증 가드: 로그인 토큰 없이 GET → 401, 없는 예약 → 404
+//             (PR #418 부터 voucher.js 는 Bearer 토큰 필수 + 토큰 이메일 == 예약 이메일.
+//              2026-11-22: 이 슈트도 토큰을 보낸다 — 그 전엔 안 보내서 켜면 401 이었다.)
 //
 // Exit code:
 //   0 — 3/3 PASS (또는 sandbox 미설정 → graceful skip + 안내)
@@ -22,7 +23,8 @@
 //   HEALTH_CHECK_PASSWORD       — 위 계정 비밀번호
 //   VOUCHER_TEST_BOOKING_ID     — sandbox booking ID (CT-YYYYMMDD-XXX 또는 admin-bypass).
 //                                  미설정 시 3 assertion graceful skip + exit 0.
-//   VOUCHER_TEST_BOOKING_EMAIL  — 해당 booking 의 customerEmail (소문자, voucher.js 매칭용)
+//   VOUCHER_TEST_BOOKING_EMAIL  — 해당 booking 의 customerEmail. 서버는 토큰 이메일로 맞추므로
+//                                  = HEALTH_CHECK_EMAIL(테스트 계정) 이어야 B-VCH1/2 가 200.
 //   BASE_URL (선택)             — 기본 https://cocotripkr.com
 //
 // 운영자 후속 액션:
@@ -105,7 +107,7 @@ if (!VOUCHER_BOOKING_ID || !VOUCHER_BOOKING_EMAIL) {
   console.log('   운영자 액션: 첫 결제 또는 admin-bypass booking 생성 후');
   console.log('   GitHub Secrets 에 등록하면 다음 trigger 부터 3 assertion 활성화.');
   console.log('   (예: VOUCHER_TEST_BOOKING_ID=CT-20260512-123, ');
-  console.log('         VOUCHER_TEST_BOOKING_EMAIL=2001leety@gmail.com)');
+  console.log('         VOUCHER_TEST_BOOKING_EMAIL=<테스트 계정 이메일>)');
 
   // GitHub Actions markdown summary
   if (process.env.GITHUB_STEP_SUMMARY) {
@@ -125,17 +127,20 @@ if (!VOUCHER_BOOKING_ID || !VOUCHER_BOOKING_EMAIL) {
   }
   process.exit(0);
 }
-console.log(`✅ bookingID=${VOUCHER_BOOKING_ID}, email=${VOUCHER_BOOKING_EMAIL}\n`);
+console.log(`✅ bookingID=${VOUCHER_BOOKING_ID}\n`);
+if (VOUCHER_BOOKING_EMAIL !== String(email).toLowerCase().trim()) {
+  console.log('⚠️  VOUCHER_TEST_BOOKING_EMAIL ≠ 로그인 계정 — 서버는 토큰 이메일로 예약을 맞춘다. 시험 예약은 테스트 계정 소유여야 B-VCH1/2 가 200.\n');
+}
 
 // ─── Step 3: 3 assertion 실행 ─────────────────────────────────────────
 console.log('[3/3] B-VCH1 / B-VCH2 / B-VCH3 assertion 실행\n');
 
 const results = [];
 
-// 공통 fetch helper — voucher endpoint 호출 (auth header 없음 — public)
-async function fetchVoucher({ extraQuery = '', withAuth = false } = {}) {
+// 공통 fetch helper — voucher endpoint 호출. 기본 = 로그인 토큰 보냄 (voucher.js 는 Bearer 필수).
+async function fetchVoucher({ extraQuery = '', withAuth = true, bookingID = VOUCHER_BOOKING_ID } = {}) {
   const params = new URLSearchParams({
-    bookingID: VOUCHER_BOOKING_ID,
+    bookingID,
     userEmail: VOUCHER_BOOKING_EMAIL,
   });
   if (extraQuery) {
@@ -225,43 +230,26 @@ results.push({
   note: 'ℹ️ 현재 voucher.js 는 lang 무시 (Helvetica only) — endpoint resilience + 응답 시간만 검증',
 });
 
-// ─── B-VCH3: Voucher 공유 URL public access ─────────────────────────
-// auth header 없이 GET — email 매칭 만으로 인증 (PR #229 batch 2 정책).
-// 추가로 잘못된 email 입력 시 403 도 검증 — 보안 가드.
-let publicAccessOk = false;
-let publicStatus = 0;
-let mismatchStatus = 0;
+// ─── B-VCH3: 인증 가드 ───────────────────────────────────────────────
+// 토큰 없이 GET → 401 (PR #418), 토큰 + 없는 예약 → 404. 남의 예약(이메일 불일치) → 403 은
+// 다른 계정이 필요해서 여기서는 안 본다 (voucher.js 의 비교 한 줄).
+let noAuthStatus = 0;
+let notFoundStatus = 0;
 try {
-  const r1 = await fetchVoucher({ withAuth: false });
-  publicStatus = r1.status;
-  publicAccessOk =
-    r1.status === 200 &&
-    r1.contentType.includes('application/pdf') &&
-    Buffer.isBuffer(r1.body) &&
-    r1.body.length >= 10 * 1024;
-} catch (err) {
-  publicStatus = -1;
+  noAuthStatus = (await fetchVoucher({ withAuth: false })).status;
+} catch {
+  noAuthStatus = -1;
 }
-// 보안 가드: 잘못된 email → 403
 try {
-  const fakeEmail = 'wrong-email-no-such-user@example.invalid';
-  const params = new URLSearchParams({
-    bookingID: VOUCHER_BOOKING_ID,
-    userEmail: fakeEmail,
-  });
-  const res = await fetch(`${BASE_URL}/api/voucher?${params.toString()}`, {
-    method: 'GET',
-    signal: AbortSignal.timeout(10000),
-  });
-  mismatchStatus = res.status;
-} catch (err) {
-  mismatchStatus = -1;
+  notFoundStatus = (await fetchVoucher({ bookingID: `CT-NOOP-VOUCHER-${Date.now()}` })).status;
+} catch {
+  notFoundStatus = -1;
 }
 results.push({
   id: 'B-VCH3',
-  label: 'Voucher 공유 URL public (auth header 없이 200) + email mismatch 시 403',
-  actual: `public_get=${publicStatus}, mismatch_get=${mismatchStatus}`,
-  pass: publicAccessOk && mismatchStatus === 403,
+  label: 'Voucher 인증 가드 (토큰 없이 401, 없는 예약 404)',
+  actual: `no_token=${noAuthStatus}, not_found=${notFoundStatus}`,
+  pass: noAuthStatus === 401 && notFoundStatus === 404,
 });
 
 // ─── Summary ──────────────────────────────────────────────

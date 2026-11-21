@@ -79,20 +79,60 @@ describe('verifyUserToken — healthCheck 표시', () => {
   });
 });
 
-describe('paymentGate — 자동 검사 역할은 자동 검사 접두사 주문만', () => {
+/** admin_bypass_audit 흉내 — where(...).count().get() 와 add() 만. */
+function fakeAuditDb(count: number, { failCount = false } = {}) {
+  const added: Record<string, unknown>[] = [];
+  const wheres: unknown[][] = [];
+  const col = {
+    where: (...args: unknown[]) => {
+      wheres.push(args);
+      return { count: () => ({ get: async () => { if (failCount) throw new Error('boom'); return { data: () => ({ count }) }; } }) };
+    },
+    add: async (doc: Record<string, unknown>) => { added.push(doc); return {}; },
+  };
+  return { db: { collection: () => col }, added, wheres };
+}
+
+describe('paymentGate — 자동 검사 역할은 자동 검사 접두사 주문만 + 하루 상한', () => {
   afterEach(() => { vi.unstubAllEnvs(); });
 
-  async function attempt(orderId: string, healthCheck: boolean) {
+  async function attempt(orderId: string, healthCheck: boolean, db: unknown = fakeAuditDb(0).db, email = HC.email) {
     vi.stubEnv('ADMIN_BYPASS_EMAILS', 'admin@example.com');
     // @ts-expect-error — JS 모듈
     const { enforcePaymentAndRevision } = await import('../../api/_ai_core/paymentGate.js');
-    return enforcePaymentAndRevision({ paypalOrderId: orderId }, null, HC.email, HC.uid, null, { healthCheck });
+    return enforcePaymentAndRevision({ paypalOrderId: orderId }, db, email, HC.uid, null, { healthCheck });
   }
 
-  it.each(['ADMIN-BYPASS-REGRESSION-1', 'ADMIN-BYPASS-E2E-1', 'ADMIN-BYPASS-VALIDATE-seoul-1'])('%s + 역할 → 통과', async (id) => {
-    const r = await attempt(id, true);
+  it.each(['ADMIN-BYPASS-REGRESSION-1', 'ADMIN-BYPASS-E2E-1', 'ADMIN-BYPASS-VALIDATE-seoul-1'])('%s + 역할 → 통과 + 감사 문서(오늘 KST 칸)', async (id) => {
+    const f = fakeAuditDb(0);
+    const r = await attempt(id, true, f.db);
     expect(r.rejection).toBeUndefined();
     expect(r.isAdminBypass).toBe(true);
+    expect(f.added).toHaveLength(1);
+    expect(f.added[0]).toMatchObject({ via: 'health-check-role', route: 'ai-planner-full', orderId: id });
+    expect(f.added[0].healthCheckDay).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+    expect(f.wheres[0]).toEqual(['healthCheckDay', '==', f.added[0].healthCheckDay]);
+  });
+
+  it('하루 상한에 닿으면 429 + 감사 문서 안 씀', async () => {
+    const { HEALTH_CHECK_DAILY_LIMIT } = await import('../../api/_shared/health-check-quota.js');
+    const f = fakeAuditDb(HEALTH_CHECK_DAILY_LIMIT);
+    const r = await attempt('ADMIN-BYPASS-E2E-1', true, f.db);
+    expect(r.rejection).toMatchObject({ statusCode: 429, code: 'HEALTH_CHECK_DAILY_LIMIT' });
+    expect(f.added).toHaveLength(0);
+  });
+
+  it('셀 수 없으면(DB 없음·읽기 실패) 503 — 비용 막이는 닫힌 쪽', async () => {
+    expect((await attempt('ADMIN-BYPASS-E2E-1', true, null)).rejection).toMatchObject({ statusCode: 503, code: 'HEALTH_CHECK_QUOTA_UNAVAILABLE' });
+    expect((await attempt('ADMIN-BYPASS-E2E-1', true, fakeAuditDb(0, { failCount: true }).db)).rejection)
+      .toMatchObject({ statusCode: 503, code: 'HEALTH_CHECK_QUOTA_UNAVAILABLE' });
+  });
+
+  it('운영자 이메일 경로는 상한을 안 센다 (예전 그대로)', async () => {
+    const f = fakeAuditDb(9999);
+    const r = await attempt('ADMIN-BYPASS-FREE-PLAN-1', false, f.db, 'admin@example.com');
+    expect(r.rejection).toBeUndefined();
+    expect(f.wheres).toHaveLength(0);
   });
 
   it('다른 ADMIN-BYPASS- 주문 + 역할 → 403', async () => {
@@ -104,15 +144,40 @@ describe('paymentGate — 자동 검사 역할은 자동 검사 접두사 주문
     const r = await attempt('ADMIN-BYPASS-REGRESSION-1', false);
     expect(r.rejection).toMatchObject({ statusCode: 403, code: 'FORBIDDEN' });
   });
+
+  it('거절 응답·서버 기록에 허용 이메일 목록과 요청 이메일이 없다', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    try {
+      const r = await attempt('ADMIN-BYPASS-FREE-PLAN-1', false);
+      const text = JSON.stringify(r.rejection) + JSON.stringify(warn.mock.calls);
+      expect(text).not.toContain('admin@example.com');
+      expect(text).not.toContain(HC.email);
+    } finally {
+      warn.mockRestore();
+    }
+  });
+});
+
+describe('health-check-quota — 하루 = KST 날짜', () => {
+  it('KST 자정 경계', async () => {
+    const { healthCheckDayKST } = await import('../../api/_shared/health-check-quota.js');
+    expect(healthCheckDayKST(new Date('2026-11-21T14:59:59.999Z'))).toBe('2026-11-21');
+    expect(healthCheckDayKST(new Date('2026-11-21T15:00:00.000Z'))).toBe('2026-11-22');
+  });
+
+  it('상한 = 실측 하루 최대 80회의 2배', async () => {
+    const { HEALTH_CHECK_DAILY_LIMIT } = await import('../../api/_shared/health-check-quota.js');
+    expect(HEALTH_CHECK_DAILY_LIMIT).toBe(160);
+  });
 });
 
 describe('소스 잠금 — 역할이 열리는 곳은 이름 붙인 곳뿐', () => {
-  it('api/ 전체에서 역할을 보는 파일 = 정해진 9개 (새 파일이 역할을 보기 시작하면 실패)', () => {
+  it('api/ 전체에서 역할을 보는 파일 = 정해진 10개 (새 파일이 역할을 보기 시작하면 실패)', () => {
     const walk = (dir: string): string[] => readdirSync(resolve(process.cwd(), dir), { withFileTypes: true })
       .flatMap((e) => (e.isDirectory() ? walk(`${dir}/${e.name}`) : /\.(c|m)?js$/.test(e.name) ? [`${dir}/${e.name}`] : []));
     const hits = walk('api').filter((f) => /allowRoles|healthCheck|HEALTH_CHECK_ROLE|health-check/.test(read(f))).sort();
     expect(hits).toEqual([
-      'api/_ai_core/handlerCore.js', 'api/_ai_core/paymentGate.js', 'api/_shared/admin-auth.js', 'api/_shared/user-auth.js',
+      'api/_ai_core/handlerCore.js', 'api/_ai_core/paymentGate.js', 'api/_shared/admin-auth.js', 'api/_shared/health-check-quota.js', 'api/_shared/user-auth.js',
       'api/admin-ai-ops-center.js', 'api/admin-quality-summary.js', 'api/mood-data.js', 'api/mood-parse-schedule.js', 'api/mood-places.js',
     ]);
   });
@@ -153,16 +218,48 @@ describe('소스 잠금 — 역할이 열리는 곳은 이름 붙인 곳뿐', ()
     expect(read('api/mood-data.js')).toMatch(/bookings: healthCheckOnly \? bookings\.map\(\(\) => \(\{\}\)\) : bookings/);
     expect(read('api/mood-places.js')).toMatch(/places: redact \? places\.map\(\(\) => \(\{\}\)\) : places/);
     expect(read('api/mood-parse-schedule.js')).toMatch(/placebook = healthCheckOnly \? \[\] : await loadPlacebook\(db\)/);
+    // 결정 3: MOOD 파싱도 플래너와 같은 하루 상한 (AI 호출 전에)
+    const parse = read('api/mood-parse-schedule.js');
+    const quotaAt = parse.indexOf("claimHealthCheckQuota(db, { route: 'mood-parse-schedule', email })");
+    expect(quotaAt).toBeGreaterThan(0);
+    expect(quotaAt).toBeLessThan(parse.indexOf('extractStops(rawText, apiKey)'));
+    // 결정 4: 거래처 이름·잔액 빈 값
+    expect(read('api/mood-data.js')).toMatch(/client: healthCheckOnly\s*\? \{ name: '', balanceKRW: null \}/);
   });
 });
 
 describe('자동 검사 스크립트·워크플로 — 운영자 계정으로 떨어지지 않는다', () => {
-  it('CI 스크립트에 운영자 이메일 기본값이 없다', () => {
-    for (const f of ['scripts/validate-planner.cjs', 'scripts/mood-smoke.mjs', 'tests/e2e/full-plan-translation-pdf.spec.ts',
-      'scripts/validate-prod-regression.mjs', 'scripts/validate-prod-payment.mjs', 'scripts/validate-prod-voucher.mjs',
-      'scripts/validate-prod-admin-auth.mjs', 'scripts/check-quality-score.mjs', 'scripts/api-health-check.mjs']) {
-      expect(read(f), f).not.toMatch(/HEALTH_CHECK_EMAIL\s*\|\|\s*['"][^'"]+@/);
+  it('scripts/·tests/e2e 어디에도 HEALTH_CHECK_EMAIL 이메일 기본값이 없다 (손으로 쓰는 도구 포함)', () => {
+    const walk = (dir: string): string[] => readdirSync(resolve(process.cwd(), dir), { withFileTypes: true })
+      .flatMap((e) => (e.isDirectory() ? (e.name === 'node_modules' ? [] : walk(`${dir}/${e.name}`))
+        : /\.(c|m)?[jt]s$/.test(e.name) ? [`${dir}/${e.name}`] : []));
+    const files = [...walk('scripts'), ...walk('tests/e2e')];
+    expect(files.length).toBeGreaterThan(50);
+    const hits = files.filter((f) => /HEALTH_CHECK_EMAIL\s*\|\|\s*['"][^'"]+@/.test(read(f)));
+    expect(hits).toEqual([]);
+  });
+
+  it('손 도구 7개는 이메일이 없으면 멈춘다', () => {
+    expect(read('scripts/_lib/planner-smoke.mjs')).toMatch(/export function requireHealthCheckEmail\(\)[\s\S]{0,200}if \(!email\) throw new Error/);
+    for (const f of ['scripts/create-temp-plan.js', 'scripts/test-production-plan.mjs']) {
+      expect(read(f), f).toMatch(/email: requireHealthCheckEmail\(\),/);
     }
+    for (const [f, v] of [['scripts/fetch-recent-alerts.cjs', 'TEST_EMAIL'], ['scripts/inspect-operator-recent-plans.mjs', 'email'],
+      ['scripts/inspect-plans.mjs', 'email'], ['scripts/measure-flash-stability-5sample.mjs', 'HEALTH_EMAIL']]) {
+      expect(read(f), f).toContain(`if (!${v}) { console.error(`);
+    }
+  });
+
+  it('MOOD 스모크는 잔액·건수 숫자와 응답 본문을 CI 기록에 안 남긴다', () => {
+    const src = read('scripts/mood-smoke.mjs');
+    expect(src).not.toMatch(/balance=\$\{|bookings=\$\{|places=\$\{|JSON\.stringify\(body\)/);
+    expect(src).toContain("잔액=${balanceRead ? '읽힘' : '안 읽힘(빈 값)'}");
+  });
+
+  it('바우처 슈트는 기본으로 로그인 토큰을 보낸다', () => {
+    const src = read('scripts/validate-prod-voucher.mjs');
+    expect(src).toMatch(/async function fetchVoucher\(\{ extraQuery = '', withAuth = true,/);
+    expect(src).toMatch(/pass: noAuthStatus === 401 && notFoundStatus === 404/);
   });
 
   it('daily-health.yml — 비밀번호를 넘기는 단계마다 이메일도 넘긴다', () => {

@@ -9,13 +9,14 @@
  *   base-url: default https://cocotripkr.com (Firestore project 자동 inferred)
  *
  * Firestore rules: error_log read = admin email only (P182 변경 + firebase deploy 필요).
- * 우리는 admin email (HEALTH_CHECK_EMAIL=2001leety@gmail.com) 인증.
+ * 우리는 admin email (HEALTH_CHECK_EMAIL — 기본값 없음, 2026-11-22) 인증.
  */
 const fs = require('fs');
 const path = require('path');
 
 const LIMIT = Math.min(100, Math.max(1, Number.parseInt(process.argv[2] || '20', 10)));
-const TEST_EMAIL = process.env.HEALTH_CHECK_EMAIL || '2001leety@gmail.com';
+const TEST_EMAIL = process.env.HEALTH_CHECK_EMAIL || '';
+if (!TEST_EMAIL) { console.error("HEALTH_CHECK_EMAIL 이 없음 — 운영자 계정 기본값은 뺐다(2026-11-22, 관리자 비밀번호 로그인 해제). 테스트 계정 이메일·비밀번호를 env 로 넣을 것. 자동 검사 역할 계정은 ADMIN-BYPASS-VALIDATE-/E2E-/REGRESSION- 주문만 무료 통과한다."); process.exit(1); }
 const PROJECT_ID = process.env.VITE_FIREBASE_PROJECT_ID || 'planning-with-ai-a0801';
 const FIRESTORE_BASE = `https://firestore.googleapis.com/v1/projects/${PROJECT_ID}/databases/(default)/documents`;
 

@@ -344,6 +344,8 @@ describe('mood-data 자동 검사 계정 — 개인정보 없이 조회만', () 
     expect(json.data.bookings.every((b: any) => Object.keys(b).length === 0)).toBe(true);
     expect(response.body).not.toContain('staff@x.com');
     expect(json.data.isAdmin).toBe(false);
+    // 2026-11-22 운영자 결정 4: 거래처 이름·잔액도 빈 값.
+    expect(json.data.client).toEqual({ name: '', balanceKRW: null });
   });
 
   it('역할 없는 허용 목록 밖 계정은 예전처럼 403', async () => {

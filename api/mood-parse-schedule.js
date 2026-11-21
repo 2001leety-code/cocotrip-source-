@@ -42,6 +42,7 @@ import { verifyUserToken } from './_shared/user-auth.js';
 import { captureError } from './_shared/sentry.js';
 import { buildAdminJsonCors } from './_shared/cors.js';
 import { getMoodAllowlist, isAllowedEmail } from './_shared/mood-allowlist.js';
+import { claimHealthCheckQuota, quotaRejection } from './_shared/health-check-quota.js';
 import { geocodeAddress } from './_shared/mood-route.js';
 import { naverCoordToWgs84, resolveCredentialCandidates } from './place-search.js';
 
@@ -593,6 +594,15 @@ export default async function handler(req, res) {
     if (!isAllowedEmail(allowlist, email) && !healthCheckOnly) {
       res.writeHead(403, JSON_HEADERS);
       return res.end(JSON.stringify({ ok: false, error: '접근 권한 없음 (MOOD 허용 목록 전용)', code: 'NOT_ALLOWED' }));
+    }
+    if (healthCheckOnly) {
+      // 2026-11-22 운영자 결정 3: 자동 검사 역할의 AI 호출은 하루 상한 안에서만 (플래너와 같은 상한·같은 기록).
+      const quota = await claimHealthCheckQuota(db, { route: 'mood-parse-schedule', email });
+      if (!quota.ok) {
+        const q = quotaRejection(quota.reason);
+        res.writeHead(q.status, JSON_HEADERS);
+        return res.end(JSON.stringify({ ok: false, error: q.message, code: q.code }));
+      }
     }
 
     // ── ① Gemini 로 stops 추출 ──

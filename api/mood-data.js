@@ -519,7 +519,10 @@ export default async function handler(req, res) {
       ok: true,
       data: {
         clientId,
-        client: { name: clientData.name || clientId, balanceKRW: currentBalanceKRW },
+        // 2026-11-22 운영자 결정 4: 자동 검사 계정에는 거래처 이름·선불 잔액도 빈 값.
+        client: healthCheckOnly
+          ? { name: '', balanceKRW: null }
+          : { name: clientData.name || clientId, balanceKRW: currentBalanceKRW },
         bookings: healthCheckOnly ? bookings.map(() => ({})) : bookings,
         bookingAvailability,
         isAdmin: admin,
