@@ -16,7 +16,9 @@ vi.mock('firebase-admin/firestore', () => ({
 }));
 vi.mock('../../api/_shared/cron-auth.js', () => ({ verifyCronRequest: vi.fn(async () => ({ ok: false, status: 401 })) }));
 
-import handler, { privacyRetentionSweepTask, DAILY_WRITE_CAP } from '../../api/_crons/privacy-retention-sweep.js';
+import { readdirSync, readFileSync } from 'node:fs';
+import { join } from 'node:path';
+import handler, { privacyRetentionSweepTask, DAILY_WRITE_CAP, IP_RATE_LIMIT_COLLECTIONS } from '../../api/_crons/privacy-retention-sweep.js';
 
 // ── 가짜 Firestore ─────────────────────────────────────────────────────────
 class Ts { constructor(public ms: number) {} toMillis() { return this.ms; } }
@@ -388,6 +390,16 @@ describe('스위치 켬 = 지움', () => {
     expect(fake.col('inquiry_auto_ack_recipients').size).toBe(0);
   });
 
+  it('속도 제한 표는 전부 1일 뒤 지운다(처리방침 "속도 제한 기록 1~2일")', async () => {
+    const fake = makeDb(Object.fromEntries(IP_RATE_LIMIT_COLLECTIONS.map((name: string) =>
+      [name, { h: { count: 1, windowStartedAtMs: kst('2026-11-18T00:00:00'), lastSeenAtMs: kst('2026-11-18T00:00:00') } }])));
+    const { counts } = await run(fake, ENV);
+    for (const name of IP_RATE_LIMIT_COLLECTIONS) {
+      expect(counts[name]).toEqual({ due: 1, applied: 1 });
+      expect(fake.col(name).size).toBe(0);
+    }
+  });
+
   it('영수증 파일 지우기가 실패하면 신청 문서를 남긴다(다음 날 다시 찾게)', async () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
     const fake = makeDb(seed());
@@ -471,8 +483,7 @@ describe('날짜 경계 (한국 자정)', () => {
     ['chat_rate_limits', 'chat_rate_limits', { updatedAt: BASE }, '2026-10-24'],
     ['chat_rate_limits_daily', 'chat_rate_limits', { lastUpdated: BASE }, '2026-10-24'],
     ['inquiry_auto_ack_recipients', 'inquiry_auto_ack_recipients', { reservedAtMs: BASE }, '2026-10-24'],
-    ['preview_lead_rate_limits', 'preview_lead_rate_limits', { lastSeenAtMs: BASE }, '2026-10-23'],
-    ['inquiry_rate_limits', 'inquiry_rate_limits', { lastSeenAtMs: BASE }, '2026-10-23'],
+    ...IP_RATE_LIMIT_COLLECTIONS.map((name: string): [string, string, Data, string] => [name, name, { count: 1, lastSeenAtMs: BASE }, '2026-10-23']),
   ];
   it.each(RULES)('%s: 전날 23:59:59 KST 에는 아직, %s 00:00 KST 부터', async (target, collection, data, from) => {
     const at = async (iso: string) => ((await privacyRetentionSweepTask({ env: {}, now: () => kst(iso), clock: () => 0,
@@ -651,5 +662,21 @@ describe('실패·시간·인증', () => {
     expect(res.code).toBe(401);
     expect(res.body).toEqual({ ok: false, code: 'AUTH_REQUIRED' });
     expect(res.headers['Cache-Control']).toBe('no-store');
+  });
+});
+
+describe('속도 제한 표 목록 = api/ 의 실제 호출과 같음', () => {
+  // 처리방침에 "속도 제한 기록 1~2일"이라 적으므로, 빠진 표가 하나라도 있으면 약속이 틀어진다.
+  const files = (dir: string): string[] => readdirSync(dir, { withFileTypes: true }).flatMap(entry =>
+    entry.isDirectory() ? files(join(dir, entry.name)) : entry.name.endsWith('.js') ? [join(dir, entry.name)] : []);
+  const used = new Set<string>();
+  for (const file of files(join(__dirname, '../../api'))) {
+    const text = readFileSync(file, 'utf8');
+    for (const m of text.matchAll(/collection:\s*'([a-z0-9_]*rate_limits)'/g)) used.add(m[1]);
+    for (const m of text.matchAll(/collection\('([a-z0-9_]*rate_limits)'\)/g)) used.add(m[1]);
+  }
+  it('쓰는 표는 모두 목록에 있고(대화 표는 따로), 목록에 쓰지 않는 표는 없다', () => {
+    used.delete('chat_rate_limits'); // 문서 꼴이 달라 lowPriorityTargets 에서 따로(updatedAt·lastUpdated) 지운다
+    expect([...used].sort()).toEqual([...IP_RATE_LIMIT_COLLECTIONS].sort());
   });
 });

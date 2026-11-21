@@ -384,11 +384,23 @@ function lowPriorityTargets(run) {
   return [
     target('chat_rate_limits', 'chat_rate_limits', 'updatedAt', TWO_DAYS),
     target('chat_rate_limits_daily', 'chat_rate_limits', 'lastUpdated', TWO_DAYS),
-    target('preview_lead_rate_limits', 'preview_lead_rate_limits', 'lastSeenAtMs', ONE_DAY),
-    target('inquiry_rate_limits', 'inquiry_rate_limits', 'lastSeenAtMs', ONE_DAY),
+    // 문서 번호 = IP·회원 해시, 창 1시간(checkIpRateLimit 기본값, 늘린 곳 없음) 또는 1분(대화 새로고침) → 1일.
+    ...IP_RATE_LIMIT_COLLECTIONS.map(name => target(name, name, 'lastSeenAtMs', ONE_DAY)),
     target('inquiry_auto_ack_recipients', 'inquiry_auto_ack_recipients', 'reservedAtMs', TWO_DAYS),
   ];
 }
+
+/**
+ * 처리방침 "속도 제한 기록 1~2일"의 대상 전부 — `checkIpRateLimit(..., collection: …)` 를 부르는 곳과
+ * 같은 꼴(count·windowStartedAtMs·lastSeenAtMs)을 쓰는 대화 새로고침 제한(chat-session-auth.js).
+ * 새 곳을 만들면 여기에 넣는다(시험이 api/ 의 호출 목록과 대조한다).
+ */
+export const IP_RATE_LIMIT_COLLECTIONS = Object.freeze([
+  'preview_lead_rate_limits', 'inquiry_rate_limits', 'quick_plan_rate_limits', 'pdf_cutoff_alert_rate_limits',
+  'calc_distance_rate_limits', 'community_rate_limits', 'course_ai_rate_limits', 'course_route_rate_limits',
+  'course_share_rate_limits', 'manual_payment_rate_limits', 'claim_notify_rate_limits', 'place_search_rate_limits',
+  'recalc_transit_rate_limits', 'complaint_rate_limits', 'translate_plan_rate_limits', 'chat_poll_rate_limits',
+]);
 
 // ── 구글 시트 예약 장부 `시트1` (운영에서만) ──────────────────────────────────
 /** 장부 N열(PayPal 주문 번호)로 예약 문서 찾기. 문서 번호가 주문 번호이거나, orderID 칸이 주문 번호. */
