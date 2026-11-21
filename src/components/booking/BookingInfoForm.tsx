@@ -475,7 +475,9 @@ export function BookingInfoForm(props: BookingInfoFormProps) {
   const requiredAgreed = termsRowsAgreed && guardianOk;
   const { onAgreeAllChange, externalAgreeAll } = props;
   // 호출처의 결제 게이트(termsAgreed)를 결제 코드 수정 없이 보호자 동의까지 묶는다.
-  //   예: 차터에서 동의 후 Step4 로 돌아가 아이를 늘리면 재마운트 시 여기서 false 로 내린다.
+  //   예: 차터에서 아이 0명으로 약관 동의 후 Step4 로 돌아가 아이를 1명 이상으로 바꾸면, 재마운트 시
+  //   보호자 동의가 없으니 여기서 false 로 내린다. 보호자 동의를 이미 했다면(호출처가 initialGuardian 으로
+  //   돌려줌) 아이를 1→2명으로 늘려도 동의는 유지된다 — 동의 문장이 인원 수와 무관하기 때문(2026-11-22).
   //   콜백은 deps 에서 뺀다 — 호출처가 매 렌더 새 함수를 넘겨도 값이 다를 때 한 번만 보낸다.
   useEffect(() => {
     if (externallyControlledTerms && !!externalAgreeAll !== requiredAgreed) onAgreeAllChange?.(requiredAgreed);
