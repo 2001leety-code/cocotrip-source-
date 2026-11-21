@@ -7,6 +7,7 @@ import {
   deletableFrom, isDue, kstYmd, validYmd, toMs, tripEndYmd, findKeyPaths, withoutKeysDeep,
   bookingSettled, moodBookingSettled, inquiryClosed, scanCutoffMs, UNKNOWN_END_BUFFER_DAYS,
   planTripEndYmd, sheetDateYmd, kstMonth, monthEndYmd, latestMs, paidPlan, PAID_PLAN_MIN,
+  paymentAttemptClosed, cartPaid, disputeClosed,
 } from '../../api/_shared/privacy-retention.js';
 import { leadSheetRow } from '../../api/_ai_core/emailNotifier.js';
 
@@ -194,6 +195,27 @@ describe('구글 시트 날짜 칸', () => {
     expect(sheetDateYmd('2026/1/5')).toBe('2026-01-05');
     expect(sheetDateYmd('2026-09-30T15:30:00.000Z')).toBe('2026-10-01'); // UTC 15:30 = 한국 다음 날
     for (const bad of ['', '시각', '2026-13-01', 0, -1, null, undefined]) expect(sheetDateYmd(bad as never)).toBeNull();
+    // 시각이 붙은 글자는 시간대까지 적힌 ISO 꼴만(서버 시간대로 읽히는 꼴은 모름 = 남김)
+    expect(sheetDateYmd('2026-09-30T23:00:00+09:00')).toBe('2026-09-30');
+    for (const bad of ['2026-10-01T10:00', '2026-10-01T10:00:00', 'Thu Oct 01 2026', 'Total 3', '2026-10-01T']) expect(sheetDateYmd(bad)).toBeNull();
+  });
+
+  it('결제 시도 기록: 끝난 것만 비움(마무리·돈 안 나감·격리는 검토 해결 뒤)', () => {
+    expect(paymentAttemptClosed({ finalized: true }, null)).toBe(true);
+    expect(paymentAttemptClosed({ captureState: 'not_captured' }, null)).toBe(true);
+    for (const lock of [{}, { captureState: 'posted' }, { captureState: 'unknown' }, { bookingDurable: true }, null]) {
+      expect(paymentAttemptClosed(lock, null)).toBe(false);
+    }
+    expect(paymentAttemptClosed({ reviewQuarantined: true, finalized: true }, null)).toBe(false);
+    expect(paymentAttemptClosed({ reviewQuarantined: true }, { resolvedAt: null })).toBe(false);
+    expect(paymentAttemptClosed({ reviewQuarantined: true }, { resolvedAt: 1 })).toBe(true);
+  });
+
+  it('장바구니는 captured 만, 불만·분쟁은 resolved 만 끝난 것', () => {
+    expect(cartPaid('captured')).toBe(true);
+    for (const s of ['created', 'payment_review', 'paid', '', undefined]) expect(cartPaid(s)).toBe(false);
+    expect(disputeClosed('resolved')).toBe(true);
+    for (const s of ['open', 'reviewed', 'in_progress', '', undefined]) expect(disputeClosed(s)).toBe(false);
   });
   it('달·말일', () => {
     expect(kstMonth(Date.parse('2026-10-31T15:00:00Z'))).toBe('2026-11');

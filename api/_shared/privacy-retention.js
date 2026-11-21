@@ -177,6 +177,25 @@ export const paidPlan = d => !(d?.isFreeCoupon || d?.isAdminBypass === true || U
 /** 돈 낸 비회원 일정은 만든 날 + 180일(PayPal 분쟁 기간)과 여행 끝 + 1개월 중 늦은 날까지 남긴다(운영자 11/21). */
 export const PAID_PLAN_MIN = Object.freeze({ days: 180 });
 
+/**
+ * 결제 시도 기록(used_paypal_orders)이 끝났는지. 결제 복구(payment-fulfillment-recovery.js)는 저장된 intent 로만
+ * 다시 돌리므로, 끝난 것만 intent 안 여행 준비 칸을 비운다: 마무리됨(finalized) · 돈이 안 나감(not_captured) ·
+ * 격리(reviewQuarantined)는 결제 검토(payment_reviews)가 해결됐을 때만. 나머지(진행 중·모름)는 남긴다.
+ */
+export function paymentAttemptClosed(lock, review) {
+  if (lock?.reviewQuarantined === true) return review?.resolvedAt !== null && review?.resolvedAt !== undefined;
+  return lock?.finalized === true || lock?.captureState === 'not_captured';
+}
+
+/** 장바구니는 결제가 끝난(captured) 것만 비운다. created(결제 전 또는 결제 기록 못 남김)·payment_review 는 남긴다. */
+export const cartPaid = status => lower(status) === 'captured';
+
+/**
+ * 불만·분쟁 기록(3년)은 처리를 마친 것만 지운다(운영자 11/22). 처리 중이거나 모르는 상태는 남긴다.
+ * plan_complaints: open | reviewed | resolved (submit-plan-complaint.js) · cs_tickets: open | in_progress | resolved (telegram-webhook-admin.js).
+ */
+export const disputeClosed = status => lower(status) === 'resolved';
+
 /** 비회원 AI 일정 끝날: input.startDate + durationDays - 1. 일수를 모르면 시작일 + 14일. */
 export function planTripEndYmd(input) {
   const start = input?.startDate;
@@ -184,6 +203,8 @@ export function planTripEndYmd(input) {
   if (validYmd(start) && Number.isInteger(days) && days > 0) return addDays(start, days - 1);
   return tripEndYmd(start, []);
 }
+
+const ISO_WITH_ZONE = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2}(?:\.\d{1,3})?)?(?:Z|[+-]\d{2}:\d{2})$/;
 
 /**
  * 구글 시트 칸 → 한국 날짜. 시트는 날짜를 숫자(1899-12-30 부터 센 날)로 돌려주거나(UNFORMATTED_VALUE),
@@ -195,7 +216,8 @@ export function sheetDateYmd(value) {
     return new Date(Date.UTC(1899, 11, 30) + Math.floor(value) * DAY_MS).toISOString().slice(0, 10);
   }
   const text = cellText(value);
-  if (text.includes('T')) return msToKstYmd(text);
+  // 시각이 붙은 글자는 시간대까지 적힌 ISO 꼴만 믿는다(Date.parse 는 아무 글자나 서버 시간대로 읽는다).
+  if (text.includes('T')) return ISO_WITH_ZONE.test(text) ? msToKstYmd(text) : null;
   const m = /^(\d{4})\s*[-./]\s*(\d{1,2})\s*[-./]\s*(\d{1,2})/.exec(text);
   if (!m) return null;
   const ymd = `${m[1]}-${m[2].padStart(2, '0')}-${m[3].padStart(2, '0')}`;

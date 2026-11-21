@@ -30,17 +30,29 @@ function makeRun({ db, nowMs, mode, clock }) {
     /** 정산·변경 다툼이 열린 협력사 예약의 날짜 — 그 날 일정 메모도 남긴다. */
     heldMoodDates: new Set(),
     deadline: clock() + TIME_BUDGET_MS,
+    /** 지금 대상의 몫(runTargets 가 정함). 한 대상이 시간을 다 써서 뒤 대상이 세지도 못하는 일을 막는다. */
+    targetDeadline: clock() + TIME_BUDGET_MS,
+    outOfTime: () => clock() > run.targetDeadline,
+    /** 시간 몫을 다 써서 멈춤 — 그 대상 개수는 빠진 것이지 0 이 아니다. */
+    stop(target) { run.timedOut = true; run.tally(target, 'timedOut'); },
     tally(target, key, n = 1) { const c = (counts[target] ||= {}); c[key] = (c[key] || 0) + n; },
     /** 지울 것 하나를 센다. 실제로 써도 되면 true(삭제 모드 + 하루 상한·시간 안). */
     claim(target) {
       run.tally(target, 'due');
       if (mode !== 'delete') return false;
-      if (run.writes >= DAILY_WRITE_CAP || clock() > run.deadline) { run.tally(target, 'deferred'); return false; }
+      if (run.writes >= DAILY_WRITE_CAP || run.outOfTime()) { run.tally(target, 'deferred'); return false; }
       run.writes += 1;
       return true;
     },
   };
   return run;
+}
+
+/** 문서(시트 줄) 하나의 오류 — 그 대상의 나머지는 계속 본다. 오류 글은 손님 값이 섞일 수 있어 코드만 남긴다. */
+function docFailed(run, target, error) {
+  run.tally(target, 'docError');
+  if (!run.errors.includes(target)) run.errors.push(target);
+  console.warn('[privacy-retention] doc failed:', target, error?.code || error?.name || 'error');
 }
 
 // 쿼리 범위: Timestamp 칸은 Date, ms 숫자 칸은 숫자, 'YYYY-MM-DD' 칸은 문자열로 비교해야 한다(타입이 다르면 0건).
@@ -55,17 +67,20 @@ async function scrubPaths(run, target, ref, paths) {
   run.tally(target, 'applied');
 }
 
-/** 범위 쿼리를 끝까지 넘겨 본다. ponytail: 매일 전체 훑기 — 지난 문서가 수만 건이 되면 커서 저장으로 바꿀 것. */
-async function scan(run, query, orderField, onDoc) {
+/**
+ * 범위 쿼리를 끝까지 넘겨 본다. 문서 하나가 오류를 내도 그 문서만 건너뛴다(docError).
+ * ponytail: 매일 전체 훑기 — 지난 문서가 수만 건이 되면 커서 저장으로 바꿀 것.
+ */
+async function scan(run, target, query, orderField, onDoc) {
   let last = null;
   for (;;) {
-    if (run.clock() > run.deadline) { run.timedOut = true; return; }
+    if (run.outOfTime()) return run.stop(target);
     let q = query.orderBy(orderField).limit(PAGE);
     if (last) q = q.startAfter(last);
     const snap = await q.get();
     for (const doc of snap.docs) {
-      if (run.clock() > run.deadline) { run.timedOut = true; return; }
-      await onDoc(doc, doc.data() || {});
+      if (run.outOfTime()) return run.stop(target);
+      try { await onDoc(doc, doc.data() || {}); } catch (error) { docFailed(run, target, error); }
     }
     if (snap.docs.length < PAGE) return;
     last = snap.docs[snap.docs.length - 1];
@@ -90,7 +105,7 @@ async function bookingEndYmd(run, id, d) {
 
 async function sweepBookings(run) {
   const T = 'bookings';
-  await scan(run, run.db.collection(T).where('tourDate', '<=', cutoffYmd(run, MONTH)), 'tourDate', async (doc, d) => {
+  await scan(run, T, run.db.collection(T).where('tourDate', '<=', cutoffYmd(run, MONTH)), 'tourDate', async (doc, d) => {
     const paths = topLevelPaths(d, R.BOOKING_TRIP_KEYS);
     if (!paths.length && alreadyMarked(d)) return run.tally(T, 'alreadyClean');
     // 싼 판정 먼저(상태·날짜), 읽기(스냅샷·배차 기록)는 그 뒤 — 쌓인 예약이 많아도 시간 예산 안에 들게.
@@ -109,7 +124,7 @@ async function sweepBookings(run) {
 
 async function sweepPendingBookings(run) {
   const T = 'pending_bookings';
-  await scan(run, run.db.collection(T).where('dateStart', '<=', cutoffYmd(run, MONTH)), 'dateStart', async (doc, d) => {
+  await scan(run, T, run.db.collection(T).where('dateStart', '<=', cutoffYmd(run, MONTH)), 'dateStart', async (doc, d) => {
     const paths = topLevelPaths(d, R.BOOKING_TRIP_KEYS);
     if (!paths.length) return run.tally(T, 'alreadyClean');
     if (!R.bookingSettled(d.status)) return run.tally(T, 'heldStatus');
@@ -120,14 +135,23 @@ async function sweepPendingBookings(run) {
   });
 }
 
-/** 결제 기록 안 사본 — 문서는 남긴다(used_paypal_orders 는 이중 결제 잠금). 문서 번호 = PayPal 주문 번호. */
-async function sweepPaymentCopy(run, T, query, orderField, under, { holdUnresolved = false } = {}) {
-  await scan(run, query, orderField, async (doc, d) => {
+/**
+ * 결제 기록 안 사본 — 문서는 남긴다(used_paypal_orders 는 이중 결제 잠금). 문서 번호 = PayPal 주문 번호.
+ * hold(data, id) = 건너뛸 이유 또는 null. 끝날 = 사본 날짜와 예약 문서의 지금 날짜 중 늦은 날
+ * (손님이 날짜를 뒤로 옮기면 modifyBooking.js 는 예약 문서만 바꾸고 사본은 옛 날짜로 둔다).
+ */
+async function sweepPaymentCopy(run, T, query, orderField, under, hold) {
+  await scan(run, T, query, orderField, async (doc, d) => {
     const paths = R.findKeyPaths(d, R.PAYMENT_COPY_TRIP_KEYS, { under, maxDepth: 1 });
     if (!paths.length) return run.tally(T, 'alreadyClean');
-    if (holdUnresolved && (d.resolvedAt === null || d.resolvedAt === undefined)) return run.tally(T, 'heldUnresolved');
+    const reason = await hold(d, doc.id);
+    if (reason) return run.tally(T, reason);
     const body = under.reduce((node, key) => (node && typeof node === 'object' ? node[key] : undefined), d) || {};
-    const end = R.tripEndYmd(body.tourDate, [await snapshotEnd(run.db, doc.id)]);
+    const booking = await findBookingByOrderId(run, doc.id);
+    // 환불·취소 진행 중인 예약은 예약 문서도 남기므로 그 결제 사본도 남긴다.
+    if (booking && !R.bookingSettled(booking.data.status)) return run.tally(T, 'heldBookingStatus');
+    const end = R.tripEndYmd(null, [R.tripEndYmd(body.tourDate, [await snapshotEnd(run.db, doc.id)]),
+      booking ? await bookingEndYmd(run, booking.id, booking.data) : null]);
     if (!end) return run.tally(T, 'noDate');
     if (!R.isDue(end, MONTH, run.nowMs)) return run.tally(T, 'notYet');
     if (run.claim(T)) await scrubPaths(run, T, doc.ref, paths);
@@ -136,10 +160,11 @@ async function sweepPaymentCopy(run, T, query, orderField, under, { holdUnresolv
 
 async function sweepCartOrders(run) {
   const T = 'cart_orders';
-  await scan(run, run.db.collection(T).where('createdAt', '<=', cutoffDate(run, MONTH)), 'createdAt', async (doc, d) => {
+  await scan(run, T, run.db.collection(T).where('createdAt', '<=', cutoffDate(run, MONTH)), 'createdAt', async (doc, d) => {
     const lines = Array.isArray(d.lines) ? d.lines : [];
     if (!lines.some(line => topLevelPaths(line?.booking, R.PAYMENT_COPY_TRIP_KEYS).length)) return run.tally(T, 'alreadyClean');
-    if (String(d.status || '').trim().toLowerCase() === 'payment_review') return run.tally(T, 'heldStatus');
+    // 결제 끝난 것만(칸표). 결제 전(created)은 결제 기록을 못 남긴 결제일 수도 있어 남기고 개수만 센다.
+    if (!R.cartPaid(d.status)) return run.tally(T, String(d.status || '').trim().toLowerCase() === 'created' ? 'heldUnpaid' : 'heldStatus');
     const ends = lines.map(line => R.tripEndYmd(line?.booking?.dateStart, [line?.booking?.dateEnd]));
     if (ends.some(end => !end)) return run.tally(T, 'noDate');
     if (!R.isDue([...ends].sort().pop(), MONTH, run.nowMs)) return run.tally(T, 'notYet');
@@ -168,7 +193,7 @@ function moodCopyPaths(d) {
 
 async function sweepMoodBookings(run) {
   const T = 'mood_bookings';
-  await scan(run, run.db.collection(T).where('date', '<=', cutoffYmd(run, MONTH)), 'date', async (doc, d) => {
+  await scan(run, T, run.db.collection(T).where('date', '<=', cutoffYmd(run, MONTH)), 'date', async (doc, d) => {
     const paths = moodPaths(d);
     if (!paths.length && alreadyMarked(d)) return run.tally(T, 'alreadyClean');
     if (!R.moodBookingSettled(d)) { if (R.validYmd(d.date)) run.heldMoodDates.add(d.date); return run.tally(T, 'heldStatus'); }
@@ -194,7 +219,7 @@ async function sweepMoodBookings(run) {
  * holdWhenDue(data, id) = 때가 된 문서만 한 번 더 보는 (비싼) 확인, 건너뛸 이유 또는 null. countOnly = 세기만.
  */
 async function sweepWholeDocs(run, T, { query, orderField, period, baseOf, baseYmd = null, hold = () => null, holdWhenDue = null, countOnly = false, before = null }) {
-  await scan(run, query, orderField, async (doc, d) => {
+  await scan(run, T, query, orderField, async (doc, d) => {
     const reason = hold(d, doc.id);
     if (reason) return run.tally(T, reason);
     const base = baseYmd ? baseYmd(d, doc.id) : R.msToKstYmd(baseOf(d, doc.id));
@@ -231,7 +256,8 @@ async function openComplaintPlanIds(run) {
   return ids;
 }
 
-function wholeDocTargets(run, { complainedPlanIds }) {
+/** ctx.complainedPlanIds 는 앞 대상(plan_complaints_open)이 채운다 — 훑을 때 읽는다. */
+function wholeDocTargets(run, ctx) {
   const where = (name, field, value) => run.db.collection(name).where(field, '<=', value);
   const target = (name, field, value, period, options) => [name, { query: where(name, field, value), orderField: field, period, ...options }];
   return [
@@ -251,8 +277,9 @@ function wholeDocTargets(run, { complainedPlanIds }) {
     target('mood_schedule_notes', 'month', cutoffYmd(run, MONTH).slice(0, 7), MONTH, {
       baseYmd: (d, id) => (R.validYmd(id) ? id : null),
       hold: (d, id) => (run.errors.includes('mood_bookings') ? 'heldMoodUnknown' : run.heldMoodDates.has(id) ? 'heldDispute' : null) }),
-    target('cs_tickets', 'createdAt', cutoffDate(run, THREE_YEARS), THREE_YEARS, { baseOf: d => d.createdAt }),
-    target('plan_complaints', 'createdAt', cutoffDate(run, THREE_YEARS), THREE_YEARS, { baseOf: d => d.createdAt }),
+    // 불만·분쟁 3년: 처리를 마친(resolved) 것만 지운다. 처리 중인 것은 마칠 때까지 남긴다(운영자 11/22).
+    ...['cs_tickets', 'plan_complaints'].map(name => target(name, 'createdAt', cutoffDate(run, THREE_YEARS), THREE_YEARS, {
+      baseOf: d => d.createdAt, hold: d => (R.disputeClosed(d.status) ? null : 'heldOpen') })),
     // 운영자 11/21: 분쟁 증거로 보존한 문의 3년은 이번엔 세기만.
     target('external_inbox_cases', 'updatedAtMs', cutoffMs(run, THREE_YEARS), THREE_YEARS, {
       baseOf: d => d.updatedAtMs, countOnly: true, hold: d => (d.status === 'protected' ? null : 'notProtected') }),
@@ -264,7 +291,7 @@ function wholeDocTargets(run, { complainedPlanIds }) {
       orderField: 'createdAtMs', period: MONTH, baseYmd: d => R.planTripEndYmd(d.input),
       // 돈을 낸(또는 모르는) 일정 = 결제 분쟁 증거 → 만든 날 + 180일까지 남기고, 그 뒤엔 여행 끝 + 1개월 규칙(= 늦은 날).
       // 만든 날을 모르면 계속 남긴다.
-      hold: (d, id) => (d.uid !== null ? 'member' : complainedPlanIds.has(id) ? 'heldComplaint'
+      hold: (d, id) => (d.uid !== null ? 'member' : ctx.complainedPlanIds.has(id) ? 'heldComplaint'
         : R.paidPlan(d) && !R.isDue(R.msToKstYmd(d.createdAtMs), R.PAID_PLAN_MIN, run.nowMs) ? 'heldPaid' : null) }],
     // 입금 확인을 기다리는 수동 결제 신청 = 신청 + 1개월에 문서 삭제(운영자 11/21). 확인된 신청은 위 예약 규칙(결제 칸 5년).
     // 이 신청은 "손님이 송금했다"는 신고다. PayPal 이 이 예약 번호로 돈을 보냈다는 기록(금액 불일치·확정 실패 등으로
@@ -281,8 +308,9 @@ function wholeDocTargets(run, { complainedPlanIds }) {
 /** 장부 N열(PayPal 주문 번호)로 예약 문서 찾기. 문서 번호가 주문 번호이거나, orderID 칸이 주문 번호. */
 async function findBookingByOrderId(run, orderId) {
   if (!orderId) return null;
-  const direct = await run.db.collection('bookings').doc(orderId).get();
-  if (direct.exists) return { id: orderId, data: direct.data() || {} };
+  // 손 입력 칸에 '/' 가 들면 문서 경로가 되어 오류가 난다 → 번호 칸으로만 찾는다.
+  const direct = orderId.includes('/') ? null : await run.db.collection('bookings').doc(orderId).get();
+  if (direct?.exists) return { id: orderId, data: direct.data() || {} };
   const byField = (await run.db.collection('bookings').where('orderID', '==', orderId).limit(1).get()).docs[0];
   return byField ? { id: byField.id, data: byField.data() || {} } : null;
 }
@@ -298,26 +326,43 @@ async function sweepBookingSheet(run, sheets) {
   const cells = [];
   for (const [index, row] of rows.entries()) {
     if (index === 0) continue; // 머리 줄
-    if (run.clock() > run.deadline) { run.timedOut = true; break; }
-    const filled = columns.filter(([, i]) => R.cellText(row?.[i]) !== '');
-    if (!filled.length) { run.tally(T, 'alreadyClean'); continue; }
-    // ponytail: 장부엔 끝날이 없다 → 투어날짜 + 14일을 끝날로 봄(예약 문서보다 늦게 지워짐, 일찍은 안 지움).
-    const end = R.tripEndYmd(R.sheetDateYmd(row?.[5]), []);
-    if (!end) { run.tally(T, 'noDate'); continue; }
-    if (!R.isDue(end, MONTH, run.nowMs)) { run.tally(T, 'notYet'); continue; }
-    // 손님이 날짜를 바꾸면 예약 문서만 바뀌고 장부는 손으로 고친다(modifyBooking.js) → 장부 날짜는 옛 날짜일 수 있다.
-    const booking = await findBookingByOrderId(run, R.cellText(row?.[13]));
-    if (booking) {
-      // 환불·취소 진행 중인 예약은 예약 문서도 남기므로(heldStatus) 장부 줄도 남긴다 — R열 손 메모는 장부에만 있다.
-      if (!R.bookingSettled(booking.data.status)) { run.tally(T, 'heldStatus'); continue; }
-      const bookingEnd = await bookingEndYmd(run, booking.id, booking.data);
-      if (!bookingEnd || !R.isDue(bookingEnd, MONTH, run.nowMs)) { run.tally(T, 'heldBookingNotDue'); continue; }
-    }
-    if (run.claim(T)) for (const [column] of filled) cells.push({ row: index + 1, column, value: '' });
+    if (run.outOfTime()) { run.stop(T); break; }
+    try {
+      const filled = columns.filter(([, i]) => R.cellText(row?.[i]) !== '');
+      if (!filled.length) { run.tally(T, 'alreadyClean'); continue; }
+      // ponytail: 장부엔 끝날이 없다 → 투어날짜 + 14일을 끝날로 봄(예약 문서보다 늦게 지워짐, 일찍은 안 지움).
+      const end = R.tripEndYmd(R.sheetDateYmd(row?.[5]), []);
+      if (!end) { run.tally(T, 'noDate'); continue; }
+      if (!R.isDue(end, MONTH, run.nowMs)) { run.tally(T, 'notYet'); continue; }
+      // 손님이 날짜를 바꾸면 예약 문서만 바뀌고 장부는 손으로 고친다(modifyBooking.js) → 장부 날짜는 옛 날짜일 수 있다.
+      const booking = await findBookingByOrderId(run, R.cellText(row?.[13]));
+      if (booking) {
+        // 환불·취소 진행 중인 예약은 예약 문서도 남기므로(heldStatus) 장부 줄도 남긴다 — R열 손 메모는 장부에만 있다.
+        if (!R.bookingSettled(booking.data.status)) { run.tally(T, 'heldStatus'); continue; }
+        const bookingEnd = await bookingEndYmd(run, booking.id, booking.data);
+        if (!bookingEnd || !R.isDue(bookingEnd, MONTH, run.nowMs)) { run.tally(T, 'heldBookingNotDue'); continue; }
+      }
+      if (run.claim(T)) for (const [column] of filled) cells.push({ row: index + 1, column, value: '' });
+    } catch (error) { docFailed(run, T, error); }
   }
+  await writeUnchangedRows(run, T, sheets, 'bookings', rows, cells);
+}
+
+/**
+ * 읽은 뒤 쓰기 전에 누가 줄을 정렬·삭제하면 같은 줄 번호가 다른 사람을 가리킨다 →
+ * 쓰기 직전 탭을 다시 읽어 한 칸이라도 바뀐 줄은 오늘 건너뛴다(heldRowChanged, 내일 다시 봄).
+ * ponytail: 다시 읽기와 쓰기 사이(요청 하나) 틈은 남는다 — 시트 API 에 조건부 쓰기가 없다.
+ */
+async function writeUnchangedRows(run, T, sheets, tab, rows, cells) {
   if (!cells.length) return;
-  await sheets.writeRetentionSheetCells('bookings', cells);
-  run.tally(T, 'applied', new Set(cells.map(c => c.row)).size);
+  const fresh = await sheets.readRetentionSheetRows(tab);
+  const same = rowNumber => JSON.stringify(rows[rowNumber - 1]) === JSON.stringify(fresh[rowNumber - 1]);
+  const changed = new Set(cells.filter(c => !same(c.row)).map(c => c.row));
+  if (changed.size) run.tally(T, 'heldRowChanged', changed.size);
+  const safe = cells.filter(c => !changed.has(c.row));
+  if (!safe.length) return;
+  await sheets.writeRetentionSheetCells(tab, safe);
+  run.tally(T, 'applied', new Set(safe.map(c => c.row)).size);
 }
 
 // ── 구글 시트 `Leads` 탭 — 줄은 동향용으로 남기고 사람을 알아보는 칸만 비움 ─────────────
@@ -345,9 +390,7 @@ async function sweepLeadsSheet(run, sheets) {
     if (!monthOnly) cells.push({ row: rowNumber, column: 'A', value: base.slice(0, 7) });
     for (const [column] of filled) cells.push({ row: rowNumber, column, value: '' });
   });
-  if (!cells.length) return;
-  await sheets.writeRetentionSheetCells('leads', cells);
-  run.tally(T, 'applied', new Set(cells.map(c => c.row)).size);
+  await writeUnchangedRows(run, T, sheets, 'leads', rows, cells);
 }
 
 async function guarded(run, target, fn) {
@@ -355,6 +398,18 @@ async function guarded(run, target, fn) {
     run.errors.push(target); run.tally(target, 'error');
     // 오류 글은 손님 값이 섞일 수 있어 남기지 않는다 — 이름·코드만.
     console.warn('[privacy-retention] target failed:', target, error?.code || error?.name || 'error');
+  }
+}
+
+/**
+ * 대상마다 남은 시간을 남은 대상 수로 나눈 몫만 준다. 일찍 끝난 대상의 남은 몫은 뒤 대상에게 간다.
+ * ponytail: 같은 몫 — 앞쪽 큰 대상(예약)이 몫에 걸리면 그날 개수가 덜 나온다(timedOut). 커지면 대상별 커서 저장으로.
+ */
+async function runTargets(run, jobs) {
+  for (const [index, [target, fn]] of jobs.entries()) {
+    const now = run.clock();
+    run.targetDeadline = Math.min(run.deadline, now + Math.max(0, run.deadline - now) / (jobs.length - index));
+    await guarded(run, target, fn);
   }
 }
 
@@ -366,29 +421,37 @@ export async function privacyRetentionSweepTask({ env = process.env, now = Date.
     const database = db || (await import('../_shared/firebase-admin.js')).initAdminDb('privacy-retention');
     if (!database) return { ok: false, code: 'RETENTION_DB_UNAVAILABLE' };
     const run = makeRun({ db: database, nowMs, mode, clock });
+    const ctx = { complainedPlanIds: null };
+    const loadSheets = async () => sheets || import('../_google-sheets.js');
+    const usedOrderHold = async (d, id) => {
+      const review = d.reviewQuarantined === true ? await database.collection('payment_reviews').doc(id).get() : null;
+      if (R.paymentAttemptClosed(d, review?.exists ? review.data() : null)) return null;
+      return d.reviewQuarantined === true ? 'heldQuarantined' : 'heldUnfinished';
+    };
 
-    await guarded(run, 'bookings', () => sweepBookings(run));
-    await guarded(run, 'pending_bookings', () => sweepPendingBookings(run));
-    await guarded(run, 'used_paypal_orders', () => sweepPaymentCopy(run, 'used_paypal_orders',
-      database.collection('used_paypal_orders').where('createdAtMs', '<=', cutoffMs(run, MONTH)), 'createdAtMs', ['intent', 'body']));
-    await guarded(run, 'payment_reviews', () => sweepPaymentCopy(run, 'payment_reviews',
-      database.collection('payment_reviews').where('createdAt', '<=', cutoffDate(run, MONTH)), 'createdAt', ['bookingPayload'],
-      { holdUnresolved: true }));
-    await guarded(run, 'cart_orders', () => sweepCartOrders(run));
-    await guarded(run, 'mood_bookings', () => sweepMoodBookings(run));
-    let complainedPlanIds = null;
-    await guarded(run, 'plan_complaints_open', async () => { complainedPlanIds = await openComplaintPlanIds(run); });
-    for (const [target, options] of wholeDocTargets(run, { complainedPlanIds: complainedPlanIds || new Set() })) {
-      // 신고 목록을 못 읽었으면 비회원 일정은 건너뛴다(신고 걸린 일정을 지울 수 있어서).
-      if (target === 'plans_guest' && !complainedPlanIds) { run.tally(target, 'heldComplaintUnknown'); continue; }
-      await guarded(run, target, () => sweepWholeDocs(run, target, options));
-    }
-    // 시트는 운영 장부 하나뿐 — 미리보기·개발에서는 읽지도 않는다.
-    if (env.VERCEL_ENV === 'production') {
-      const sheetApi = sheets || await import('../_google-sheets.js');
-      await guarded(run, 'sheet_bookings', () => sweepBookingSheet(run, sheetApi));
-      await guarded(run, 'sheet_leads', () => sweepLeadsSheet(run, sheetApi));
-    }
+    await runTargets(run, [
+      ['bookings', () => sweepBookings(run)],
+      ['pending_bookings', () => sweepPendingBookings(run)],
+      ['used_paypal_orders', () => sweepPaymentCopy(run, 'used_paypal_orders',
+        database.collection('used_paypal_orders').where('createdAtMs', '<=', cutoffMs(run, MONTH)), 'createdAtMs', ['intent', 'body'],
+        usedOrderHold)],
+      ['payment_reviews', () => sweepPaymentCopy(run, 'payment_reviews',
+        database.collection('payment_reviews').where('createdAt', '<=', cutoffDate(run, MONTH)), 'createdAt', ['bookingPayload'],
+        d => (d.resolvedAt === null || d.resolvedAt === undefined ? 'heldUnresolved' : null))],
+      ['cart_orders', () => sweepCartOrders(run)],
+      ['mood_bookings', () => sweepMoodBookings(run)],
+      ['plan_complaints_open', async () => { ctx.complainedPlanIds = await openComplaintPlanIds(run); }],
+      ...wholeDocTargets(run, ctx).map(([target, options]) => [target, async () => {
+        // 신고 목록을 못 읽었으면 비회원 일정은 건너뛴다(신고 걸린 일정을 지울 수 있어서).
+        if (target === 'plans_guest' && !ctx.complainedPlanIds) return run.tally(target, 'heldComplaintUnknown');
+        await sweepWholeDocs(run, target, options);
+      }]),
+      // 시트는 운영 장부 하나뿐 — 미리보기·개발에서는 읽지도 않는다.
+      ...(env.VERCEL_ENV === 'production' ? [
+        ['sheet_bookings', async () => sweepBookingSheet(run, await loadSheets())],
+        ['sheet_leads', async () => sweepLeadsSheet(run, await loadSheets())],
+      ] : []),
+    ]);
 
     const ok = run.errors.length === 0;
     const result = {

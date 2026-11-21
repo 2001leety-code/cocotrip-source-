@@ -93,6 +93,8 @@ function seed() {
       'b-noend': { ...PAYMENT, status: 'CONFIRMED', tourDate: '2026-10-10', memo: 'm' }, // 끝날 모름 → 10/24 → 11/25 부터
       'b-snap': { ...PAYMENT, status: 'COMPLETED', tourDate: '2026-10-10', orderID: 'P-snap', memo: 'm' }, // 스냅샷 끝날 10/12 → 11/13 부터
       'b-clean': { ...PAYMENT, status: 'CONFIRMED', tourDate: '2026-09-01', privacyRetention: { version: 1, scrubbedAtMs: 1 } },
+      'b-moved': { status: 'CONFIRMED', orderID: 'P5', tourDate: '2026-11-10' }, // 손님이 10/01 → 11/10 으로 옮김(사본은 옛 날짜)
+      P6: { status: 'REFUND_PENDING', tourDate: '2026-11-10' }, // 문서 번호 = 주문 번호, 환불 진행 중
     },
     dispatch_messages: { dm1: { orderID: 'b-old', text: 'pickup Test Hotel' } },
     paypal_order_snapshots: { 'P-snap': { dateEnd: '2026-10-12' }, P1: { dateEnd: '2026-10-03' } },
@@ -110,12 +112,22 @@ function seed() {
       ev1: { status: 'unmatched', detail: { reason: 'amount_mismatch', bookingRef: 'pb5' } },
     },
     used_paypal_orders: {
-      P1: { createdAtMs: kst('2026-09-25T00:00:00'), intent: { body: { tourDate: '2026-10-01', amount: 100, payerEmail: 'buyer@example.test', customerPhone: '+82', memo: 'm' } } },
+      P1: { createdAtMs: kst('2026-09-25T00:00:00'), finalized: true, intent: { body: { tourDate: '2026-10-01', amount: 100, payerEmail: 'buyer@example.test', customerPhone: '+82', memo: 'm' } } },
+      // 격리 + 결제 검토 미해결 → 복구가 intent 로 다시 돌릴 수 있어 남김
+      P3: { createdAtMs: kst('2026-09-25T00:00:00'), reviewQuarantined: true, captureState: 'captured', intent: { body: { tourDate: '2026-10-01', memo: 'm' } } },
+      P4: { createdAtMs: kst('2026-09-25T00:00:00'), captureState: 'posted', intent: { body: { tourDate: '2026-10-01', memo: 'm' } } }, // 미완료
+      P5: { createdAtMs: kst('2026-09-25T00:00:00'), finalized: true, intent: { body: { tourDate: '2026-10-01', memo: 'm' } } }, // 예약은 11/10 으로 옮김
+      P6: { createdAtMs: kst('2026-09-25T00:00:00'), finalized: true, intent: { body: { tourDate: '2026-10-01', memo: 'm' } } }, // 예약 환불 중
     },
-    payment_reviews: { P2: { createdAt: ts('2026-09-25T00:00:00'), resolvedAt: null, bookingPayload: { tourDate: '2026-10-01', memo: 'm' } } },
+    payment_reviews: {
+      P2: { createdAt: ts('2026-09-25T00:00:00'), resolvedAt: null, bookingPayload: { tourDate: '2026-10-01', memo: 'm' } },
+      P3: { createdAt: ts('2026-09-25T00:00:00'), resolvedAt: null, bookingPayload: { lineCount: 1 } },
+    },
     cart_orders: {
-      c1: { status: 'paid', createdAt: ts('2026-09-25T00:00:00'), total: 300,
+      c1: { status: 'captured', createdAt: ts('2026-09-25T00:00:00'), total: 300,
         lines: [{ productId: 'tour-1', amount: 300, booking: { dateStart: '2026-10-01', dateEnd: '2026-10-02', customerPhone: '+82', pickupLocation: 'Test Hotel', at: ts('2026-09-25T00:00:00') } }] },
+      // 결제 전(created) = 결제 기록을 못 남긴 결제일 수도 있어 남김
+      c2: { status: 'created', createdAt: ts('2026-09-25T00:00:00'), lines: [{ booking: { dateStart: '2026-10-01', memo: 'm' } }] },
     },
     mood_bookings: {
       m1: { status: 'completed', date: '2026-10-01', price: 500, origin: 'A', destination: 'B', note: 'n', breakdown: { origin: 'A', destination: 'B', fare: 300 },
@@ -142,7 +154,9 @@ function seed() {
     },
     // 10/03 = 정산 다툼이 열린 협력사 예약이 있는 날 → 남김
     mood_schedule_notes: { '2026-10-01': { month: '2026-10', text: 'n' }, '2026-10-03': { month: '2026-10', text: 'n' }, '2026-11-15': { month: '2026-11', text: 'n' } },
-    cs_tickets: { t1: { createdAt: ts('2023-11-01T00:00:00') }, t2: { createdAt: ts('2024-06-01T00:00:00') } },
+    // 3년: 처리 마친 것(resolved)만 지움, 처리 중(in_progress)은 남김(운영자 11/22)
+    cs_tickets: { t1: { status: 'resolved', createdAt: ts('2023-11-01T00:00:00') }, t2: { status: 'open', createdAt: ts('2024-06-01T00:00:00') },
+      t3: { status: 'in_progress', createdAt: ts('2023-10-01T00:00:00') } },
     external_inbox_cases: { k1: { status: 'protected', updatedAtMs: kst('2023-01-01T00:00:00') } },
     plans: {
       g1: { uid: null, createdAtMs: kst('2026-08-20T00:00:00'), guestEmail: 'guest@example.test', paymentSource: 'ai-coupon', isFreeCoupon: true, input: { startDate: '2026-09-01', durationDays: 3 } }, // 무료 쿠폰, 끝 9/03
@@ -160,7 +174,11 @@ function seed() {
       g9: { uid: null, createdAtMs: kst('2026-08-20T00:00:00'), input: { startDate: '2026-09-01', durationDays: 3 } },
       u1: { uid: 'user-1', createdAtMs: kst('2026-08-20T00:00:00'), input: { startDate: '2026-09-01', durationDays: 3 } },
     },
-    plan_complaints: { pc1: { planId: 'g2', status: 'open', createdAt: ts('2026-10-01T00:00:00') } },
+    plan_complaints: {
+      pc1: { planId: 'g2', status: 'open', createdAt: ts('2026-10-01T00:00:00') },
+      pc2: { planId: 'gone', status: 'reviewed', createdAt: ts('2023-10-01T00:00:00') }, // 3년 지났지만 처리 중 → 남김
+      pc3: { planId: 'gone2', status: 'resolved', createdAt: ts('2023-10-01T00:00:00') }, // 3년 + 처리 끝 → 지움
+    },
   } as Record<string, Record<string, Data>>;
 }
 
@@ -183,9 +201,9 @@ describe('기본 = 개수만 셈 (스위치 꺼짐)', () => {
     const { counts } = await run(makeDb(seed()));
     expect(counts.bookings).toEqual({ due: 2, notYet: 2, heldStatus: 1, alreadyClean: 1 }); // b-old·b-snap / b-recent·b-noend
     expect(counts.pending_bookings).toEqual({ due: 1, heldStatus: 1 });
-    expect(counts.used_paypal_orders).toEqual({ due: 1 });
-    expect(counts.payment_reviews).toEqual({ heldUnresolved: 1 });
-    expect(counts.cart_orders).toEqual({ due: 1 });
+    expect(counts.used_paypal_orders).toEqual({ due: 1, heldQuarantined: 1, heldUnfinished: 1, notYet: 1, heldBookingStatus: 1 }); // P1 / P3 / P4 / P5 / P6
+    expect(counts.payment_reviews).toEqual({ heldUnresolved: 1, alreadyClean: 1 });
+    expect(counts.cart_orders).toEqual({ due: 1, heldUnpaid: 1 });
     expect(counts.mood_bookings).toEqual({ due: 2, heldStatus: 3 });
     expect(counts.preview_leads).toEqual({ due: 1 }); // l2 는 범위 밖
     expect(counts.charter_inquiries).toEqual({ due: 1, notYet: 1, heldOpen: 1 });
@@ -193,7 +211,8 @@ describe('기본 = 개수만 셈 (스위치 꺼짐)', () => {
     expect(counts.pending_email_retries).toEqual({ due: 1 }); // 사람이 봐야 하는 것은 아예 안 잡힘
     expect(counts.pending_processor_retries).toEqual({ due: 1, notYet: 1 });
     expect(counts.mood_schedule_notes).toEqual({ due: 1, heldDispute: 1 });
-    expect(counts.cs_tickets).toEqual({ due: 1 });
+    expect(counts.cs_tickets).toEqual({ due: 1, heldOpen: 1 });
+    expect(counts.plan_complaints).toEqual({ due: 1, heldOpen: 1 });
     expect(counts.external_inbox_cases).toEqual({ dueCountOnly: 1 });
     expect(counts.plans_guest).toEqual({ due: 2, heldComplaint: 1, heldPaid: 3, notYet: 3, member: 1 }); // g1·g6 / g5·g7·g9 / g3·g4·g8
     expect(counts.pending_bookings_unverified).toEqual({ due: 2, notYet: 1, noDate: 1, heldPaymentSeen: 1 }); // pb2·pb6 / pb3 / pb4 / pb5
@@ -232,12 +251,15 @@ describe('스위치 켬 = 지움', () => {
     await run(fake, ENV);
     expect(fake.col('used_paypal_orders').get('P1')).toEqual({
       createdAtMs: kst('2026-09-25T00:00:00'),
+      finalized: true,
       intent: { body: { tourDate: '2026-10-01', amount: 100, payerEmail: 'buyer@example.test' } },
       privacyRetention: { version: 1, scrubbedAtMs: NOW },
     });
+    for (const id of ['P3', 'P4', 'P5', 'P6']) expect(fake.col('used_paypal_orders').get(id)).toHaveProperty('intent.body.memo', 'm');
+    expect((fake.col('cart_orders').get('c2') as any).lines[0].booking).toHaveProperty('memo', 'm');
     expect(fake.col('payment_reviews').get('P2')).toHaveProperty('bookingPayload.memo', 'm'); // 미해결 = 보류
     const c1 = fake.col('cart_orders').get('c1') as any;
-    expect(c1).toMatchObject({ status: 'paid', total: 300, lines: [{ productId: 'tour-1', amount: 300, booking: { dateStart: '2026-10-01', dateEnd: '2026-10-02' } }] });
+    expect(c1).toMatchObject({ status: 'captured', total: 300, lines: [{ productId: 'tour-1', amount: 300, booking: { dateStart: '2026-10-01', dateEnd: '2026-10-02' } }] });
     expect(c1.lines[0].booking).not.toHaveProperty('customerPhone');
     expect(c1.lines[0].booking.at).toBeInstanceOf(Ts);
     expect(fake.col('pending_bookings').get('pb1')).toMatchObject({ ...PAYMENT, dateStart: '2026-10-01' });
@@ -275,7 +297,8 @@ describe('스위치 켬 = 지움', () => {
     expect([...fake.col('pending_email_retries').keys()]).toEqual(['r-manual']);
     expect([...fake.col('pending_processor_retries').keys()]).toEqual(['p-new']);
     expect([...fake.col('mood_schedule_notes').keys()]).toEqual(['2026-10-03', '2026-11-15']);
-    expect([...fake.col('cs_tickets').keys()]).toEqual(['t2']);
+    expect([...fake.col('cs_tickets').keys()]).toEqual(['t2', 't3']);
+    expect([...fake.col('plan_complaints').keys()]).toEqual(['pc1', 'pc2']);
     // 비회원 일정: 여행 끝 + 1개월 지난 것만. 회원·신고 걸린 것·아직인 것은 남김
     expect([...fake.col('plans').keys()]).toEqual(['g2', 'g3', 'g4', 'g5', 'g7', 'g8', 'g9', 'u1']);
     // 분쟁 보존 문의 3년 = 켜도 세기만
@@ -413,6 +436,16 @@ describe('구글 시트 (운영에서만)', () => {
     expect(result.counts.sheet_leads).toEqual({ due: 2, applied: 2, notYet: 1, alreadyClean: 1 });
   });
 
+  it('읽은 뒤 누가 줄을 옮기면(정렬·삭제) 그 줄은 오늘 건너뜀', async () => {
+    const moved = [bookingRows[0], bookingRows[3], bookingRows[1], bookingRows[2]]; // 2번 줄 자리에 다른 예약
+    const reads = [bookingRows, moved];
+    const api = { ...sheets(), readRetentionSheetRows: vi.fn(async (tab: string) => (tab === 'bookings' ? reads.shift() : [])) };
+    const result = await run(makeDb(), PROD_ON, { sheets: api });
+    expect(api.writeRetentionSheetCells).not.toHaveBeenCalled();
+    expect(result.counts.sheet_bookings).toMatchObject({ due: 1, heldRowChanged: 1 });
+    expect(result.counts.sheet_bookings).not.toHaveProperty('applied');
+  });
+
   it('운영 + 꺼짐: 읽기만', async () => {
     const api = sheets();
     const result = await run(makeDb(), { VERCEL_ENV: 'production' }, { sheets: api });
@@ -441,6 +474,35 @@ describe('실패·시간·인증', () => {
     expect(fake.col('preview_leads').has('l1')).toBe(false); // 뒤 대상은 계속 돎
     expect(JSON.stringify(warn.mock.calls)).not.toContain('example.test');
     warn.mockRestore();
+  });
+
+  it('문서 하나가 오류를 내도 그 대상의 나머지는 계속 보고, 오류 글은 남기지 않는다', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const data = seed();
+    data.bookings['b-bad'] = { tourDate: '2026-09-02', get status(): string { throw new Error('bad doc secret@example.test'); } } as never;
+    const fake = makeDb(data);
+    const result = await run(fake, { PRIVACY_RETENTION_DELETE_ENABLED: 'true' });
+    expect(result).toMatchObject({ ok: false, code: 'RETENTION_REVIEW_REQUIRED' });
+    expect(result.counts.bookings).toMatchObject({ docError: 1, applied: 2 }); // b-old·b-snap 은 그대로 비움
+    expect(fake.col('bookings').get('b-old')).not.toHaveProperty('memo');
+    expect(JSON.stringify(warn.mock.calls)).not.toContain('example.test');
+    warn.mockRestore();
+  });
+
+  it('앞 대상이 시간을 다 써도 뒤 대상은 자기 몫으로 센다', async () => {
+    let t = 0;
+    const fake = makeDb(seed());
+    // 결제 스냅샷 읽기 한 번 = 10초(느린 읽기). 예약 훑기가 첫 읽기 뒤 자기 몫을 넘김.
+    const db = { collection: (name: string) => {
+      const c = fake.db.collection(name);
+      if (name !== 'paypal_order_snapshots') return c;
+      return { ...c, doc: (id: string) => { const r = c.doc(id); return { ...r, get: async () => { t += 10_000; return r.get(); } }; } };
+    } };
+    const result = await privacyRetentionSweepTask({ env: {}, now: () => NOW, clock: () => t, db } as never) as any;
+    expect(result).toMatchObject({ ok: true, code: 'RETENTION_PARTIAL', timedOut: true });
+    expect(result.counts.bookings).toHaveProperty('timedOut', 1);
+    expect(result.counts.plans_guest).toEqual({ due: 2, heldComplaint: 1, heldPaid: 3, notYet: 3, member: 1 });
+    expect(result.counts.pending_bookings_unverified).toEqual({ due: 2, notYet: 1, noDate: 1, heldPaymentSeen: 1 });
   });
 
   it('시간 예산을 넘기면 멈추고 PARTIAL', async () => {
