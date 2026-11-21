@@ -186,7 +186,15 @@ function seed() {
       m4: { status: 'confirmed', date: '2026-10-04', serviceType: 'vehicle', origin: 'A', breakdown: { origin: 'A' } }, // 정산 전
       m5: { status: 'confirmed', date: '2026-10-05', serviceType: 'airport', origin: 'ICN' }, // 정액 = 정산 없음
     },
-    mood_booking_change_events: { e1: { bookingId: 'm1', reason: 'time', before: { origin: 'A', price: 500 }, after: { destination: 'C' } } },
+    mood_booking_change_events: {
+      e1: { bookingId: 'm1', reason: 'time', before: { origin: 'A', price: 500 }, after: { destination: 'C' } },
+      // 감사 기록 = 변경을 마친 날 + 1개월에 직원 이메일 칸만 비움(운영자 11/22). 협력사 번호·금액은 남김
+      'ev-old': { type: 'booking_change_approved', bookingId: 'm9', clientId: 'client-1', actorEmail: 'staff@example.test', proposedByEmail: 'staff2@example.test',
+        oldAmountKRW: 100, newAmountKRW: 200, before: { price: 100, updatedByEmail: 'staff@example.test', bookingChangeApproval: { status: 'approved', approvedByEmail: 'staff@example.test' } },
+        after: { price: 200 }, createdAt: kst('2026-10-01T00:00:00') },
+      'ev-new': { type: 'booking_changed', clientId: 'client-1', actorEmail: 'staff@example.test', createdAt: kst('2026-10-22T12:00:00') }, // 11/23 부터
+    },
+    mood_notification_outbox: { ob1: { type: 'mood_booking_changed', clientId: 'client-1', actorEmail: 'staff@example.test', status: 'pending', createdAt: kst('2026-10-01T00:00:00') } },
     preview_leads: { l1: { lastSeenAtMs: kst('2026-10-01T12:00:00'), email: 'lead@example.test' }, l2: { lastSeenAtMs: kst('2026-11-20T12:00:00'), email: 'x' } },
     charter_inquiries: {
       q1: { status: 'responded', createdAt: ts('2026-10-01T00:00:00'), updatedAt: ts('2026-10-01T00:00:00'), updatedAtMs: kst('2026-10-28T10:00:00') }, // 답한 날 + 30일 = 11/28 부터
@@ -259,6 +267,8 @@ describe('기본 = 개수만 셈 (스위치 꺼짐)', () => {
     // fc1·fc6 / fc1 영수증 1개 / fc2 / fc3 / fc4·fc5
     expect(counts.pending_free_claims).toEqual({ due: 2, receiptFilesDue: 1, heldPending: 1, notYet: 1, heldReceiptUnknown: 2 });
     expect(counts.mood_booking_change_idempotency).toEqual({ due: 1, notYet: 1 });
+    expect(counts.mood_booking_change_events_emails).toEqual({ due: 1, notYet: 1 });
+    expect(counts.mood_notification_outbox_emails).toEqual({ due: 1 });
     expect(counts.chat_rate_limits).toEqual({ due: 1, notYet: 1 });
     expect(counts.chat_rate_limits_daily).toEqual({ due: 1 });
     expect(counts.preview_lead_rate_limits).toEqual({ due: 1, notYet: 1 });
@@ -384,6 +394,14 @@ describe('스위치 켬 = 지움', () => {
       action: 'approve', bookingId: 'm1', payloadHash: 'h', quoteId: 'q', status: 'completed',
       createdAt: kst('2026-10-01T00:00:00'), completedAt: kst('2026-10-01T00:00:00'), privacyRetention: { version: 1, scrubbedAtMs: NOW } });
     expect(fake.col('mood_booking_change_idempotency').get('mi2')).toHaveProperty('actorEmail');
+    // 감사 기록·알림 대기열: 직원 이메일 칸만(사본 안 포함) 비우고 협력사 번호·금액·문서는 남김
+    expect(fake.col('mood_booking_change_events').get('ev-old')).toEqual({
+      type: 'booking_change_approved', bookingId: 'm9', clientId: 'client-1', oldAmountKRW: 100, newAmountKRW: 200,
+      before: { price: 100, bookingChangeApproval: { status: 'approved' } }, after: { price: 200 }, createdAt: kst('2026-10-01T00:00:00'),
+      privacyRetention: { version: 1, scrubbedAtMs: NOW } });
+    expect(fake.col('mood_booking_change_events').get('ev-new')).toHaveProperty('actorEmail');
+    expect(fake.col('mood_notification_outbox').get('ob1')).toEqual({ type: 'mood_booking_changed', clientId: 'client-1', status: 'pending',
+      createdAt: kst('2026-10-01T00:00:00'), privacyRetention: { version: 1, scrubbedAtMs: NOW } });
     expect([...fake.col('chat_rate_limits').keys()]).toEqual(['u:user-2']);
     expect([...fake.col('preview_lead_rate_limits').keys()]).toEqual(['h2']);
     expect(fake.col('inquiry_rate_limits').size).toBe(0);
@@ -479,6 +497,8 @@ describe('날짜 경계 (한국 자정)', () => {
     ['mood_booking_change_idempotency', 'mood_booking_change_idempotency', { status: 'completed', actorEmail: 'e', completedAt: BASE }, '2026-11-22'],
     ['pending_free_claims', 'pending_free_claims', { status: 'approved', reviewedAt: new Ts(BASE) }, '2026-11-22'],
     ['cart_orders_unpaid', 'cart_orders', { status: 'created', createdAt: new Ts(BASE) }, '2026-11-22'],
+    ['mood_booking_change_events_emails', 'mood_booking_change_events', { clientId: 'c', actorEmail: 'e', createdAt: BASE }, '2026-11-22'],
+    ['mood_notification_outbox_emails', 'mood_notification_outbox', { clientId: 'c', actorEmail: 'e', createdAt: BASE }, '2026-11-22'],
     // 2일: 10/23 까지 남기고 10/24 부터 · 1일: 10/22 까지 남기고 10/23 부터
     ['chat_rate_limits', 'chat_rate_limits', { updatedAt: BASE }, '2026-10-24'],
     ['chat_rate_limits_daily', 'chat_rate_limits', { lastUpdated: BASE }, '2026-10-24'],
@@ -677,6 +697,9 @@ describe('속도 제한 표 목록 = api/ 의 실제 호출과 같음', () => {
   }
   it('쓰는 표는 모두 목록에 있고(대화 표는 따로), 목록에 쓰지 않는 표는 없다', () => {
     used.delete('chat_rate_limits'); // 문서 꼴이 달라 lowPriorityTargets 에서 따로(updatedAt·lastUpdated) 지운다
-    expect([...used].sort()).toEqual([...IP_RATE_LIMIT_COLLECTIONS].sort());
+    // 무료 신청을 닫아(11/22) 더 안 쓰지만 남은 문서를 지우려고 목록에 둔 것
+    const retired = ['claim_notify_rate_limits'];
+    for (const name of retired) expect(used.has(name)).toBe(false);
+    expect([...used].sort()).toEqual(IP_RATE_LIMIT_COLLECTIONS.filter((name: string) => !retired.includes(name)).sort());
   });
 });

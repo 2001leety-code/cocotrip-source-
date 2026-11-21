@@ -253,6 +253,23 @@ async function sweepMoodIdempotency(run) {
 }
 
 /**
+ * 협력사 예약 변경 감사 기록(mood_booking_change_events)·알림 대기열(mood_notification_outbox)
+ * = 변경을 마친 날(createdAt) + 1개월에 직원 이메일 칸(…Email·…Emails, 예약 사본 before·after 안 포함)만 비운다(운영자 11/22).
+ * 협력사 계정 번호(clientId)·금액·문서는 남긴다. 두 표는 mood-change.js 가 쓰기만 하고 다시 읽지 않는다.
+ */
+async function sweepMoodChangeEmails(run, name) {
+  const T = `${name}_emails`;
+  await scan(run, T, run.db.collection(name).where('createdAt', '<=', cutoffMs(run, MONTH)), 'createdAt', async (doc, d) => {
+    const paths = R.findEmailKeyPaths(d);
+    if (!paths.length) return run.tally(T, 'alreadyClean');
+    const base = R.msToKstYmd(d.createdAt);
+    if (!base) return run.tally(T, 'noDate');
+    if (!R.isDue(base, MONTH, run.nowMs)) return run.tally(T, 'notYet');
+    if (run.claim(T)) await scrubPaths(run, T, doc.ref, paths);
+  });
+}
+
+/**
  * "이미 예약했어요 → 무료 플랜" 신청 = 승인·거절된 날 + 1개월에 문서와 그 문서가 가리키는 영수증 파일 삭제(운영자 11/22).
  * 처리 전(pending)은 세기만. 영수증 하나라도 우리 버킷 `free_claims/` 파일로 못 읽으면 신청째 남긴다(파일을 놓치지 않게).
  * 파일 먼저 지우고 문서는 마지막 — 중간에 실패하면 다음 날 문서로 다시 찾는다(없는 파일은 넘어감).
@@ -394,6 +411,7 @@ function lowPriorityTargets(run) {
  * 처리방침 "속도 제한 기록 1~2일"의 대상 전부 — `checkIpRateLimit(..., collection: …)` 를 부르는 곳과
  * 같은 꼴(count·windowStartedAtMs·lastSeenAtMs)을 쓰는 대화 새로고침 제한(chat-session-auth.js).
  * 새 곳을 만들면 여기에 넣는다(시험이 api/ 의 호출 목록과 대조한다).
+ * `claim_notify_rate_limits` 는 무료 신청을 닫아(11/22) 더 안 쓰지만 남은 문서를 지우려고 둔다.
  */
 export const IP_RATE_LIMIT_COLLECTIONS = Object.freeze([
   'preview_lead_rate_limits', 'inquiry_rate_limits', 'quick_plan_rate_limits', 'pdf_cutoff_alert_rate_limits',
@@ -562,6 +580,7 @@ export async function privacyRetentionSweepTask({ env = process.env, now = Date.
       ['cart_orders', () => sweepCartOrders(run)],
       ['mood_bookings', () => sweepMoodBookings(run)],
       ['mood_booking_change_idempotency', () => sweepMoodIdempotency(run)],
+      ...['mood_booking_change_events', 'mood_notification_outbox'].map(name => [`${name}_emails`, () => sweepMoodChangeEmails(run, name)]),
       ['pending_free_claims', () => sweepFreeClaims(run, storage || adminStorage(env), receiptBuckets(env, database))],
       ['plan_complaints_open', async () => { ctx.complainedPlanIds = await openComplaintPlanIds(run); }],
       ...wholeDocTargets(run, ctx).map(([target, options]) => [target, async () => {

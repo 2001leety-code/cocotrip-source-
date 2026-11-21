@@ -14,13 +14,12 @@ service firebase.storage {
     }
 
     // free_claims/{emailSlug}/{filename} — "이미 예약" 무료 플랜 영수증
-    //   비로그인 게스트도 제출 가능. 어드민(2001leety@gmail.com)만 다운로드.
+    //   올리기 막음 (운영자 결정 2026-11-22: 신청 닫음). 어드민만 남은 영수증 다운로드.
+    //   남은 파일 삭제는 자동 삭제 작업(서버 Admin SDK, 규칙 밖)이 한다.
     match /free_claims/{emailSlug}/{allPaths=**} {
       allow read:  if request.auth != null
                    && request.auth.token.email == '2001leety@gmail.com';
-      allow write: if request.resource.size < 5 * 1024 * 1024
-                   && (request.resource.contentType.matches('image/.*')
-                       || request.resource.contentType == 'application/pdf');
+      allow write: if false;
     }
 
     // tours/{tourId}/** — 어드민 상품 사진 (Phase 1, 2026-05-19)

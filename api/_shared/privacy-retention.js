@@ -113,6 +113,21 @@ export function findKeyPaths(data, keys, { under = [], maxDepth = 4 } = {}) {
   return out;
 }
 
+const EMAIL_KEY = /(^e|E)mails?$/;
+/** 이메일 칸 경로(email·…Email·…Emails, 사본 안까지). 평범한 객체만 내려가고 찾은 칸 아래로는 안 내려간다. */
+export function findEmailKeyPaths(data, maxDepth = 4) {
+  const out = [];
+  const walk = (node, path) => {
+    if (!isPlainObject(node) || path.length >= maxDepth) return;
+    for (const [key, value] of Object.entries(node)) {
+      if (EMAIL_KEY.test(key)) { if (value !== undefined) out.push([...path, key]); }
+      else walk(value, [...path, key]);
+    }
+  };
+  walk(data, []);
+  return out;
+}
+
 /** 배열 칸을 통째로 다시 쓸 때만 쓴다: 평범한 객체만 복사하며 keys 를 빼고, Timestamp 등은 그대로 둔다. */
 export function withoutKeysDeep(value, keys) {
   const wanted = keys instanceof Set ? keys : new Set(keys);

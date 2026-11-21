@@ -7,7 +7,7 @@ import {
   deletableFrom, isDue, kstYmd, validYmd, toMs, tripEndYmd, findKeyPaths, withoutKeysDeep,
   bookingSettled, moodBookingSettled, inquiryClosed, scanCutoffMs, UNKNOWN_END_BUFFER_DAYS,
   planTripEndYmd, sheetDateYmd, kstMonth, monthEndYmd, latestMs, paidPlan, PAID_PLAN_MIN,
-  paymentAttemptClosed, cartPaid, disputeClosed, attemptTookNoMoney, freeClaimReceiptObject,
+  paymentAttemptClosed, cartPaid, disputeClosed, attemptTookNoMoney, freeClaimReceiptObject, findEmailKeyPaths,
 } from '../../api/_shared/privacy-retention.js';
 import { leadSheetRow } from '../../api/_ai_core/emailNotifier.js';
 
@@ -260,5 +260,16 @@ describe('운영자 11/22 — 결제 전 장바구니·무료 신청 영수증',
       'free_claims/a/r.pdf', '', null, undefined,
     ]) expect(freeClaimReceiptObject(bad, buckets)).toBeNull();
     expect(freeClaimReceiptObject(url('proj.firebasestorage.app', 'free_claims/a/r.pdf'), new Set())).toBeNull();
+  });
+});
+
+describe('직원 이메일 칸 찾기 (운영자 11/22)', () => {
+  it('email·…Email·…Emails 를 사본 안까지 찾고 다른 칸은 안 건드림', () => {
+    expect(findEmailKeyPaths({
+      clientId: 'c', actorEmail: 'a', settlementApproverEmails: ['x'], emailVerified: true, mailbox: 'm',
+      before: { updatedByEmail: 'u', approval: { approvedByEmail: 'p', status: 'ok' } }, lines: [{ email: 'in-array' }],
+    })).toEqual([['actorEmail'], ['settlementApproverEmails'], ['before', 'updatedByEmail'], ['before', 'approval', 'approvedByEmail']]);
+    expect(findEmailKeyPaths({ clientId: 'c', email: 'e' })).toEqual([['email']]);
+    expect(findEmailKeyPaths({})).toEqual([]);
   });
 });

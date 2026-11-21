@@ -15,7 +15,7 @@ const ENDPOINTS = [
   // 2026-06-13 2차 비용 헌트 — 무인증 Naver/Gemini/Telegram 호출 엔드포인트 추가 배선.
   { file: 'api/calculator-distance.js', collection: 'calc_distance_rate_limits' },
   { file: 'api/inquiry-submit.js', collection: 'inquiry_rate_limits' },
-  { file: 'api/notify-claim.js', collection: 'claim_notify_rate_limits' },
+  // api/notify-claim.js 는 2026-11-22 무료 신청을 닫아 텔레그램을 안 보낸다(410) — tests/unit/free-claim-closed-20261122.test.ts
 ];
 
 describe('비용 DoS — IP rate-limit 배선 (소스 가드)', () => {
