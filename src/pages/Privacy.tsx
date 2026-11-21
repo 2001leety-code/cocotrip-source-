@@ -36,6 +36,9 @@ const DATE: Record<PolicyLang, string> = {
 // 제3조 표의 견적 문의·사이트 채팅·후기와 커뮤니티 글·협력사 포털 예약·자동 수집 기록 줄 = 운영자 확정(2026-11-21 "다 권장대로").
 // 🔴 제3조 AI 일정 신청 목록 줄은 시트 Leads 에 이메일·이름·일정 번호를 적지 않고 있던 줄은 1개월 뒤 비우는 코드(자동 삭제 작업)가
 //    운영에 먼저 나가야 사실이 된다.
+// 🔴 제3조 비회원 AI 일정 두 줄(돈 안 낸 일정 = 여행 끝 + 1개월, 돈 낸 일정 = 만든 날 + 180일과 여행 끝 + 1개월 중 늦은 날)과
+//    입금이 확인되지 않은 PayPal QR 신청 줄(신청 + 1개월, pending_bookings) = 운영자 확정(2026-11-21 "Both as recommended").
+//    자동 삭제 코드가 같은 기준으로 지워야 사실이 된다. 처리 중인 불만 신고(plan_complaints)가 걸린 일정은 지우지 않는다.
 // 🔴 구글 지갑(api/_create-wallet-pass.js)은 운영에서 아직 꺼져 있다(설정 2개 없음) — 켜는 것을 전제로 썼다(운영자 2026-11-21 "켜기").
 //    구글이 받은 정보를 자기 서비스에도 쓰므로 위탁(제5조)이 아니라 제공(제7조)·국외 이전(제6조)으로 썼다(검토 3회차).
 //    켜기 전에 메일의 지갑 버튼 옆에 "누르면 이 정보가 구글(미국)로 감 — 제6조" 안내(4개 언어)가 먼저 나가야 한다.
@@ -89,6 +92,9 @@ const CONTENT: Record<PolicyLang, { pageTitle: string; changeSummary: string; ar
             ['Contact details left for an itinerary preview by people who did not book', '1 month after they were left'],
             ['Email address, name and itinerary number still in the AI itinerary request list (Google Sheets)', '1 month after the request (after that, only the month, region, travel preferences and number of travelers, without the email address, name or itinerary number, are kept as usage trend statistics)'],
             ['Member account and saved itineraries', 'Until you delete your account'],
+            ['AI itineraries created without an account and not paid for', '1 month after the trip ends (itineraries with a complaint still being handled: until it is handled)'],
+            ['AI itineraries created without an account and paid for (PayPal payment or PayPal QR payment)', 'Until 180 days after creation or 1 month after the trip ends, whichever is later (used as evidence of what was provided if a payment dispute arises; the PayPal dispute period)'],
+            ['Requests reporting a PayPal QR payment that was not confirmed as received (email address, phone number and booking details)', '1 month after the request'],
             ["Contract and payment records (booking number, product, amount, dates, booker's name and email address)", '5 years (Article 6 of the Enforcement Decree of the E-Commerce Act)'],
             ['Records of consumer complaints or dispute handling', '3 years (Article 6 of the Enforcement Decree of the E-Commerce Act)'],
             ['Records of labeling and advertising', '6 months (Article 6 of the Enforcement Decree of the E-Commerce Act)'],
@@ -275,6 +281,9 @@ const CONTENT: Record<PolicyLang, { pageTitle: string; changeSummary: string; ar
             ['예약하지 않은 분이 일정 미리보기에 남긴 연락처', '남긴 날부터 1개월'],
             ['AI 일정 신청 목록(구글 시트)에 남아 있는 이메일·이름·일정 번호', '신청한 날부터 1개월 (그 뒤에는 이메일·이름·일정 번호를 뺀 달·지역·여행 취향·인원만 이용 동향 통계로 남깁니다)'],
             ['회원 계정과 저장한 여행 일정', '회원 탈퇴 시까지'],
+            ['회원이 아닌 분이 만든 AI 여행 일정 중 돈을 내지 않은 일정', '여행이 끝난 날부터 1개월 (처리 중인 불만 신고가 있는 일정은 처리를 마칠 때까지)'],
+            ['회원이 아닌 분이 돈을 내고 받은 AI 여행 일정(PayPal 결제·PayPal QR 결제)', '만든 날부터 180일과 여행이 끝난 날부터 1개월 중 늦은 날까지 (결제 분쟁이 생기면 제공한 내용의 증거로 씀 — PayPal 분쟁 신청 기간)'],
+            ['PayPal QR로 결제했다고 알린 신청 중 입금이 확인되지 않은 것(이메일·전화번호·예약 내용)', '신청한 날부터 1개월'],
             ['계약·결제 기록(예약 번호, 상품, 금액, 날짜, 예약자 이름·이메일)', '5년 (전자상거래법 시행령 제6조)'],
             ['소비자 불만 또는 분쟁 처리 기록', '3년 (전자상거래법 시행령 제6조)'],
             ['표시·광고에 관한 기록', '6개월 (전자상거래법 시행령 제6조)'],
@@ -461,6 +470,9 @@ const CONTENT: Record<PolicyLang, { pageTitle: string; changeSummary: string; ar
             ['予約しなかった方が旅行プランのプレビューに残した連絡先', '残した日から1か月'],
             ['AI旅行プランの申込リスト（Googleスプレッドシート）に残っているメールアドレス・氏名・プラン番号', '申し込んだ日から1か月（その後は、メールアドレス・氏名・プラン番号を除いた月・地域・旅行の好み・人数のみを利用動向の統計として残します）'],
             ['会員アカウントと保存した旅行プラン', '退会するまで'],
+            ['会員登録せずに作成したAI旅行プランのうち、お支払いのないもの', '旅行終了日から1か月（対応中の苦情があるプランは、対応を終えるまで）'],
+            ['会員登録せずにお支払いのうえ受け取ったAI旅行プラン（PayPal決済・PayPal QR決済）', '作成日から180日と旅行終了日から1か月のうち遅い日まで（決済の紛争が起きたときに提供した内容の証拠として使用 — PayPalの紛争申立期間）'],
+            ['PayPal QRで支払ったとお知らせいただいた申込のうち、入金が確認できなかったもの（メールアドレス・電話番号・予約内容）', '申し込んだ日から1か月'],
             ['契約・決済の記録（予約番号、商品、金額、日付、予約者の氏名・メールアドレス）', '5年（電子商取引法施行令第6条）'],
             ['消費者の苦情または紛争処理に関する記録', '3年（電子商取引法施行令第6条）'],
             ['表示・広告に関する記録', '6か月（電子商取引法施行令第6条）'],
@@ -647,6 +659,9 @@ const CONTENT: Record<PolicyLang, { pageTitle: string; changeSummary: string; ar
             ['未预订者在行程预览中留下的联系方式', '留下之日起1个月'],
             ['AI行程申请名单（Google表格）中仍保留的电子邮箱、姓名及行程编号', '申请之日起1个月（此后仅保留去除电子邮箱、姓名及行程编号后的月份、地区、旅行偏好及人数，作为使用趋势统计）'],
             ['会员账号及保存的行程', '至注销会员时为止'],
+            ['未注册会员创建且未付款的AI行程', '旅行结束之日起1个月（有尚在处理中的投诉的行程，保留至处理完毕为止）'],
+            ['未注册会员付款后获得的AI行程（PayPal付款或PayPal二维码付款）', '创建之日起180日与旅行结束之日起1个月中较晚者为止（发生付款争议时用作所提供内容的证据——PayPal争议申请期限）'],
+            ['告知已通过PayPal二维码付款但未确认到账的申请（电子邮箱、电话号码及预订内容）', '申请之日起1个月'],
             ['合同及付款记录（预订编号、产品、金额、日期、预订人姓名及电子邮箱）', '5年（电子商务法施行令第6条）'],
             ['消费者投诉或争议处理记录', '3年（电子商务法施行令第6条）'],
             ['标示及广告记录', '6个月（电子商务法施行令第6条）'],

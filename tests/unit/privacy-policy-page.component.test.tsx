@@ -45,9 +45,9 @@ const cellsPerRow = (article: number) =>
   [...document.querySelectorAll(`#article-${article} tbody tr`)].map((tr) => tr.querySelectorAll('td').length);
 
 describe('privacy policy page', () => {
-  it.each(LANGS)('%s: retention table 15 × 2, overseas transfer table 10 × 6', (lang) => {
+  it.each(LANGS)('%s: retention table 18 × 2, overseas transfer table 10 × 6', (lang) => {
     show(lang);
-    expect(cellsPerRow(3)).toEqual(Array(15).fill(2));
+    expect(cellsPerRow(3)).toEqual(Array(18).fill(2));
     expect(cellsPerRow(6)).toEqual(Array(10).fill(6));
     expect(document.querySelectorAll('#article-6 thead th[scope="col"]')).toHaveLength(6);
     // A table wider than the screen scrolls inside its own box; the box takes keyboard focus and is named by its article.
@@ -59,7 +59,7 @@ describe('privacy policy page', () => {
   it('on a phone every table row becomes a card labelled by the column names', () => {
     show('ko', true);
     expect(document.querySelector('table')).toBeNull();
-    expect(document.querySelectorAll('#article-3 dl')).toHaveLength(15);
+    expect(document.querySelectorAll('#article-3 dl')).toHaveLength(18);
     const cards = document.querySelectorAll('#article-6 dl');
     expect(cards).toHaveLength(10);
     expect([...cards[0].querySelectorAll('dt')].map((dt) => dt.textContent)).toEqual([
