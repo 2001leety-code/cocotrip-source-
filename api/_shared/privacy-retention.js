@@ -30,6 +30,9 @@ export function kstYmd(ms) {
   return new Date(ms + KST_OFFSET_MS).toISOString().slice(0, 10);
 }
 
+// Date convention: every 'YYYY-MM-DD' here is a KST calendar day. Trip end days are inclusive
+// (start + days - 1 = last travel day). deletableFrom returns the first day deletion is allowed,
+// so the kept period is exclusive of that day (record at exactly 1 month is kept until 23:59:59).
 export function addDays(ymd, days) {
   if (!validYmd(ymd)) return null;
   const [y, m, d] = ymd.split('-').map(Number);

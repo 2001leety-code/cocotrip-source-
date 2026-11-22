@@ -177,6 +177,7 @@ describe('돈을 낸 비회원 일정', () => {
 describe('비회원 AI 일정 끝날', () => {
   it('시작일 + 일수 - 1, 일수 모르면 + 14일, 시작일 없으면 null', () => {
     expect(planTripEndYmd({ startDate: '2026-09-29', durationDays: 3 })).toBe('2026-10-01');
+    expect(planTripEndYmd({ startDate: '2026-09-29', durationDays: 2 })).toBe('2026-09-30');
     expect(planTripEndYmd({ startDate: '2026-09-29', durationDays: 1 })).toBe('2026-09-29');
     expect(planTripEndYmd({ startDate: '2026-09-29', durationDays: null })).toBe('2026-10-13');
     expect(planTripEndYmd({ startDate: '2026-09-29', durationDays: 'x' })).toBe('2026-10-13');
