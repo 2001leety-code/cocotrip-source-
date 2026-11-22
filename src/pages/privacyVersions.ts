@@ -5,7 +5,7 @@
  *    goes live, set it to the production release date + 7 days (operator decision 2026-11-20). Until that
  *    day the page shows an upcoming-change notice; PREVIOUS_PRIVACY stays readable on the page.
  */
-export const PRIVACY_EFFECTIVE_DATE = '2026-11-27';
+export const PRIVACY_EFFECTIVE_DATE = '2026-11-30';
 
 const LOCALES = { en: 'en-US', ko: 'ko-KR', ja: 'ja-JP', zh: 'zh-CN' } as const;
 export type PolicyLang = keyof typeof LOCALES;
