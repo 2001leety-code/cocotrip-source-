@@ -2,6 +2,7 @@ import { useState, useMemo } from 'react';
 import { MessageCircle, Mail, ArrowLeft, Car, Bus, AlertTriangle, Check, Clock, Sparkles, Plane, Luggage, Timer } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useLanguage } from '@/hooks/useLanguage';
+import { PayConsentNote } from '@/components/booking/PayConsentNote';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { Header } from '@/sections/Header';
 import { Footer } from '@/sections/Footer';
@@ -490,6 +491,7 @@ export default function CharterPage() {
                     </p>
                   )}
                   {canPayPal ? (
+                    <>
                     <PayPalBookingButton
                       productType={(() => {
                         if (service === 'airport' && destination)
@@ -522,6 +524,8 @@ export default function CharterPage() {
                       vehicle={vehicle}
                       memo={notes}
                     />
+                      <PayConsentNote className="mt-2 text-[11px] text-white/55" />
+                    </>
                   ) : (
                     <ContactCTAs waUrl={waUrl} emailUrl={emailUrl} c={c} />
                   )}

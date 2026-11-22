@@ -92,6 +92,8 @@ interface PlannerSnapshotValues {
   freeText: string;
   dietPrefs: string[];
   dietaryRestrictions: string[];
+  /** 2026-11-21: 식이 조건 따로 동의 시각(ISO). 옛 snapshot 엔 없음 → 복원 시 null(다시 동의). */
+  dietaryConsentAt?: string | null;
   priceRange: string;
   spiceLevel: string;
   bucketDishes: string[];
@@ -278,6 +280,11 @@ export function WizardForm({ onSubmit, isLoading, initialValues, isRevision = fa
   // who simply hasn't answered yet. This flag disambiguates; it's Review-display
   // only and never forwarded to the backend.
   const [dietaryRestrictionsTouched, setDietaryRestrictionsTouched] = useState(false);
+  // 2026-11-21 (privacy policy): Halal/Vegan/Vegetarian = 민감정보 → 따로 동의. 동의 시각을 들고 다닌다
+  //   (null = 동의 안 함). 식이 조건이 있는데 동의가 없으면 wizardGate 가 Food 단계에서 멈춘다 —
+  //   식이 조건을 조용히 버리지 않는다(dietary-safety: 누락 ≠ 없음).
+  const [dietaryConsentAt, setDietaryConsentAt] = useState<string | null>(null);
+  const dietaryConsentMissing = dietaryRestrictions.length > 0 && !dietaryConsentAt;
   const [priceRange, setPriceRange] = useState('Any');
   // P10: spice tolerance + Korean dish bucket list (separate from style chips).
   const [spiceLevel, setSpiceLevel] = useState<string>('medium');
@@ -572,6 +579,11 @@ export function WizardForm({ onSubmit, isLoading, initialValues, isRevision = fa
     // proves the traveler answered; a restored empty one is left untouched
     // (Review shows "Not selected", never a fabricated "None").
     setDietaryRestrictionsTouched(restoredDietaryRestrictions.length > 0);
+    // 동의는 같은 snapshot 에 식이 조건과 함께 저장된 경우만 되살린다. 옛 snapshot = 다시 동의.
+    const restoredDietaryConsentAt = restoredDietaryRestrictions.length > 0 && typeof v.dietaryConsentAt === 'string' && v.dietaryConsentAt
+      ? v.dietaryConsentAt
+      : null;
+    setDietaryConsentAt(restoredDietaryConsentAt);
     setPriceRange(v.priceRange ?? 'Any');
     setSpiceLevel(v.spiceLevel ?? 'medium');
     setBucketDishes(Array.isArray(v.bucketDishes) ? v.bucketDishes : []);
@@ -642,6 +654,7 @@ export function WizardForm({ onSubmit, isLoading, initialValues, isRevision = fa
       endDate: v.dateRangeTo || '',
       pax: parseInt(v.paxInput || '', 10),
       isRevision,
+      dietaryConsentMissing: restoredDietaryRestrictions.length > 0 && !restoredDietaryConsentAt,
     });
     setStep(Math.min(pendingStep, restoredUnlockedStep));
     setResumeOpen(false);
@@ -743,7 +756,7 @@ export function WizardForm({ onSubmit, isLoading, initialValues, isRevision = fa
     reservationStatus,
     mainCity, mainCityKey, extraCities,
     selectedActivities, freeText,
-    dietPrefs, dietaryRestrictions, priceRange, spiceLevel, bucketDishes,
+    dietPrefs, dietaryRestrictions, dietaryConsentAt, priceRange, spiceLevel, bucketDishes,
     // P239 (2026-05-27): tourStartTime autosave — wizard reopen 시 복원.
     tourStartTime,
     // #tour-end (2026-06-05): tourEndTime autosave — wizard reopen 시 복원.
@@ -801,9 +814,10 @@ export function WizardForm({ onSubmit, isLoading, initialValues, isRevision = fa
   // shared with handleGenerate's pre-submit revalidation and
   // applyResumeSnapshot's restored-step clamp, so the KST-date/pax rules can't
   // drift between the three call sites.
-  const { canStep0: canGoStep0, canStep1: canGoStep1, canStep3: canGoStep3, unlockedStep } = computeWizardGate({
+  const { canStep0: canGoStep0, canStep1: canGoStep1, canStep2: canGoStep2, canStep3: canGoStep3, unlockedStep } = computeWizardGate({
     reservationStatus, arrivalAirport: arrivalTerminal, arrivalTime,
     mainCity, selectedActivities, startDate, endDate, pax, isRevision,
+    dietaryConsentMissing,
   });
 
   // helpers local to the container
@@ -920,8 +934,12 @@ export function WizardForm({ onSubmit, isLoading, initialValues, isRevision = fa
   function toggleDietaryRestriction(key: string) {
     haptic('select');
     setDietaryRestrictionsTouched(true);
-    if (key === 'None') { setDietaryRestrictions([]); return; }
-    setDietaryRestrictions(prev => prev.includes(key) ? prev.filter(k => k !== key) : [...prev.filter(k => k !== 'None'), key]);
+    const next = key === 'None' ? []
+      : dietaryRestrictions.includes(key) ? dietaryRestrictions.filter(k => k !== key)
+      : [...dietaryRestrictions.filter(k => k !== 'None'), key];
+    setDietaryRestrictions(next);
+    // 식이 조건을 다 지우면 동의도 거둔다 — 다시 고르면 새로 동의받는다(처리방침 2026-11-21).
+    if (next.length === 0) setDietaryConsentAt(null);
   }
 
   async function handleGenerate() {
@@ -933,6 +951,7 @@ export function WizardForm({ onSubmit, isLoading, initialValues, isRevision = fa
     // 'Seoul' default becoming part of the request.
     if (!canGoStep0) { goToStep(0); return; }
     if (!canGoStep1) { goToStep(1); return; }
+    if (!canGoStep2) { goToStep(2); return; }
     if (!canGoStep3) { goToStep(3); return; }
     haptic('select');
     setErrorMsg('');
@@ -1010,6 +1029,8 @@ export function WizardForm({ onSubmit, isLoading, initialValues, isRevision = fa
         accomBudget: wantAccom ? accomBudget : undefined,
         dietPrefs: dietPrefs.length > 0 ? dietPrefs : undefined,
         dietaryRestrictions: dietaryRestrictions.length > 0 ? dietaryRestrictions : undefined,
+        // 2026-11-21: 따로 동의한 시각 — 식이 조건이 있을 때만(위 canGoStep2 가 동의 없이는 여기 못 오게 막는다).
+        dietaryConsentAt: dietaryRestrictions.length > 0 && dietaryConsentAt ? dietaryConsentAt : undefined,
         priceRange: priceRange !== 'Any' ? priceRange : undefined,
         spiceLevel: spiceLevel !== 'medium' ? spiceLevel : undefined,
         bucketDishes: bucketDishes.length > 0 ? bucketDishes : undefined,
@@ -1268,6 +1289,8 @@ export function WizardForm({ onSubmit, isLoading, initialValues, isRevision = fa
                   toggleDiet={toggleDiet} toggleDietaryRestriction={toggleDietaryRestriction} setPriceRange={setPriceRange}
                   setSpiceLevel={setSpiceLevel}
                   toggleBucketDish={(k: string) => setBucketDishes(prev => prev.includes(k) ? prev.filter(d => d !== k) : [...prev, k])}
+                  dietaryConsent={!!dietaryConsentAt}
+                  setDietaryConsent={(agreed: boolean) => setDietaryConsentAt(agreed ? new Date().toISOString() : null)}
                   onPrev={() => goToStep(1)} onNext={() => goToStep(3)}
                 />
               )}

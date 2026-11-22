@@ -989,6 +989,10 @@
     "wizardFoodSub": "We'll recommend restaurants just for you",
     "wizardFoodDietaryHighlight": "⚠️ Halal · Vegan · Vegetarian — please select if applicable",
     "wizardFoodDietaryHint": "Selecting these helps us recommend restaurants matching your dietary needs along your route. Missing this can lead to unverified suggestions.",
+    "wizardDietConsentRequired": "Required",
+    "wizardDietConsentLabel": "I agree to the use of my dietary information to plan my itinerary and choose restaurants",
+    "wizardDietConsentNote": "Dietary information such as halal, vegan or vegetarian is sensitive personal information, so we ask for separate consent. If you don't want to agree, choose 'None' above.",
+    "wizardDietConsentError": "Please agree to the use of your dietary information, or change dietary restrictions to 'None'.",
     "wizardFoodStyleLabel": "Food Preferences",
     "wizardFoodStyleHint": "Pick the cuisines and dining styles you enjoy",
     "wizardFoodDietaryRestrictionLabel": "Dietary Restrictions",
@@ -1528,10 +1532,12 @@
     "contact": "Contact via WhatsApp"
   },
   "cookieBanner": {
-    "bodyBefore": "We use cookies to improve your experience. By continuing to use this site, you agree to our ",
-    "bodyMiddle": ". To request data deletion, contact us at ",
+    "bodyBefore": "We use cookies. Visit analytics (GA4, PostHog) turn on only after you press Accept. Booking and payment work either way. See our ",
+    "bodyMiddle": "; the analytics companies and their countries are listed in ",
+    "providersLink": "Privacy Policy Article 6",
+    "bodyProviders": ". To request data deletion, contact us at ",
     "bodyAfter": ".",
-    "bodyShort": "We use cookies to improve your experience.",
+    "bodyShort": "Visit analytics turn on only after you press Accept.",
     "accept": "Accept",
     "dismiss": "Dismiss",
     "settingsLink": "Cookie & analytics settings",
@@ -2321,7 +2327,7 @@
     "minutesUnit": "min",
     "paxLabel": "Pax",
     "adultLabel": "Adult",
-    "childLabel": "Child",
+    "childLabel": "Child (under 14)",
     "totalPaxNote": "Total {pax} pax / vehicle cap {cap}",
     "vehicleLabel": "Vehicle",
     "recommendedTag": "recommended",
@@ -2709,5 +2715,23 @@
     "popupBlocked": "The pop-up was blocked. Allow pop-ups in your browser and try again.",
     "noEmail": "We didn't receive an email address from that Google account. Please try another Google account.",
     "failed": "We couldn't connect the account. Please try again in a moment."
+  },
+  "payConsent": {
+    "before": "By paying, you agree to the ",
+    "terms": "Terms of Service",
+    "middle": " and ",
+    "privacy": "Privacy Policy",
+    "after": "."
+  },
+  "ageGate": {
+    "title": "Age confirmation",
+    "body": "CocoTrip members must be 14 or older. If you're traveling with a child under 14, a parent or guardian adds the child's details when booking.",
+    "confirm": "I am 14 or older",
+    "under14": "I am under 14",
+    "saving": "Saving…",
+    "error": "We couldn't save this. Please try again in a moment.",
+    "under14Notice": "Children under 14 can't create an account, so we signed you out. Please ask a parent or guardian to book.",
+    "signOutError": "We couldn't sign you out. Please tap again in a moment.",
+    "close": "Close"
   }
 }

@@ -12,6 +12,8 @@ import { useLanguage } from '@/hooks/useLanguage';
 import { readConsent, setConsent } from '@/lib/consent';
 
 const SUPPORT_EMAIL = 'cocotripkr@gmail.com';
+/** 처리방침 제6조(개인정보의 국외 이전) — Privacy.tsx 의 `article-${index + 1}` 앵커. */
+const PROVIDERS_HREF = '/privacy#article-6';
 
 export default function CookieBanner() {
   const [visible, setVisible] = useState(false);
@@ -55,15 +57,20 @@ export default function CookieBanner() {
           <Cookie className="w-5 h-5 text-ec-ink-3 mt-0.5 shrink-0 hidden sm:block" aria-hidden />
           <div className="flex-1 min-w-0">
             <p className="text-[13px] sm:text-[14px] leading-relaxed text-ec-ink-2">
+              {/* 2026-11-21 처리방침: "계속 쓰면 동의로 간주" 금지 — '동의'를 눌러야 통계가 켜진다(lib/consent.ts).
+                  통계 업체·나라 = 처리방침 제6조(국외 이전) 표. */}
               <span className="sm:hidden">
-                {cb?.bodyShort || 'We use cookies. See our '}
+                {cb?.bodyShort || 'Visit analytics turn on only after you press Accept.'}{' '}
                 <a href="/privacy" className={linkCls}>{footer?.privacy || 'Privacy Policy'}</a>
-                {cb?.bodyShortAfter || ''}
+                {' · '}
+                <a href={PROVIDERS_HREF} className={linkCls}>{cb?.providersLink || 'Privacy Policy Article 6'}</a>
               </span>
               <span className="hidden sm:inline">
-                {cb?.bodyBefore || 'We use cookies to improve your experience. By continuing to use this site, you agree to our '}
+                {cb?.bodyBefore || 'We use cookies. Visit analytics (GA4, PostHog) turn on only after you press Accept. Booking and payment work either way. See our '}
                 <a href="/privacy" className={linkCls}>{footer?.privacy || 'Privacy Policy'}</a>
-                {cb?.bodyMiddle || '. To request data deletion, contact us at '}
+                {cb?.bodyMiddle || '; the analytics companies and their countries are listed in '}
+                <a href={PROVIDERS_HREF} className={linkCls}>{cb?.providersLink || 'Privacy Policy Article 6'}</a>
+                {cb?.bodyProviders || '. To request data deletion, contact us at '}
                 <a href={`mailto:${SUPPORT_EMAIL}`} className={linkCls}>{SUPPORT_EMAIL}</a>
                 {cb?.bodyAfter || '.'}
               </span>

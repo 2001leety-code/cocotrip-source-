@@ -17,6 +17,12 @@ import { departureBreakfastNote } from '../../src/lib/departureBreakfastNote.js'
 import { departureMealNote, stripDepartureMealNote, stripDepartureMealExemptionIfMealAdded } from '../../src/lib/departureMealNote.js';
 import { arrivalRestNote, stripArrivalRestNote, hasArrivalRestNote } from '../../src/lib/arrivalRestNote.js';
 
+/** 2026-11-21: 식이 조건 따로 동의 시각 — 브라우저가 보낸 값이라 ISO 날짜 모양일 때만 저장, 아니면 null. */
+export function dietaryConsentAtOrNull(raw) {
+  if (typeof raw !== 'string' || raw.length > 40 || !/^\d{4}-\d{2}-\d{2}T/.test(raw)) return null;
+  return Number.isFinite(Date.parse(raw)) ? raw : null;
+}
+
 /**
  * P112 (2026-05-20): end_time backfill. plan 4792076e dump 결과 29/29 stops 의
  * end_time = undefined. UI 가 "15:45-undefined" 류 표시 위험 + PDF/email/voucher
@@ -1675,6 +1681,9 @@ export async function persistPlan(adminDb, {
       dietaryRestrictions: plannerIntent
         ? plannerIntent.dietaryRestrictions
         : (Array.isArray(body.dietaryRestrictions) ? body.dietaryRestrictions : null),
+      // 2026-11-21 (처리방침 제1조): 식이 조건 따로 동의 시각(ISO). null = 기록 없음(옛 앱 화면·식이 조건 없음).
+      //   기록만 한다 — 동의가 없다고 식이 조건을 버리거나 생성을 막지 않는다(식이 안전 우선, 막는 곳 = 위자드 Food 단계).
+      dietary_consent_at: dietaryConsentAtOrNull(body.dietaryConsentAt),
       // planner-intent-v1 (2026-08-24): the single normalized shape, persisted verbatim.
       //   Retry/revision prefill and admin audit can read this instead of re-deriving
       //   ~20 separate input.* fields from a raw body that may not exist anymore.

@@ -21,6 +21,7 @@ import { charterUsdFromKrw } from '@/lib/charterUsd';
 import { getWizardI18n } from './wizard-i18n';
 import { calcVehicleCount } from '@/lib/luggageVehicle';
 import { BookingInfoForm, type BookingFormData } from '@/components/booking/BookingInfoForm';
+import type { GuardianConsent } from '@/lib/guardianConsent';
 import { resolveProductType } from './resolveProductType';
 import {
   getCutoffHours, isPastCutoff, earliestPickupTimeToday, todayKstISO,
@@ -89,9 +90,12 @@ interface Props {
   // 2026-06-29 마케팅(선택) 동의 emit — BookingInfoForm 의 마케팅 토글을 wizard 상태로 전달.
   //   약관(onTermsChange)과 독립. 결제 게이트 무관(미배선이면 BookingInfoForm 내부 state 로만 유지).
   onMarketingChange?: (agreed: boolean) => void;
+  // 2026-11-22 보호자 동의(만 14세 미만) — wizard 세션 상태. 재마운트(Step6→5) 복원 + 예약 memo 기록용.
+  guardian?: GuardianConsent | null;
+  onGuardianChange?: (g: GuardianConsent) => void;
 }
 
-export function Step5DateOptions({ state, patch, language = 'en', quote, footerSlot, termsAgreed, onTermsChange, onMarketingChange }: Props) {
+export function Step5DateOptions({ state, patch, language = 'en', quote, footerSlot, termsAgreed, onTermsChange, onMarketingChange, guardian, onGuardianChange }: Props) {
   const i18n = getWizardI18n(language);
   // 2026-10-19: 날짜·픽업시각·복귀일 input 의 접근성 이름 — 보이는 Label(<p>)을 aria-labelledby 로 연결.
   const startDateLabelId = useId();
@@ -448,6 +452,10 @@ export function Step5DateOptions({ state, patch, language = 'en', quote, footerS
           externalAgreeAll={termsAgreed}
           onAgreeAllChange={onTermsChange}
           onMarketingChange={onMarketingChange}
+          // 2026-11-21: Step4 의 아이 수 — 1명 이상이면 보호자 동의가 필수 동의(termsAgreed)에 묶인다.
+          childCount={state.childCount ?? 0}
+          initialGuardian={guardian}
+          onGuardianChange={onGuardianChange}
           onFieldsChange={handleFieldsChange}
           // 2026-10-18 P2: Step6 → Step5 재마운트 시 성·이름·편명·이메일·메신저 표시 복원 (마운트 1회 seed).
           initialLastName={state.customerLastName}

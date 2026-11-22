@@ -232,6 +232,10 @@ function flattenPlannerIntentV1(intent: PlannerIntentV1, values: PlannerFormValu
     mobility: intent.mobility,
     dietPrefs: intent.foodStyles,
     dietaryRestrictions: intent.dietaryRestrictions,
+    // 2026-11-21 (privacy policy): when the traveler gave the separate consent for those
+    // restrictions — a consent record, not travel intent, so it is NOT in the v1 intent and
+    // is outside the prepay fingerprint (prepay-coverage.js fingerprints a fixed projection).
+    dietaryConsentAt: intent.dietaryRestrictions.length && values.dietaryConsentAt ? values.dietaryConsentAt : undefined,
     priceRange: intent.priceRange,
     special_request: intent.specialRequest,
     arrivalTime: intent.arrivalTime || undefined,

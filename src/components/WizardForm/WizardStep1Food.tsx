@@ -12,6 +12,12 @@
 //   - #16 Halal selected → kbbq/jokbal bucket dishes grayed out (pork-based)
 //   - #17 Vegan selected → Seafood/Meat food-style chips + kbbq/samgyetang/jokbal grayed out
 //   - #18 No food selection → spice level slider grayed out
+//
+// 2026-11-21 (privacy policy): Halal/Vegan/Vegetarian = sensitive information → a
+//   separate consent line appears once one is picked. Next stays blocked until the
+//   traveler consents or switches back to "None" — the restriction is never dropped
+//   silently (dietary-safety: missing ≠ none).
+import { useRef, useState } from 'react';
 import { Check, AlertTriangle as TriangleAlert, Flame } from 'lucide-react';
 import { WizardNav } from './WizardNav';
 import { FOOD_STYLE_KEYS, FOOD_STYLE_ICONS, DIETARY_RESTRICTION_KEYS, PRICE_KEYS, SPICE_LEVEL_KEYS, KOREAN_BUCKET_LIST } from './data';
@@ -41,6 +47,9 @@ interface Step1Props {
   setPriceRange: (key: string) => void;
   setSpiceLevel: (key: string) => void;
   toggleBucketDish: (key: string) => void;
+  /** Separate consent for the dietary restrictions above (sensitive information). */
+  dietaryConsent: boolean;
+  setDietaryConsent: (agreed: boolean) => void;
   onPrev: () => void;
   onNext: () => void;
 }
@@ -61,7 +70,21 @@ const BUCKET_LABELS_FALLBACK: Record<string, string> = {
 export function WizardStep1Food(props: Step1Props) {
   const { p, isMobile, dietPrefs, dietaryRestrictions, priceRange, spiceLevel, bucketDishes,
           toggleDiet, toggleDietaryRestriction, setPriceRange, setSpiceLevel, toggleBucketDish,
-          onPrev, onNext } = props;
+          dietaryConsent, setDietaryConsent, onPrev, onNext } = props;
+
+  const needsDietConsent = dietaryRestrictions.length > 0;
+  const consentMissing = needsDietConsent && !dietaryConsent;
+  // 식이 조건은 있는데 동의 없이 이 단계로 돌아온 경우(생성 버튼·스테퍼·복원·수정 진입) 바로 이유를 보여 준다.
+  const [consentError, setConsentError] = useState(consentMissing);
+  const consentRef = useRef<HTMLInputElement>(null);
+  const handleNext = () => {
+    if (consentMissing) {
+      setConsentError(true);
+      consentRef.current?.focus();
+      return;
+    }
+    onNext();
+  };
 
   // Branch #16: Halal selected → pork-based buckets disabled.
   const isHalal = dietaryRestrictions.includes('Halal');
@@ -150,6 +173,34 @@ export function WizardStep1Food(props: Step1Props) {
             );
           })}
         </div>
+        {needsDietConsent && (
+          <div className="wizard-diet-consent mt-3 rounded-ec-md border border-ec-line bg-ec-sunken px-4 py-3">
+            <label className="flex items-start gap-2.5 cursor-pointer">
+              <input
+                ref={consentRef}
+                type="checkbox"
+                checked={dietaryConsent}
+                onChange={(e) => { setDietaryConsent(e.target.checked); if (e.target.checked) setConsentError(false); }}
+                aria-invalid={consentError && consentMissing}
+                aria-describedby="wizard-diet-consent-note"
+                className="mt-0.5 h-5 w-5 shrink-0 cursor-pointer"
+                style={{ accentColor: 'var(--ec-brand)' }}
+              />
+              <span className="text-[13px] text-ec-ink leading-relaxed">
+                <span className="font-semibold text-ec-notice">({p.wizardDietConsentRequired || 'Required'})</span>{' '}
+                {p.wizardDietConsentLabel || 'I agree to the use of my dietary information to plan my itinerary and choose restaurants'}
+              </span>
+            </label>
+            <p id="wizard-diet-consent-note" className="mt-1.5 pl-[30px] text-[12px] text-ec-ink-3 leading-relaxed">
+              {p.wizardDietConsentNote || "Dietary information such as halal, vegan or vegetarian is sensitive personal information, so we ask for separate consent. If you don't want to agree, choose 'None' above."}
+            </p>
+            {consentError && consentMissing && (
+              <p role="alert" className="mt-1.5 pl-[30px] text-[12px] font-semibold text-ec-notice">
+                {p.wizardDietConsentError || "Please agree to the use of your dietary information, or change dietary restrictions to 'None'."}
+              </p>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Spice slider (P10) — Branch #18: disabled when no food pref selected */}
@@ -243,7 +294,7 @@ export function WizardStep1Food(props: Step1Props) {
       {/* Nav */}
       <WizardNav
         onPrev={onPrev}
-        onNext={onNext}
+        onNext={handleNext}
         prevLabel={p.planner_prev || 'Back'}
         nextLabel={p.planner_step2_date || 'Next: Details'}
         isMobile={isMobile}

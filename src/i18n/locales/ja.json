@@ -989,6 +989,10 @@
     "wizardFoodSub": "あなたにぴったりのお店をおすすめします",
     "wizardFoodDietaryHighlight": "⚠️ ハラル・ビーガン・ベジタリアン — 該当する方は必ず選択してください",
     "wizardFoodDietaryHint": "選択すると、ルートに合わせた食事制限対応のお店をおすすめします。未選択の場合、検証されていないお店が表示される可能性があります。",
+    "wizardDietConsentRequired": "必須",
+    "wizardDietConsentLabel": "食事の情報を、旅程づくりとレストラン選びに使うことに同意します",
+    "wizardDietConsentNote": "ハラール・ヴィーガン・ベジタリアンなどの食事の情報は配慮が必要な個人情報のため、別に同意をいただいています。同意しない場合は、上で「なし」を選んでください。",
+    "wizardDietConsentError": "食事の情報の利用に同意するか、食事制限を「なし」に変更してください。",
     "wizardFoodStyleLabel": "食の好み",
     "wizardFoodStyleHint": "お好きな料理・食事のスタイルを選んでください",
     "wizardFoodDietaryRestrictionLabel": "食事制限",
@@ -1528,10 +1532,12 @@
     "contact": "WhatsAppでお問い合わせ"
   },
   "cookieBanner": {
-    "bodyBefore": "より良い体験のためクッキーを使用しています。本サイトを引き続きご利用いただく場合、",
-    "bodyMiddle": "に同意したものとみなされます。データ削除のご依頼は ",
+    "bodyBefore": "Cookieを使用しています。訪問分析（GA4・PostHog）は「同意する」を押したときだけ有効になります。同意しなくても予約・決済はそのままご利用いただけます。詳しくは",
+    "bodyMiddle": "、分析事業者と国は",
+    "providersLink": "プライバシーポリシー第6条",
+    "bodyProviders": "をご覧ください。データ削除のご依頼は ",
     "bodyAfter": " までご連絡ください。",
-    "bodyShort": "より良い体験のためCookieを使用します。",
+    "bodyShort": "「同意する」を押したときだけ訪問分析を有効にします。",
     "accept": "同意する",
     "dismiss": "閉じる",
     "settingsLink": "Cookie・分析設定",
@@ -2321,7 +2327,7 @@
     "minutesUnit": "分",
     "paxLabel": "人数",
     "adultLabel": "大人",
-    "childLabel": "子供",
+    "childLabel": "子供（14歳未満）",
     "totalPaxNote": "合計{pax}名 / 車両定員{cap}名",
     "vehicleLabel": "車種",
     "recommendedTag": "おすすめ",
@@ -2709,5 +2715,23 @@
     "popupBlocked": "ポップアップがブロックされました。ブラウザでポップアップを許可してから、もう一度お試しください。",
     "noEmail": "連携したGoogleアカウントからメールアドレスを取得できませんでした。別のGoogleアカウントでお試しください。",
     "failed": "連携できませんでした。しばらくしてからもう一度お試しください。"
+  },
+  "payConsent": {
+    "before": "お支払いいただくと、",
+    "terms": "利用規約",
+    "middle": "と",
+    "privacy": "プライバシーポリシー",
+    "after": "に同意したことになります。"
+  },
+  "ageGate": {
+    "title": "年齢の確認",
+    "body": "CocoTripの会員は満14歳以上である必要があります。満14歳未満のお子さまの情報は、保護者の方が予約時にお知らせください。",
+    "confirm": "満14歳以上です",
+    "under14": "満14歳未満です",
+    "saving": "保存中…",
+    "error": "保存できませんでした。しばらくしてからもう一度お試しください。",
+    "under14Notice": "満14歳未満の方はご自身で会員登録できないため、ログアウトしました。保護者の方のアカウントでご予約ください。",
+    "signOutError": "ログアウトできませんでした。少し待ってからもう一度押してください。",
+    "close": "閉じる"
   }
 }

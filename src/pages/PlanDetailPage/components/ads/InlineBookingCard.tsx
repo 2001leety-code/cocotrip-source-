@@ -31,6 +31,7 @@
 import { useState, lazy, Suspense } from 'react';
 import { Calendar, Users, Check, ChevronRight, Loader2 } from 'lucide-react';
 import { useLanguage } from '@/hooks/useLanguage';
+import { PayConsentNote } from '@/components/booking/PayConsentNote';
 
 // 결제 — PayPalBookingButton (PayPal Smart Buttons) + SDK 차단 시 paypal.me QR fallback 통합 (5/7 복구).
 // 클릭 시점에만 lazy 로드.
@@ -506,6 +507,7 @@ export function InlineBookingCard({
               } : undefined}
             />
           </Suspense>
+          <PayConsentNote className="text-[11px] text-white/55" />
         </div>
       )}
     </div>

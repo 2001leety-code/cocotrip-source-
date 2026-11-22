@@ -321,6 +321,38 @@ describe('tour booking UI → actual createPaypalOrder pricing', () => {
     ]);
   });
 
+  // 2026-11-22: "아이와 함께 가요"·보호자 동의가 이전→다음 왕복에서 사라지던 문제(약관만 돌아오고 보호자 줄은 풀림).
+  //   이제 둘 다 돌아오고, 예약 메모에 동의 여부·시각·문구 판만 남는다(새 개인정보 없음).
+  it('keeps the under-14 toggle and guardian consent across Back/Continue and records them in the booking memo', async () => {
+    const privateTour = TOURS.find((item) => item.id === 'tour-seoul-city')!;
+    const view = openDialog(privateTour);
+    await waitFor(() => expect(firestore.getDocs).toHaveBeenCalled());
+    chooseCalendarDate(view, false);
+    fireEvent.click(view.getByRole('button', { name: 'Continue to payment' }));
+    fillActualRequiredFields(view);
+    fireEvent.click(view.getByRole('checkbox', { name: /traveling with a child under 14/ }));
+    const guardian = () => view.getByRole('checkbox', { name: /As the parent or guardian/ });
+    fireEvent.click(guardian());
+
+    fireEvent.click(view.getByRole('button', { name: 'Back' }));
+    fireEvent.click(view.getByRole('button', { name: 'Continue to payment' }));
+    expect(view.getByRole('checkbox', { name: /traveling with a child under 14/ })).toBeChecked();
+    expect(guardian()).toBeChecked();
+
+    const orderButton = await getOrderButton();
+    await waitFor(() => expect(orderButton.disabled).toBe(false));
+    fireEvent.click(orderButton);
+    await waitFor(() => expect(document.querySelector('[id^="paypal-btn-"]')).not.toBeNull());
+    // 메모는 승인(capture) 요청에 실린다 — SDK 는 가짜, capture 주소는 막혀 있어 실제 결제·저장 없음.
+    await waitFor(() => expect(paypalButtons).toHaveBeenCalled());
+    const sdkConfig = paypalButtons.mock.calls[0][0] as { onApprove: (d: { orderID: string }) => Promise<unknown> };
+    await act(async () => { await sdkConfig.onApprove({ orderID: 'SYNTHETIC-PRICE-0' }).catch(() => undefined); });
+    const captureCall = vi.mocked(fetch).mock.calls.find(([url]) => String(url) === '/api/capturePaypalOrder');
+    expect(captureCall).toBeTruthy();
+    const body = JSON.parse(String(captureCall![1]?.body));
+    expect(body.memo).toMatch(/Child under 14: yes \| Guardian consent: yes @ \d{4}-\d{2}-\d{2}T[^ ]+ \(v2026-11-21\)/);
+  });
+
   it('applies an eligible night-tour coupon in the actual UI and sends the discounted expected USD to the real handler', async () => {
     vi.stubEnv('VITE_FEATURE_DISCOUNT_V2', 'true');
     vi.stubEnv('FEATURE_DISCOUNT_V2', 'true');

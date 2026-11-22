@@ -135,7 +135,7 @@ describe('CharterWizard deferred steps', () => {
     fireEvent.click(pay);
     expect(onComplete).toHaveBeenCalledWith(
       expect.objectContaining({ customerName: 'Fixture Guest', origin: 'SEL_METRO' }),
-      { termsAgreed: true, marketingConsent: false },
+      { termsAgreed: true, marketingConsent: false, guardian: null }, // 2026-11-22: 아이 0명 → 보호자 동의 기록 없음
     );
   });
   it.each([

@@ -9,11 +9,12 @@
 //     자동완성 확인 시 아래 텍스트 input 에 주소 자동 채움. 사용자가 직접 타이핑하면 자동완성 coord 초기화.
 //   externalArrivalTime prop - 호출처(Step5DateOptions)가 /api/flight-status 조회 결과를 전달하면
 //     arrivalTime 입력에 자동 채움(HH:mm 형식). 사용자가 직접 수정 시 input 을 덮어쓰지 않음(isTouched guard).
-import { useId, useLayoutEffect, useState } from 'react';
+import { useEffect, useId, useLayoutEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { DEFAULT_DIAL_BY_LANG, parsePhoneValue, normalizeNationalNumber, composePhoneValue, type DialLang } from '@/lib/country-dials';
 import { CountryDialPicker } from '@/components/booking/CountryDialPicker';
 import { AddressAutocomplete, type AddressResult } from '@/components/charter/AddressAutocomplete';
+import { GUARDIAN_CONSENT_VERSION, type GuardianConsent } from '@/lib/guardianConsent';
 
 export interface BookingFormData {
   lastName: string;
@@ -102,6 +103,16 @@ export interface BookingInfoFormProps {
   initialEmail?: string;
   /** 차터 위저드 저장 형식 "<메신저 종류>: <id>" (예 "WhatsApp: id"). parseInitialMessenger 로 분해. */
   initialMessenger?: string;
+  /** 2026-11-21 (처리방침 제1조 만 14세 미만): 일행 중 아이 수를 아는 호출처(차터 Step4)가 넘긴다.
+   *  > 0 이면 보호자 동의가 필수 동의에 들어간다. 미제공(투어 — 아이 칸 없음)이면
+   *  폼이 "만 14세 미만 아이와 함께 가요" 를 묻고, 고르면 보호자 동의가 필수가 된다. */
+  childCount?: number;
+  /** 2026-11-22: 재마운트 복원용 보호자 동의 값(마운트 때 1회만 읽음). 투어는 1단계로 갔다 오면 폼이
+   *  다시 만들어져 "아이와 함께 가요"·보호자 동의가 꺼진 채 약관만 되살아났다 → 호출처가 아래 onGuardianChange 로
+   *  받은 값을 여기로 돌려준다. */
+  initialGuardian?: GuardianConsent | null;
+  /** 보호자 동의 상태 변화 emit(마운트 때도 1회) — 호출처가 예약 기록(memo·위저드 상태)에 남긴다. */
+  onGuardianChange?: (g: GuardianConsent) => void;
 }
 
 const MESSENGER_OPTIONS = ['WhatsApp', 'KakaoTalk', 'LINE', 'WeChat'];
@@ -152,7 +163,9 @@ const STR = {
     agreeAll: '아래 항목에 모두 동의합니다', req: '필수', opt: '선택',
     agree1: '만 18세 이상이며 이용약관 및 취소 규정에 동의합니다',
     agree2: '개인정보 제3자 제공 (차량 공급업체·기사)에 동의합니다',
-    agree3: '개인정보 국외 이전 및 고유식별정보 수집·이용에 동의합니다',
+    agree3: '개인정보 국외 이전에 동의합니다',
+    minorQuestion: '만 14세 미만 아이와 함께 가요', minorIfApplies: '해당 시',
+    agreeGuardian: '함께 가는 만 14세 미만 아이의 정보를 보호자로서 제공하고 처리에 동의합니다',
     agree4: '한정 특가·이벤트·여행 소식 등 마케팅 정보 수신에 동의합니다',
     privacyLink: '개인정보 처리방침', termsLink: '이용약관',
     errRequired: (meeting: string) => `필수 항목(성·이름·연락처·이메일·${meeting})과 필수 약관 동의를 확인해 주세요.`,
@@ -191,7 +204,9 @@ const STR = {
     agreeAll: 'I agree to all items below', req: 'Required', opt: 'Optional',
     agree1: 'I am 18 or older and agree to the Terms of Service and cancellation policy',
     agree2: 'I consent to sharing my personal data with third parties (vehicle suppliers and drivers)',
-    agree3: 'I consent to cross-border transfer of my personal data and collection/use of unique identification information',
+    agree3: 'I consent to the cross-border transfer of my personal data',
+    minorQuestion: "I'm traveling with a child under 14", minorIfApplies: 'If applicable',
+    agreeGuardian: 'As the parent or guardian, I provide the information of the child under 14 traveling with me and consent to its processing',
     agree4: 'I agree to receive marketing updates (limited deals, events, travel news)',
     privacyLink: 'Privacy Policy', termsLink: 'Terms of Service',
     errRequired: (meeting: string) => `Please complete the required fields (last name, first name, phone, email, ${meeting}) and the required consents.`,
@@ -230,7 +245,9 @@ const STR = {
     agreeAll: '以下すべてに同意します', req: '必須', opt: '任意',
     agree1: '満18歳以上であり、利用規約およびキャンセル規定に同意します',
     agree2: '個人情報の第三者提供（車両供給業者・ドライバー）に同意します',
-    agree3: '個人情報の国外移転および固有識別情報の収集・利用に同意します',
+    agree3: '個人情報の国外移転に同意します',
+    minorQuestion: '14歳未満のお子さまが同行します', minorIfApplies: '該当する場合',
+    agreeGuardian: '同行する14歳未満のお子さまの情報を保護者として提供し、その取り扱いに同意します',
     agree4: '限定特価・イベント・旅行情報などのマーケティング情報の受信に同意します',
     privacyLink: 'プライバシーポリシー', termsLink: '利用規約',
     errRequired: (meeting: string) => `必須項目（姓・名・連絡先・メール・${meeting}）と必須規約への同意をご確認ください。`,
@@ -269,7 +286,9 @@ const STR = {
     agreeAll: '同意以下全部条款', req: '必选', opt: '可选',
     agree1: '本人已满18岁，并同意服务条款及取消政策',
     agree2: '同意向第三方（车辆供应商·司机）提供个人信息',
-    agree3: '同意个人信息跨境传输及唯一识别信息的收集·使用',
+    agree3: '同意个人信息跨境传输',
+    minorQuestion: '有未满14岁的儿童同行', minorIfApplies: '如适用',
+    agreeGuardian: '本人作为监护人，提供同行未满14岁儿童的信息，并同意对其进行处理',
     agree4: '同意接收限时特价·活动·旅行资讯等营销信息',
     privacyLink: '隐私政策', termsLink: '服务条款',
     errRequired: (meeting: string) => `请填写必填项（姓、名、联系方式、邮箱、${meeting}）并勾选必选条款。`,
@@ -426,18 +445,52 @@ export function BookingInfoForm(props: BookingInfoFormProps) {
 
   // 약관 SSOT 외부 제어 — externalAgreeAll 제공 시 단일 동의 상태(호출처)와 동기.
   const externallyControlledTerms = props.externalAgreeAll !== undefined;
-  // 필수 동의(agree1~3)만의 상태. 외부모드면 호출처 termsAgreed, 내부모드면 필수 3개 AND.
+  // 2026-11-21 보호자 동의(만 14세 미만 동반). 필요한지는 호출처 아이 수, 없으면(투어) 폼의 질문.
+  //   재마운트면 호출처가 준 initialGuardian 으로 시작한다(투어 1단계 왕복 때 꺼지던 버그의 원인 = 이 state 가
+  //   폼과 함께 사라지는데 약관은 호출처 값으로 되살아났다).
+  const initialG = props.initialGuardian || null;
+  const [travelingWithMinor, setTravelingWithMinor] = useState(!!initialG && initialG.minor);
+  const [agreeGuardian, setAgreeGuardian] = useState(!!initialG && initialG.minor && initialG.agreed && !!initialG.at);
+  const [guardianAt, setGuardianAt] = useState<string | null>(initialG && initialG.agreed && initialG.at ? initialG.at : null);
+  const setGuardian = (v: boolean) => { setAgreeGuardian(v); setGuardianAt(v ? new Date().toISOString() : null); };
+  const guardianNeeded = props.childCount !== undefined ? props.childCount > 0 : travelingWithMinor;
+  const guardianOk = !guardianNeeded || agreeGuardian;
+  const guardianAgreed = guardianNeeded && agreeGuardian;
+  const { onGuardianChange } = props;
+  useEffect(() => {
+    onGuardianChange?.({
+      minor: guardianNeeded,
+      agreed: guardianAgreed,
+      at: guardianAgreed ? guardianAt : null,
+      version: GUARDIAN_CONSENT_VERSION,
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [guardianNeeded, guardianAgreed, guardianAt]);
+  // 외부모드의 agree1~3 표시값. 예전엔 호출처 termsAgreed 를 그대로 보였지만, 이제 호출처 값 =
+  //   (agree1~3 && 보호자 동의) 라서 줄 표시는 폼이 따로 든다. 재마운트(Step6→5) 시 호출처 값으로 시작.
+  const [termsTicked, setTermsTicked] = useState<boolean>(!!props.externalAgreeAll);
+  const termsRowsAgreed = externallyControlledTerms ? termsTicked : (f.agree1 && f.agree2 && f.agree3);
+  // 필수 동의 = agree1~3 + (필요하면) 보호자 동의. 외부모드면 이 값을 호출처 termsAgreed 로 보낸다.
   //   마케팅(agree4=선택)은 절대 이 값에 안 섞임 — 강제동의 방지.
-  const requiredAgreed = externallyControlledTerms
-    ? !!props.externalAgreeAll
-    : (f.agree1 && f.agree2 && f.agree3);
+  const requiredAgreed = termsRowsAgreed && guardianOk;
+  const { onAgreeAllChange, externalAgreeAll } = props;
+  // 호출처의 결제 게이트(termsAgreed)를 결제 코드 수정 없이 보호자 동의까지 묶는다.
+  //   예: 차터에서 아이 0명으로 약관 동의 후 Step4 로 돌아가 아이를 1명 이상으로 바꾸면, 재마운트 시
+  //   보호자 동의가 없으니 여기서 false 로 내린다. 보호자 동의를 이미 했다면(호출처가 initialGuardian 으로
+  //   돌려줌) 아이를 1→2명으로 늘려도 동의는 유지된다 — 동의 문장이 인원 수와 무관하기 때문(2026-11-22).
+  //   콜백은 deps 에서 뺀다 — 호출처가 매 렌더 새 함수를 넘겨도 값이 다를 때 한 번만 보낸다.
+  useEffect(() => {
+    if (externallyControlledTerms && !!externalAgreeAll !== requiredAgreed) onAgreeAllChange?.(requiredAgreed);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [externallyControlledTerms, externalAgreeAll, requiredAgreed]);
   // "모두 동의" 상단 체크 = 필수 + 마케팅 모두 켜야 전체 표시.
   const agreeAll = requiredAgreed && f.agree4;
   const toggleAll = () => {
     const v = !agreeAll;
+    if (guardianNeeded) setGuardian(v);
     // 필수(외부 or 내부 agree1~3) + 마케팅(내부 agree4) 분리 호출.
     if (externallyControlledTerms) {
-      props.onAgreeAllChange?.(v);
+      setTermsTicked(v);
       set({ agree4: v });
       props.onMarketingChange?.(v);
       return;
@@ -674,16 +727,26 @@ export function BookingInfoForm(props: BookingInfoFormProps) {
 
         {/* 약관 동의 */}
         <div style={C.card}>
+          {/* 2026-11-21: 아이 수를 모르는 호출처(투어)만 묻는다. 사실 확인이라 "모두 동의" 에 안 묶는다. */}
+          {props.childCount === undefined && (
+            <>
+              <AgreeRow checked={travelingWithMinor} onChange={(v) => { setTravelingWithMinor(v); if (!v) setGuardian(false); }} reqLabel={s.req} optLabel={s.minorIfApplies} text={s.minorQuestion} />
+              <div style={{ height: 1, background: 'rgba(255,255,255,0.07)', margin: '10px 0' }} />
+            </>
+          )}
           <label style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 14px', borderRadius: 12, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', cursor: 'pointer', marginBottom: 6 }}>
             <input type="checkbox" checked={agreeAll} onChange={toggleAll} style={{ width: 20, height: 20, accentColor: '#7C5CFC', cursor: 'pointer' }} />
             <span style={{ fontWeight: 700, fontSize: 14 }}>{s.agreeAll}</span>
           </label>
           <div style={{ height: 1, background: 'rgba(255,255,255,0.07)', margin: '10px 0' }} />
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            {/* 필수 3개 — 외부모드면 checked=requiredAgreed(마케팅 토글이 필수 표시에 안 새게), onChange=호출처 termsAgreed. */}
-            <AgreeRow checked={externallyControlledTerms ? requiredAgreed : f.agree1} onChange={(v) => externallyControlledTerms ? props.onAgreeAllChange?.(v) : set({ agree1: v })} req reqLabel={s.req} optLabel={s.opt} text={s.agree1} />
-            <AgreeRow checked={externallyControlledTerms ? requiredAgreed : f.agree2} onChange={(v) => externallyControlledTerms ? props.onAgreeAllChange?.(v) : set({ agree2: v })} req reqLabel={s.req} optLabel={s.opt} text={s.agree2} />
-            <AgreeRow checked={externallyControlledTerms ? requiredAgreed : f.agree3} onChange={(v) => externallyControlledTerms ? props.onAgreeAllChange?.(v) : set({ agree3: v })} req reqLabel={s.req} optLabel={s.opt} text={s.agree3} />
+            {/* 필수 3개 — 외부모드면 3줄이 한 값(termsTicked, 마케팅 토글이 필수 표시에 안 새게). 호출처로는 위 effect 가 보호자 동의까지 묶어 보낸다. */}
+            <AgreeRow checked={externallyControlledTerms ? termsTicked : f.agree1} onChange={(v) => externallyControlledTerms ? setTermsTicked(v) : set({ agree1: v })} req reqLabel={s.req} optLabel={s.opt} text={s.agree1} />
+            <AgreeRow checked={externallyControlledTerms ? termsTicked : f.agree2} onChange={(v) => externallyControlledTerms ? setTermsTicked(v) : set({ agree2: v })} req reqLabel={s.req} optLabel={s.opt} text={s.agree2} />
+            <AgreeRow checked={externallyControlledTerms ? termsTicked : f.agree3} onChange={(v) => externallyControlledTerms ? setTermsTicked(v) : set({ agree3: v })} req reqLabel={s.req} optLabel={s.opt} text={s.agree3} />
+            {guardianNeeded && (
+              <AgreeRow checked={agreeGuardian} onChange={setGuardian} req reqLabel={s.req} optLabel={s.opt} text={s.agreeGuardian} />
+            )}
             {/* 마케팅(선택) — 외부모드에서도 내부 state(f.agree4)로만. onMarketingChange 미배선이면 payload 미반영(강제동의 제거 목적). */}
             <AgreeRow checked={f.agree4} onChange={(v) => { set({ agree4: v }); if (externallyControlledTerms) props.onMarketingChange?.(v); }} reqLabel={s.req} optLabel={s.opt} text={s.agree4} />
           </div>

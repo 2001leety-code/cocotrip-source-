@@ -133,12 +133,14 @@ const PWAUpdatePrompt = lazy(() => import('@/components/PWAUpdatePrompt').then(m
 const CookieBanner = lazy(() => import('@/components/CookieBanner'));
 const OnboardingCouponModal = lazy(() => import('@/components/OnboardingCouponModal').then(m => ({ default: m.OnboardingCouponModal })));
 const ConnectEmailPrompt = lazy(() => import('@/components/ConnectEmailPrompt').then(m => ({ default: m.ConnectEmailPrompt })));
+const AgeConfirmPrompt = lazy(() => import('@/components/AgeConfirmPrompt').then(m => ({ default: m.AgeConfirmPrompt })));
 import { handleRedirectResult } from '@/lib/firebase-auth';
 import { usePageMeta } from '@/hooks/usePageMeta';
 // ChatFAB 제거됨 — 텔레그램 봇으로 대체
 import { trackPageView, initWhatsAppTracking, initBlogTracking, initUtmCapture } from '@/lib/analytics';
 import { capturePageView as posthogPageView } from '@/lib/posthog';
 import { signalAppReady } from '@/lib/appReady';
+import { HashScroll } from '@/components/HashScroll';
 
 function RouteFallback({ ground }: { ground?: 'paper' | 'legacy' }) {
   const { t } = useLanguage();
@@ -225,6 +227,8 @@ function GlobalWidgets() {
         {!isBareLanding && <OnboardingCouponModal />}
         {/* 이메일 없는 회원(전화 가입 등) → 구글 계정 연결 안내. 대상이 아니면 아무것도 그리지 않음 */}
         {!isBareLanding && <ConnectEmailPrompt />}
+        {/* 2026-11-21 처리방침: 회원 만 14세 이상 확인(한 번). 커뮤니티·공유 화면에서 가입해도 묻도록 isBareLanding 과 무관 */}
+        <AgeConfirmPrompt />
       </Suspense>
     </>
   );
@@ -788,6 +792,8 @@ function App() {
             → chrome 숨김과 계측을 분리한다. PageViewTracker 는 null 만 반환하므로
               "무드는 별도 사이트처럼" 이라는 원래 의도는 하나도 안 깨진다. */}
         <PageViewTracker />
+        {/* 2026-11-22: `/privacy#article-6` 처럼 다른 페이지에서 #조각을 달고 오면 그 칸까지 내린다. */}
+        <HashScroll />
         <CustomerNightScope>
           <GlobalWidgets />
           <NonMoodChrome />
