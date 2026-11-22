@@ -237,6 +237,7 @@ export const processPlanAfterAI = inngest.createFunction(
             createdAt: new Date().toISOString(),
             createdAtMs: Date.now(),
             uid: uid || null,
+            isAdminBypass: !!ctx.isAdminBypass, // 2026-11-23: paymentGate 재생성 막기용 (아래 revisionCredits 보다 먼저)
             ...(forceGuestToken ? { accessToken: randomUUID() } : {}),
             guestEmail: email || null,
             input: {

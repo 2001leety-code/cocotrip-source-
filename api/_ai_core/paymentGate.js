@@ -278,6 +278,17 @@ export async function enforcePaymentAndRevision(body, adminDb, authenticatedEmai
       return reject(404, 'NOT_FOUND', 'Original plan not found');
     }
     const origData = origDoc.data();
+    // 2026-11-23 (독립 검토 3회차 꼭 고칠 것): 관리자 우회 주문(ADMIN-BYPASS-/TEST-)으로 만든 플랜은
+    //   관리자 허용 이메일만 재생성한다. 자동 검사 계정이 만든 주인 없는 플랜은 접근 토큰이 응답 planUrl 로
+    //   돌아오므로, 막지 않으면 역할 없는 다른 로그인 계정이 그 토큰으로 재생성해 하루 상한·mock 밖에서
+    //   실제 AI 를 부른다. 손님 플랜은 이 주문번호로 만들어지지 않아 여기 걸리지 않는다.
+    //   만드는 중 문서(Inngest skeleton-write)도 isAdminBypass 를 쓴다.
+    const origIsAdminBypass = origData.isAdminBypass === true
+      || origData.paymentSource === 'admin-bypass' || origData.paymentSource === 'test';
+    if (origIsAdminBypass && !getAdminBypassEmails().includes((authenticatedEmail || '').toLowerCase().trim())) {
+      console.warn('[planner] revision rejected | admin-bypass plan, caller not in admin allowlist');
+      return reject(403, 'FORBIDDEN', 'Revision not allowed for this plan');
+    }
     // SECURITY (버그헌트 2026-06-14): 소유권은 검증된 토큰 uid 로만 판정. 이전엔 body.uid 를
     // 신뢰해 임의 로그인 사용자가 body.uid=피해자uid 로 isOwner 우회 → 남의 plan revision +
     // revisionCredit 소각(IDOR). ai-planner-modify.js:573 / recalc-transit.js:78 와 동일 패턴.

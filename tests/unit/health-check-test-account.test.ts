@@ -168,6 +168,64 @@ describe('paymentGate — 자동 검사 역할은 자동 검사 접두사 주문
     expect(get).toHaveBeenCalledTimes(1);
   });
 
+  // 독립 검토 3회차 꼭 고칠 것: 역할 계정이 만든 주인 없는 플랜은 접근 토큰이 응답으로 돌아온다.
+  // 역할 없는 다른 계정이 그 토큰으로 재생성하면 하루 상한·mock 을 안 지난다 → 관리자 우회 플랜은 관리자만.
+  function revisionDb(orig: Record<string, unknown>) {
+    const update = vi.fn();
+    const runTransaction = vi.fn(async (fn: (tx: unknown) => unknown) => fn({ get: async () => ({ data: () => orig }), update }));
+    const get = vi.fn(async () => ({ exists: true, data: () => orig }));
+    return { db: { collection: () => ({ doc: () => ({ get }) }), runTransaction }, runTransaction };
+  }
+  const guestPlan = { uid: null, accessToken: 'tok-1', revisionCredits: 2 };
+
+  it.each([
+    ['isAdminBypass:true', { ...guestPlan, isAdminBypass: true }],
+    ['paymentSource admin-bypass (표시 칸 없음)', { ...guestPlan, paymentSource: 'admin-bypass' }],
+    ['paymentSource test', { ...guestPlan, paymentSource: 'test' }],
+  ])('관리자 우회 플랜(%s) + 맞는 토큰 + 역할 없는 다른 계정 → 403, 횟수 안 줄임', async (_label, orig) => {
+    vi.stubEnv('ADMIN_BYPASS_EMAILS', 'admin@example.com');
+    const f = revisionDb(orig);
+    // @ts-expect-error — JS 모듈
+    const { enforcePaymentAndRevision } = await import('../../api/_ai_core/paymentGate.js');
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    try {
+      const r = await enforcePaymentAndRevision({ revisionOf: 'plan-1', revisionToken: 'tok-1' }, f.db, 'someone@example.test', 'uid-other', null, { healthCheck: false });
+      expect(r.rejection).toMatchObject({ statusCode: 403, code: 'FORBIDDEN' });
+      expect(f.runTransaction).not.toHaveBeenCalled();
+      expect(JSON.stringify(warn.mock.calls)).not.toContain('someone@example.test');
+    } finally {
+      warn.mockRestore();
+    }
+  });
+
+  it('관리자 우회 플랜이라도 관리자 허용 이메일은 예전처럼 재생성한다', async () => {
+    vi.stubEnv('ADMIN_BYPASS_EMAILS', 'admin@example.com');
+    const f = revisionDb({ ...guestPlan, isAdminBypass: true });
+    // @ts-expect-error — JS 모듈
+    const { enforcePaymentAndRevision } = await import('../../api/_ai_core/paymentGate.js');
+    const r = await enforcePaymentAndRevision({ revisionOf: 'plan-1', revisionToken: 'tok-1' }, f.db, 'Admin@Example.com', 'uid-admin', null, { healthCheck: false });
+    expect(r.rejection).toBeUndefined();
+    expect(r.isRevision).toBe(true);
+    expect(f.runTransaction).toHaveBeenCalledTimes(1);
+  });
+
+  it('손님 플랜(PayPal) + 맞는 토큰은 예전처럼 재생성한다', async () => {
+    vi.stubEnv('ADMIN_BYPASS_EMAILS', 'admin@example.com');
+    const f = revisionDb({ ...guestPlan, isAdminBypass: false, paymentSource: 'paypal' });
+    // @ts-expect-error — JS 모듈
+    const { enforcePaymentAndRevision } = await import('../../api/_ai_core/paymentGate.js');
+    const r = await enforcePaymentAndRevision({ revisionOf: 'plan-1', revisionToken: 'tok-1' }, f.db, 'guest@example.test', 'uid-g', null, { healthCheck: false });
+    expect(r.rejection).toBeUndefined();
+    expect(r.isRevision).toBe(true);
+    expect(f.runTransaction).toHaveBeenCalledTimes(1);
+  });
+
+  it('재생성 횟수(revisionCredits:2)를 먼저 쓰는 Inngest 만드는 중 문서도 관리자 우회 표시를 쓴다', () => {
+    const src = read('api/_inngest/functions/processPlanAfterAI.js');
+    const skeleton = src.slice(src.indexOf("step.run('skeleton-write'"), src.indexOf('revisionCredits: 2'));
+    expect(skeleton).toContain('isAdminBypass: !!ctx.isAdminBypass');
+  });
+
   it('거절 응답·서버 기록에 허용 이메일 목록과 요청 이메일이 없다', async () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
     try {
