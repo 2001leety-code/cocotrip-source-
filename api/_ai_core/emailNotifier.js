@@ -3,6 +3,7 @@
  * Extracted verbatim from api/ai-planner-full.js L544-578, L1254-1271.
  */
 import { isPreviewSuppressed, emailSuppressedReceipt, sheetsSuppressedReceipt } from '../_shared/preview-notification-policy.js';
+import { kstMonth } from '../_shared/privacy-retention.js';
 
 export async function sendNotificationEmail({ email, guestName, tourTitle, planId, planUrl }) {
   if (isPreviewSuppressed('email')) return emailSuppressedReceipt();
@@ -34,13 +35,24 @@ export async function sendNotificationEmail({ email, guestName, tourTitle, planI
       subject: `✅ Your CocoTrip Plan: ${tourTitle || 'Korea Itinerary'}`,
       html,
     });
-    console.log('[ai-planner-full] Email sent to:', email);
+    console.log('[ai-planner-full] Email sent');
   } catch (e) {
     console.warn('[ai-planner-full] Email failed:', e.message);
   }
 }
 
-export async function recordLeadToSheets({ email, guestName, area, styles, pax, planId }) {
+/**
+ * 2026-11-21 운영자 결정: `Leads` 탭은 고객 동향용. 사람을 알아볼 수 있는 이메일(B)·이름(C)·일정 번호(G)는
+ * 적지 않고, 시각은 한국 달(YYYY-MM)까지만. 열 자리는 예전 줄과 같게 둔다(A 달 · D 지역 · E 취향 · F 인원).
+ * 예전 줄은 api/_crons/privacy-retention-sweep.js 가 1개월 뒤 같은 꼴로 바꾼다.
+ */
+export function leadSheetRow({ area, styles, pax }, nowMs = Date.now()) {
+  const blank = value => (value === null || value === undefined ? '' : value);
+  return [kstMonth(nowMs), '', '', blank(area), Array.isArray(styles) ? styles.join(', ') : '', blank(pax), ''];
+}
+
+// email·guestName·planId 는 부르는 곳(2곳) 호환용으로 받기만 한다. 이메일이 있는 요청만 세던 기준은 그대로.
+export async function recordLeadToSheets({ email, area, styles, pax }) {
   if (isPreviewSuppressed('sheets')) return sheetsSuppressedReceipt('lead_append');
   if (!email) return;
   try {
@@ -52,8 +64,9 @@ export async function recordLeadToSheets({ email, guestName, area, styles, pax, 
       const auth = new google.auth.JWT(sheetClientEmail, undefined, sheetPrivateKey, ['https://www.googleapis.com/auth/spreadsheets']);
       const sheets = google.sheets({ version: 'v4', auth });
       await sheets.spreadsheets.values.append({
-        spreadsheetId: sheetId, range: 'Leads!A:G', valueInputOption: 'USER_ENTERED',
-        requestBody: { values: [[new Date().toISOString(), email, guestName, area, styles.join(', '), pax, `Plan: ${planId}`]] },
+        // RAW: '2026-11' 이 날짜(11월 1일)로 바뀌지 않게 글자 그대로.
+        spreadsheetId: sheetId, range: 'Leads!A:G', valueInputOption: 'RAW',
+        requestBody: { values: [leadSheetRow({ area, styles, pax })] },
       });
     }
   } catch (e) { console.warn('[planner] Sheets error:', e.message); }

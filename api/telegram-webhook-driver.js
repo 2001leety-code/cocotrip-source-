@@ -21,6 +21,7 @@ import { FieldValue } from 'firebase-admin/firestore';
 import { sweepExpiredDispatches } from './_shared/dispatch-sweep.js';
 import { notify } from './_shared/notify.js';
 import { escapeTelegram as esc } from './_shared/escape.js';
+import { DISPATCH_RETENTION_NOTICE } from './_shared/dispatch-helpers.js';
 
 export const maxDuration = 10;
 export const config = { runtime: 'nodejs' };
@@ -307,7 +308,7 @@ export async function handleAccept(botToken, p, dispatchRef, dispatch, orderID) 
           `<b>✓ 배차 수락 완료</b>\n` +
           `예약번호: <code>${esc(orderID)}</code>\n` +
           `상태: 운행 예정\n\n` +
-          `당일 정시에 픽업 장소에서 대기해 주세요.`,
+          `당일 정시에 픽업 장소에서 대기해 주세요.\n${DISPATCH_RETENTION_NOTICE}`,
         parse_mode: 'HTML',
       });
     } catch (err) {

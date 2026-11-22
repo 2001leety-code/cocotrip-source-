@@ -248,7 +248,7 @@ export default async function handler(req, res) {
     const PLANNER_MODE = abDecision.mode;
     resolvedPlannerMode = PLANNER_MODE;  // expose to catch-block sentry context
     console.log(
-      `[planner] AB test: uid=${uid || '-'} email=${authenticatedEmail || '-'} ` +
+      `[planner] AB test: uid=${uid || '-'} hasEmail=${!!authenticatedEmail} ` +
       `mode=${abDecision.mode} reason=${abDecision.reason} ` +
       `bucket=${abDecision.bucket ?? '-'}`,
     );

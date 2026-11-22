@@ -23,6 +23,12 @@ import { FieldValue } from 'firebase-admin/firestore';
 import { computeExpiryDate } from './dispatch-sweep.js';
 
 /**
+ * 처리방침 제3·7조 "렌터카 회사·기사에게 준 정보 = 운행 끝난 뒤 1개월".
+ * 회사·기사 기기는 우리가 지울 수 없어 배차 글마다 부탁한다(자동 배차·수동 /dispatch·수락 뒤 글 공용).
+ */
+export const DISPATCH_RETENTION_NOTICE = '운행이 끝나면 1개월 안에 이 예약 정보를 지워 주세요.';
+
+/**
  * 배차 메시지 텍스트 빌드 — admin /dispatch 와 동일한 포맷.
  */
 function buildDispatchText(orderID, booking) {
@@ -37,7 +43,7 @@ function buildDispatchText(orderID, booking) {
     `픽업: ${esc(booking.pickupLocation || '-')}\n` +
     (booking.dropoffLocation ? `드롭오프: ${esc(booking.dropoffLocation)}\n` : '') +
     (booking.memo ? `\n메모: ${esc(booking.memo)}\n` : '') +
-    `\n10분 내 응답 부탁드립니다.`
+    `\n10분 내 응답 부탁드립니다.\n${DISPATCH_RETENTION_NOTICE}`
   );
 }
 

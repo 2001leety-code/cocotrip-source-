@@ -295,7 +295,7 @@ const originalHandler = async (event) => {
   // 텔레그램 admin(booking) 채널에 알림 전송.
   const adminBypass = isAdminBypassOrder(orderID);
   if (adminBypass) {
-    console.log('[booking-processor] 🟢 ADMIN BYPASS 예약 감지 | orderID:', orderID, '| email:', payerEmail);
+    console.log('[booking-processor] 🟢 ADMIN BYPASS 예약 감지 | orderID:', orderID, '| hasEmail:', !!payerEmail);
     try {
       const db = initAdminDb('booking-processor');
       if (db) {
@@ -325,7 +325,7 @@ const originalHandler = async (event) => {
     ].join('\n')).catch((e) => console.warn('[booking-processor] bypass telegram notify 실패:', e.message));
   }
 
-  console.log('[booking-processor] 예약 처리 시작:', { orderID, payerEmail, amount: requestAmount });
+  console.log('[booking-processor] 예약 처리 시작:', { orderID, hasEmail: !!payerEmail, amount: requestAmount });
 
   // capturePaypalOrder에서 전달된 bookingRef가 있으면 그대로 사용 (Firestore↔Sheets 일관성)
   const bookingRef = externalBookingRef || generateBookingRef();
@@ -678,7 +678,7 @@ const originalHandler = async (event) => {
       //   outcome_unknown 으로 격리한다(자동 재발송 금지 — 손님에게 두 번 가는 것보다 낫다).
       const voucherFinal = await completeBookingStep(orderID, BOOKING_STEP_MARKERS.voucher, { to: 'redacted' });
       results.stepStatus.email = stepFromFinalize(voucherFinal);
-      console.log('[booking-processor] 고객 이메일 발송 완료:', payerEmail);
+      console.log('[booking-processor] 고객 이메일 발송 완료:', orderID);
     } catch (err) {
       results.steps.email = `error: ${err.message}`;
       voucherEmailErr = err.message || 'unknown';

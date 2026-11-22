@@ -29,7 +29,7 @@ import { relayAdminReply } from './_shared/chat-relay.js';
 import { sendEmail } from './_send-email.js';
 import { USD_TO_KRW } from './_shared/exchange-rate.js';
 import { translate } from './_shared/translator.js';
-import { sendDispatchToDriver, broadcastDispatchToDrivers } from './_shared/dispatch-helpers.js';
+import { sendDispatchToDriver, broadcastDispatchToDrivers, DISPATCH_RETENTION_NOTICE } from './_shared/dispatch-helpers.js';
 import { isUnassigned } from './_crons/dispatch-reminder.js';
 import { morningBriefingTask } from './_crons/morning-briefing.js';
 import { resolveDecision, DECISION_COLLECTION } from './_shared/decisionQueue.js';
@@ -689,7 +689,7 @@ async function handleDispatchCommand(botToken, p) {
     `픽업: ${escapeHtmlLocal(booking.pickupLocation || '-')}\n` +
     (booking.dropoffLocation ? `드롭오프: ${escapeHtmlLocal(booking.dropoffLocation)}\n` : '') +
     (booking.memo ? `\n메모: ${escapeHtmlLocal(booking.memo)}\n` : '') +
-    `\n10분 내 응답 부탁드립니다.`;
+    `\n10분 내 응답 부탁드립니다.\n${DISPATCH_RETENTION_NOTICE}`;
 
   const sent = await callBot(driverBotToken, 'sendMessage', {
     chat_id: Number(driverChatId),

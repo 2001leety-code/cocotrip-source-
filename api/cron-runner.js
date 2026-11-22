@@ -41,6 +41,8 @@ import inquiryResponseSweep from './_crons/inquiry-response-sweep.js';
 import ownerNotificationSweep from './_crons/owner-notification-sweep.js';
 import companyGmailInboxSweep from './_crons/company-gmail-inbox-sweep.js';
 import externalInboxRetentionSweep from './_crons/external-inbox-retention-sweep.js';
+// 2026-11-21 — 개인정보 보관 기간(처리방침 제3조). 🔒 PRIVACY_RETENTION_DELETE_ENABLED OFF = 개수만 셈.
+import privacyRetentionSweep from './_crons/privacy-retention-sweep.js';
 import { verifyCronRequest } from './_shared/cron-auth.js';
 
 export const maxDuration = 60;
@@ -85,6 +87,7 @@ const JOBS = {
   // Explicit company-only cutover/retention + read-only OAuth; OFF performs no worker I/O.
   'company-gmail-inbox-sweep':   companyGmailInboxSweep,
   'external-inbox-retention-sweep': externalInboxRetentionSweep,
+  'privacy-retention-sweep':     privacyRetentionSweep,
 };
 
 const CORS = {

@@ -46,7 +46,7 @@ export async function sendCustomerEmailWithAlert({ db, to, subject, html, text, 
   }
 
   if (!to || !subject) {
-    console.warn('[customer-email] invalid args:', { to, hasSubject: !!subject });
+    console.warn('[customer-email] invalid args:', { hasTo: !!to, hasSubject: !!subject });
     return { ok: false, reason: 'invalid-args' };
   }
 
@@ -58,11 +58,11 @@ export async function sendCustomerEmailWithAlert({ db, to, subject, html, text, 
     if (isNotificationSuppressed(sendReceipt)) {
       return { ok: false, ...emailSuppressedReceipt() };
     }
-    console.log(`[customer-email] ok to=${to} ${ctxStr}`);
+    console.log(`[customer-email] ok ${ctxStr}`);
     return { ok: true };
   } catch (e) {
     const reason = e?.message || String(e) || 'unknown';
-    console.error(`[customer-email] FAIL to=${to} reason=${reason} ${ctxStr}`);
+    console.error(`[customer-email] FAIL reason=${reason} ${ctxStr}`);
 
     // 1) Persist for cron retry — autoId because the same booking may have
     //    multiple email touches (confirm, refund, modify).

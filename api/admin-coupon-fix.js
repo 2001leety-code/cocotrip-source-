@@ -120,7 +120,7 @@ export default async function handler(req, res) {
     const result = await issueOnboardingCouponsForUid(db, uid, {
       audit: { callerUid: tokenAuth.uid, callerEmail: tokenAuth.email, action: 'onboarding_coupon_fix' },
     });
-    console.log('[admin-coupon-fix] uid=', uid, 'email=', email || '(via uid)', 'result=', result);
+    console.log('[admin-coupon-fix] uid=', uid, 'hasEmail=', !!email, 'result=', result);
 
     return json(req, res, 200, _ok({ uid, email: email || null, ...result }));
   } catch (err) {

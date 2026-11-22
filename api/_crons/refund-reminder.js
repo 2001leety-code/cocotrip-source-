@@ -344,7 +344,7 @@ const refundReminderTask = async (dryRun = false) => {
         freeCancelReminderLang: lang,
       });
       sentCount++;
-      console.log('[refund-reminder] sent:', b.bookingRef, '→', b.payerEmail, '(' + lang + ')');
+      console.log('[refund-reminder] sent:', b.bookingRef, '(' + lang + ')');
     } catch (err) {
       errorCount++;
       console.error('[refund-reminder] send failed:', b.bookingRef, err.message);
