@@ -197,6 +197,8 @@ if (!PAYPAL_CLIENT_ID) {
 //   case A: checkOnly(QR 안내 전 결제 전 확인) → 200 { data.checked:true }  (식이 없음 = 음식 DB 안 읽음)
 //   case B: 잘못된 bookingRef 신고 → 400 INVALID_BOOKING_REF
 {
+  // Date convention: startDate is a 'YYYY-MM-DD' day 60 days ahead; durationDays 1 = one travel day, so the
+  // inclusive last day is startDate itself (checkOnly only validates input, nothing is booked).
   const startDate = new Date(Date.now() + 60 * 86400000).toISOString().slice(0, 10);
   const resA = await postJson('/api/manual-payment-request', {
     checkOnly: true,
