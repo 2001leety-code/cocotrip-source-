@@ -7,6 +7,7 @@ import LinksPage from '../../src/pages/LinksPage';
 import WhatsAppSupportPage from '../../src/pages/WhatsAppSupportPage';
 import Terms from '../../src/pages/Terms';
 import Privacy from '../../src/pages/Privacy';
+import { PRIVACY_EFFECTIVE_DATE } from '../../src/pages/privacyVersions';
 import TravelTerms from '../../src/pages/TravelTerms';
 void React;
 
@@ -25,7 +26,7 @@ beforeEach(() => {
   // SkyLayer asks for reduced motion on mount; answer "reduce" so no video mounts in jsdom.
   vi.stubGlobal('matchMedia', (query: string) => ({ matches: true, media: query, addEventListener() {}, removeEventListener() {} }));
 });
-afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
+afterEach(() => { cleanup(); vi.unstubAllGlobals(); vi.useRealTimers(); });
 
 const view = (Page: () => React.JSX.Element, url = '/') => render(<MemoryRouter initialEntries={[url]}><Page /></MemoryRouter>);
 const hrefs = () => [...document.querySelectorAll('[href]')].map((a) => a.getAttribute('href'));
@@ -63,7 +64,7 @@ describe('static pages on the home-dope vocabulary', () => {
     expect(document.querySelectorAll('h1')).toHaveLength(1);
     expect(document.querySelector('main')!.classList.contains('home-dope')).toBe(true);
     expect(document.body.textContent).toContain(sample);
-    expect(document.body.textContent).not.toMatch(/\?{2,}|�/);
+    expect(document.body.textContent).not.toMatch(/\?{2,}|\uFFFD/);
   });
 
   it('/links keeps every pre-edit destination, UTM-preserving', () => {
@@ -83,13 +84,25 @@ describe('static pages on the home-dope vocabulary', () => {
     expect(hrefs()).toEqual(WHATSAPP_CONSENTED_BEFORE);
   });
 
-  it.each([['terms', Terms, 4], ['privacy', Privacy, 4], ['travel-terms', TravelTerms, 7]] as const)(
-    '%s: no hrefs of its own beyond the table of contents, each row anchoring an article',
-    (_name, Page, count) => {
+  // The privacy policy (2026-11-20) also links inside the page: the upcoming-change notice to the previous
+  // version (until the effective date), and the cookie article to the overseas transfer article.
+  it.each([
+    ['terms', Terms, 4, []],
+    ['privacy', Privacy, 12, ['#privacy-previous', '#article-6']],
+    ['travel-terms', TravelTerms, 7, []],
+  ] as const)(
+    '%s: no hrefs of its own beyond the table of contents (each row anchoring an article) and in-page links',
+    (_name, Page, count, inPage) => {
+      vi.useFakeTimers({ toFake: ['Date'] });
+      // One second before the privacy policy takes effect in Korea: the upcoming-change notice is on the page.
+      vi.setSystemTime(new Date(`${PRIVACY_EFFECTIVE_DATE}T00:00:00+09:00`).getTime() - 1000);
       view(Page);
-      const list = hrefs();
-      expect(list).toEqual(Array.from({ length: count }, (_, i) => `#article-${i + 1}`));
-      for (const href of list) expect(document.getElementById(href!.slice(1))?.querySelector('h2')).toBeTruthy();
+      const toc = [...document.querySelectorAll('nav [href]')].map((a) => a.getAttribute('href'));
+      expect(toc).toEqual(Array.from({ length: count }, (_, i) => `#article-${i + 1}`));
+      for (const href of toc) expect(document.getElementById(href!.slice(1))?.querySelector('h2')).toBeTruthy();
+      const others = [...document.querySelectorAll('[href]')].filter((a) => !a.closest('nav')).map((a) => a.getAttribute('href'));
+      expect(others).toEqual(inPage);
+      for (const href of others) expect(document.getElementById(href!.slice(1))).toBeTruthy();
     },
   );
 
