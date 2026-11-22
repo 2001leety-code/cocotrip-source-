@@ -780,7 +780,7 @@ describe('속도 제한 표 = 따로 센 상한·시간 (운영자 11/22)', () =
     const fake = makeDb({ quick_plan_rate_limits: many(3) }, { failBatch: true });
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
     const result = await run(fake, DEL);
-    expect(result).toMatchObject({ ok: false, code: 'RETENTION_REVIEW_REQUIRED' });
+    expect(result).toMatchObject({ ok: false, code: 'RETENTION_REVIEW_REQUIRED', rateLimitWrites: 0 }); // 못 지운 것은 상한에서 되돌림
     expect(result.counts.quick_plan_rate_limits).toMatchObject({ due: 3, docError: 1 });
     expect(fake.col('quick_plan_rate_limits').size).toBe(3);
     expect(JSON.stringify(warn.mock.calls)).not.toContain('example.test');
@@ -806,16 +806,17 @@ describe('변경 기록 직원 이메일 — 다툼 처리 중이면 남김 (운
   });
 
   it('다툼이 끝났으면 변경 마친 날·다툼 끝난 날 중 늦은 날 + 1개월 (KST 경계)', async () => {
-    // 변경 = 10/21 00:30, 다툼 끝 = 10/25 23:30 KST → 11/25 까지 남기고 11/26 0시부터
+    // 변경 = 10/21 00:30, 다툼 끝 = 10/26 00:30 KST(UTC 로는 10/25 — UTC 날짜로 세면 하루 일찍 비운다)
+    // → 11/26 까지 남기고 11/27 0시부터
     const data = {
-      mood_bookings: { d1: { status: 'completed', date: '2026-12-31', settlementApproval: { status: 'approved', approvedAt: kst('2026-10-25T23:30:00') } } },
+      mood_bookings: { d1: { status: 'completed', date: '2026-12-31', settlementApproval: { status: 'approved', approvedAt: kst('2026-10-26T00:30:00') } } },
       mood_booking_change_events: { x: event('d1', kst('2026-10-21T00:30:00')) },
     };
     const at = async (iso: string) => ((await privacyRetentionSweepTask({ env: {}, now: () => kst(iso), clock: () => 0, db: makeDb(data).db } as never)) as { counts: Record<string, unknown> }).counts[T];
     expect(await at('2026-11-21T23:59:59')).toEqual({ notYet: 1 });
     expect(await at('2026-11-22T00:00:00')).toEqual({ notYetDispute: 1 });
-    expect(await at('2026-11-25T23:59:59')).toEqual({ notYetDispute: 1 });
-    expect(await at('2026-11-26T00:00:00')).toEqual({ due: 1 });
+    expect(await at('2026-11-26T23:59:59')).toEqual({ notYetDispute: 1 });
+    expect(await at('2026-11-27T00:00:00')).toEqual({ due: 1 });
   });
 
   it('예약을 모르거나 다툼 끝난 시각을 모르면 남김', async () => {

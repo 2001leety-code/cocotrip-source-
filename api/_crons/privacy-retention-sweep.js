@@ -363,17 +363,23 @@ async function sweepRateLimitDocs(run, T, { query, orderField, period, baseOf })
     refs = [];
     const batch = run.db.batch();
     for (const ref of chunk) batch.delete(ref);
-    try { await batch.commit(); run.tally(T, 'applied', chunk.length); } catch (error) { docFailed(run, T, error); }
+    try { await batch.commit(); run.tally(T, 'applied', chunk.length); } catch (error) {
+      run.rateLimitWrites -= chunk.length; // 못 지운 묶음은 상한을 안 쓴 것으로 — 뒤 표가 몫을 잃지 않게
+      docFailed(run, T, error);
+    }
   };
-  await scan(run, T, query, orderField, async (doc, d) => {
-    const base = R.msToKstYmd(baseOf(d));
-    if (!base) return run.tally(T, 'noDate');
-    if (!R.isDue(base, period, run.nowMs)) return run.tally(T, 'notYet');
-    if (!run.claim(T, { rateLimit: true })) return;
-    refs.push(doc.ref);
-    if (refs.length >= PAGE) await flush();
-  });
-  await flush();
+  try {
+    await scan(run, T, query, orderField, async (doc, d) => {
+      const base = R.msToKstYmd(baseOf(d));
+      if (!base) return run.tally(T, 'noDate');
+      if (!R.isDue(base, period, run.nowMs)) return run.tally(T, 'notYet');
+      if (!run.claim(T, { rateLimit: true })) return;
+      refs.push(doc.ref);
+      if (refs.length >= PAGE) await flush();
+    });
+  } finally {
+    await flush(); // 다음 장 읽기가 실패해도 이미 센 것은 지운다(오류는 그대로 위로)
+  }
 }
 
 async function deleteChatChildren(run, sessionDoc) {
