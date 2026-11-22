@@ -25,13 +25,22 @@ const PAGE = 300;
 const TIME_BUDGET_MS = 45_000;
 /** 켠 뒤에도 하루 이만큼만 바꾼다(문서 하나 또는 예약 하나와 그 사본 묶음 = 1). 남은 것은 다음 날. */
 export const DAILY_WRITE_CAP = 200;
+/**
+ * 속도 제한·자동 답장 표(내용 없는 IP·회원 해시 문서)는 개인정보 대상과 따로 센다(운영자 11/22 "추천대로").
+ * - 하루 3000개: 300개(PAGE)씩 묶어 지운다(Firestore 묶음 한도 500 안) → 쓰기 왕복 10번. 표 19곳이 하루에 새로 만드는
+ *   문서(방문자 IP 하나 = 표마다 문서 하나)를 넉넉히 넘고, 6월부터 밀린 것도 며칠 안에 따라잡는 크기.
+ * - 시간: 45초 중 마지막 10초는 이 표들 몫(개인정보 대상이 일찍 끝나면 남은 시간도 이쪽). 10초 = 묶음 삭제 + 다음 장 읽기
+ *   한 바퀴를 넉넉히 0.5초로 잡아 20바퀴 = 6000개 > 3000개. 개인정보 대상 몫은 35초 ÷ 대상 수(전에는 45초를 이 표들과 나눔).
+ */
+export const RATE_LIMIT_DAILY_CAP = 3000;
+const RATE_LIMIT_TIME_MS = 10_000;
 
 export const retentionMode = env => (env.PRIVACY_RETENTION_DELETE_ENABLED === 'true' ? 'delete' : 'count');
 
 function makeRun({ db, nowMs, mode, clock }) {
   const counts = {};
   const run = {
-    db, nowMs, mode, clock, counts, writes: 0, timedOut: false, errors: [],
+    db, nowMs, mode, clock, counts, writes: 0, rateLimitWrites: 0, timedOut: false, errors: [],
     /** 정산·변경 다툼이 열린 협력사 예약의 날짜 — 그 날 일정 메모도 남긴다. */
     heldMoodDates: new Set(),
     deadline: clock() + TIME_BUDGET_MS,
@@ -43,12 +52,14 @@ function makeRun({ db, nowMs, mode, clock }) {
     /** 시간 몫을 다 써서 멈춤 — 그 대상 개수는 빠진 것이지 0 이 아니다. */
     stop(target) { run.timedOut = true; run.stopped.add(target); run.tally(target, 'timedOut'); },
     tally(target, key, n = 1) { const c = (counts[target] ||= {}); c[key] = (c[key] || 0) + n; },
-    /** 지울 것 하나를 센다. 실제로 써도 되면 true(삭제 모드 + 하루 상한·시간 안). */
-    claim(target) {
+    /** 지울 것 하나를 센다. 실제로 써도 되면 true(삭제 모드 + 하루 상한·시간 안). 속도 제한 표는 따로 센 상한. */
+    claim(target, { rateLimit = false } = {}) {
       run.tally(target, 'due');
       if (mode !== 'delete') return false;
-      if (run.writes >= DAILY_WRITE_CAP || run.outOfTime()) { run.tally(target, 'deferred'); return false; }
-      run.writes += 1;
+      const key = rateLimit ? 'rateLimitWrites' : 'writes';
+      const cap = rateLimit ? RATE_LIMIT_DAILY_CAP : DAILY_WRITE_CAP;
+      if (run[key] >= cap || run.outOfTime()) { run.tally(target, 'deferred'); return false; }
+      run[key] += 1;
       return true;
     },
   };
@@ -258,15 +269,35 @@ async function sweepMoodIdempotency(run) {
  * 협력사 예약 변경 감사 기록(mood_booking_change_events)·알림 대기열(mood_notification_outbox)
  * = 변경을 마친 날(createdAt) + 1개월에 직원 이메일 칸(…Email·…Emails, 예약 사본 before·after 안 포함)만 비운다(운영자 11/22).
  * 협력사 계정 번호(clientId)·금액·문서는 남긴다. 두 표는 mood-change.js 가 쓰기만 하고 다시 읽지 않는다.
+ * 그 예약에 정산·변경 다툼이 처리 중이면 남긴다(세기만). 끝났으면 "변경 마친 날"과 "다툼 끝난 날" 중 늦은 날 + 1개월(운영자 11/22).
+ * 예약을 못 찾거나(번호 없음·문서 없음) 다툼 끝난 시각을 모르면 남긴다. 예약 읽기가 실패하면 그 문서는 건너뛴다(docError).
  */
 async function sweepMoodChangeEmails(run, name) {
   const T = `${name}_emails`;
+  const bookings = new Map(); // 같은 예약의 기록이 여럿 — 한 번만 읽는다
+  const bookingOf = async id => {
+    if (!bookings.has(id)) {
+      const snap = await run.db.collection('mood_bookings').doc(id).get();
+      bookings.set(id, snap.exists ? snap.data() || {} : null);
+    }
+    return bookings.get(id);
+  };
   await scan(run, T, run.db.collection(name).where('createdAt', '<=', cutoffMs(run, MONTH)), 'createdAt', async (doc, d) => {
     const paths = R.findEmailKeyPaths(d);
     if (!paths.length) return run.tally(T, 'alreadyClean');
     const base = R.msToKstYmd(d.createdAt);
     if (!base) return run.tally(T, 'noDate');
     if (!R.isDue(base, MONTH, run.nowMs)) return run.tally(T, 'notYet');
+    const bookingId = typeof d.bookingId === 'string' && !d.bookingId.includes('/') ? d.bookingId.trim() : '';
+    const booking = bookingId ? await bookingOf(bookingId) : null;
+    if (!booking) return run.tally(T, 'heldBookingUnknown');
+    if (R.moodDisputeOpen(booking)) return run.tally(T, 'heldDispute');
+    const disputeEnd = R.moodDisputeEndMs(booking);
+    if (disputeEnd !== undefined) {
+      const endYmd = R.msToKstYmd(disputeEnd);
+      if (!endYmd) return run.tally(T, 'heldDisputeDateUnknown');
+      if (!R.isDue(endYmd, MONTH, run.nowMs)) return run.tally(T, 'notYetDispute');
+    }
     if (run.claim(T)) await scrubPaths(run, T, doc.ref, paths);
   });
 }
@@ -318,6 +349,31 @@ async function sweepWholeDocs(run, T, { query, orderField, period, baseOf, baseY
     await doc.ref.delete();
     run.tally(T, 'applied');
   });
+}
+
+/**
+ * 속도 제한 표: 문서 내용이 없어 묶음(batch)으로 지운다. 묶음이 실패하면 그 묶음은 남고(docError) 다음 날 다시.
+ * ponytail: 마지막 묶음은 시간 몫 끝 직후 한 번 더 쓸 수 있다(왕복 하나) — 45초 안 여유로 충분.
+ */
+async function sweepRateLimitDocs(run, T, { query, orderField, period, baseOf }) {
+  let refs = [];
+  const flush = async () => {
+    if (!refs.length) return;
+    const chunk = refs;
+    refs = [];
+    const batch = run.db.batch();
+    for (const ref of chunk) batch.delete(ref);
+    try { await batch.commit(); run.tally(T, 'applied', chunk.length); } catch (error) { docFailed(run, T, error); }
+  };
+  await scan(run, T, query, orderField, async (doc, d) => {
+    const base = R.msToKstYmd(baseOf(d));
+    if (!base) return run.tally(T, 'noDate');
+    if (!R.isDue(base, period, run.nowMs)) return run.tally(T, 'notYet');
+    if (!run.claim(T, { rateLimit: true })) return;
+    refs.push(doc.ref);
+    if (refs.length >= PAGE) await flush();
+  });
+  await flush();
 }
 
 async function deleteChatChildren(run, sessionDoc) {
@@ -396,8 +452,8 @@ function wholeDocTargets(run, ctx) {
 }
 
 /**
- * 문서 번호에 사람 식별값(uid·IP 해시·이메일 해시·게스트 세션)이 든 속도 제한·중복 막기 표. 개인정보 대상보다 뒤에 돌려
- * 하루 상한을 먼저 쓰지 않게 한다. 대화 표는 문서 꼴에 따라 시각 칸 이름이 둘(updatedAt / lastUpdated)이라 두 번 훑는다.
+ * 문서 번호에 사람 식별값(uid·IP 해시·이메일 해시·게스트 세션)이 든 속도 제한·중복 막기 표. 개인정보 대상 뒤에
+ * 따로 센 상한(RATE_LIMIT_DAILY_CAP)·시간으로 돈다. 대화 표는 문서 꼴에 따라 시각 칸 이름이 둘(updatedAt / lastUpdated)이라 두 번 훑는다.
  */
 function lowPriorityTargets(run) {
   const target = (name, collection, field, period) => [name, {
@@ -525,10 +581,10 @@ async function guarded(run, target, fn) {
  * 대상마다 남은 시간을 남은 대상 수로 나눈 몫만 준다. 일찍 끝난 대상의 남은 몫은 뒤 대상에게 간다.
  * ponytail: 같은 몫 — 앞쪽 큰 대상(예약)이 몫에 걸리면 그날 개수가 덜 나온다(timedOut). 커지면 대상별 커서 저장으로.
  */
-async function runTargets(run, jobs) {
+async function runTargets(run, jobs, until = run.deadline) {
   for (const [index, [target, fn]] of jobs.entries()) {
     const now = run.clock();
-    run.targetDeadline = Math.min(run.deadline, now + Math.max(0, run.deadline - now) / (jobs.length - index));
+    run.targetDeadline = Math.min(until, now + Math.max(0, until - now) / (jobs.length - index));
     await guarded(run, target, fn);
   }
 }
@@ -597,13 +653,14 @@ export async function privacyRetentionSweepTask({ env = process.env, now = Date.
         ['sheet_bookings', async () => sweepBookingSheet(run, await loadSheets())],
         ['sheet_leads', async () => sweepLeadsSheet(run, await loadSheets())],
       ] : []),
-      ...lowPriorityTargets(run).map(([target, options]) => [target, () => sweepWholeDocs(run, target, options)]),
-    ]);
+    ], run.deadline - RATE_LIMIT_TIME_MS);
+    // 속도 제한 표는 맨 뒤, 따로 센 하루 상한(RATE_LIMIT_DAILY_CAP)과 남은 시간(최소 10초)으로.
+    await runTargets(run, lowPriorityTargets(run).map(([target, options]) => [target, () => sweepRateLimitDocs(run, target, options)]));
 
     const ok = run.errors.length === 0;
     const result = {
       ok, code: ok ? (run.timedOut ? 'RETENTION_PARTIAL' : 'RETENTION_COMPLETED') : 'RETENTION_REVIEW_REQUIRED',
-      mode, version: R.RETENTION_VERSION, writes: run.writes, timedOut: run.timedOut, counts: run.counts,
+      mode, version: R.RETENTION_VERSION, writes: run.writes, rateLimitWrites: run.rateLimitWrites, timedOut: run.timedOut, counts: run.counts,
     };
     await database.collection('privacy_retention_state').doc('last').set({ ...result, checkedAtMs: now() });
     return result;

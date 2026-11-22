@@ -18,7 +18,7 @@ vi.mock('../../api/_shared/cron-auth.js', () => ({ verifyCronRequest: vi.fn(asyn
 
 import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import handler, { privacyRetentionSweepTask, DAILY_WRITE_CAP, IP_RATE_LIMIT_COLLECTIONS } from '../../api/_crons/privacy-retention-sweep.js';
+import handler, { privacyRetentionSweepTask, DAILY_WRITE_CAP, RATE_LIMIT_DAILY_CAP, IP_RATE_LIMIT_COLLECTIONS } from '../../api/_crons/privacy-retention-sweep.js';
 
 // ── 가짜 Firestore ─────────────────────────────────────────────────────────
 class Ts { constructor(public ms: number) {} toMillis() { return this.ms; } }
@@ -30,7 +30,7 @@ type Data = Record<string, unknown>;
 const kind = (v: unknown) => (v instanceof Ts || v instanceof Date ? 'time' : typeof v);
 const num = (v: unknown) => (v instanceof Ts ? v.ms : v instanceof Date ? v.getTime() : v) as number | string;
 
-function makeDb(seed: Record<string, Record<string, Data>> = {}, { failOn = '' } = {}) {
+function makeDb(seed: Record<string, Record<string, Data>> = {}, { failOn = '', failBatch = false } = {}) {
   const store = new Map<string, Map<string, Data>>();
   const col = (path: string) => { if (!store.has(path)) store.set(path, new Map()); return store.get(path)!; };
   for (const [name, docs] of Object.entries(seed)) for (const [id, data] of Object.entries(docs)) col(name).set(id, data);
@@ -87,7 +87,12 @@ function makeDb(seed: Record<string, Record<string, Data>> = {}, { failOn = '' }
       writes.push(`storage delete ${bucket}/${path}`);
     },
   };
-  return { db: { collection: (name: string) => query(name) }, store, writes, col, storage };
+  // 묶음 삭제(속도 제한 표) — 실패하면 아무것도 안 지운다(Firestore 묶음은 전부 아니면 전무).
+  const batch = () => {
+    const refs: { delete(): Promise<void> }[] = [];
+    return { delete: (r: { delete(): Promise<void> }) => { refs.push(r); }, async commit() { if (failBatch) throw new Error('batch boom secret@example.test'); for (const r of refs) await r.delete(); } };
+  };
+  return { db: { collection: (name: string) => query(name), batch }, store, writes, col, storage };
 }
 
 const BUCKET = 'proj.firebasestorage.app';
@@ -185,6 +190,7 @@ function seed() {
       m3: { status: 'completed', date: '2026-10-03', origin: 'A', settlementApproval: { status: 'changes_requested' } }, // 정산 다툼
       m4: { status: 'confirmed', date: '2026-10-04', serviceType: 'vehicle', origin: 'A', breakdown: { origin: 'A' } }, // 정산 전
       m5: { status: 'confirmed', date: '2026-10-05', serviceType: 'airport', origin: 'ICN' }, // 정액 = 정산 없음
+      m9: { status: 'confirmed', date: '2026-12-01', clientId: 'client-1' }, // 아직 운행 전, 다툼 없음 — 변경 기록 이메일만 비움
     },
     mood_booking_change_events: {
       e1: { bookingId: 'm1', reason: 'time', before: { origin: 'A', price: 500 }, after: { destination: 'C' } },
@@ -194,7 +200,7 @@ function seed() {
         after: { price: 200 }, createdAt: kst('2026-10-01T00:00:00') },
       'ev-new': { type: 'booking_changed', clientId: 'client-1', actorEmail: 'staff@example.test', createdAt: kst('2026-10-22T12:00:00') }, // 11/23 부터
     },
-    mood_notification_outbox: { ob1: { type: 'mood_booking_changed', clientId: 'client-1', actorEmail: 'staff@example.test', status: 'pending', createdAt: kst('2026-10-01T00:00:00') } },
+    mood_notification_outbox: { ob1: { type: 'mood_booking_changed', bookingId: 'm9', clientId: 'client-1', actorEmail: 'staff@example.test', status: 'pending', createdAt: kst('2026-10-01T00:00:00') } },
     preview_leads: { l1: { lastSeenAtMs: kst('2026-10-01T12:00:00'), email: 'lead@example.test' }, l2: { lastSeenAtMs: kst('2026-11-20T12:00:00'), email: 'x' } },
     charter_inquiries: {
       q1: { status: 'responded', createdAt: ts('2026-10-01T00:00:00'), updatedAt: ts('2026-10-01T00:00:00'), updatedAtMs: kst('2026-10-28T10:00:00') }, // 답한 날 + 30일 = 11/28 부터
@@ -400,7 +406,7 @@ describe('스위치 켬 = 지움', () => {
       before: { price: 100, bookingChangeApproval: { status: 'approved' } }, after: { price: 200 }, createdAt: kst('2026-10-01T00:00:00'),
       privacyRetention: { version: 1, scrubbedAtMs: NOW } });
     expect(fake.col('mood_booking_change_events').get('ev-new')).toHaveProperty('actorEmail');
-    expect(fake.col('mood_notification_outbox').get('ob1')).toEqual({ type: 'mood_booking_changed', clientId: 'client-1', status: 'pending',
+    expect(fake.col('mood_notification_outbox').get('ob1')).toEqual({ type: 'mood_booking_changed', bookingId: 'm9', clientId: 'client-1', status: 'pending',
       createdAt: kst('2026-10-01T00:00:00'), privacyRetention: { version: 1, scrubbedAtMs: NOW } });
     expect([...fake.col('chat_rate_limits').keys()]).toEqual(['u:user-2']);
     expect([...fake.col('preview_lead_rate_limits').keys()]).toEqual(['h2']);
@@ -508,24 +514,24 @@ describe('날짜 경계 (한국 자정)', () => {
 
   // 기준 시각 10/21 00:30 KST = UTC 로는 10/20 — UTC 날짜로 세면 하루 일찍 지운다.
   const BASE = kst('2026-10-21T00:30:00');
-  const RULES: [string, string, Data, string][] = [
+  const RULES: [string, string, Data, string, Record<string, Record<string, Data>>?][] = [
     // 1개월: 정확히 한 달 되는 날(11/21)까지 남기고 11/22 0시(KST)부터
     ['intent_classifier_logs', 'intent_classifier_logs', { ts: new Date(BASE).toISOString(), email: 'e' }, '2026-11-22'],
     ['error_log', 'error_log', { createdAt: BASE }, '2026-11-22'],
     ['mood_booking_change_idempotency', 'mood_booking_change_idempotency', { status: 'completed', actorEmail: 'e', completedAt: BASE }, '2026-11-22'],
     ['pending_free_claims', 'pending_free_claims', { status: 'approved', reviewedAt: new Ts(BASE) }, '2026-11-22'],
     ['cart_orders_unpaid', 'cart_orders', { status: 'created', createdAt: new Ts(BASE) }, '2026-11-22'],
-    ['mood_booking_change_events_emails', 'mood_booking_change_events', { clientId: 'c', actorEmail: 'e', createdAt: BASE }, '2026-11-22'],
-    ['mood_notification_outbox_emails', 'mood_notification_outbox', { clientId: 'c', actorEmail: 'e', createdAt: BASE }, '2026-11-22'],
+    ['mood_booking_change_events_emails', 'mood_booking_change_events', { bookingId: 'mb', clientId: 'c', actorEmail: 'e', createdAt: BASE }, '2026-11-22', { mood_bookings: { mb: { status: 'confirmed', date: '2026-12-31' } } }],
+    ['mood_notification_outbox_emails', 'mood_notification_outbox', { bookingId: 'mb', clientId: 'c', actorEmail: 'e', createdAt: BASE }, '2026-11-22', { mood_bookings: { mb: { status: 'confirmed', date: '2026-12-31' } } }],
     // 2일: 10/23 까지 남기고 10/24 부터 · 1일: 10/22 까지 남기고 10/23 부터
     ['chat_rate_limits', 'chat_rate_limits', { updatedAt: BASE }, '2026-10-24'],
     ['chat_rate_limits_daily', 'chat_rate_limits', { lastUpdated: BASE }, '2026-10-24'],
     ['inquiry_auto_ack_recipients', 'inquiry_auto_ack_recipients', { reservedAtMs: BASE }, '2026-10-24'],
     ...IP_RATE_LIMIT_COLLECTIONS.map((name: string): [string, string, Data, string] => [name, name, { count: 1, lastSeenAtMs: BASE }, '2026-10-23']),
   ];
-  it.each(RULES)('%s: 전날 23:59:59 KST 에는 아직, %s 00:00 KST 부터', async (target, collection, data, from) => {
+  it.each(RULES)('%s: 전날 23:59:59 KST 에는 아직, %s 00:00 KST 부터', async (target, collection, data, from, extra = {}) => {
     const at = async (iso: string) => ((await privacyRetentionSweepTask({ env: {}, now: () => kst(iso), clock: () => 0,
-      db: makeDb({ [collection]: { x: data } }).db } as never)) as { counts: Record<string, unknown> }).counts[target];
+      db: makeDb({ ...extra, [collection]: { x: data } }).db } as never)) as { counts: Record<string, unknown> }).counts[target];
     const dayBefore = new Date(Date.parse(`${from}T00:00:00Z`) - 86_400_000).toISOString().slice(0, 10);
     expect(await at(`${dayBefore}T23:59:59`)).toEqual({ notYet: 1 });
     expect(await at(`${from}T00:00:00`)).toEqual({ due: 1 });
@@ -719,5 +725,137 @@ describe('속도 제한 표 목록 = api/ 의 실제 호출과 같음', () => {
     const retired = ['claim_notify_rate_limits'];
     for (const name of retired) expect(used.has(name)).toBe(false);
     expect([...used].sort()).toEqual(IP_RATE_LIMIT_COLLECTIONS.filter((name: string) => !retired.includes(name)).sort());
+  });
+});
+
+describe('속도 제한 표 = 따로 센 상한·시간 (운영자 11/22)', () => {
+  const DEL = { PRIVACY_RETENTION_DELETE_ENABLED: 'true' };
+  const old = kst('2026-11-01T00:00:00');
+  const many = (n: number, field = 'lastSeenAtMs') => Object.fromEntries(Array.from({ length: n }, (_, i) => [`r${String(i).padStart(4, '0')}`, { count: 1, [field]: old + i }]));
+
+  it('개인정보 하루 200건이 다 차도 속도 제한 표는 지운다', async () => {
+    const leads = Object.fromEntries(Array.from({ length: DAILY_WRITE_CAP + 5 }, (_, i) => [`l${i}`, { lastSeenAtMs: kst('2026-09-01T00:00:00') + i }]));
+    const fake = makeDb({ preview_leads: leads, preview_lead_rate_limits: many(3) });
+    const result = await run(fake, DEL);
+    expect(result).toMatchObject({ writes: DAILY_WRITE_CAP, rateLimitWrites: 3 });
+    expect(result.counts.preview_leads).toMatchObject({ applied: DAILY_WRITE_CAP, deferred: 5 });
+    expect(result.counts.preview_lead_rate_limits).toEqual({ due: 3, applied: 3 });
+    expect(fake.col('preview_lead_rate_limits').size).toBe(0);
+  });
+
+  it(`속도 제한 하루 상한 ${RATE_LIMIT_DAILY_CAP}건, 남은 것은 deferred · 개인정보 상한은 안 씀`, async () => {
+    const fake = makeDb({ quick_plan_rate_limits: many(RATE_LIMIT_DAILY_CAP + 5) });
+    const result = await run(fake, DEL);
+    expect(result).toMatchObject({ writes: 0, rateLimitWrites: RATE_LIMIT_DAILY_CAP });
+    expect(result.counts.quick_plan_rate_limits).toEqual({ due: RATE_LIMIT_DAILY_CAP + 5, applied: RATE_LIMIT_DAILY_CAP, deferred: 5 });
+    expect(fake.col('quick_plan_rate_limits').size).toBe(5);
+  });
+
+  it('스위치 꺼지면 속도 제한 표도 세기만', async () => {
+    const fake = makeDb({ quick_plan_rate_limits: many(4) });
+    const result = await run(fake);
+    expect(result).toMatchObject({ mode: 'count', writes: 0, rateLimitWrites: 0 });
+    expect(result.counts.quick_plan_rate_limits).toEqual({ due: 4 });
+    expect(fake.writes).toEqual(['set privacy_retention_state/last']);
+  });
+
+  it('개인정보 대상은 35초에서 멈추고, 속도 제한 표는 남은 시간(45초까지)으로 센다', async () => {
+    let t = 0;
+    let slow = true;
+    const fake = makeDb({ ...seed(), quick_plan_rate_limits: many(2) });
+    // 첫 결제 스냅샷 읽기 한 번만 36초 → 개인정보 대상 몫(35초)을 넘김
+    const db = { ...fake.db, collection: (name: string) => {
+      const c = fake.db.collection(name);
+      if (name !== 'paypal_order_snapshots') return c;
+      return { ...c, doc: (id: string) => { const r = c.doc(id); return { ...r, get: async () => { if (slow) { slow = false; t += 36_000; } return r.get(); } }; } };
+    } };
+    const result = await run(fake, DEL, { clock: () => t, db });
+    expect(result.timedOut).toBe(true);
+    expect(result.counts.preview_leads).toEqual({ timedOut: 1 }); // 개인정보 대상 = 35초 넘으면 멈춤
+    expect(result.counts.quick_plan_rate_limits).toEqual({ due: 2, applied: 2 });
+    expect(result.counts.preview_lead_rate_limits).toMatchObject({ due: 1, applied: 1 });
+  });
+
+  it('묶음 삭제가 실패하면 그 묶음은 남김(docError)', async () => {
+    const fake = makeDb({ quick_plan_rate_limits: many(3) }, { failBatch: true });
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const result = await run(fake, DEL);
+    expect(result).toMatchObject({ ok: false, code: 'RETENTION_REVIEW_REQUIRED' });
+    expect(result.counts.quick_plan_rate_limits).toMatchObject({ due: 3, docError: 1 });
+    expect(fake.col('quick_plan_rate_limits').size).toBe(3);
+    expect(JSON.stringify(warn.mock.calls)).not.toContain('example.test');
+    warn.mockRestore();
+  });
+});
+
+describe('변경 기록 직원 이메일 — 다툼 처리 중이면 남김 (운영자 11/22)', () => {
+  const DEL = { PRIVACY_RETENTION_DELETE_ENABLED: 'true' };
+  const T = 'mood_booking_change_events_emails';
+  const event = (bookingId: unknown, createdAt = kst('2026-10-01T00:00:00')) => ({ type: 'booking_change_approved', bookingId, clientId: 'client-1', actorEmail: 'staff@example.test', oldAmountKRW: 1, createdAt });
+
+  it('정산·변경 다툼이 처리 중이면 이메일 남김', async () => {
+    const fake = makeDb({
+      mood_bookings: { s1: { status: 'completed', date: '2026-12-31', settlementApproval: { status: 'changes_requested' } },
+        s2: { status: 'confirmed', date: '2026-12-31', bookingChangeApproval: { status: 'awaiting_mood' } } },
+      mood_booking_change_events: { a: event('s1'), b: event('s2') },
+    });
+    const result = await run(fake, DEL);
+    expect(result.counts[T]).toEqual({ heldDispute: 2 });
+    expect(fake.col('mood_booking_change_events').get('a')).toHaveProperty('actorEmail');
+    expect(fake.col('mood_booking_change_events').get('b')).toHaveProperty('actorEmail');
+  });
+
+  it('다툼이 끝났으면 변경 마친 날·다툼 끝난 날 중 늦은 날 + 1개월 (KST 경계)', async () => {
+    // 변경 = 10/21 00:30, 다툼 끝 = 10/25 23:30 KST → 11/25 까지 남기고 11/26 0시부터
+    const data = {
+      mood_bookings: { d1: { status: 'completed', date: '2026-12-31', settlementApproval: { status: 'approved', approvedAt: kst('2026-10-25T23:30:00') } } },
+      mood_booking_change_events: { x: event('d1', kst('2026-10-21T00:30:00')) },
+    };
+    const at = async (iso: string) => ((await privacyRetentionSweepTask({ env: {}, now: () => kst(iso), clock: () => 0, db: makeDb(data).db } as never)) as { counts: Record<string, unknown> }).counts[T];
+    expect(await at('2026-11-21T23:59:59')).toEqual({ notYet: 1 });
+    expect(await at('2026-11-22T00:00:00')).toEqual({ notYetDispute: 1 });
+    expect(await at('2026-11-25T23:59:59')).toEqual({ notYetDispute: 1 });
+    expect(await at('2026-11-26T00:00:00')).toEqual({ due: 1 });
+  });
+
+  it('예약을 모르거나 다툼 끝난 시각을 모르면 남김', async () => {
+    const fake = makeDb({
+      mood_bookings: { u1: { status: 'completed', date: '2026-12-31', bookingChangeApproval: { status: 'approved' } } },
+      mood_booking_change_events: { nobook: event(undefined), gone: event('missing'), slash: event('a/b'), unknown: event('u1') },
+    });
+    const result = await run(fake, DEL);
+    expect(result.counts[T]).toEqual({ heldBookingUnknown: 3, heldDisputeDateUnknown: 1 });
+    expect(fake.writes).toEqual(['set privacy_retention_state/last']);
+  });
+
+  it('예약 읽기가 실패하면 남김(docError)', async () => {
+    const fake = makeDb({ mood_bookings: { s1: { status: 'completed', date: '2026-12-31' } }, mood_booking_change_events: { a: event('s1') } });
+    const db = { ...fake.db, collection: (name: string) => {
+      const c = fake.db.collection(name);
+      if (name !== 'mood_bookings') return c;
+      return { ...c, doc: () => ({ get: async () => { throw new Error('read boom secret@example.test'); } }) };
+    } };
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const result = await run(fake, DEL, { db });
+    expect(result).toMatchObject({ ok: false });
+    expect(result.counts[T]).toEqual({ docError: 1 });
+    expect(fake.col('mood_booking_change_events').get('a')).toHaveProperty('actorEmail');
+    expect(JSON.stringify(warn.mock.calls)).not.toContain('example.test');
+    warn.mockRestore();
+  });
+
+  it('예약 읽기가 시간 몫에 걸리면 남김', async () => {
+    let t = 0;
+    const fake = makeDb({ mood_bookings: { s1: { status: 'completed', date: '2026-12-31' }, s2: { status: 'completed', date: '2026-12-31' } },
+      mood_booking_change_events: { a: event('s1'), b: event('s2', kst('2026-10-02T00:00:00')) } });
+    const db = { ...fake.db, collection: (name: string) => {
+      const c = fake.db.collection(name);
+      if (name !== 'mood_bookings') return c;
+      return { ...c, doc: (id: string) => { const r = c.doc(id); return { ...r, get: async () => { t += 10_000; return r.get(); } }; } };
+    } };
+    const result = await run(fake, DEL, { clock: () => t, db });
+    expect(result.counts[T]).toMatchObject({ due: 1, deferred: 1, timedOut: 1 });
+    expect(fake.col('mood_booking_change_events').get('a')).toHaveProperty('actorEmail');
+    expect(fake.col('mood_booking_change_events').get('b')).toHaveProperty('actorEmail');
   });
 });

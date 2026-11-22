@@ -7,7 +7,7 @@ import {
   deletableFrom, isDue, kstYmd, validYmd, toMs, tripEndYmd, findKeyPaths, withoutKeysDeep,
   bookingSettled, moodBookingSettled, inquiryClosed, scanCutoffMs, UNKNOWN_END_BUFFER_DAYS,
   planTripEndYmd, sheetDateYmd, kstMonth, monthEndYmd, latestMs, paidPlan, PAID_PLAN_MIN,
-  paymentAttemptClosed, cartPaid, disputeClosed, attemptTookNoMoney, freeClaimReceiptObject, findEmailKeyPaths,
+  paymentAttemptClosed, cartPaid, disputeClosed, attemptTookNoMoney, freeClaimReceiptObject, findEmailKeyPaths, moodDisputeOpen, moodDisputeEndMs,
 } from '../../api/_shared/privacy-retention.js';
 import { leadSheetRow } from '../../api/_ai_core/emailNotifier.js';
 
@@ -271,5 +271,22 @@ describe('직원 이메일 칸 찾기 (운영자 11/22)', () => {
     })).toEqual([['actorEmail'], ['settlementApproverEmails'], ['before', 'updatedByEmail'], ['before', 'approval', 'approvedByEmail']]);
     expect(findEmailKeyPaths({ clientId: 'c', email: 'e' })).toEqual([['email']]);
     expect(findEmailKeyPaths({})).toEqual([]);
+  });
+});
+
+describe('협력사 다툼 처리 중·끝난 시각 (운영자 11/22)', () => {
+  it('승인 대기·수정 요청·정산 철회 = 처리 중, 승인·변경 철회 = 끝', () => {
+    expect(moodDisputeOpen({ settlementApproval: { status: 'changes_requested' } })).toBe(true);
+    expect(moodDisputeOpen({ settlementApproval: { status: 'withdrawn' } })).toBe(true);
+    expect(moodDisputeOpen({ bookingChangeApproval: { status: 'Awaiting_Mood' } })).toBe(true);
+    expect(moodDisputeOpen({ bookingChangeApproval: { status: 'withdrawn' } })).toBe(false);
+    expect(moodDisputeOpen({ settlementApproval: { status: 'approved' } })).toBe(false);
+    expect(moodDisputeOpen({})).toBe(false);
+  });
+  it('끝난 시각 = 승인·철회·예약 수정 중 가장 늦은 것, 승인 기록 없으면 undefined, 시각 모르면 null', () => {
+    expect(moodDisputeEndMs({ status: 'completed' })).toBeUndefined();
+    expect(moodDisputeEndMs({ bookingChangeApproval: { status: 'approved' } })).toBeNull();
+    expect(moodDisputeEndMs({ bookingChangeApproval: { status: 'withdrawn', withdrawnAt: 5 }, settlementApproval: { approvedAt: 9 }, updatedAt: 7 })).toBe(9);
+    expect(moodDisputeEndMs({ settlementApproval: { approvedAt: 3 }, updatedAt: new Date(20) })).toBe(20);
   });
 });

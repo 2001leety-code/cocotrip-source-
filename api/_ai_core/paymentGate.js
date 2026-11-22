@@ -357,11 +357,11 @@ export async function enforcePaymentAndRevision(body, adminDb, authenticatedEmai
       }
       const allowedEmails = getAdminBypassEmails();
       if (!allowedEmails.includes(requestEmail)) {
-        // batch 9 fix (B9-6): reject 메시지에 정확한 디버깅 정보 — 운영자가 prod 에서
-        // 즉시 원인 식별 가능. 이메일 노출은 본인이라 OK.
+        // batch 9 fix (B9-6): reject 메시지에 원인 — 본인 이메일은 본인에게만 가니 OK.
+        // 2026-11-22: 관리자 허용 목록은 관리자 아닌 계정에게 내보내지 않는다(목록 개수만 기록).
         console.warn('[planner] ADMIN-BYPASS- rejected for non-admin account | allowedCount:', allowedEmails.length);
         return reject(403, 'FORBIDDEN', 'Admin bypass not allowed for this account',
-          `Authenticated as "${requestEmail}" but not in admin allowlist. Allowed: [${allowedEmails.join(', ')}]. Configure ADMIN_BYPASS_EMAILS env var or sign in with the admin account.`);
+          `Authenticated as "${requestEmail}" but not in admin allowlist. Configure ADMIN_BYPASS_EMAILS env var or sign in with the admin account.`);
       }
       console.log('[planner] 🟢 ADMIN BYPASS accepted — LIVE mode, no payment | admin:', requestEmail, '| orderId:', paypalOrderId);
       isAdminBypass = true;

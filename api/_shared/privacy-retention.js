@@ -178,8 +178,25 @@ export function moodBookingSettled(data) {
   const status = lower(data?.status);
   const settled = SETTLED_MOOD_STATUSES.has(status) || (status === 'confirmed' && fixedPriceFor(data?.serviceType) !== null);
   if (!settled) return false;
-  return !OPEN_CHANGE_APPROVALS.has(lower(data?.bookingChangeApproval?.status))
-    && !OPEN_SETTLEMENT_APPROVALS.has(lower(data?.settlementApproval?.status));
+  return !moodDisputeOpen(data);
+}
+
+/** 협력사 예약에 정산·변경 승인(다툼)이 처리 중인지. */
+export function moodDisputeOpen(data) {
+  return OPEN_CHANGE_APPROVALS.has(lower(data?.bookingChangeApproval?.status))
+    || OPEN_SETTLEMENT_APPROVALS.has(lower(data?.settlementApproval?.status));
+}
+
+/**
+ * 끝난 다툼이 끝난 시각 — 승인·철회·답한 시각과 예약 문서 마지막 수정 중 가장 늦은 것(늦게 잡아 오래 남기는 쪽).
+ * 승인 기록이 아예 없으면 undefined(다툼 없었음), 있는데 시각을 하나도 모르면 null.
+ */
+export function moodDisputeEndMs(data) {
+  const change = data?.bookingChangeApproval;
+  const settle = data?.settlementApproval;
+  if (!isPlainObject(change) && !isPlainObject(settle)) return undefined;
+  return latestMs(change?.approvedAt, change?.withdrawnAt, change?.updatedAt,
+    settle?.approvedAt, settle?.respondedAt, settle?.updatedAt, data?.updatedAt);
 }
 
 /**
