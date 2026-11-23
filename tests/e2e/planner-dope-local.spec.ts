@@ -833,6 +833,9 @@ test('final paired captures and contrast evidence', async ({ page }) => {
     // Home: hold the sky video and the sample pass through their own controls.
     await page.goto('/', { waitUntil: 'domcontentloaded' });
     await fontsReady();
+    // The sky video and its toggle mount after the page `load` event (SkyLayer, 2026-11-23).
+    await page.waitForLoadState('load');
+    await page.locator('.home-dope-sky-toggle').waitFor({ state: 'attached', timeout: 5000 }).catch(() => {});
     await page.waitForTimeout(800);
     const sky = page.locator('.home-dope-sky-toggle');
     if (await sky.isVisible() && (await sky.getAttribute('data-state')) === 'playing') {

@@ -16,7 +16,10 @@ import { Pause, Play } from 'lucide-react';
  * 2026-11-23 (phone speed test): the 3.5 MB video was 80% of the home page and
  * downloaded while the first screen was still loading. The video now mounts only
  * after the page `load` event (poster first), and slow connections (3G or worse)
- * keep the poster like Save-Data does.
+ * keep the poster like Save-Data does. The prerender snapshot is taken after
+ * `load`, so the video and its button carry `data-prerender-strip` and are cut
+ * from the static HTML (scripts/lib/prerender-strip.mjs); otherwise the baked
+ * `<video autoplay>` would start the download before any JS runs.
  */
 const SLOW_CONNECTIONS = new Set(['slow-2g', '2g', '3g']);
 
@@ -95,11 +98,13 @@ export function SkyLayer({ playLabel, pauseLabel }: Props) {
 
   return (
     <>
-      <div className="home-dope-sky" aria-hidden="true">
+      {/* data-video = a video is planned (not yet loaded); layouts reserve the toggle's room on it. */}
+      <div className="home-dope-sky" aria-hidden="true" data-video={video ? '' : undefined}>
         {showVideo && (
           <video
             ref={ref}
             className="home-dope-sky__video"
+            data-prerender-strip=""
             src="/home-dope/v3-cloud-flight.mp4"
             poster="/home-dope/v3-cloud-poster.jpg"
             muted
@@ -123,6 +128,7 @@ export function SkyLayer({ playLabel, pauseLabel }: Props) {
         <button
           type="button"
           className="home-dope-sky-toggle"
+          data-prerender-strip=""
           aria-label={playing ? pauseLabel : playLabel}
           data-state={playing ? 'playing' : 'paused'}
           onClick={toggle}

@@ -229,7 +229,7 @@ export default defineConfig({
           args: PRERENDER_LAUNCH_ARGS,
         },
       },
-      // JS 가 넣은 글꼴 링크가 정적 HTML 에서 첫 그림을 막지 않게 뺀다(scripts/lib/prerender-strip.mjs).
+      // 홈 하늘 영상·버튼이 정적 HTML 에 박혀 JS 보다 먼저 받아지지 않게 뺀다(scripts/lib/prerender-strip.mjs).
       postProcess(renderedRoute: { html: string }) {
         renderedRoute.html = stripPrerenderOnlyTags(renderedRoute.html)
       },
