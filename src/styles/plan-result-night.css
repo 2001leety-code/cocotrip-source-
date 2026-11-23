@@ -747,7 +747,9 @@
     background: rgba(10, 11, 20, 0.75);
   }
 
-  .plan-result-night .plan-night-masthead:has(> .home-dope-sky-toggle) > .ec-container-wide {
+  /* Keyed to "a video is planned" (SkyLayer data-video), not to the toggle itself: the
+     toggle mounts only after page load, and keying on it shifted the ticket 28px then. */
+  .plan-result-night .plan-night-masthead:has(> .home-dope-sky[data-video]) > .ec-container-wide {
     padding-top: 64px;
   }
 

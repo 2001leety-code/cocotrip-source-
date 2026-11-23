@@ -290,6 +290,13 @@ describe('산출물 감사', () => {
     expect(result.reasons.join(' ')).toContain('prerender incomplete');
   });
 
+  it('굽기에서 빠졌어야 할 표시(data-prerender-strip)가 남은 산출물을 실패로 본다', () => {
+    const html = page({ route: '/tours' }).replace('</body>', '<img data-prerender-strip="" src="/x.jpg"></body>');
+    const result = auditArtifactHtml(html, '/tours');
+    expect(result.ok).toBe(false);
+    expect(result.reasons.join(' ')).toContain('data-prerender-strip');
+  });
+
   it('멀쩡한 산출물은 통과한다', () => {
     expect(auditArtifactHtml(page({ route: '/tours' }), '/tours').ok).toBe(true);
   });

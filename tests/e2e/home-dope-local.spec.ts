@@ -959,6 +959,9 @@ test('annotations: non-home footer keeps the expanded layout with no fold', asyn
 
 /** Waits until the sky video is decodable or has removed itself; true if it is still there. */
 async function skyVideoPresent(page: Page) {
+  // The video mounts only after the page `load` event (SkyLayer, 2026-11-23); without this
+  // wait an absent-yet video reads as "not decodable" and the tests below skip silently.
+  await page.locator('.home-dope-sky__video').waitFor({ state: 'attached', timeout: 10000 }).catch(() => {});
   await page.waitForFunction(() => {
     const v = document.querySelector<HTMLVideoElement>('.home-dope-sky__video');
     return !v || v.readyState >= 2;
@@ -1033,9 +1036,15 @@ test('annotations: rejected play() leaves the sky paused and the button offering
 
 test('annotations: failed sky video falls back to the poster with no control', async ({ page }) => {
   await setupPage(page, 'en');
-  await page.route((url) => url.pathname === HERO_VIDEO_SRC, (route) => route.fulfill({ status: 404, contentType: 'text/plain', body: 'not found' }));
+  let videoRequested = false;
+  await page.route((url) => url.pathname === HERO_VIDEO_SRC, (route) => {
+    videoRequested = true;
+    return route.fulfill({ status: 404, contentType: 'text/plain', body: 'not found' });
+  });
   await page.setViewportSize({ width: 1440, height: 1000 });
   await gotoHome(page);
+  // The video mounts after `load`; a count of 0 means something only once it was really tried.
+  await expect.poll(() => videoRequested, { timeout: 15000 }).toBe(true);
   await expect(page.locator('.home-dope-sky__video')).toHaveCount(0);
   await expect(page.locator('.home-dope-sky-toggle')).toHaveCount(0);
   expect(await page.locator('.home-dope-sky').evaluate((el) => getComputedStyle(el).backgroundImage)).toContain(HERO_POSTER_SRC);
@@ -1056,6 +1065,9 @@ for (const mode of ['reduced-motion', 'save-data'] as const) {
     });
     await page.setViewportSize({ width: 1440, height: 1000 });
     await gotoHome(page);
+    // A wrongly mounted video would only appear after `load`; look past it before saying "none".
+    await page.waitForLoadState('load');
+    await page.waitForTimeout(500);
     await expect(page.locator('.home-dope-sky__video')).toHaveCount(0);
     await expect(page.locator('.home-dope-sky-toggle')).toHaveCount(0);
     expect(await page.locator('.home-dope-sky').evaluate((el) => getComputedStyle(el).backgroundImage)).toContain(HERO_POSTER_SRC);
