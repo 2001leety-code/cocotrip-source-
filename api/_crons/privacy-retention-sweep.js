@@ -602,8 +602,12 @@ async function runTargets(run, jobs, until = run.deadline) {
 
 /** 앞 대상이 채운 목록을 읽는 대상 — 앞 대상을 다시 보면 이것도 다시 본다(일정 메모 ← 협력사 예약 다툼 날짜). */
 const WAITS_FOR = Object.freeze({ mood_schedule_notes: 'mood_bookings' });
+/** 한 대상의 훑기 안에서 다른 이름으로 세는 셈 — 그 대상을 다시 보면 이것도 같이 지우고 다시 센다. */
+const TALLIES_INTO = Object.freeze({ bookings: ['dispatch_messages'], cart_orders: ['cart_orders_unpaid'] });
 /** 다시 볼 때 남기는 셈 = 이미 한 쓰기. 나머지 셈(due 등)은 지우고 처음부터 다시 센다 — 두 번 세지 않게. */
 const DONE_KEYS = Object.freeze(['applied', 'childrenDeleted', 'receiptFilesDeleted']);
+/** 다시 봐도 또 멈춰 오류 난 문서까지 못 갔으면 첫 번 오류를 되살린다 — 오류를 시간 몫으로 덮지 않게. */
+const ERROR_KEYS = Object.freeze(['docError', 'error']);
 
 /**
  * 몫에 걸려 멈춘 대상(+ 그 결과를 읽는 대상)을 남은 시간으로 처음부터 한 번 더 본다.
@@ -616,15 +620,27 @@ async function retryStopped(run, jobs, until) {
   const again = jobs.filter(([target]) => stopped.has(target) || stopped.has(WAITS_FOR[target]));
   if (!again.length) return;
   const share = (until - run.clock()) / again.length;
-  if (!(share > Math.max(...again.map(([target]) => run.shares[target] || 0)))) return;
+  // 멈춘 대상의 첫 몫과만 견준다 — 뒤에서 큰 몫을 받은 대상(일정 메모)까지 넣으면 꼭 필요한 재시도를 건너뛴다.
+  if (!(share > Math.max(...again.filter(([target]) => stopped.has(target)).map(([target]) => run.shares[target] || 0)))) return;
+  const firstErrors = new Map();
   for (const [target] of again) {
     const before = run.counts[target] || {};
-    const kept = Object.fromEntries(DONE_KEYS.filter(key => before[key]).map(key => [key, before[key]]));
-    if (Object.keys(kept).length) run.counts[target] = kept; else delete run.counts[target];
+    if (run.errors.includes(target)) firstErrors.set(target, before);
+    for (const name of [target, ...(TALLIES_INTO[target] || [])]) {
+      const old = run.counts[name] || {};
+      const kept = Object.fromEntries(DONE_KEYS.filter(key => old[key]).map(key => [key, old[key]]));
+      if (Object.keys(kept).length) run.counts[name] = kept; else delete run.counts[name];
+    }
     run.stopped.delete(target);
     run.errors = run.errors.filter(name => name !== target);
   }
   await runTargets(run, again, until);
+  for (const [target, before] of firstErrors) {
+    if (!run.stopped.has(target) || run.errors.includes(target)) continue; // 끝까지 봤으면 이번 결과가 맞다
+    run.errors.push(target);
+    const c = (run.counts[target] ||= {});
+    for (const key of ERROR_KEYS) if (before[key]) c[key] = Math.max(c[key] || 0, before[key]);
+  }
 }
 
 /** 영수증을 지워도 되는 우리 버킷. 미리보기는 그 DB 프로젝트 버킷만(운영 버킷 이름을 넣지 않는다). 하나도 모르면 빈 목록 = 다 남김. */

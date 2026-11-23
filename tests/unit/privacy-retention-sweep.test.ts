@@ -760,6 +760,74 @@ describe('실패·시간·인증', () => {
     expect(result.counts.bookings).toMatchObject({ timedOut: 1, heldStatus: 1, alreadyClean: 1 }); // 첫 셈 그대로(지워지지 않음)
   });
 
+  it('장바구니를 다시 보면 결제 전 장바구니 셈(cart_orders_unpaid)도 한 번만 (검토 B-1)', async () => {
+    const baseline = await run(makeDb(seed()));
+    let t = 0;
+    let slow = true;
+    const fake = makeDb(seed());
+    // c2 를 센 뒤 c3 의 결제 시도 기록 읽기만 10초 → 장바구니 첫 몫에서 c4 전에 멈춤
+    const db = { ...fake.db, collection: (name: string) => {
+      const c = fake.db.collection(name);
+      if (name !== 'used_paypal_orders') return c;
+      return { ...c, doc: (id: string) => { const r = c.doc(id); return { ...r, get: async () => { if (slow && id === 'c3') { slow = false; t += 10_000; } return r.get(); } }; } };
+    } };
+    const result = await run(fake, {}, { clock: () => t, db });
+    expect(result).toMatchObject({ ok: true, code: 'RETENTION_COMPLETED' });
+    expect(result.counts.cart_orders_unpaid).toEqual(baseline.counts.cart_orders_unpaid);
+    expect(result.counts).toEqual(baseline.counts);
+  });
+
+  it('다시 볼지 견줄 때 멈춘 대상의 첫 몫만 본다 — 뒤에서 큰 몫을 받은 일정 메모는 빼고 (검토 B-2)', async () => {
+    const baseline = await run(makeDb(seed()));
+    let t = 0;
+    let moodSlow = true;
+    let lateSlow = true;
+    const fake = makeDb(seed());
+    // 쿼리 사슬 끝 get 을 느리게
+    type Chain = { [k: string]: (...args: unknown[]) => unknown };
+    const slowChain = (q: Chain, onGet: () => void): Chain => ({ ...q,
+      where: (...a) => slowChain(q.where(...a) as Chain, onGet), orderBy: (...a) => slowChain(q.orderBy(...a) as Chain, onGet),
+      limit: (...a) => slowChain(q.limit(...a) as Chain, onGet), startAfter: (...a) => slowChain(q.startAfter(...a) as Chain, onGet),
+      get: async () => { onGet(); return q.get(); } });
+    const db = { ...fake.db, collection: (name: string) => {
+      const c = fake.db.collection(name);
+      // 협력사 예약: 첫 변경 이력 읽기 5초 → 첫 몫(약 1.7초)에서 멈춤. 일정 메모는 그 뒤 약 3.75초 몫을 받음.
+      if (name === 'mood_booking_change_events') return slowChain(c, () => { if (moodSlow) { moodSlow = false; t += 5_000; } });
+      // 맨 뒤 오류 기록 읽기 24초 → 다시 볼 몫 = (35 − 29) ÷ 2 = 3초: 협력사 예약 첫 몫보다 길고 일정 메모 첫 몫보다 짧음
+      if (name === 'error_log') return slowChain(c, () => { if (lateSlow) { lateSlow = false; t += 24_000; } });
+      return c;
+    } };
+    const result = await run(fake, {}, { clock: () => t, db });
+    expect(result).toMatchObject({ ok: true, code: 'RETENTION_COMPLETED', timedOut: false });
+    expect(result.counts.mood_schedule_notes).toEqual(baseline.counts.mood_schedule_notes); // heldMoodUnknown 아님
+    expect(result.counts.mood_bookings).toEqual(baseline.counts.mood_bookings);
+  });
+
+  it('첫 번에 문서 오류가 난 대상이 다시 봐도 그 문서 전에 멈추면 오류를 되살린다 (검토 B-3)', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const data = seed();
+    data.bookings['b-a0'] = { status: 'CONFIRMED', tourDate: '2026-08-01', memo: 'm' }; // 끝날 없음 → 결제 스냅샷 읽음
+    data.bookings['b-bad'] = { tourDate: '2026-09-02', get status(): string { throw new Error('bad doc secret@example.test'); } } as never;
+    let t = 0;
+    let reads = 0;
+    const fake = makeDb(data);
+    // 예약 훑기의 스냅샷 읽기: 첫 번 b-a0 빠름 → b-noend 10초(멈춤, b-bad 는 이미 오류) → 다시 볼 때 b-a0 30초(b-bad 전에 또 멈춤)
+    const db = { ...fake.db, collection: (name: string) => {
+      const c = fake.db.collection(name);
+      if (name !== 'paypal_order_snapshots') return c;
+      return { ...c, doc: (id: string) => { const r = c.doc(id); return { ...r, get: async () => {
+        if (['b-a0', 'b-noend'].includes(id)) { reads += 1; if (reads === 2) t += 10_000; if (reads === 3) t += 30_000; }
+        return r.get();
+      } }; } };
+    } };
+    const result = await run(fake, {}, { clock: () => t, db });
+    expect(reads).toBe(3); // 다시 봤고, b-a0 에서 또 멈춤
+    expect(result).toMatchObject({ ok: false, code: 'RETENTION_REVIEW_REQUIRED', timedOut: true });
+    expect(result.counts.bookings).toMatchObject({ docError: 1, timedOut: 1 });
+    expect(JSON.stringify(warn.mock.calls)).not.toContain('example.test');
+    warn.mockRestore();
+  });
+
   it('시간 예산을 넘기면 멈추고 PARTIAL', async () => {
     const clock = vi.fn().mockReturnValueOnce(0).mockReturnValue(100_000);
     const fake = makeDb(seed());
