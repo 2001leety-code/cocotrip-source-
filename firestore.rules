@@ -50,9 +50,9 @@ service cloud.firestore {
                  || (request.auth != null
                      && get(/databases/$(database)/documents/plans/$(planId)).data.uid == request.auth.uid);
         // Owner cache only (useAutoTranslate.ts): the 4 app languages and exactly the
-        // 5 fields that hook writes. No other keys, so the cache cannot grow into a
-        // second plan document. Server code never reads this cache (paymentGate.js
-        // rejects sub-path revisionOf).
+        // 5 top-level fields that hook writes. `itinerary` is only checked to be a map;
+        // its inside is not checked (owner's own doc, max 4 per plan, 1 MiB each).
+        // Server code never reads this cache (paymentGate.js rejects sub-path revisionOf).
         allow create, update: if request.auth != null
                   && get(/databases/$(database)/documents/plans/$(planId)).data.uid == request.auth.uid
                   && lang in ['ko', 'en', 'ja', 'zh']
