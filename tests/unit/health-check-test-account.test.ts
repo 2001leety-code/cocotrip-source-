@@ -220,10 +220,44 @@ describe('paymentGate — 자동 검사 역할은 자동 검사 접두사 주문
     expect(f.runTransaction).toHaveBeenCalledTimes(1);
   });
 
-  it('재생성 횟수(revisionCredits:2)를 먼저 쓰는 Inngest 만드는 중 문서도 관리자 우회 표시를 쓴다', () => {
+  it.each([
+    ['표시 칸 없는 옛 완성 문서(input.paypalOrderId)', { ...guestPlan, input: { paypalOrderId: 'ADMIN-BYPASS-OLD-1' } }, 'someone@example.test'],
+    ['이메일 없는 호출자', { ...guestPlan, isAdminBypass: true }, null],
+  ])('관리자 우회 플랜 — %s → 403, 횟수 안 줄임', async (_label, orig, email) => {
+    vi.stubEnv('ADMIN_BYPASS_EMAILS', 'admin@example.com');
+    const f = revisionDb(orig);
+    // @ts-expect-error — JS 모듈
+    const { enforcePaymentAndRevision } = await import('../../api/_ai_core/paymentGate.js');
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    try {
+      const r = await enforcePaymentAndRevision({ revisionOf: 'plan-1', revisionToken: 'tok-1' }, f.db, email, 'uid-other', null, { healthCheck: false });
+      expect(r.rejection).toMatchObject({ statusCode: 403, code: 'FORBIDDEN' });
+      expect(f.runTransaction).not.toHaveBeenCalled();
+    } finally {
+      warn.mockRestore();
+    }
+  });
+
+  // 독립 검토 4회차 꼭 고칠 것: revisionOf 에 '/' 가 들어가면 .doc() 가 주인이 쓸 수 있는 하위 문서
+  // (plans/{id}/translations/{x})를 원본으로 읽는다 → DB 를 건드리기 전에 400.
+  it.each([
+    ['하위 문서 경로', 'p1/translations/x'],
+    ['문자열 아님', { id: 'p1' }],
+  ])('revisionOf 가 문서 ID 하나가 아니면(%s) 400, DB 안 건드림', async (_label, revisionOf) => {
+    const collection = vi.fn();
+    // @ts-expect-error — JS 모듈
+    const { enforcePaymentAndRevision } = await import('../../api/_ai_core/paymentGate.js');
+    const r = await enforcePaymentAndRevision({ revisionOf, revisionToken: 'tok-1' }, { collection }, 'u@example.test', 'uid-u', null, { healthCheck: false });
+    expect(r.rejection).toMatchObject({ statusCode: 400, code: 'INVALID_REVISION_TARGET' });
+    expect(collection).not.toHaveBeenCalled();
+  });
+
+  it('재생성 횟수(revisionCredits:2)를 먼저 쓰는 Inngest 만드는 중 문서도 완성 문서와 같은 식으로 관리자 우회 표시를 쓴다', () => {
     const src = read('api/_inngest/functions/processPlanAfterAI.js');
     const skeleton = src.slice(src.indexOf("step.run('skeleton-write'"), src.indexOf('revisionCredits: 2'));
-    expect(skeleton).toContain('isAdminBypass: !!ctx.isAdminBypass');
+    expect(skeleton).toContain('isAdminBypass: isAdminBypassOrderId(ctx.body?.paypalOrderId)');
+    // 완성 문서(planPersister)도 같은 식 — 다르면 plan-persistence-guard 가 'skeleton provenance mismatch' 로 저장을 막는다.
+    expect(read('api/_ai_core/planPersister.js')).toContain('isAdminBypass: isAdminBypassOrderId(body.paypalOrderId)');
   });
 
   it('거절 응답·서버 기록에 허용 이메일 목록과 요청 이메일이 없다', async () => {

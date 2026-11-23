@@ -20,7 +20,7 @@ import { toMinorUnits, verifyCaptureIntegrity } from '../_shared/paypal-capture-
 import { claimPlanIssuance, isPlanIssuanceComplete, PLAN_ISSUANCE_CODE } from '../_shared/plan-issuance.js';
 import { isVoidTombstone } from '../_shared/payment-fulfillment-recovery.js';
 import { shapeRequest } from './requestShaper.js';
-import { isAutomatedCheckOrderId } from '../_shared/admin-bypass-detector.js';
+import { isAutomatedCheckOrderId, isAdminBypassOrderId } from '../_shared/admin-bypass-detector.js';
 import { claimHealthCheckQuota, quotaRejection } from '../_shared/health-check-quota.js';
 import { enforceDietaryCoverage, hasSafetyDiet } from './dietaryCoverageGate.js';
 import { normalizePrepayInput, prepayFingerprint, prepayInputSummary, loadPrepayFoodIndex } from '../_shared/prepay-coverage.js';
@@ -262,6 +262,13 @@ export async function enforcePaymentAndRevision(body, adminDb, authenticatedEmai
   // dispatch 조기 return 이 catch 를 건너뛰어 유실된다. 상세 = _shared/plan-issuance.js.
   let planClaim = null;
 
+  // 2026-11-23 (독립 검토 4회차 꼭 고칠 것): revisionOf 는 플랜 문서 ID 하나여야 한다. '/' 가 들어가면
+  //   .doc() 가 하위 문서(예: 플랜 주인이 직접 쓸 수 있는 plans/{id}/translations/{x})를 원본으로 읽어
+  //   주인·토큰·재생성 횟수 검사를 통째로 돌아간다. DB 를 건드리기 전에 막는다.
+  if (revisionOf && (typeof revisionOf !== 'string' || revisionOf.includes('/'))) {
+    return reject(400, 'INVALID_REVISION_TARGET', 'Invalid revisionOf');
+  }
+
   // 2026-11-22 (독립 검토 2회차 꼭 고칠 것): 자동 검사 역할은 재생성 금지. 재생성은 하루 상한
   //   (claimHealthCheckQuota)도 mock 채택(handlerCore — isAdminBypass 일 때만)도 안 지나 실제 AI 를 부른다.
   //   자동 검사 스크립트·e2e 는 revisionOf 를 쓰지 않는다. 횟수 차감 전에 막는다.
@@ -282,12 +289,14 @@ export async function enforcePaymentAndRevision(body, adminDb, authenticatedEmai
     //   관리자 허용 이메일만 재생성한다. 자동 검사 계정이 만든 주인 없는 플랜은 접근 토큰이 응답 planUrl 로
     //   돌아오므로, 막지 않으면 역할 없는 다른 로그인 계정이 그 토큰으로 재생성해 하루 상한·mock 밖에서
     //   실제 AI 를 부른다. 손님 플랜은 이 주문번호로 만들어지지 않아 여기 걸리지 않는다.
-    //   만드는 중 문서(Inngest skeleton-write)도 isAdminBypass 를 쓴다.
+    //   만드는 중 문서(Inngest skeleton-write)도 isAdminBypass 를 쓴다. 표시 칸이 없는 옛 완성 문서는
+    //   input.paypalOrderId 로 판정한다. 거절 문구는 아래 주인 검사와 같게 둔다(관리자 우회 플랜인지 안 드러나게).
     const origIsAdminBypass = origData.isAdminBypass === true
-      || origData.paymentSource === 'admin-bypass' || origData.paymentSource === 'test';
+      || origData.paymentSource === 'admin-bypass' || origData.paymentSource === 'test'
+      || isAdminBypassOrderId(origData.input?.paypalOrderId);
     if (origIsAdminBypass && !getAdminBypassEmails().includes((authenticatedEmail || '').toLowerCase().trim())) {
       console.warn('[planner] revision rejected | admin-bypass plan, caller not in admin allowlist');
-      return reject(403, 'FORBIDDEN', 'Revision not allowed for this plan');
+      return reject(403, 'FORBIDDEN', 'Unauthorized revision');
     }
     // SECURITY (버그헌트 2026-06-14): 소유권은 검증된 토큰 uid 로만 판정. 이전엔 body.uid 를
     // 신뢰해 임의 로그인 사용자가 body.uid=피해자uid 로 isOwner 우회 → 남의 plan revision +
