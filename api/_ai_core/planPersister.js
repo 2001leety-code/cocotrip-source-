@@ -13,6 +13,7 @@ import { detectPaymentSource, isAdminBypassOrderId, isOperatorTestEmail } from '
 import { beginPlanCommit, finalizePlanIssuance } from '../_shared/plan-issuance.js';
 import { validateBinding, rootFieldsFor } from '../_shared/ai-coupon-persistence.js';
 import { commitGenerationRoot, repairGenerationListing, guardGenerationPatch } from '../_shared/plan-persistence-guard.js';
+import { initialRevisionCredits } from '../_shared/revision-credits.js'; // 재생성 결과 = 0회
 import { departureBreakfastNote } from '../../src/lib/departureBreakfastNote.js';
 import { departureMealNote, stripDepartureMealNote, stripDepartureMealExemptionIfMealAdded } from '../../src/lib/departureMealNote.js';
 import { arrivalRestNote, stripArrivalRestNote, hasArrivalRestNote } from '../../src/lib/arrivalRestNote.js';
@@ -1342,7 +1343,7 @@ export async function savePlanSkeleton(adminDb, {
       ...(plannerIntent ? { planner_intent_v1: plannerIntent } : {}),
     },
     pricing: { vehicle, priceKRW: priceKRW || 0, priceUSD: priceUSD || 0 },
-    revisionCredits: 2,
+    revisionCredits: initialRevisionCredits(body),
     revisionCount: 0,
     // 빈 itinerary — streaming 완료 전 PlanDetailPage 가 로딩 인디케이터 표시용
     itinerary: {
@@ -1734,8 +1735,9 @@ export async function persistPlan(adminDb, {
     },
     itinerary,
     pricing: { vehicle, priceKRW, priceUSD },
-    revisionCredits: 2,  // 무료 재생성 2회 (결제 시 포함)
+    revisionCredits: initialRevisionCredits(body),  // 무료 재생성 2회 (결제 시 포함). 재생성 결과 = 0
     revisionCount: 0,    // 현재까지 재생성 횟수
+    ...(body.revisionOf ? { revisionOf: String(body.revisionOf) } : {}), // 재생성 결과의 원본 플랜(화면 안내용)
     ...(qualityScore ? { qualityScore } : {}),
     // Phase 4 A/B test (2026-05-13): per-plan mode trace. Used by admin
     // quality-summary endpoint (Tier 2-D) to bucket scores by pipeline.

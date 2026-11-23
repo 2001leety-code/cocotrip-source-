@@ -139,7 +139,9 @@ describe('P231 skeleton-in-worker 정적 소스 검증', () => {
   it('P231-B4: skeleton-write 실패 시 non-fatal 처리 존재', () => {
     // skeleton-write 실패해도 routeEnrich + persistPlan 은 계속.
     // step.run('skeleton-write', ...) 본문이 길어 4000 char 로 slice.
-    const skWriteIdx = workerSrc.indexOf("'skeleton-write'");
+    // 2026-11-23: anchor on the step.run call, not the earlier comment mention (was ~60 chars of margin).
+    const skWriteIdx = workerSrc.indexOf("step.run('skeleton-write'");
+    expect(skWriteIdx).toBeGreaterThan(-1);
     const skWriteSrc = workerSrc.slice(skWriteIdx, skWriteIdx + 4000);
     expect(skWriteSrc).toMatch(/catch\s*\(/);
     expect(skWriteSrc).toMatch(/non-fatal/);
@@ -305,6 +307,7 @@ describe('P231 Step 0 (skeleton-write) — real invocation, public doc sanitizat
     expect(skeletonWriteCall!.data.itinerary.days).toEqual([]);
     expect(skeletonWriteCall!.data.itinerary.tour_title).toBeNull();
     expect(skeletonWriteCall!.data._block_mode_used).toBe(true);
+    expect(skeletonWriteCall!.data.revisionCredits).toBe(2); // 2026-11-23: normal plan keeps 2
 
     // No .set() call captured anywhere (skeleton-write OR the trailing status mark)
     // may carry non-empty days — this is the invariant the fix guarantees.
@@ -323,6 +326,34 @@ describe('P231 Step 0 (skeleton-write) — real invocation, public doc sanitizat
     expect(persistArgs.itinerary).toBe(realItinerary);
 
     expect(result.planId).toBe('plan-abc');
+  });
+
+  it('P231-G3 (2026-11-23): revision result skeleton gets 0 free regenerations (credits stay on the original)', async () => {
+    const { processPlanAfterAI } = await import('../../api/_inngest/functions/processPlanAfterAI.js');
+    const body = { revisionOf: 'orig-plan' };
+    const eventData = {
+      planId: 'plan-abc',
+      itinerary: realItinerary,
+      ctx: {
+        apiKey: 'k', body, hotel_address: null, arrival_airport: null, departure_airport: null, pax: 2,
+        recommendedZone: null, recommendedZoneAddress: null, hotelAddressFromBody: null, hotelByCity: null,
+        area: 'seoul', dietPrefs: [], regions: [], vehicle: 'staria_8', durationDays: 3,
+        uid: 'u1', guestName: 'G', styles: [], duration: 3, startDate: '2026-06-01', email: null,
+        specialRequest: null, mobility: null, language: 'en',
+        plannerMode: 'block_mode', abReason: null, abBucket: null, blocksUsed: [],
+        streamingPlanId: 'plan-abc',
+        isAdminBypass: false, identifierForBucketing: null,
+        skeletonCtx: {
+          uid: 'u1', email: null, area: 'seoul', startDate: '2026-06-01', guestName: 'G', pax: 2, language: 'en',
+          vehicle: 'staria_8', priceKRW: 100000, priceUSD: 75, body, blockModeItinerary: null, forceGuestToken: false,
+        },
+      },
+    };
+    await (processPlanAfterAI as unknown as { fn: (args: unknown) => Promise<unknown> }).fn({ event: { data: eventData }, step: makeStep(), logger });
+    const skeletonWriteCall = mockCalls.find((c) => c.id === 'plan-abc' && c.data._p231_stub === false);
+    expect(skeletonWriteCall).toBeDefined();
+    expect(skeletonWriteCall!.data.revisionCredits).toBe(0);
+    expect(pipelineMocks.savePlan.mock.calls[0][1].body.revisionOf).toBe('orig-plan'); // persistPlan sees it too
   });
 
   it('P231-G2: skeletonCtx absent (P231 OFF / legacy path) — Step 0 skipped entirely, no premature public write, pipeline still processes real itinerary', async () => {

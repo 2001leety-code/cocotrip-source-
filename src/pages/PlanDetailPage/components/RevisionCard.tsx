@@ -117,6 +117,31 @@ const EXHAUSTED_LABELS: Record<'ko' | 'en' | 'ja' | 'zh', { title: string; desc:
   },
 };
 
+// 2026-11-23: 재생성으로 만든 플랜(revisionOf 있음)은 횟수 0 으로 저장된다 — 남은 횟수는 원본에만.
+//   "모두 사용됨" 대신 원래 플랜으로 안내한다.
+const REVISION_RESULT_LABELS: Record<'ko' | 'en' | 'ja' | 'zh', { title: string; desc: string; open: string }> = {
+  ko: {
+    title: '다시 만든 플랜이에요',
+    desc: '남은 무료 재생성이 있다면 원래 플랜에서 쓸 수 있어요.',
+    open: '원래 플랜 열기',
+  },
+  en: {
+    title: 'This is a regenerated plan',
+    desc: 'Any free regenerations you have left are on your original plan.',
+    open: 'Open original plan',
+  },
+  ja: {
+    title: '再生成したプランです',
+    desc: '無料再生成が残っていれば、元のプランから使えます。',
+    open: '元のプランを開く',
+  },
+  zh: {
+    title: '这是重新生成的行程',
+    desc: '如果还有剩余的免费重新生成次数，可以在原行程中使用。',
+    open: '打开原行程',
+  },
+};
+
 export function RevisionCard({ plan, planId, token }: RevisionCardProps) {
   // `?? 0` instead of `|| 0`: revisionCredits=0 is falsy, but 0 is a valid exhausted state.
   // Old `|| 0` caused: plan with credits=0 → treated same as credits=undefined → card hidden
@@ -140,8 +165,30 @@ export function RevisionCard({ plan, planId, token }: RevisionCardProps) {
   if (credits <= 0) {
     // If revisionCredits was never set (undefined), don't show anything (legacy plans)
     if (!creditsExplicitlySet) return null;
-    // Show exhausted-state card
     const lang = (['ko', 'en', 'ja', 'zh'].includes(language) ? language : 'en') as 'ko' | 'en' | 'ja' | 'zh';
+    // Regenerated plan — credits live on the original plan.
+    if (typeof plan.revisionOf === 'string' && plan.revisionOf) {
+      const R = REVISION_RESULT_LABELS[lang];
+      return (
+        <div className="mt-8 rounded-2xl overflow-hidden border border-white/10"
+          style={{ background: 'rgba(255,255,255,0.03)' }}>
+          <div className="px-5 py-4 text-center">
+            <div className="flex items-center justify-center gap-2 mb-2">
+              <RefreshCw className="w-4 h-4 text-white/40" />
+              <h3 className="text-sm font-semibold text-white/60">{R.title}</h3>
+            </div>
+            <p className="text-white/40 text-[14px] mb-3">{R.desc}</p>
+            <a
+              href={`/my-plans/${encodeURIComponent(plan.revisionOf)}`}
+              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full text-[14px] font-semibold text-white/70 border border-white/10 hover:bg-white/[0.06] transition-all min-h-[44px]"
+            >
+              {R.open}
+            </a>
+          </div>
+        </div>
+      );
+    }
+    // Show exhausted-state card
     const L = EXHAUSTED_LABELS[lang];
     return (
       <div className="mt-8 rounded-2xl overflow-hidden border border-white/10"

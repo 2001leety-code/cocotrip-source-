@@ -286,6 +286,22 @@ it('preserves a verified revision that also carries a coupon code without consum
  const created=boundary.db!.__get(`plans/${res.json.data.planId}`);expect(created).toMatchObject({uid:UID,isFreeCoupon:true,paymentSource:'ai-coupon'}); // Existing display provenance, not a new coupon consumption.
  expect(created.aiCouponBinding).toBeUndefined();expect(roots()).toHaveLength(2);
 });
+// 2026-11-23: one purchase = at most 2 regenerations. The result plan gets 0 credits + revisionOf,
+//   so regenerating from it is rejected; the original keeps counting down.
+it('gives a revision result no fresh free regenerations and blocks regenerating from it',async()=>{
+ setupCoupon();const first=await runPlanner(couponBody());expect(first.statusCode).toBe(200);
+ const origId=first.json.data.planId;expect(boundary.db!.__get(`plans/${origId}`).revisionCredits).toBe(2);expect(boundary.db!.__get(`plans/${origId}`)).not.toHaveProperty('revisionOf');
+ const revisionBody=(revisionOf:string)=>{const b:Record<string,unknown>=requestBody();delete b.paypalOrderId;b.uid=UID;b.revisionOf=revisionOf;return b;};
+ const res=await runPlanner(revisionBody(origId));expect(res.statusCode).toBe(200);const childId=res.json.data.planId;expect(childId).not.toBe(origId);
+ expect(boundary.db!.__get(`plans/${childId}`)).toMatchObject({revisionCredits:0,revisionCount:0,revisionOf:origId});
+ expect(boundary.db!.__get(`plans/${origId}`)).toMatchObject({revisionCredits:1,revisionCount:1});
+ const calls=boundary.generate.mock.calls.length;
+ const chained=await runPlanner(revisionBody(childId));expect(chained.statusCode).toBe(403);expect(chained.json.code).toBe('REVISION_EXHAUSTED');
+ expect(boundary.generate).toHaveBeenCalledTimes(calls);expect(boundary.db!.__get(`plans/${childId}`).revisionCredits).toBe(0);
+ const second=await runPlanner(revisionBody(origId));expect(second.statusCode).toBe(200);
+ expect(boundary.db!.__get(`plans/${origId}`)).toMatchObject({revisionCredits:0,revisionCount:2});
+ expect(boundary.db!.__get(`plans/${second.json.data.planId}`)).toMatchObject({revisionCredits:0,revisionOf:origId});
+});
 it('does not let an unverified revision claim bypass the coupon binding requirement',async()=>{
  setupCoupon();const couponBefore=boundary.db!.__get(COUPON);
  boundary.db!.__set('plans/synthetic-other-revision',{planId:'synthetic-other-revision',uid:'other-user',status:'ready',revisionCredits:2,itinerary:generated,input:{}});
