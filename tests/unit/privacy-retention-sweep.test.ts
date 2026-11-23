@@ -249,6 +249,8 @@ const run = (fake: ReturnType<typeof makeDb>, env: Record<string, string> = {}, 
   privacyRetentionSweepTask({ env: { FIREBASE_PROJECT_ID: 'proj', ...env }, now: () => NOW, clock: () => 0, db: fake.db, storage: fake.storage, ...extra } as never) as Promise<any>;
 
 const dump = (store: Map<string, Map<string, Data>>) => [...store.entries()].filter(([, v]) => v.size).map(([k, v]) => [k, [...v.entries()]]);
+/** 상태 문서(개수) 빼고 — 셈 모양이 달라도 데이터가 같은지 볼 때. */
+const dataOnly = (store: Map<string, Map<string, Data>>) => dump(store).filter(([k]) => k !== 'privacy_retention_state');
 
 describe('기본 = 개수만 셈 (스위치 꺼짐)', () => {
   it('아무것도 바꾸지 않고 상태 문서 하나만 쓴다', async () => {
@@ -466,14 +468,35 @@ describe('스위치 켬 = 지움', () => {
       const c = fake.db.collection(name);
       if (name !== 'mood_booking_change_events') return c;
       return { ...c, where: (f: string, op: string, v: unknown) => {
-        const q = c.where(f, op, v); // 예약마다 변경 이력 읽기 한 번 = 10초 → m1 뒤에서 멈춤
-        return f === 'bookingId' ? { ...q, get: async () => { t += 10_000; return q.get(); } } : q;
+        // 예약마다 변경 이력 읽기 한 번 = 15초 → 첫 몫에서 m1 뒤 멈춤, 남은 시간(20초 ÷ 2)으로 다시 봐도 또 멈춤
+        const q = c.where(f, op, v);
+        return f === 'bookingId' ? { ...q, get: async () => { t += 15_000; return q.get(); } } : q;
       } };
     } };
     const result = await run(fake, ENV, { clock: () => t, db });
-    expect(result.counts.mood_bookings).toHaveProperty('timedOut', 1);
+    expect(result.counts.mood_bookings).toHaveProperty('timedOut', 1); // 다시 봐도 또 멈춤 → 한 번만 셈
     expect(result.counts.mood_schedule_notes).toEqual({ heldMoodUnknown: 2 });
     expect(fake.col('mood_schedule_notes').size).toBe(3);
+  });
+
+  it('협력사 예약이 첫 몫에 멈춰도 남은 시간으로 다시 보고, 일정 메모도 다시 본다(11/23 운영 첫 셈)', async () => {
+    const base = makeDb(seed());
+    const baseline = await run(base, ENV);
+    let t = 0;
+    let slow = true;
+    const fake = makeDb(seed());
+    const db = { ...fake.db, collection: (name: string) => {
+      const c = fake.db.collection(name);
+      if (name !== 'mood_booking_change_events') return c;
+      return { ...c, where: (f: string, op: string, v: unknown) => {
+        const q = c.where(f, op, v); // 첫 변경 이력 읽기만 10초 → 첫 몫(약 1.25초)에서 멈춤
+        return f === 'bookingId' ? { ...q, get: async () => { if (slow) { slow = false; t += 10_000; } return q.get(); } } : q;
+      } };
+    } };
+    const result = await run(fake, ENV, { clock: () => t, db });
+    expect(result).toMatchObject({ ok: true, code: 'RETENTION_COMPLETED', timedOut: false });
+    expect(result.counts).toEqual(baseline.counts); // due 두 번 세지 않음, timedOut·heldMoodUnknown 없음
+    expect(dump(fake.store)).toEqual(dump(base.store));
   });
 
   it('다시 돌려도 이미 비운 것은 다시 쓰지 않는다', async () => {
@@ -637,6 +660,20 @@ describe('구글 시트 (운영에서만)', () => {
     expect(JSON.stringify(result)).not.toContain('example.test');
   });
 
+  it('Leads 탭이 없으면 tabMissing(오류 아님) · 다른 읽기 실패는 코드와 함께 오류', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const failing = (leadsError: Record<string, unknown>) => ({ ...sheets(), readRetentionSheetRows: vi.fn(async (tab: string) => {
+      if (tab === 'leads') throw Object.assign(new Error(String(leadsError.code)), leadsError);
+      return bookingRows;
+    }) });
+    const missing = await run(makeDb(), { VERCEL_ENV: 'production' }, { sheets: failing({ code: 'SHEETS_READ_400', tabMissing: true }) });
+    expect(missing).toMatchObject({ ok: true, code: 'RETENTION_COMPLETED', counts: { sheet_leads: { tabMissing: 1 } } });
+    const denied = await run(makeDb(), { VERCEL_ENV: 'production' }, { sheets: failing({ code: 'SHEETS_READ_403', tabMissing: false }) });
+    expect(denied).toMatchObject({ ok: false, code: 'RETENTION_REVIEW_REQUIRED', counts: { sheet_leads: { error: 1 } } });
+    expect(warn).toHaveBeenCalledWith('[privacy-retention] target failed:', 'sheet_leads', 'SHEETS_READ_403');
+    warn.mockRestore();
+  });
+
   it('미리보기: 읽지도 않음 / 시트 설정 없음: skipped 로 넘어감', async () => {
     const api = sheets();
     await run(makeDb(), { VERCEL_ENV: 'preview', PRIVACY_RETENTION_DELETE_ENABLED: 'true' }, { sheets: api });
@@ -674,17 +711,53 @@ describe('실패·시간·인증', () => {
   it('앞 대상이 시간을 다 써도 뒤 대상은 자기 몫으로 센다', async () => {
     let t = 0;
     const fake = makeDb(seed());
-    // 결제 스냅샷 읽기 한 번 = 10초(느린 읽기). 예약 훑기가 첫 읽기 뒤 자기 몫을 넘김.
+    // 예약 훑기의 결제 스냅샷 읽기 한 번 = 20초(느린 읽기). 첫 읽기 뒤 자기 몫을 넘기고, 남은 시간으로 다시 봐도 또 넘김.
     const db = { collection: (name: string) => {
       const c = fake.db.collection(name);
       if (name !== 'paypal_order_snapshots') return c;
-      return { ...c, doc: (id: string) => { const r = c.doc(id); return { ...r, get: async () => { t += 10_000; return r.get(); } }; } };
+      return { ...c, doc: (id: string) => { const r = c.doc(id); return { ...r, get: async () => { if (['b-noend', 'P-snap'].includes(id)) t += 20_000; return r.get(); } }; } };
     } };
     const result = await privacyRetentionSweepTask({ env: {}, now: () => NOW, clock: () => t, db } as never) as any;
     expect(result).toMatchObject({ ok: true, code: 'RETENTION_PARTIAL', timedOut: true });
     expect(result.counts.bookings).toHaveProperty('timedOut', 1);
     expect(result.counts.plans_guest).toEqual({ due: 2, heldComplaint: 1, heldPaid: 3, notYet: 3, member: 1 });
     expect(result.counts.pending_bookings_unverified).toEqual({ due: 2, notYet: 1, noDate: 1, heldPaymentSeen: 1 });
+  });
+
+  it('예약이 첫 몫에 멈추면 남은 시간으로 다시 본다 — 첫 번에 한 쓰기(applied)는 남기고 due 는 한 번만', async () => {
+    const DEL = { PRIVACY_RETENTION_DELETE_ENABLED: 'true' };
+    const base = makeDb(seed());
+    const baseline = await run(base, DEL);
+    let t = 0;
+    let slow = true;
+    const fake = makeDb(seed());
+    // b-old 를 비운 뒤 b-noend 의 결제 스냅샷 읽기만 10초 → 첫 몫에서 멈춤(b-snap 은 못 봄)
+    const db = { ...fake.db, collection: (name: string) => {
+      const c = fake.db.collection(name);
+      if (name !== 'paypal_order_snapshots') return c;
+      return { ...c, doc: (id: string) => { const r = c.doc(id); return { ...r, get: async () => { if (slow) { slow = false; t += 10_000; } return r.get(); } }; } };
+    } };
+    const result = await run(fake, DEL, { clock: () => t, db });
+    expect(result).toMatchObject({ ok: true, code: 'RETENTION_COMPLETED', timedOut: false, writes: baseline.writes });
+    // 다시 볼 때 b-old 는 이미 비워져 alreadyClean — 첫 번 applied 1 + 다시 본 applied 1
+    expect(result.counts.bookings).toEqual({ ...baseline.counts.bookings, due: baseline.counts.bookings.due - 1, alreadyClean: baseline.counts.bookings.alreadyClean + 1 });
+    expect(result.counts.bookings.applied).toBe(baseline.counts.bookings.applied);
+    expect(dataOnly(fake.store)).toEqual(dataOnly(base.store));
+  });
+
+  it('남은 시간이 첫 몫보다 짧으면 다시 보지 않고 첫 셈을 둔다', async () => {
+    let t = 0;
+    const fake = makeDb(seed());
+    // 첫 스냅샷 읽기에서 34초 → 개인정보 몫(35초)이 1초 남음 = 첫 몫(약 1.25초)보다 짧음
+    let slow = true;
+    const db = { ...fake.db, collection: (name: string) => {
+      const c = fake.db.collection(name);
+      if (name !== 'paypal_order_snapshots') return c;
+      return { ...c, doc: (id: string) => { const r = c.doc(id); return { ...r, get: async () => { if (slow) { slow = false; t += 34_000; } return r.get(); } }; } };
+    } };
+    const result = await run(fake, {}, { clock: () => t, db });
+    expect(result).toMatchObject({ code: 'RETENTION_PARTIAL', timedOut: true });
+    expect(result.counts.bookings).toMatchObject({ timedOut: 1, heldStatus: 1, alreadyClean: 1 }); // 첫 셈 그대로(지워지지 않음)
   });
 
   it('시간 예산을 넘기면 멈추고 PARTIAL', async () => {
@@ -852,7 +925,8 @@ describe('변경 기록 직원 이메일 — 다툼 처리 중이면 남김 (운
     const db = { ...fake.db, collection: (name: string) => {
       const c = fake.db.collection(name);
       if (name !== 'mood_bookings') return c;
-      return { ...c, doc: (id: string) => { const r = c.doc(id); return { ...r, get: async () => { t += 10_000; return r.get(); } }; } };
+      // 읽기 한 번 = 20초 → 첫 몫에서도, 남은 시간으로 다시 볼 때도 걸림
+      return { ...c, doc: (id: string) => { const r = c.doc(id); return { ...r, get: async () => { t += 20_000; return r.get(); } }; } };
     } };
     const result = await run(fake, DEL, { clock: () => t, db });
     expect(result.counts[T]).toMatchObject({ due: 1, deferred: 1, timedOut: 1 });

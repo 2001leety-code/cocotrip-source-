@@ -61,7 +61,8 @@ export async function recordLeadToSheets({ email, area, styles, pax }) {
     const sheetPrivateKey = (process.env.GOOGLE_PRIVATE_KEY || process.env.GOOGLE_SERVICE_ACCOUNT_KEY || '').replace(/\\n/g, '\n').trim();
     const sheetId = (process.env.GOOGLE_SHEETS_SPREADSHEET_ID || '').trim();
     if (sheetClientEmail && sheetPrivateKey && sheetId) {
-      const auth = new google.auth.JWT(sheetClientEmail, undefined, sheetPrivateKey, ['https://www.googleapis.com/auth/spreadsheets']);
+      // google-auth-library 10 의 JWT 는 옵션 객체만 받는다(자리 인자는 무시 → 인증 없이 요청, 11/23 운영 로그).
+      const auth = new google.auth.JWT({ email: sheetClientEmail, key: sheetPrivateKey, scopes: ['https://www.googleapis.com/auth/spreadsheets'] });
       const sheets = google.sheets({ version: 'v4', auth });
       await sheets.spreadsheets.values.append({
         // RAW: '2026-11' 이 날짜(11월 1일)로 바뀌지 않게 글자 그대로.
