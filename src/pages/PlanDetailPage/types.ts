@@ -63,6 +63,8 @@ export interface PlanDocument {
   plannerMode?: string;
   _streaming_in_progress?: boolean;
   _streaming_progress?: number;
+  /** 2026-11-23: 재생성으로 만든 플랜이면 원본 planId. 이 플랜의 revisionCredits 는 0(남은 횟수는 원본에). */
+  revisionOf?: string;
   [key: string]: unknown;
 }
 

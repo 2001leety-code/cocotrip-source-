@@ -56,6 +56,7 @@ import { savePlanSkeleton } from '../../_ai_core/planPersister.js'; // P231: stu
 import { rootFieldsFor } from '../../_shared/ai-coupon-persistence.js';
 import { guardGenerationPatch } from '../../_shared/plan-persistence-guard.js';
 import { isAdminBypassOrderId } from '../../_shared/admin-bypass-detector.js';
+import { initialRevisionCredits } from '../../_shared/revision-credits.js'; // 재생성 결과 = 0회
 import { releasePlanIssuance } from '../../_shared/plan-issuance.js'; // P0: onFailure 시 발급권 해제
 import { VEHICLE_LABELS } from '../../_ai_core/vehicleAndPrice.js';
 import { sendNotificationEmail, recordLeadToSheets } from '../../_ai_core/emailNotifier.js';
@@ -252,7 +253,7 @@ export const processPlanAfterAI = inngest.createFunction(
               regions: Array.isArray(skBody?.regions) && skBody.regions.length > 0 ? skBody.regions : (area ? [area] : []),
             },
             pricing: { vehicle, priceKRW: priceKRW || 0, priceUSD: priceUSD || 0 },
-            revisionCredits: 2,
+            revisionCredits: initialRevisionCredits(ctx.body || skBody),
             revisionCount: 0,
             // 🔴 2026-08-24 (planner-trust): block-mode raw itinerary(days 포함)를 여기서
             //   public doc 에 먼저 쓰면 Step 1(routeEnrich)~Step 3(recommendedRestaurants —
