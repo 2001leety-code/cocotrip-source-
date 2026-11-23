@@ -42,9 +42,13 @@ if (REFINED_LEGACY) {
   // Fraunces 세리프는 .refined-* 스코프에서만 쓰인다. 플래그 OFF 인데도 매 로드마다
   // 받아오던 외부 폰트 요청을 여기서 없앤다(main.tsx 주입 유지 — index.html 을 건드리면
   // PDF_KOREAN_FONT lint false-positive). display=swap.
+  // data-prerender-strip: 미리 굽기가 이 링크를 정적 HTML <head> 에 박으면 첫 그림을 막는다
+  // (휴대폰 측정 2026-11-23, 약 0.9초). 굽는 단계에서 빼고, 손님 브라우저는 여기서 다시 넣는다
+  // — JS 로 넣은 스타일은 그리기를 막지 않는다. scripts/lib/prerender-strip.mjs.
   const frauncesLink = document.createElement('link');
   frauncesLink.rel = 'stylesheet';
   frauncesLink.href = 'https://fonts.googleapis.com/css2?family=Fraunces:opsz,ital,wght@9..144,0,500;9..144,0,600;9..144,1,500;9..144,1,600&display=swap';
+  frauncesLink.setAttribute('data-prerender-strip', '');
   document.head.appendChild(frauncesLink);
 }
 
