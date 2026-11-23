@@ -16,8 +16,8 @@ name: PR Payment Regression Suite
 #
 # Secrets 필요:
 #   FIREBASE_WEB_API_KEY    -> .env 의 VITE_FIREBASE_API_KEY
-#   HEALTH_CHECK_EMAIL      -> admin 계정 (ADMIN_BYPASS_EMAILS 등록 필수)
-#   HEALTH_CHECK_PASSWORD   -> admin 계정 비밀번호
+#   HEALTH_CHECK_EMAIL      -> 자동 검사 전용 계정 (맞춤 권한 roles:['health-check'], 운영자 관리자 계정 아님 — 2026-11-21)
+#   HEALTH_CHECK_PASSWORD   -> 위 계정 비밀번호
 #   VITE_PAYPAL_CLIENT_ID   -> (선택) B-PAY1 SDK 로드 검증용 — 미설정 시 skip+warning
 
 on:

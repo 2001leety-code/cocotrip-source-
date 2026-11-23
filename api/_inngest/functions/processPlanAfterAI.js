@@ -55,6 +55,7 @@ import { triggerPass3BackgroundIfPending } from '../../_ai_core/backgroundPipeli
 import { savePlanSkeleton } from '../../_ai_core/planPersister.js'; // P231: stub → full skeleton 업그레이드
 import { rootFieldsFor } from '../../_shared/ai-coupon-persistence.js';
 import { guardGenerationPatch } from '../../_shared/plan-persistence-guard.js';
+import { isAdminBypassOrderId } from '../../_shared/admin-bypass-detector.js';
 import { releasePlanIssuance } from '../../_shared/plan-issuance.js'; // P0: onFailure 시 발급권 해제
 import { VEHICLE_LABELS } from '../../_ai_core/vehicleAndPrice.js';
 import { sendNotificationEmail, recordLeadToSheets } from '../../_ai_core/emailNotifier.js';
@@ -237,6 +238,7 @@ export const processPlanAfterAI = inngest.createFunction(
             createdAt: new Date().toISOString(),
             createdAtMs: Date.now(),
             uid: uid || null,
+            isAdminBypass: isAdminBypassOrderId(ctx.body?.paypalOrderId), // 2026-11-23: 재생성 막기용, 완성 문서와 같은 식
             ...(forceGuestToken ? { accessToken: randomUUID() } : {}),
             guestEmail: email || null,
             input: {

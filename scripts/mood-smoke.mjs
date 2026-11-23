@@ -9,13 +9,16 @@
  *   Bearer 토큰을 발급 → 실 MOOD 엔드포인트를 인증 상태로 호출·검증.
  *
  * 검증 대상(전부 읽기전용/파싱 — 돈 차감 없음. mood-book 은 잔액을 깎으므로 제외):
- *   1. GET  /api/mood-data?clientId=mood   → { client:{balanceKRW}, bookings, isAdmin }
+ *   1. GET  /api/mood-data[?clientId=MOOD_CLIENT_ID] → { client:{balanceKRW}, bookings, isAdmin }
  *   2. GET  /api/mood-places               → { ok, places:[] }  (주소록)
  *   3. POST /api/mood-parse-schedule {text} → { ok, stops[], serviceGuess, needsConfirm:true }
  *
  * 필요 env (CI 시크릿 — validate-planner 와 공유):
- *   - FIREBASE_WEB_API_KEY, HEALTH_CHECK_PASSWORD
- *   - (선택) HEALTH_CHECK_EMAIL(기본 2001leety@gmail.com), MOOD_CLIENT_ID(기본 mood)
+ *   - FIREBASE_WEB_API_KEY, HEALTH_CHECK_EMAIL, HEALTH_CHECK_PASSWORD
+ *     (2026-11-21~ 자동 검사 전용 계정 roles:['health-check'] — MOOD 허용 목록 밖. 서버가 조회는 돌리되
+ *      예약 내용·주소록 내용은 비워서 돌려주고, 일정 파싱은 주소록 매칭을 건너뛴다.)
+ *   - (선택) MOOD_CLIENT_ID — 기본 'mood'(운영자 계정, 예전과 같음). 토큰에 health-check 역할이 있으면 기본값을
+ *     안 보낸다 — 운영자가 아니면 서버가 허용 목록(mood_config/allowlist.clientId)으로 고정하고, 다른 값은 403 이다.
  *   시크릿 없으면 SKIP(exit 0) — 로컬에서 안전, CI 에서만 실동작(validate-planner 와 동일 정책).
  *
  * Usage: node scripts/mood-smoke.mjs [base-url]   (기본 https://cocotripkr.com)
@@ -23,8 +26,23 @@
  */
 
 const BASE = process.argv[2] || process.env.BASE_URL || 'https://cocotripkr.com';
-const TEST_EMAIL = process.env.HEALTH_CHECK_EMAIL || '2001leety@gmail.com';
-const CLIENT_ID = process.env.MOOD_CLIENT_ID || 'mood';
+const TEST_EMAIL = process.env.HEALTH_CHECK_EMAIL || '';
+const CLIENT_ID = process.env.MOOD_CLIENT_ID || '';
+
+/** 실패 기록 — 응답 본문(잔액·이름이 실릴 수 있음) 대신 상태·코드만. */
+function failDetail(status, body) {
+  return `HTTP ${status} ${(body && (body.code || body.error)) || ''}`.trim();
+}
+
+/** 토큰의 맞춤 권한 roles (서명 검증 아님 — 어떤 쿼리를 보낼지 고르는 데만 쓴다). */
+function tokenRoles(idToken) {
+  try {
+    const p = JSON.parse(Buffer.from(String(idToken).split('.')[1], 'base64url').toString('utf8'));
+    return Array.isArray(p.roles) ? p.roles : [];
+  } catch {
+    return [];
+  }
+}
 
 // MOOD 가 준 자유 텍스트(파싱 정확도 확인용 — 이사님/일반/공항 3종 포함).
 const SAMPLE_SCHEDULE = [
@@ -36,7 +54,7 @@ const SAMPLE_SCHEDULE = [
 async function getIdToken() {
   const apiKey = process.env.FIREBASE_WEB_API_KEY;
   const password = process.env.HEALTH_CHECK_PASSWORD;
-  if (!apiKey || !password) return null; // SKIP 신호
+  if (!apiKey || !password || !TEST_EMAIL) return null; // SKIP 신호
   const url = `https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=${apiKey}`;
   const r = await fetch(url, {
     method: 'POST',
@@ -82,7 +100,7 @@ function record(name, ok, detail) {
 
 async function main() {
   console.log(`\n🔐 MOOD 인증 스모크 (로그인-뒤 검증)`);
-  console.log(`   Base: ${BASE} · client: ${CLIENT_ID} · account: ${TEST_EMAIL}\n`);
+  console.log(`   Base: ${BASE} · account: ${TEST_EMAIL}`);
 
   let idToken;
   try {
@@ -92,18 +110,25 @@ async function main() {
     process.exit(1);
   }
   if (!idToken) {
-    console.log('⏭️  SKIP — FIREBASE_WEB_API_KEY / HEALTH_CHECK_PASSWORD 미설정 (로컬). CI 에서 실동작.');
+    console.log('⏭️  SKIP — FIREBASE_WEB_API_KEY / HEALTH_CHECK_EMAIL / HEALTH_CHECK_PASSWORD 미설정 (로컬). CI 에서 실동작.');
     process.exit(0);
   }
+  const isHealthCheckRole = tokenRoles(idToken).includes('health-check');
+  const clientId = CLIENT_ID || (isHealthCheckRole ? '' : 'mood');
+  console.log(`   client: ${clientId || '(허용 목록 값 — 서버가 고정)'}\n`);
 
   // 1) mood-data — 잔액/원장 조회 (로그인-뒤 조회 게이트)
   //    응답 봉투: { ok, data:{ clientId, client:{name,balanceKRW}, bookings, isAdmin } }
   //    (mood-route 등과 동일 { ok, data } 계약. top-level 폴백도 허용.)
   try {
-    const { status, body } = await jsonFetch(`/api/mood-data?clientId=${encodeURIComponent(CLIENT_ID)}`, idToken);
+    const { status, body } = await jsonFetch(clientId ? `/api/mood-data?clientId=${encodeURIComponent(clientId)}` : '/api/mood-data', idToken);
     const d = body?.data || body;
-    const ok = status === 200 && d?.client && typeof d.client.balanceKRW === 'number' && Array.isArray(d.bookings);
-    record('mood-data 잔액/원장 조회', ok, ok ? `balance=${d.client.balanceKRW} bookings=${d.bookings.length} isAdmin=${d.isAdmin}` : `HTTP ${status} ${JSON.stringify(body).slice(0, 160)}`);
+    // 2026-11-22 운영자 결정 4: 자동 검사 계정은 잔액이 null(빈 값)로 온다. CI 기록에는 숫자 대신 읽힘/안 읽힘만.
+    //   계정 종류와 묶는다 — 역할 계정에 숫자가 오면(빈 값 깨짐) 실패, 허용 목록 계정에 null 이 오면 실패.
+    const balanceRead = typeof d?.client?.balanceKRW === 'number';
+    const moneyOk = isHealthCheckRole ? d?.client?.balanceKRW === null : balanceRead;
+    const ok = status === 200 && d?.client && moneyOk && Array.isArray(d.bookings);
+    record('mood-data 잔액/원장 조회', ok, ok ? `잔액=${balanceRead ? '읽힘' : '안 읽힘(빈 값)'} 원장=읽힘 isAdmin=${d.isAdmin}` : failDetail(status, body));
   } catch (err) {
     record('mood-data 잔액/원장 조회', false, err.message);
   }
@@ -112,7 +137,7 @@ async function main() {
   try {
     const { status, body } = await jsonFetch('/api/mood-places', idToken);
     const ok = status === 200 && body?.ok === true && Array.isArray(body.places);
-    record('mood-places 주소록 조회', ok, ok ? `places=${body.places.length}` : `HTTP ${status} ${JSON.stringify(body).slice(0, 160)}`);
+    record('mood-places 주소록 조회', ok, ok ? '주소록=읽힘' : failDetail(status, body));
   } catch (err) {
     record('mood-places 주소록 조회', false, err.message);
   }
@@ -131,7 +156,7 @@ async function main() {
     const ok = status === 200 && body?.ok === true && Array.isArray(body.stops) && body.stops.length >= 1 && svcOk && body.needsConfirm === true;
     const detail = ok
       ? `stops=${body.stops.length} service=${body.serviceGuess} needsConfirm=${body.needsConfirm} (기대 airport=${body.serviceGuess === 'airport'})`
-      : `HTTP ${status} ${JSON.stringify(body).slice(0, 200)}`;
+      : failDetail(status, body);
     record('mood-parse-schedule AI 파싱', ok, detail);
     // 서비스 추천 오분류 경고(비차단 — Gemini 비결정성). 공항 샘플인데 airport 아니면 눈에 띄게.
     if (ok && body.serviceGuess !== 'airport') {

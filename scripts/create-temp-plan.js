@@ -12,6 +12,7 @@
 import { writeFileSync } from 'fs';
 import {
   loadDotEnv,
+  requireHealthCheckEmail,
   getIdToken,
   futureDate,
   adminBypassOrderId,
@@ -23,7 +24,7 @@ const BASE_URL = process.env.BASE_URL || 'https://cocotripkr.com';
 loadDotEnv();
 
 const body = {
-  email: process.env.HEALTH_CHECK_EMAIL || '2001leety@gmail.com',
+  email: requireHealthCheckEmail(),
   adults: 2,
   arrival_airport: 'ICN_T1',
   departure_airport: 'ICN_T1',

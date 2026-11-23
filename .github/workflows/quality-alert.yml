@@ -18,8 +18,8 @@ name: L3 — Daily Quality Score Monitor
 #
 # Secrets 필요 (GitHub Settings → Secrets and variables → Actions):
 #   FIREBASE_WEB_API_KEY    — .env 의 VITE_FIREBASE_API_KEY 와 동일 (재사용)
-#   HEALTH_CHECK_EMAIL      — admin 계정 이메일 (재사용)
-#   HEALTH_CHECK_PASSWORD   — admin 계정 비밀번호 (재사용)
+#   HEALTH_CHECK_EMAIL      — 자동 검사 전용 계정 (맞춤 권한 roles:['health-check'], 운영자 관리자 계정 아님 — 2026-11-21) (재사용)
+#   HEALTH_CHECK_PASSWORD   — 위 계정 비밀번호 (재사용)
 #   TELEGRAM_BOT_TOKEN      — 운영 긴급 알림
 #   TELEGRAM_CHAT_ID        — 운영 긴급 알림
 

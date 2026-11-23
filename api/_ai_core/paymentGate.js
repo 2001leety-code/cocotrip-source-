@@ -20,6 +20,8 @@ import { toMinorUnits, verifyCaptureIntegrity } from '../_shared/paypal-capture-
 import { claimPlanIssuance, isPlanIssuanceComplete, PLAN_ISSUANCE_CODE } from '../_shared/plan-issuance.js';
 import { isVoidTombstone } from '../_shared/payment-fulfillment-recovery.js';
 import { shapeRequest } from './requestShaper.js';
+import { isAutomatedCheckOrderId, isAdminBypassOrderId } from '../_shared/admin-bypass-detector.js';
+import { claimHealthCheckQuota, quotaRejection } from '../_shared/health-check-quota.js';
 import { enforceDietaryCoverage, hasSafetyDiet } from './dietaryCoverageGate.js';
 import { normalizePrepayInput, prepayFingerprint, prepayInputSummary, loadPrepayFoodIndex } from '../_shared/prepay-coverage.js';
 
@@ -246,7 +248,9 @@ async function markManualOrderUsed(adminDb, usedRef, data) {
   }
 }
 
-export async function enforcePaymentAndRevision(body, adminDb, authenticatedEmail, authenticatedUid, couponContext = null, { loadFoodIndex = loadPrepayFoodIndex, ownerUid = authenticatedUid } = {}) {
+// healthCheck: verifyUserToken 의 healthCheck(이메일 확인 + HEALTH_CHECK_ROLE 맞춤 권한). 자동 검사 계정은
+//   ADMIN_BYPASS_EMAILS 에 없지만, 자동 검사 접두사(isAutomatedCheckOrderId) 주문번호에 한해서만 ADMIN-BYPASS 통과.
+export async function enforcePaymentAndRevision(body, adminDb, authenticatedEmail, authenticatedUid, couponContext = null, { loadFoodIndex = loadPrepayFoodIndex, ownerUid = authenticatedUid, healthCheck = false } = {}) {
   let prepayVerified = false;
 
   const revisionOf = body.revisionOf;
@@ -258,6 +262,21 @@ export async function enforcePaymentAndRevision(body, adminDb, authenticatedEmai
   // dispatch 조기 return 이 catch 를 건너뛰어 유실된다. 상세 = _shared/plan-issuance.js.
   let planClaim = null;
 
+  // 2026-11-23 (독립 검토 4회차 꼭 고칠 것): revisionOf 는 플랜 문서 ID 하나여야 한다. '/' 가 들어가면
+  //   .doc() 가 하위 문서(예: 플랜 주인이 직접 쓸 수 있는 plans/{id}/translations/{x})를 원본으로 읽어
+  //   주인·토큰·재생성 횟수 검사를 통째로 돌아간다. DB 를 건드리기 전에 막는다.
+  if (revisionOf && (typeof revisionOf !== 'string' || revisionOf.includes('/'))) {
+    return reject(400, 'INVALID_REVISION_TARGET', 'Invalid revisionOf');
+  }
+
+  // 2026-11-22 (독립 검토 2회차 꼭 고칠 것): 자동 검사 역할은 재생성 금지. 재생성은 하루 상한
+  //   (claimHealthCheckQuota)도 mock 채택(handlerCore — isAdminBypass 일 때만)도 안 지나 실제 AI 를 부른다.
+  //   자동 검사 스크립트·e2e 는 revisionOf 를 쓰지 않는다. 횟수 차감 전에 막는다.
+  if (revisionOf && healthCheck === true) {
+    console.warn('[planner] revision rejected | healthCheckRole: true');
+    return reject(403, 'FORBIDDEN', 'Revision not allowed for automated-check account');
+  }
+
   if (revisionOf && adminDb) {
     console.log('[planner] Revision mode — checking credits for plan:', revisionOf);
     const origRef = adminDb.collection('plans').doc(revisionOf);
@@ -266,6 +285,19 @@ export async function enforcePaymentAndRevision(body, adminDb, authenticatedEmai
       return reject(404, 'NOT_FOUND', 'Original plan not found');
     }
     const origData = origDoc.data();
+    // 2026-11-23 (독립 검토 3회차 꼭 고칠 것): 관리자 우회 주문(ADMIN-BYPASS-/TEST-)으로 만든 플랜은
+    //   관리자 허용 이메일만 재생성한다. 자동 검사 계정이 만든 주인 없는 플랜은 접근 토큰이 응답 planUrl 로
+    //   돌아오므로, 막지 않으면 역할 없는 다른 로그인 계정이 그 토큰으로 재생성해 하루 상한·mock 밖에서
+    //   실제 AI 를 부른다. 손님 플랜은 이 주문번호로 만들어지지 않아 여기 걸리지 않는다.
+    //   만드는 중 문서(Inngest skeleton-write)도 isAdminBypass 를 쓴다. 표시 칸이 없는 옛 완성 문서는
+    //   input.paypalOrderId 로 판정한다. 거절 문구는 아래 주인 검사와 같게 둔다(관리자 우회 플랜인지 안 드러나게).
+    const origIsAdminBypass = origData.isAdminBypass === true
+      || origData.paymentSource === 'admin-bypass' || origData.paymentSource === 'test'
+      || isAdminBypassOrderId(origData.input?.paypalOrderId);
+    if (origIsAdminBypass && !getAdminBypassEmails().includes((authenticatedEmail || '').toLowerCase().trim())) {
+      console.warn('[planner] revision rejected | admin-bypass plan, caller not in admin allowlist');
+      return reject(403, 'FORBIDDEN', 'Unauthorized revision');
+    }
     // SECURITY (버그헌트 2026-06-14): 소유권은 검증된 토큰 uid 로만 판정. 이전엔 body.uid 를
     // 신뢰해 임의 로그인 사용자가 body.uid=피해자uid 로 isOwner 우회 → 남의 plan revision +
     // revisionCredit 소각(IDOR). ai-planner-modify.js:573 / recalc-transit.js:78 와 동일 패턴.
@@ -356,21 +388,34 @@ export async function enforcePaymentAndRevision(body, adminDb, authenticatedEmai
           'No email returned from Firebase ID token verification. Sign out + sign in again.');
       }
       const allowedEmails = getAdminBypassEmails();
-      if (!allowedEmails.includes(requestEmail)) {
-        // batch 9 fix (B9-6): reject 메시지에 원인 — 본인 이메일은 본인에게만 가니 OK.
-        // 2026-11-22: 관리자 허용 목록은 관리자 아닌 계정에게 내보내지 않는다(목록 개수만 기록).
-        console.warn('[planner] ADMIN-BYPASS- rejected for non-admin account | allowedCount:', allowedEmails.length);
+      const viaEmail = allowedEmails.includes(requestEmail);
+      const viaHealthCheck = !viaEmail && healthCheck === true && isAutomatedCheckOrderId(paypalOrderId);
+      if (!viaEmail && !viaHealthCheck) {
+        // 2026-11-22: 응답·서버 기록에 허용 이메일 목록과 요청 이메일을 싣지 않는다 (운영자 주소 노출 방지).
+        // 원인 구분에 필요한 것만 남긴다: 자동 검사 역할 여부, 주문번호가 자동 검사 접두사인지.
+        console.warn('[planner] ADMIN-BYPASS- rejected | healthCheckRole:', healthCheck === true,
+          '| automatedPrefix:', isAutomatedCheckOrderId(paypalOrderId));
         return reject(403, 'FORBIDDEN', 'Admin bypass not allowed for this account',
-          `Authenticated as "${requestEmail}" but not in admin allowlist. Configure ADMIN_BYPASS_EMAILS env var or sign in with the admin account.`);
+          'This account is not allowed to use admin bypass. Sign in with an admin account.');
       }
-      console.log('[planner] 🟢 ADMIN BYPASS accepted — LIVE mode, no payment | admin:', requestEmail, '| orderId:', paypalOrderId);
+      if (viaHealthCheck) {
+        // 2026-11-22 운영자 결정 3: 자동 검사 역할은 하루 상한 안에서만 (감사 문서도 여기서 쓴다).
+        const quota = await claimHealthCheckQuota(adminDb, { route: 'ai-planner-full', orderId: paypalOrderId, email: requestEmail });
+        if (!quota.ok) {
+          const q = quotaRejection(quota.reason);
+          console.warn('[planner] ADMIN-BYPASS- health-check quota rejected:', quota.reason);
+          return reject(q.status, q.code, q.message, 'Automated-check calls are capped per KST day. Try again tomorrow.');
+        }
+      }
+      console.log('[planner] 🟢 ADMIN BYPASS accepted — LIVE mode, no payment | via:', viaHealthCheck ? 'health-check-role' : 'admin-email', '| orderId:', paypalOrderId);
       isAdminBypass = true;
-      // 감사 기록 (비치명적 — 실패해도 bypass 허용)
-      if (adminDb) {
+      // 감사 기록 (비치명적 — 실패해도 bypass 허용). 자동 검사 역할은 위 상한 확인에서 이미 썼다.
+      if (adminDb && !viaHealthCheck) {
         adminDb.collection('admin_bypass_audit').add({
           adminEmail: requestEmail,
           orderId: paypalOrderId,
           route: 'ai-planner-full',
+          via: 'admin-email',
           bypassedAt: new Date().toISOString(),
         }).catch((e) => console.warn('[planner] admin_bypass_audit write failed:', e.message));
       }

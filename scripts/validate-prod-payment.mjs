@@ -1,10 +1,10 @@
-// CocoTrip prod 결제 흐름 회귀 검증 슈트 — 자율 검증 v2 P0 (8 assertion + 정리 1)
+// CocoTrip prod 결제 흐름 회귀 검증 슈트 — 자율 검증 v2 P0 (8 assertion)
 // validate-prod-regression.mjs 와 동일 패턴 (parseEnv / Firebase auth / SCENARIO_NAME).
 //
 // 검증 대상 (B-PAY1 ~ B-PAY8):
 //   B-PAY1: PayPal SDK script 로드 가능 (VITE_PAYPAL_CLIENT_ID 환경변수 필요 — 미설정 시 skip)
 //   B-PAY2: createPaypalOrder endpoint (관리자 우회 path — TEST-/ADMIN-BYPASS- prefix)
-//   B-PAY3: Manual payment request — paypal-me-qr 흐름 (pending_bookings Firestore 생성)
+//   B-PAY3: Manual payment request — checkOnly 200 + 잘못된 bookingRef 400 (운영 DB 쓰기 0)
 //   B-PAY4: 5% 쿠폰 productScope — charter/tour 적용, AI plan reject
 //   B-PAY5: Trip Coins redeem percent (fixed-USD 잔존 0)
 //   B-PAY6: Webhook idempotency — 같은 eventId 2회 POST → 1건만 처리
@@ -17,8 +17,8 @@
 //
 // 환경변수 (GitHub Secrets 또는 .env.local):
 //   FIREBASE_WEB_API_KEY      — Firebase Web API key (VITE_FIREBASE_API_KEY 와 동일)
-//   HEALTH_CHECK_EMAIL        — admin 계정 이메일 (ADMIN_BYPASS_EMAILS 등록 필수)
-//   HEALTH_CHECK_PASSWORD     — admin 계정 비밀번호
+//   HEALTH_CHECK_EMAIL        — 자동 검사 전용 계정 이메일 (관리자 권한 불필요 — 이 슈트는 일반 로그인만 씀)
+//   HEALTH_CHECK_PASSWORD     — 위 계정 비밀번호
 //   VITE_PAYPAL_CLIENT_ID     — PayPal client id (B-PAY1 SDK 로드 검증용, 미설정 시 skip+warn)
 //   BASE_URL (선택)           — 기본 https://cocotripkr.com
 //   SCENARIO_NAME             — 시나리오 식별자. 기본 'payment-default'
@@ -78,7 +78,7 @@ if (!apiKey || !email || !password) {
 }
 
 console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-console.log(`🔍 CocoTrip 결제 흐름 회귀 검증 슈트 (8 assertion + 정리 1 / 자율 검증 v2 P0) — [${SCENARIO_NAME}]`);
+console.log(`🔍 CocoTrip 결제 흐름 회귀 검증 슈트 (8 assertion / 자율 검증 v2 P0) — [${SCENARIO_NAME}]`);
 console.log(`   Target: ${BASE_URL}`);
 console.log(`   PayPal Client ID: ${PAYPAL_CLIENT_ID ? PAYPAL_CLIENT_ID.slice(0, 8) + '...' : '(unset)'}`);
 console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
@@ -190,77 +190,37 @@ if (!PAYPAL_CLIENT_ID) {
   });
 }
 
-// ─── B-PAY3: Manual payment request ─────────────────────────
-// admin 계정 + ADMIN_BYPASS_EMAILS 등록되어 있으면 즉시 CONFIRMED 처리. 일반 사용자는
-// AWAITING_VERIFICATION. 슈트는 status 200 + 응답 ok=true 만 확인.
-// bookingRef 형식 CT-YYYYMMDD-XXX 고정 — Firestore docId 충돌 회피 위해 ms timestamp 사용.
+// ─── B-PAY3: Manual payment request (운영 DB 쓰기 0) ─────────
+// 2026-11-21: 예전엔 실제 신고를 만들고(pending_bookings + 관리자 계정이면 bookings 미러·AI 트리거·텔레그램·확인메일)
+// Firestore REST 로 지웠다(firestore.rules isAdminEmail = 운영자 이메일만). 자동 검사가 운영자 관리자 계정을 쓰지 않게
+// 되면서, 쓰기 전에 끝나는 두 길만 검사한다 — 둘 다 rate limit·쓰기·알림 전에 응답한다.
+//   case A: checkOnly(QR 안내 전 결제 전 확인) → 200 { data.checked:true }  (식이 없음 = 음식 DB 안 읽음)
+//   case B: 잘못된 bookingRef 신고 → 400 INVALID_BOOKING_REF
 {
-  const ts = Date.now();
-  const seq = (ts % 1000).toString().padStart(3, '0');
-  const ymd = new Date(ts).toISOString().slice(0, 10).replace(/-/g, '');
-  const bookingRef = `CT-${ymd}-${seq}`;
-  const resM = await postJson('/api/manual-payment-request', {
-    bookingRef,
+  // Date convention: startDate is a 'YYYY-MM-DD' day 60 days ahead; durationDays 1 = one travel day, so the
+  // inclusive last day is startDate itself (checkOnly only validates input, nothing is booked).
+  const startDate = new Date(Date.now() + 60 * 86400000).toISOString().slice(0, 10);
+  const resA = await postJson('/api/manual-payment-request', {
+    checkOnly: true,
     productType: 'ai_planner_full',
-    passengers: 1,
-    dateStart: '2026-06-15',
-    dateEnd: '2026-06-15',
-    priceKRW: 13300,
-    priceUSD: '9.90',
-    customerEmail: email,
-    customerPhone: '+821000000000',
-    pickupLocation: 'ICN',
-    paymentMethod: 'paypal-me-qr',
-    paypalMeUrl: 'https://paypal.me/cocotripkr/9.90USD',
+    plannerInput: { regions: ['Seoul'], dietaryRestrictions: [], dietPrefs: [], startDate, durationDays: 1 },
     language: 'ko',
   });
-  // admin bypass + AWAITING_VERIFICATION + idempotent 모두 OK
-  const acceptableCodes = new Set(['CONFIRMED', 'AWAITING_VERIFICATION', undefined]);
-  const okStatus = resM.status === 200;
-  const okData = !!resM.json?.ok && acceptableCodes.has(resM.json?.data?.status);
+  const resB = await postJson('/api/manual-payment-request', {
+    bookingRef: 'NOT-A-BOOKING-REF',
+    productType: 'ai_planner_full',
+    priceKRW: 13300,
+    customerEmail: email,
+    paymentMethod: 'paypal-me-qr',
+  });
+  const aOk = resA.status === 200 && resA.json?.ok === true && resA.json?.data?.checked === true;
+  const bOk = resB.status === 400 && resB.json?.code === 'INVALID_BOOKING_REF';
   results.push({
     id: 'B-PAY3',
-    label: 'Manual payment request (paypal-me-qr → pending_bookings)',
-    actual: `status=${resM.status}, ok=${resM.json?.ok}, data.status=${resM.json?.data?.status || '?'}, adminBypass=${resM.json?.data?.adminBypass || false}, bookingRef=${bookingRef}`,
-    pass: okStatus && okData,
+    label: 'Manual payment request (checkOnly 200 + 잘못된 bookingRef 400 — 운영 DB 쓰기 0)',
+    actual: `checkOnly=${resA.status}/${resA.json?.data?.checked === true ? 'checked' : (resA.json?.code || '?')}, badRef=${resB.status}/${resB.json?.code || '?'}`,
+    pass: aOk && bOk,
   });
-
-  // ─── B-PAY3-CLEAN: 스모크 예약 즉시 삭제 (2026-07-26) ─────
-  // 위에서 만든 pending_bookings 문서는 진짜 예약이 아니다 — 두면 PR 마다 prod 에 쌓여
-  // 어드민 결제 화면·매출 KPI 를 오염시킨다. firestore.rules 가 pending_bookings 에
-  // `allow delete: if isAdminEmail()` 을 이미 열어놨으므로(§578), 서버 코드 변경 없이
-  // 헬스체크(admin) 계정 idToken 으로 Firestore REST DELETE 한다.
-  // 정리 실패는 조용히 넘기지 않고 결과 행으로 드러낸다 — 청소가 안 되면 슈트가 빨간불.
-  {
-    const projectId =
-      process.env.FIREBASE_PROJECT_ID ||
-      envMain.VITE_FIREBASE_PROJECT_ID ||
-      envLocal.VITE_FIREBASE_PROJECT_ID ||
-      'planning-with-ai-a0801'; // count-test-bookings.mjs 와 동일 폴백
-    let cleanPass = false;
-    let cleanDetail = '';
-    try {
-      const delRes = await fetch(
-        `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/pending_bookings/${bookingRef}`,
-        { method: 'DELETE', headers: { Authorization: `Bearer ${auth.idToken}` } },
-      );
-      // Firestore REST delete 는 idempotent — 문서가 이미 없어도 200.
-      cleanPass = delRes.ok;
-      cleanDetail = `status=${delRes.status}, bookingRef=${bookingRef}`;
-      if (!delRes.ok) {
-        const errTxt = await delRes.text();
-        cleanDetail += `, body=${errTxt.slice(0, 120)}`;
-      }
-    } catch (err) {
-      cleanDetail = `ERR: ${err.message}`;
-    }
-    results.push({
-      id: 'B-PAY3-CLEAN',
-      label: '스모크 예약 정리 (pending_bookings 삭제 — prod 잔여물 0)',
-      actual: cleanDetail,
-      pass: cleanPass,
-    });
-  }
 }
 
 // ─── B-PAY4: 5% 쿠폰 productScope ───────────────────────────
@@ -412,7 +372,7 @@ if (!PAYPAL_CLIENT_ID) {
 
 // ─── Summary ──────────────────────────────────────────────
 console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-console.log(`📊 결제 흐름 회귀 검증 결과 (8 assertion + 정리 1) — [${SCENARIO_NAME}]`);
+console.log(`📊 결제 흐름 회귀 검증 결과 (8 assertion) — [${SCENARIO_NAME}]`);
 console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
 let passCount = 0;
 for (const r of results) {
@@ -434,7 +394,7 @@ console.log('  - admin endpoint: /api/admin-coupon-audit 추가 시 B-PAY5 정�
 if (process.env.GITHUB_STEP_SUMMARY) {
   const { appendFileSync } = await import('fs');
   const md = [
-    `# CocoTrip 결제 흐름 회귀 검증 결과 (8 assertion + 정리 1 / 자율 검증 v2 P0) — [${SCENARIO_NAME}]`,
+    `# CocoTrip 결제 흐름 회귀 검증 결과 (8 assertion / 자율 검증 v2 P0) — [${SCENARIO_NAME}]`,
     '',
     `**Target:** ${BASE_URL}`,
     `**총합:** ${passCount}/${results.length} pass`,

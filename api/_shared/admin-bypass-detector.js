@@ -25,6 +25,18 @@
 const ADMIN_BYPASS_PREFIXES = ['TEST-', 'ADMIN-BYPASS-'];
 
 /**
+ * 자동 검사(GitHub Actions)가 만드는 플래너 주문번호 접두사 — SSOT.
+ * _plan-ready-push.js(텔레그램 생략)와 paymentGate.js(자동 검사 역할 = 이 접두사만 우회 허용)가 같이 쓴다.
+ * 여기에 넣으면 자동 검사 계정이 그 접두사로 무료 플랜을 만들 수 있게 되므로 함부로 늘리지 말 것.
+ */
+export const AUTOMATED_CHECK_ORDER_PREFIXES = ['ADMIN-BYPASS-VALIDATE-', 'ADMIN-BYPASS-E2E-', 'ADMIN-BYPASS-REGRESSION-'];
+
+export function isAutomatedCheckOrderId(orderId) {
+  const id = String(orderId || '');
+  return AUTOMATED_CHECK_ORDER_PREFIXES.some((prefix) => id.startsWith(prefix));
+}
+
+/**
  * booking document 가 운영자 테스트 결제인지 판정.
  *
  * bookings 컬렉션 doc ID 자체가 orderID (TEST-/ADMIN-BYPASS- prefix 그대로) 이지만

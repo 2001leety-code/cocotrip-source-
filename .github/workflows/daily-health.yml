@@ -61,6 +61,8 @@ jobs:
           # Firebase Auth REST API 로 idToken 발급 → Bearer 헤더 주입.
           # docs/AUTOMATION.md 의 secret 등록 가이드 참조.
           FIREBASE_WEB_API_KEY: ${{ secrets.FIREBASE_WEB_API_KEY }}
+          # 2026-11-21: 이메일도 넘긴다 — 안 넘기면 스크립트가 운영자 관리자 계정으로 떨어졌었다(기본값 제거함).
+          HEALTH_CHECK_EMAIL: ${{ secrets.HEALTH_CHECK_EMAIL }}
           HEALTH_CHECK_PASSWORD: ${{ secrets.HEALTH_CHECK_PASSWORD }}
           NODE_OPTIONS: '--experimental-fetch'
         run: node scripts/daily-health-check.mjs
@@ -127,6 +129,7 @@ jobs:
           BASE_URL: https://cocotripkr.com
           # PR #247 audit P0-#2 이후 plan 생성 step 도 Bearer 헤더 필수.
           FIREBASE_WEB_API_KEY: ${{ secrets.FIREBASE_WEB_API_KEY }}
+          HEALTH_CHECK_EMAIL: ${{ secrets.HEALTH_CHECK_EMAIL }}
           HEALTH_CHECK_PASSWORD: ${{ secrets.HEALTH_CHECK_PASSWORD }}
         run: npx playwright test full-plan-translation-pdf --project='Desktop Chrome' --reporter=list
 

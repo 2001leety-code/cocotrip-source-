@@ -7,7 +7,7 @@
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
-type AuthResult = { ok: boolean; email?: string; emailVerified?: boolean; status?: number; error?: string };
+type AuthResult = { ok: boolean; email?: string; emailVerified?: boolean; healthCheck?: boolean; status?: number; error?: string };
 type UsageResponse = { usageMetadata: { promptTokenCount: number; candidatesTokenCount: number } };
 type CapturedError = { code?: string; message?: string };
 type MoodStop = { action?: string; timeHint?: string; label?: string; [k: string]: unknown };
@@ -19,9 +19,17 @@ type MoodBody = {
 
 const h = vi.hoisted(() => {
   const collections: string[] = [];
+  // 자동 검사 역할 하루 상한(admin_bypass_audit) — 시험마다 count 를 바꾼다.
+  const audit = { count: 0, added: [] as Record<string, unknown>[] };
   const db = {
     collection(name: string) {
       collections.push(name);
+      if (name === 'admin_bypass_audit') {
+        return {
+          where: () => ({ count: () => ({ get: async () => ({ data: () => ({ count: audit.count }) }) }) }),
+          add: async (doc: Record<string, unknown>) => { audit.added.push(doc); return {}; },
+        };
+      }
       if (name === 'mood_config') {
         return { doc: () => ({ get: async () => ({ exists: true, data: () => ({ emails: ['ops@example.test'] }) }) }) };
       }
@@ -40,6 +48,7 @@ const h = vi.hoisted(() => {
   return {
     db,
     collections,
+    audit,
     initAdminDb: vi.fn(() => db),
     getRuntimeFlags: vi.fn(async () => ({ llm_kill_switch: false })),
     recordUsageFromResponse: vi.fn<(stage: string, model: string, response: UsageResponse) => void>(),
@@ -85,6 +94,8 @@ beforeEach(() => {
   // claude 공급자 + 키 없음: mock 컨텍스트가 아니면 어댑터가 클라이언트 생성에서 실패한다 → 유료 경로 0 증명.
   process.env.LLM_PROVIDER = 'claude';
   h.collections.length = 0;
+  h.audit.count = 0;
+  h.audit.added.length = 0;
   vi.clearAllMocks();
   h.getRuntimeFlags.mockImplementation(async () => ({ llm_kill_switch: false }));
 });
@@ -270,5 +281,40 @@ describe('auth semantics unchanged by the mock header', () => {
     expect(h.collections).toEqual(['mood_config']);
     expect(h.getRuntimeFlags).not.toHaveBeenCalled();
     expect(h.recordUsageFromResponse).not.toHaveBeenCalled();
+  });
+});
+
+// 2026-11-22 운영자 결정 3 — 자동 검사 역할(허용 목록 밖)의 파싱은 하루 상한 안에서만. 실제 핸들러로 잠근다.
+describe('health-check role: daily cap on the real handler', () => {
+  const HC_AUTH = { ok: true, email: 'ci-check@example.test', emailVerified: true, healthCheck: true };
+
+  it('under the cap -> 200, one audit doc, address book skipped', async () => {
+    h.verifyUserToken.mockResolvedValueOnce(HC_AUTH);
+    const out = await call({ 'x-llm-mock': '1' });
+    expect(out.status).toBe(200);
+    expect(out.body.ok).toBe(true);
+    expect(h.audit.added).toHaveLength(1);
+    expect(h.audit.added[0]).toMatchObject({ route: 'mood-parse-schedule', via: 'health-check-role' });
+    expect(h.collections).not.toContain('mood_places');
+  });
+
+  it('at the cap -> 429 HEALTH_CHECK_DAILY_LIMIT, no LLM guard, no usage, no audit write', async () => {
+    const { HEALTH_CHECK_DAILY_LIMIT } = await import('../../api/_shared/health-check-quota.js');
+    h.audit.count = HEALTH_CHECK_DAILY_LIMIT;
+    h.verifyUserToken.mockResolvedValueOnce(HC_AUTH);
+    const out = await call({ 'x-llm-mock': '1' });
+    expect(out.status).toBe(429);
+    expect(out.body.code).toBe('HEALTH_CHECK_DAILY_LIMIT');
+    expect(h.getRuntimeFlags).not.toHaveBeenCalled();
+    expect(h.recordUsageFromResponse).not.toHaveBeenCalled();
+    expect(h.audit.added).toHaveLength(0);
+    expect(h.collections).toEqual(['mood_config', 'admin_bypass_audit']);
+  });
+
+  it('allowlisted operator is never counted', async () => {
+    h.audit.count = 9999;
+    const out = await call({ 'x-llm-mock': '1' });
+    expect(out.status).toBe(200);
+    expect(h.collections).not.toContain('admin_bypass_audit');
   });
 });

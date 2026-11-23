@@ -50,6 +50,7 @@
  * 사용자 미노출 — 한국어 admin 정책 준수, i18n 키 없음.
  */
 import { verifyAdminToken } from './_shared/admin-auth.js';
+import { HEALTH_CHECK_ROLE } from './_shared/user-auth.js';
 import { initAdminDb } from './_shared/firebase-admin.js';
 import { wrapHandler, captureError } from './_shared/sentry.js';
 import { collectQualityCounts, keepCustomerPlans } from './_shared/quality-summary-helper.js';
@@ -114,7 +115,8 @@ async function handler(req, res) {
     return json(req, res, 405, { error: 'Method Not Allowed' });
   }
 
-  const auth = await verifyAdminToken(req);
+  // 자동 검사 계정(HEALTH_CHECK_ROLE)은 scoped 로 통과 — 집계 숫자만, 플랜 id 목록(worstPlans)은 비움.
+  const auth = await verifyAdminToken(req, { allowRoles: [HEALTH_CHECK_ROLE] });
   if (!auth.ok) {
     return json(req, res, auth.status, { error: auth.error, code: 'AUTH_FAILED' });
   }
@@ -288,7 +290,7 @@ async function handler(req, res) {
       overall,
       metricFrequency,
       byArea,
-      worstPlans,
+      worstPlans: auth.scoped ? [] : worstPlans,
       // PR-D 신규
       csTicketCount,
       errorLogCount,

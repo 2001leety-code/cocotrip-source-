@@ -6,6 +6,7 @@
  * 응답에는 고객 이름·이메일·전화번호를 넣지 않는다.
  */
 import { verifyAdminToken } from './_shared/admin-auth.js';
+import { HEALTH_CHECK_ROLE } from './_shared/user-auth.js';
 import { initAdminDb } from './_shared/firebase-admin.js';
 import { captureError } from './_shared/sentry.js';
 import { buildAdminCors, buildAdminJsonCors } from './_shared/cors.js';
@@ -120,7 +121,8 @@ export default async function handler(req, res) {
     return json(req, res, 405, { ok: false, error: 'Method Not Allowed', code: 'METHOD_NOT_ALLOWED' });
   }
 
-  const auth = await verifyAdminToken(req);
+  // 자동 검사 계정(HEALTH_CHECK_ROLE)은 scoped 로 통과 — 원본별 1건만 읽고, 응답은 원본 상태만.
+  const auth = await verifyAdminToken(req, { allowRoles: [HEALTH_CHECK_ROLE] });
   if (!auth.ok) {
     return json(req, res, auth.status, { ok: false, error: auth.error, code: 'AUTH_FAILED' });
   }
@@ -132,9 +134,11 @@ export default async function handler(req, res) {
 
   const url = new URL(req.url, `https://${req.headers.host}`);
   const requestedLimit = parseInt(url.searchParams.get('limit') || '', 10);
-  const limit = Number.isFinite(requestedLimit) && requestedLimit > 0
-    ? Math.min(requestedLimit, MAX_LIMIT)
-    : DEFAULT_LIMIT;
+  const limit = auth.scoped
+    ? 1
+    : Number.isFinite(requestedLimit) && requestedLimit > 0
+      ? Math.min(requestedLimit, MAX_LIMIT)
+      : DEFAULT_LIMIT;
   const nowMs = Date.now();
   // Independent source: a usage read failure must not turn reservation counts unknown.
   // Uses existing admin authorization; no new permissions, customer reads or writes.
@@ -262,6 +266,13 @@ export default async function handler(req, res) {
     }, nowMs);
 
     const sources = reads.map((entry) => sourceState(entry[0], byKey[entry[0]], limit));
+    if (auth.scoped) {
+      // 집계는 위에서 끝까지 돌려 고장을 잡되, 예약·문의 내용은 돌려주지 않는다.
+      return json(req, res, 200, {
+        ok: true,
+        data: { generatedAt: new Date(nowMs).toISOString(), sources, partialErrors: [...new Set(failures)] },
+      });
+    }
     return json(req, res, 200, {
       ok: true,
       data: {

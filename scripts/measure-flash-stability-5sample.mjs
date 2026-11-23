@@ -31,7 +31,8 @@ const envMain = parseEnvFile('.env');
 const envLocal = parseEnvFile('.env.local');
 
 const FIREBASE_API_KEY = envMain.VITE_FIREBASE_API_KEY || envLocal.VITE_FIREBASE_API_KEY;
-const HEALTH_EMAIL = envLocal.HEALTH_CHECK_EMAIL || '2001leety@gmail.com';
+const HEALTH_EMAIL = envLocal.HEALTH_CHECK_EMAIL || '';
+if (!HEALTH_EMAIL) { console.error("HEALTH_CHECK_EMAIL 이 없음 — 운영자 계정 기본값은 뺐다(2026-11-22, 관리자 비밀번호 로그인 해제). 테스트 계정 이메일·비밀번호를 env 로 넣을 것. 자동 검사 역할 계정은 ADMIN-BYPASS-VALIDATE-/E2E-/REGRESSION- 주문만 무료 통과한다."); process.exit(1); }
 const HEALTH_PASSWORD = envLocal.HEALTH_CHECK_PASSWORD || envMain.HEALTH_CHECK_PASSWORD;
 const BASE_URL = 'https://cocotripkr.com';
 const EXPECTED_MODEL = 'gemini-3.5-flash';

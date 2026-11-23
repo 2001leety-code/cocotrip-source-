@@ -30,8 +30,9 @@ async function loadQualityMetrics() {
 const BASE = process.argv[2] || 'https://cocotripkr.com';
 const API_URL = `${BASE}/api/ai-planner-full`;
 
-// 테스트 계정 — ai-planner-full.js의 TEST_ACCOUNTS 목록에 있어야 함
-const TEST_EMAIL = process.env.HEALTH_CHECK_EMAIL || '2001leety@gmail.com';
+// 자동 검사 전용 계정 (2026-11-21~): 맞춤 권한 roles:['health-check'] — ADMIN-BYPASS-VALIDATE- 주문만 통과.
+// 운영자 관리자 계정으로 몰래 떨어지지 않도록 기본값을 두지 않는다(없으면 비밀번호 없을 때와 같이 실패).
+const TEST_EMAIL = process.env.HEALTH_CHECK_EMAIL || '';
 
 // ── Firebase Auth: 자율점검용 idToken 발급 ────────────────────────────────
 // 2026-05-04 PR #247 (audit P0-#2) 머지로 /api/ai-planner-full 가 verifyUserToken
@@ -40,14 +41,13 @@ const TEST_EMAIL = process.env.HEALTH_CHECK_EMAIL || '2001leety@gmail.com';
 //
 // 필수 env:
 //   - FIREBASE_WEB_API_KEY: Firebase Console → Project settings → General → Web API Key
-//   - HEALTH_CHECK_PASSWORD: TEST_ACCOUNTS 계정 비밀번호
-//   - (선택) HEALTH_CHECK_EMAIL: 기본값 2001leety@gmail.com
+//   - HEALTH_CHECK_EMAIL / HEALTH_CHECK_PASSWORD: 자동 검사 전용 계정
 async function getIdToken() {
   const apiKey = process.env.FIREBASE_WEB_API_KEY;
   const password = process.env.HEALTH_CHECK_PASSWORD;
-  if (!apiKey || !password) {
+  if (!apiKey || !password || !TEST_EMAIL) {
     throw new Error(
-      'FIREBASE_WEB_API_KEY + HEALTH_CHECK_PASSWORD env 필수. ' +
+      'FIREBASE_WEB_API_KEY + HEALTH_CHECK_EMAIL + HEALTH_CHECK_PASSWORD env 필수. ' +
       'GitHub Actions Secrets 또는 로컬 .env 에 등록 필요. ' +
       'docs/AUTOMATION.md 참조.'
     );

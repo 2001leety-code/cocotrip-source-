@@ -14,8 +14,9 @@
 //
 // 환경변수 (GitHub Secrets 또는 .env.local):
 //   FIREBASE_WEB_API_KEY      — Firebase Web API key (VITE_FIREBASE_API_KEY 와 동일)
-//   HEALTH_CHECK_EMAIL        — admin 계정 이메일 (TEST- prefix 바이패스 권한)
-//   HEALTH_CHECK_PASSWORD     — admin 계정 비밀번호
+//   HEALTH_CHECK_EMAIL        — 자동 검사 전용 계정 (맞춤 권한 roles:['health-check'], 운영자 관리자 계정 아님 — 2026-11-21)
+//                               ADMIN-BYPASS-REGRESSION- 주문만 결제 우회 통과
+//   HEALTH_CHECK_PASSWORD     — 위 계정 비밀번호
 //   BASE_URL (선택)           — 기본 https://cocotripkr.com
 //
 // 시나리오 매트릭스 (L2, 2026-05-12 추가):

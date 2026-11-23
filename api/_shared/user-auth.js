@@ -36,8 +36,25 @@ async function getAuthInstance() {
 }
 
 /**
+ * 자동 검사(GitHub Actions) 전용 계정의 맞춤 권한 역할 (2026-11-21).
+ * 운영자 관리자 계정 대신 이 역할을 가진 테스트 계정이 로그인한다. `admin:true` 가 아니라서
+ * 관리자 API 전체가 열리지 않고, 이 역할을 명시적으로 받는 곳에서만 좁게 인정된다:
+ * 읽기 관리자 API 2곳(allowRoles: admin-ai-ops-center·admin-quality-summary), paymentGate 의 자동검사 주문번호, MOOD 조회(개인정보 비움).
+ * 부여 = scripts/provision-health-check-account.mjs (운영자 PC). admin-set-claims 의
+ * VALID_ROLES 에는 일부러 넣지 않는다 — 그 API 로 권한을 다시 쓰면 이 역할은 지워진다(안전 쪽).
+ */
+export const HEALTH_CHECK_ROLE = 'health-check';
+
+/** decoded.roles(맞춤 권한 원본)에 자동 검사 역할이 있는지. 배열이 아니면 false. */
+export function hasHealthCheckRole(rawRoles) {
+  return Array.isArray(rawRoles)
+    && rawRoles.some((r) => typeof r === 'string' && r.trim().toLowerCase() === HEALTH_CHECK_ROLE);
+}
+
+/**
  * @param {object} req - HTTP request (Vercel/Next)
- * @returns {Promise<{ok: true, email: string, uid: string, emailVerified: boolean} | {ok: false, status: number, error: string}>}
+ * @returns {Promise<{ok: true, email: string, uid: string, emailVerified: boolean, healthCheck: boolean} | {ok: false, status: number, error: string}>}
+ *   healthCheck: 이메일 확인됨 + 자동 검사 역할. 권한을 여는 곳이 따로 확인해야 의미가 있다.
  */
 export async function verifyUserToken(req) {
   const authHeader = req.headers?.authorization || req.headers?.Authorization || '';
@@ -56,6 +73,7 @@ export async function verifyUserToken(req) {
       email,
       uid: decoded.uid,
       emailVerified: !!decoded.email_verified,
+      healthCheck: decoded.email_verified === true && hasHealthCheckRole(decoded.roles),
     };
   } catch (err) {
     return { ok: false, status: 401, error: `Token verification failed: ${err.code || err.message}` };

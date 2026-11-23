@@ -107,8 +107,14 @@ function bootstrapAdminAuth() {
  * P110 (2026-05-20): admin claim 통과 시 ADMIN_EMAIL allowlist 와 동등하게
  * 인증. RBAC 마이그 Phase 1 — email 와 admin claim 양쪽 통과 허용 (점진 마이그
  * 안전). caller 는 .roles 로 행위별 분기 가능 (예: super-admin only set claims).
+ *
+ * 2026-11-21: opts.allowRoles — 이 끝점만 좁게 여는 역할 목록 (예: HEALTH_CHECK_ROLE).
+ * admin claim·ADMIN_EMAIL 이 없고 역할로만 통과하면 scoped:true. 호출한 끝점이 scoped 일 때
+ * 할 일(읽기만·개인정보 빼기)을 스스로 줄여야 한다. 기본값 [] = 예전과 똑같이 막힘.
+ *
+ * @param {{ allowRoles?: string[] }} [opts]
  */
-export async function verifyAdminToken(req) {
+export async function verifyAdminToken(req, { allowRoles = [] } = {}) {
   const authHeader = req.headers?.authorization || req.headers?.Authorization || '';
   const m = /^Bearer\s+(.+)$/.exec(authHeader);
   if (!m) {
@@ -141,16 +147,19 @@ export async function verifyAdminToken(req) {
     // 제거 + claim-only 전환. extractRoles 가 claims.roles 정규화.
     const adminClaim = decoded.admin === true;
     const emailMatch = email === adminEmail;
-    if (!adminClaim && !emailMatch) {
+    const roles = extractRoles(decoded.roles);
+    const scoped = !adminClaim && !emailMatch
+      && Array.isArray(allowRoles) && allowRoles.some((r) => roles.includes(r));
+    if (!adminClaim && !emailMatch && !scoped) {
       return { ok: false, status: 403, error: 'Not admin' };
     }
-    const roles = extractRoles(decoded.roles);
     return {
       ok: true,
       email,
       uid: decoded.uid,
       claims: { admin: !!decoded.admin, roles },
       roles,
+      ...(scoped ? { scoped: true } : {}),
     };
   } catch (err) {
     return { ok: false, status: 401, error: `Token verification failed: ${err.code || err.message}` };
