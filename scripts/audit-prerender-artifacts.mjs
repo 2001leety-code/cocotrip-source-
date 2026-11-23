@@ -59,6 +59,10 @@ export function auditArtifactHtml(html, route) {
   // 굽기에서 빠졌어야 할 표시가 남았다 = 빼는 규칙(scripts/lib/prerender-strip.mjs)이 그 태그를 못 받았다.
   if (doc.querySelector('[data-prerender-strip]')) reasons.push('data-prerender-strip tag left in artifact');
 
+  // 우리 스타일 파일이 아직 첫 그림을 막는다 = 첫 화면 스타일 넣기(scripts/lib/critical-css.mjs)가 이 라우트를 놓쳤다.
+  // (11/24 윈도 빌드에서 파일 이름 구분자 차이로 47개 중 46개를 조용히 놓쳤다.) <noscript> 안의 원래 링크는 정상이다.
+  if (doc.querySelector('head > link[rel="stylesheet"][href^="/assets/"]')) reasons.push('render-blocking /assets stylesheet left in artifact (critical CSS not applied)');
+
   reasons.push(...checkPrerenderReady(doc, route).reasons);
   dom.window.close();
   return { route, ok: reasons.length === 0, reasons };

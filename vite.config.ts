@@ -15,6 +15,7 @@ import { prerenderAuditPlugin } from "./scripts/audit-prerender-artifacts.mjs"
 import { injectBuildIdentifierIntoHtml, resolveBuildIdentifier } from "./src/lib/buildIdentity"
 import { devApiProxyBypass } from "./scripts/lib/dev-api-proxy-bypass.mjs"
 import { stripPrerenderOnlyTags } from "./scripts/lib/prerender-strip.mjs"
+import { criticalCssPlugin } from "./scripts/lib/critical-css.mjs"
 
 // PRERENDER=1 빌드에서만 사용.
 const PRERENDER_ROUTES = [...INDEXABLE_ROUTES];
@@ -237,6 +238,9 @@ export default defineConfig({
     // 프리렌더가 끝난 뒤(= 번들이 디스크에 쓰인 뒤) 색인 대상 산출물 전부를 감사한다.
     // 하나라도 비었거나 미완성 표시가 붙어 있으면 여기서 빌드가 죽는다.
     // PRERENDER 가 꺼져 있으면 플러그인 자체가 만들어지지 않는다(일반 빌드 무변).
+    // 굽기 HTML 에 첫 화면 스타일만 넣고 기본 스타일 파일은 막지 않게 받는다(scripts/lib/critical-css.mjs).
+    // 🔴 굽기 플러그인 뒤에 둘 것 — 같은 generateBundle(post) 순서라 배열 순서대로 돈다.
+    criticalCssPlugin({ enabled: process.env.PRERENDER === '1', routes: PRERENDER_ROUTES }),
     prerenderAuditPlugin({ enabled: process.env.PRERENDER === '1' }),
   ],
   resolve: {

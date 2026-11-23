@@ -13,6 +13,7 @@ import { hasAnalyticsConsent, onConsentChange } from './lib/consent'
 import { initSentry } from './lib/sentry'
 import { startPrerenderReadySignal } from './lib/prerenderReady.mjs'
 import { exposeBuildIdentifier, exposeNavigationDiagnostic } from './lib/buildIdentity'
+import { whenFullCssLoaded } from './lib/fullCssReady'
 
 // 공개 커밋 식별자만 노출한다. 고객 데이터·비밀값은 포함하지 않고 화면에도 표시하지 않는다.
 // 운영 점검은 html[data-cocotrip-build] 또는 meta[name="cocotrip-build"]를 읽는다.
@@ -88,11 +89,14 @@ if (hasAnalyticsConsent()) {
   });
 }
 
-createRoot(document.getElementById('root')!).render(
-  <StrictMode>
-    <App />
-  </StrictMode>,
-)
+// 굽기 HTML 은 기본 스타일을 막지 않고 받는다 — 다 받기 전에 그리면 굽기에 없던 요소가 밀린다(lib/fullCssReady.ts).
+void whenFullCssLoaded().then(() => {
+  createRoot(document.getElementById('root')!).render(
+    <StrictMode>
+      <App />
+    </StrictMode>,
+  )
+})
 
 // 프리렌더(빌드후 puppeteer) 캡처 신호.
 //

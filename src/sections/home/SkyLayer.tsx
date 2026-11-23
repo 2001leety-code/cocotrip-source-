@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { preload } from 'react-dom';
 import { Pause, Play } from 'lucide-react';
 
 /**
@@ -20,7 +21,14 @@ import { Pause, Play } from 'lucide-react';
  * `load`, so the video and its button carry `data-prerender-strip` and are cut
  * from the static HTML (scripts/lib/prerender-strip.mjs); otherwise the baked
  * `<video autoplay>` would start the download before any JS runs.
+ *
+ * 2026-11-24: the poster is the hero's largest paint (LCP), but as a CSS
+ * background the browser only found it after the stylesheet and layout
+ * (requested at ~2.8 s on slow 4G). A high-priority preload goes into <head>;
+ * the prerender bakes it into the static HTML, so the request starts with the
+ * HTML.
  */
+const POSTER = '/home-dope/v3-cloud-poster.jpg';
 const SLOW_CONNECTIONS = new Set(['slow-2g', '2g', '3g']);
 
 function wantsStill(): boolean {
@@ -41,6 +49,7 @@ interface Props {
 }
 
 export function SkyLayer({ playLabel, pauseLabel }: Props) {
+  preload(POSTER, { as: 'image', fetchPriority: 'high' });
   // Decided once on mount; an error at load time falls back to the poster.
   const [video, setVideo] = useState(() => !wantsStill());
   // The video waits for the page `load` event so it never competes with the first screen.
@@ -106,7 +115,7 @@ export function SkyLayer({ playLabel, pauseLabel }: Props) {
             className="home-dope-sky__video"
             data-prerender-strip=""
             src="/home-dope/v3-cloud-flight.mp4"
-            poster="/home-dope/v3-cloud-poster.jpg"
+            poster={POSTER}
             muted
             loop
             autoPlay

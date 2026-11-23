@@ -297,6 +297,20 @@ describe('산출물 감사', () => {
     expect(result.reasons.join(' ')).toContain('data-prerender-strip');
   });
 
+  it('우리 스타일 파일이 아직 첫 그림을 막는 산출물을 실패로 본다(첫 화면 스타일 넣기가 놓친 라우트)', () => {
+    const blocking = page({ route: '/tours' }).replace('</head>', '<link rel="stylesheet" crossorigin href="/assets/index-x.css"></head>');
+    const result = auditArtifactHtml(blocking, '/tours');
+    expect(result.ok).toBe(false);
+    expect(result.reasons.join(' ')).toContain('critical CSS not applied');
+
+    // 처리된 모양(미리 받기 + noscript 안의 원래 링크)과 외부 글꼴 링크는 통과한다.
+    const processed = page({ route: '/tours' }).replace('</head>',
+      '<link rel="preload" crossorigin href="/assets/index-x.css" onload="this.rel=\'stylesheet\'" as="style">' +
+      '<noscript><link rel="stylesheet" crossorigin href="/assets/index-x.css"></noscript>' +
+      '<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces"></head>');
+    expect(auditArtifactHtml(processed, '/tours').ok).toBe(true);
+  });
+
   it('멀쩡한 산출물은 통과한다', () => {
     expect(auditArtifactHtml(page({ route: '/tours' }), '/tours').ok).toBe(true);
   });
