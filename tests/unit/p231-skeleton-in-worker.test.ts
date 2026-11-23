@@ -139,7 +139,9 @@ describe('P231 skeleton-in-worker 정적 소스 검증', () => {
   it('P231-B4: skeleton-write 실패 시 non-fatal 처리 존재', () => {
     // skeleton-write 실패해도 routeEnrich + persistPlan 은 계속.
     // step.run('skeleton-write', ...) 본문이 길어 4000 char 로 slice.
-    const skWriteIdx = workerSrc.indexOf("'skeleton-write'");
+    // 2026-11-23: anchor on the step.run call, not the earlier comment mention (was ~60 chars of margin).
+    const skWriteIdx = workerSrc.indexOf("step.run('skeleton-write'");
+    expect(skWriteIdx).toBeGreaterThan(-1);
     const skWriteSrc = workerSrc.slice(skWriteIdx, skWriteIdx + 4000);
     expect(skWriteSrc).toMatch(/catch\s*\(/);
     expect(skWriteSrc).toMatch(/non-fatal/);
