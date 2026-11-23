@@ -135,7 +135,7 @@ async function getAccessToken() {
 
   const tokenData = await tokenRes.json();
   if (!tokenData.access_token) {
-    throw new Error(`Google 토큰 발급 실패: ${JSON.stringify(tokenData)}`);
+    throw Object.assign(new Error(`Google 토큰 발급 실패: ${JSON.stringify(tokenData)}`), { code: 'SHEETS_TOKEN_FAILED' });
   }
   return tokenData.access_token;
 }
@@ -469,6 +469,16 @@ export const LEADS_IDENTIFYING_COLUMNS = Object.freeze({ B: 1, C: 2, G: 6 });
 const RETENTION_TABS = Object.freeze({ bookings: { sheet: SHEET_NAME, range: `${SHEET_NAME}!A:R` }, leads: { sheet: 'Leads', range: 'Leads!A:G' } });
 
 /**
+ * 실패 응답 → code(SHEETS_READ_400 등)가 달린 오류. 응답 글은 오류에 넣지 않는다(코드만 기록에 남게).
+ * 없는 탭을 읽으면 400 "Unable to parse range" → tabMissing.
+ */
+async function retentionSheetsError(res, op) {
+  const code = `SHEETS_${op}_${res.status}`;
+  const body = await res.text().catch(() => '');
+  return Object.assign(new Error(code), { code, status: res.status, tabMissing: res.status === 400 && body.includes('Unable to parse range') });
+}
+
+/**
  * 탭 전체(머리 줄 포함). 날짜 칸은 숫자(1899-12-30 부터 센 날)로 받는다 — 화면 글꼴(로캘)에 따라 꼴이 바뀌지 않게.
  * 읽기 실패는 throw — "빈 장부"로 취급하지 않는다.
  */
@@ -478,7 +488,7 @@ export async function readRetentionSheetRows(tab) {
   const accessToken = await getAccessToken();
   const res = await fetch(`${SHEETS_BASE_URL}/${spreadsheetId}/values/${encodeURIComponent(range)}?valueRenderOption=UNFORMATTED_VALUE&dateTimeRenderOption=SERIAL_NUMBER`,
     { headers: { Authorization: `Bearer ${accessToken}` } });
-  if (!res.ok) throw new Error(`SHEETS_READ_${res.status}`);
+  if (!res.ok) throw await retentionSheetsError(res, 'READ');
   return (await res.json()).values || [];
 }
 
@@ -493,7 +503,7 @@ export async function writeRetentionSheetCells(tab, cells) {
     headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
     body: JSON.stringify({ valueInputOption: 'RAW', data: cells.map(c => ({ range: `${sheet}!${c.column}${c.row}`, values: [[c.value]] })) }),
   });
-  if (!res.ok) throw new Error(`SHEETS_WRITE_${res.status}`);
+  if (!res.ok) throw await retentionSheetsError(res, 'WRITE');
 }
 
 export { SheetsEnvSkipped };

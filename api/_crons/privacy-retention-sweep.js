@@ -40,7 +40,9 @@ export const retentionMode = env => (env.PRIVACY_RETENTION_DELETE_ENABLED === 't
 function makeRun({ db, nowMs, mode, clock }) {
   const counts = {};
   const run = {
-    db, nowMs, mode, clock, counts, writes: 0, rateLimitWrites: 0, timedOut: false, errors: [],
+    db, nowMs, mode, clock, counts, writes: 0, rateLimitWrites: 0, errors: [],
+    /** 대상마다 받은 시간 몫(ms) — 다시 볼 때 첫 몫보다 길 때만 다시 본다(retryStopped). */
+    shares: {},
     /** 정산·변경 다툼이 열린 협력사 예약의 날짜 — 그 날 일정 메모도 남긴다. */
     heldMoodDates: new Set(),
     deadline: clock() + TIME_BUDGET_MS,
@@ -50,7 +52,7 @@ function makeRun({ db, nowMs, mode, clock }) {
     /** 시간 몫을 다 써서 멈춘 대상 — 끝까지 못 봤으니 그 대상이 채우는 목록(heldMoodDates 등)도 믿지 않는다. */
     stopped: new Set(),
     /** 시간 몫을 다 써서 멈춤 — 그 대상 개수는 빠진 것이지 0 이 아니다. */
-    stop(target) { run.timedOut = true; run.stopped.add(target); run.tally(target, 'timedOut'); },
+    stop(target) { run.stopped.add(target); run.tally(target, 'timedOut'); },
     tally(target, key, n = 1) { const c = (counts[target] ||= {}); c[key] = (c[key] || 0) + n; },
     /** 지울 것 하나를 센다. 실제로 써도 되면 true(삭제 모드 + 하루 상한·시간 안). 속도 제한 표는 따로 센 상한. */
     claim(target, { rateLimit = false } = {}) {
@@ -553,6 +555,8 @@ async function sweepLeadsSheet(run, sheets) {
   let rows;
   try { rows = await sheets.readRetentionSheetRows('leads'); } catch (error) {
     if (error?.skipped) return run.tally(T, 'skipped');
+    // 탭이 없으면 비울 줄도 없다 — 오류가 아니라 개수로 남긴다(11/23 운영 장부엔 `시트1` 뿐).
+    if (error?.tabMissing) return run.tally(T, 'tabMissing');
     throw error;
   }
   const identifying = Object.entries(sheets.LEADS_IDENTIFYING_COLUMNS);
@@ -585,13 +589,57 @@ async function guarded(run, target, fn) {
 
 /**
  * 대상마다 남은 시간을 남은 대상 수로 나눈 몫만 준다. 일찍 끝난 대상의 남은 몫은 뒤 대상에게 간다.
- * ponytail: 같은 몫 — 앞쪽 큰 대상(예약)이 몫에 걸리면 그날 개수가 덜 나온다(timedOut). 커지면 대상별 커서 저장으로.
+ * 앞쪽 큰 대상(예약)이 몫에 걸려 멈추면 retryStopped 가 남은 시간으로 다시 본다.
  */
 async function runTargets(run, jobs, until = run.deadline) {
   for (const [index, [target, fn]] of jobs.entries()) {
     const now = run.clock();
     run.targetDeadline = Math.min(until, now + Math.max(0, until - now) / (jobs.length - index));
+    run.shares[target] = run.targetDeadline - now;
     await guarded(run, target, fn);
+  }
+}
+
+/** 앞 대상이 채운 목록을 읽는 대상 — 앞 대상을 다시 보면 이것도 다시 본다(일정 메모 ← 협력사 예약 다툼 날짜). */
+const WAITS_FOR = Object.freeze({ mood_schedule_notes: 'mood_bookings' });
+/** 한 대상의 훑기 안에서 다른 이름으로 세는 셈 — 그 대상을 다시 보면 이것도 같이 지우고 다시 센다. */
+const TALLIES_INTO = Object.freeze({ bookings: ['dispatch_messages'], cart_orders: ['cart_orders_unpaid'] });
+/** 다시 볼 때 남기는 셈 = 이미 한 쓰기. 나머지 셈(due 등)은 지우고 처음부터 다시 센다 — 두 번 세지 않게. */
+const DONE_KEYS = Object.freeze(['applied', 'childrenDeleted', 'receiptFilesDeleted']);
+/** 다시 봐도 또 멈춰 오류 난 문서까지 못 갔으면 첫 번 오류를 되살린다 — 오류를 시간 몫으로 덮지 않게. */
+const ERROR_KEYS = Object.freeze(['docError', 'error']);
+
+/**
+ * 몫에 걸려 멈춘 대상(+ 그 결과를 읽는 대상)을 남은 시간으로 처음부터 한 번 더 본다.
+ * 11/23 운영 첫 셈: 대상 28개에 같은 몫(1.25초)을 주니 예약·협력사 예약이 멈추고 36초가 놀았다 →
+ * 일정 메모는 매일 heldMoodUnknown. 다시 보는 것은 매일 도는 작업과 같은 일이라 이미 지운 것은
+ * alreadyClean·없음으로 지나간다. 새 몫이 첫 몫보다 길 때만 — 아니면 첫 셈이 더 많이 본 것이라 그대로 둔다.
+ */
+async function retryStopped(run, jobs, until) {
+  const stopped = new Set(run.stopped);
+  const again = jobs.filter(([target]) => stopped.has(target) || stopped.has(WAITS_FOR[target]));
+  if (!again.length) return;
+  const share = (until - run.clock()) / again.length;
+  // 멈춘 대상의 첫 몫과만 견준다 — 뒤에서 큰 몫을 받은 대상(일정 메모)까지 넣으면 꼭 필요한 재시도를 건너뛴다.
+  if (!(share > Math.max(...again.filter(([target]) => stopped.has(target)).map(([target]) => run.shares[target] || 0)))) return;
+  const firstErrors = new Map();
+  for (const [target] of again) {
+    const before = run.counts[target] || {};
+    if (run.errors.includes(target)) firstErrors.set(target, before);
+    for (const name of [target, ...(TALLIES_INTO[target] || [])]) {
+      const old = run.counts[name] || {};
+      const kept = Object.fromEntries(DONE_KEYS.filter(key => old[key]).map(key => [key, old[key]]));
+      if (Object.keys(kept).length) run.counts[name] = kept; else delete run.counts[name];
+    }
+    run.stopped.delete(target);
+    run.errors = run.errors.filter(name => name !== target);
+  }
+  await runTargets(run, again, until);
+  for (const [target, before] of firstErrors) {
+    if (!run.stopped.has(target) || run.errors.includes(target)) continue; // 끝까지 봤으면 이번 결과가 맞다
+    run.errors.push(target);
+    const c = (run.counts[target] ||= {});
+    for (const key of ERROR_KEYS) if (before[key]) c[key] = Math.max(c[key] || 0, before[key]);
   }
 }
 
@@ -634,7 +682,7 @@ export async function privacyRetentionSweepTask({ env = process.env, now = Date.
       return d.reviewQuarantined === true ? 'heldQuarantined' : 'heldUnfinished';
     };
 
-    await runTargets(run, [
+    const privacyJobs = [
       ['bookings', () => sweepBookings(run)],
       ['pending_bookings', () => sweepPendingBookings(run)],
       ['used_paypal_orders', () => sweepPaymentCopy(run, 'used_paypal_orders',
@@ -659,14 +707,18 @@ export async function privacyRetentionSweepTask({ env = process.env, now = Date.
         ['sheet_bookings', async () => sweepBookingSheet(run, await loadSheets())],
         ['sheet_leads', async () => sweepLeadsSheet(run, await loadSheets())],
       ] : []),
-    ], run.deadline - RATE_LIMIT_TIME_MS);
+    ];
+    const privacyUntil = run.deadline - RATE_LIMIT_TIME_MS;
+    await runTargets(run, privacyJobs, privacyUntil);
+    await retryStopped(run, privacyJobs, privacyUntil);
     // 속도 제한 표는 맨 뒤, 따로 센 하루 상한(RATE_LIMIT_DAILY_CAP)과 남은 시간(최소 10초)으로.
     await runTargets(run, lowPriorityTargets(run).map(([target, options]) => [target, () => sweepRateLimitDocs(run, target, options)]));
 
     const ok = run.errors.length === 0;
+    const timedOut = run.stopped.size > 0;
     const result = {
-      ok, code: ok ? (run.timedOut ? 'RETENTION_PARTIAL' : 'RETENTION_COMPLETED') : 'RETENTION_REVIEW_REQUIRED',
-      mode, version: R.RETENTION_VERSION, writes: run.writes, rateLimitWrites: run.rateLimitWrites, timedOut: run.timedOut, counts: run.counts,
+      ok, code: ok ? (timedOut ? 'RETENTION_PARTIAL' : 'RETENTION_COMPLETED') : 'RETENTION_REVIEW_REQUIRED',
+      mode, version: R.RETENTION_VERSION, writes: run.writes, rateLimitWrites: run.rateLimitWrites, timedOut, counts: run.counts,
     };
     await database.collection('privacy_retention_state').doc('last').set({ ...result, checkedAtMs: now() });
     return result;

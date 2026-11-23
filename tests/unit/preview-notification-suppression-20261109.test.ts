@@ -221,6 +221,9 @@ describe('production unchanged even with flags true', () => {
     await recordLeadToSheets({ email: 'a@example.test', guestName: 'g', area: 'x', styles: ['a'], pax: 1, planId: 'p' });
     expect(m.sendMail).toHaveBeenCalledTimes(1);
     expect(m.append).toHaveBeenCalledTimes(1);
+    // google-auth-library 10 의 JWT 는 옵션 객체만 받는다 — 자리 인자면 인증 없이 요청한다(11/23 운영 로그).
+    expect(m.JWT).toHaveBeenCalledWith({ email: 'test-client', key: 'test-not-a-key', scopes: ['https://www.googleapis.com/auth/spreadsheets'] });
+    expect(m.sheets).toHaveBeenCalledWith({ version: 'v4', auth: m.JWT.mock.instances[0] });
   });
   it('appendBooking keeps the original env-skip path', async () => {
     setFlags('production');
