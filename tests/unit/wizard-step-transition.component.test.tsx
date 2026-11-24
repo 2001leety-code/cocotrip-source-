@@ -201,6 +201,12 @@ describe('step preload 는 그대로 유지된다', () => {
     expect(src).toMatch(/requestIdleCallback/);
   });
 
+  // 2026-11-24: 첫 step 이 lazy 면 느린 휴대폰 첫 그리기에서 빠졌다가 붙으며 플래너가 64px 밀렸다(CLS 0.367).
+  it('첫 step(예약 현황)은 lazy 가 아니라 바로 import 한다 (첫 그리기 밀림 방지)', () => {
+    expect(src).toMatch(/^import \{ WizardStep0Reservation \} from '\.\/WizardStep0Reservation';/m);
+    expect(src).not.toMatch(/import\(\s*['"]\.\/WizardStep0Reservation['"]\s*\)/);
+  });
+
   it('framer-motion AnimatePresence 로 되돌아가지 않았다', () => {
     // 경고 주석에는 이름이 남아 있으므로 **실제 사용**(JSX 태그·import)만 본다.
     expect(src).not.toMatch(/<AnimatePresence/);

@@ -27,6 +27,7 @@ import {
   INCOMPLETE_ATTR,
   SITE_ORIGIN,
 } from '../src/lib/prerenderReady.mjs';
+import { PRERENDER_ROUTE_ATTR } from './lib/prerender-strip.mjs';
 
 /** `@prerenderer` 가 그 경로를 어디에 쓰는가. `/` 만 루트 index.html 이다. */
 export function artifactPathFor(route) {
@@ -62,6 +63,12 @@ export function auditArtifactHtml(html, route) {
   // 우리 스타일 파일이 아직 첫 그림을 막는다 = 첫 화면 스타일 넣기(scripts/lib/critical-css.mjs)가 이 라우트를 놓쳤다.
   // (11/24 윈도 빌드에서 파일 이름 구분자 차이로 47개 중 46개를 조용히 놓쳤다.) <noscript> 안의 원래 링크는 정상이다.
   if (doc.querySelector('head > link[rel="stylesheet"][href^="/assets/"]')) reasons.push('render-blocking /assets stylesheet left in artifact (critical CSS not applied)');
+
+  // 주소 표시가 이 산출물 주소와 다르면 index.html 의 짧은 스크립트가 본문을 숨긴다(앱이 뜰 때까지 굽기 화면이 안 보인다).
+  // 표시가 없으면 다른 주소로 내려간 이 HTML 을 숨기지 못한다. (scripts/lib/prerender-strip.mjs stampPrerenderRoute)
+  const stamp = doc.documentElement.getAttribute(PRERENDER_ROUTE_ATTR);
+  if (stamp !== normalizePath(route)) reasons.push(`route stamp ${stamp === null ? 'missing' : `"${stamp}"`} (expected ${normalizePath(route)})`);
+  if (doc.getElementById('cc-route-mismatch')) reasons.push('route-mismatch hide style captured in artifact');
 
   reasons.push(...checkPrerenderReady(doc, route).reasons);
   dom.window.close();

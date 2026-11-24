@@ -64,13 +64,17 @@ import { cityNameToZoneKey } from './zoneHelpers';
 // 다음 step 으로 이동 시점에 fetch — 초기 planner chunk 에서 step 코드 분리.
 // type-only re-export 는 컴파일 시 사라져 main chunk 영향 없음.
 // step import 함수 추출 — lazy() + preload(idle 마운트) 둘 다 재사용. (2026-06-02 A3: 깜빡임 완성)
-const importStep0Reservation = () => import('./WizardStep0Reservation');
+// 2026-11-24: 첫 step(예약 현황)만 바로 import 한다. 손님이 맨 처음 보는 step 이라 lazy 일 이유가 없고,
+//   lazy 면 느린 휴대폰에서 첫 그리기에 이 step 이 빠진다 → `.wizard-res-ticket` 이 없어 플래너가
+//   긴 모양(소개 문단·긴 가격 안내·단계 이름)으로 한 번 그려졌다가, step 이 붙는 순간 짧은 모양으로
+//   바뀌며 화면 전체가 64px 위로 밀렸다(운영 Lighthouse CLS 0.367·0.144). 청크는 굽기 HTML 이 이미
+//   modulepreload 하던 6KB 다.
+import { WizardStep0Reservation } from './WizardStep0Reservation';
 const importStep0Destination = () => import('./WizardStep0Destination');
 const importStep1Food = () => import('./WizardStep1Food');
 const importStep2Details = () => import('./WizardStep2Details');
 const importStep3Review = () => import('./WizardStep3Review');
-const STEP_IMPORTS = [importStep0Reservation, importStep0Destination, importStep1Food, importStep2Details, importStep3Review];
-const WizardStep0Reservation = lazy(() => importStep0Reservation().then(m => ({ default: m.WizardStep0Reservation })));
+const STEP_IMPORTS = [importStep0Destination, importStep1Food, importStep2Details, importStep3Review];
 const WizardStep0Destination = lazy(() => importStep0Destination().then(m => ({ default: m.WizardStep0Destination })));
 const WizardStep1Food = lazy(() => importStep1Food().then(m => ({ default: m.WizardStep1Food })));
 const WizardStep2Details = lazy(() => importStep2Details().then(m => ({ default: m.WizardStep2Details })));
@@ -1224,7 +1228,8 @@ export function WizardForm({ onSubmit, isLoading, initialValues, isRevision = fa
               2026-10-07: 스텝 본문(질문·다음 버튼) 뒤로 이동 — 390px 첫 화면에서 입력이 먼저 보이게.
               DOM 순서 = 화면 순서. 실제 안전 안내는 각 스텝 내부에 그대로. */}
           {/* step 전환 = key 가 바뀌면 그 커밋에서 즉시 교체. 진입 슬라이드는 CSS 애니메이션.
-              2026-05-13 PR #393 후속: 5 step 컴포넌트 모두 React.lazy. 한 번에 한
+              2026-11-24: 첫 step(예약 현황)만 바로 import — lazy 로 되돌리지 말 것(첫 그리기 64px 밀림, 위 import 주석).
+              2026-05-13 PR #393 후속: 나머지 step 컴포넌트는 React.lazy. 한 번에 한
               step 만 마운트 → 다음 step 으로 이동 시점에 dynamic fetch. Suspense
               fallback 은 step 컨테이너 최소 높이 유지하는 spinner — layout shift
               방지. fetch 가 통상 < 100ms (preload + prefetch 가능) 이므로 UX 영향

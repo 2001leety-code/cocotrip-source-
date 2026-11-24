@@ -1,4 +1,4 @@
-import { StrictMode } from 'react'
+import { StrictMode, useLayoutEffect } from 'react'
 import { createRoot } from 'react-dom/client'
 // Korea Editorial Concierge foundation. Imported BEFORE index.css on purpose:
 // these are token *definitions*, so legacy page-scoped rules in index.css keep
@@ -89,10 +89,18 @@ if (hasAnalyticsConsent()) {
   });
 }
 
+// 굽기 HTML 이 다른 주소용이면 index.html 의 짧은 스크립트가 본문(#root main)을 숨겨 둔다(홈 HTML 이 /mypage 등으로 내려간 경우).
+// 앱의 첫 화면이 붙은 그 커밋에서(그리기 전) 푼다.
+function RevealRoot() {
+  useLayoutEffect(() => { document.getElementById('cc-route-mismatch')?.remove(); }, []);
+  return null;
+}
+
 // 굽기 HTML 은 기본 스타일을 막지 않고 받는다 — 다 받기 전에 그리면 굽기에 없던 요소가 밀린다(lib/fullCssReady.ts).
 void whenFullCssLoaded().then(() => {
   createRoot(document.getElementById('root')!).render(
     <StrictMode>
+      <RevealRoot />
       <App />
     </StrictMode>,
   )
