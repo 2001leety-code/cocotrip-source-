@@ -70,6 +70,10 @@ export function auditArtifactHtml(html, route) {
   if (stamp !== normalizePath(route)) reasons.push(`route stamp ${stamp === null ? 'missing' : `"${stamp}"`} (expected ${normalizePath(route)})`);
   if (doc.getElementById('cc-route-mismatch')) reasons.push('route-mismatch hide style captured in artifact');
 
+  // 열린 대화상자가 찍혔다 = 앱이 뜰 때까지 모든 손님(휴대폰·재방문 포함)에게 그 창이 화면을 가린다.
+  // (11/24 플래너 안내 창이 굽기 때 찍혀 운영 /planner HTML 에 들어갔다. 굽기 중에 저절로 열리는 창은 window.__PRERENDER_INJECTED 를 보고 열지 않는다.)
+  if (doc.querySelector('[aria-modal="true"]')) reasons.push('open dialog captured in artifact (aria-modal)');
+
   reasons.push(...checkPrerenderReady(doc, route).reasons);
   dom.window.close();
   return { route, ok: reasons.length === 0, reasons };
