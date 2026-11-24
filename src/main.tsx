@@ -89,7 +89,7 @@ if (hasAnalyticsConsent()) {
   });
 }
 
-// 굽기 HTML 이 다른 주소용이면 index.html 의 짧은 스크립트가 #root 를 숨겨 둔다(홈 HTML 이 /mypage 등으로 내려간 경우).
+// 굽기 HTML 이 다른 주소용이면 index.html 의 짧은 스크립트가 본문(#root main)을 숨겨 둔다(홈 HTML 이 /mypage 등으로 내려간 경우).
 // 앱의 첫 화면이 붙은 그 커밋에서(그리기 전) 푼다.
 function RevealRoot() {
   useLayoutEffect(() => { document.getElementById('cc-route-mismatch')?.remove(); }, []);

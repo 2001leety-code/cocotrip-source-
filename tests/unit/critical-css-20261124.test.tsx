@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render } from '@testing-library/react';
-import { CRITICAL_CSS_OPTIONS, criticalCssPlugin, hoistHighPriorityImagePreloads, inlineCriticalCss } from '../../scripts/lib/critical-css.mjs';
+import { CRITICAL_CSS_OPTIONS, collapseClassWhitespace, criticalCssPlugin, hoistHighPriorityImagePreloads, inlineCriticalCss } from '../../scripts/lib/critical-css.mjs';
 import { whenFullCssLoaded } from '../../src/lib/fullCssReady';
 import { SkyLayer } from '../../src/sections/home/SkyLayer';
 void React;
@@ -104,8 +104,9 @@ describe('inlineCriticalCss', () => {
     const doc = new DOMParser().parseFromString(out, 'text/html');
     expect([...doc.querySelectorAll('style')].map((s) => s.textContent).join('')).toContain('.used{color:red}');
     expect(out).toContain('class="other used"');
-    // Only class values are touched.
+    // Only class values are touched, and only HTML's own separators (a no-break space is part of a name).
     expect(out).toContain('data-class="a\n b"');
+    expect(collapseClassWhitespace('<i class="a b\tc">')).toBe('<i class="a b c">');
   });
 
   it('drops the beasties work marker from <html>', async () => {

@@ -207,9 +207,13 @@
         window.addEventListener('appinstalled', function () { window.__deferredInstallPrompt = null; });
       })();
     </script>
-    <!-- 2026-11-24: 굽기 HTML 이 다른 주소용이면 앱이 첫 화면을 붙일 때까지 #root 를 숨긴다.
+    <!-- 2026-11-24: 굽기 HTML 이 다른 주소용이면 앱이 첫 화면을 붙일 때까지 본문(main)을 숨긴다.
          굽지 않은 주소(/mypage, /my-plans/... 등)는 Vercel 이 홈 HTML 을 내려보내 홈 화면이 먼저 보였다.
-         표시 = <html data-prerender-route> (scripts/lib/prerender-strip.mjs), 푸는 곳 = src/main.tsx. -->
+         위·아래 메뉴·띠 배너는 대부분의 화면이 같이 쓰므로 그대로 둔다(#root 통째로 숨기면 첫 글자가 1.1→3.3초로 늦어졌다).
+         그 메뉴가 없는 화면(무드·관리자·커뮤니티·/links·/whatsapp-support·공유 제안서)은 통째로 숨긴다
+         — 목록은 src/App.tsx 의 GlobalWidgets·NonMoodChrome 과 같아야 한다.
+         표시 = html[data-prerender-route] (scripts/lib/prerender-strip.mjs), 푸는 곳 = src/main.tsx.
+         앱이 10초 안에 안 뜨면(아주 느린 망·스크립트 실패) 안전하게 예전처럼 굽기 내용을 다시 보인다. -->
     <script>
       (function () {
         try {
@@ -219,7 +223,9 @@
           if (path === route) return;
           var style = document.createElement('style');
           style.id = 'cc-route-mismatch';
-          style.textContent = '#root{visibility:hidden}';
+          var bare = /^\/(mood|admin|community)/.test(path) || path === '/links' || path === '/whatsapp-support' ||
+            (path.indexOf('/my-plans/') === 0 && /[?&]shared=1(&|$)/.test(location.search));
+          style.textContent = (bare ? '#root' : '#root main') + '{visibility:hidden}';
           document.head.appendChild(style);
           // 안전 캡: 앱이 끝내 안 뜨면(스크립트 실패) 예전처럼 굽기 내용을 보인다.
           setTimeout(function () { if (style.parentNode) style.parentNode.removeChild(style); }, 10000);

@@ -64,7 +64,8 @@ export async function inlineCriticalCss(html, bundle) {
  * 줄 끝 class 가 "name\n" 이 되어 그 규칙을 안 쓰는 것으로 보고 경고 없이 뺀다. 브라우저에게는 같은 뜻이다.
  */
 export function collapseClassWhitespace(html) {
-  return html.replace(/(\sclass=")([^"]*)"/g, (_, head, value) => `${head}${value.replace(/\s+/g, ' ').trim()}"`);
+  // HTML 이 class 를 나누는 빈칸 5종만(빈칸·탭·줄바꿈·FF·CR). \s 는 U+00A0 같은 것도 잡아 한 이름을 둘로 쪼갠다.
+  return html.replace(/(\sclass=")([^"]*)"/g, (_, head, value) => `${head}${value.replace(/[ \t\n\f\r]+/g, ' ').replace(/^ | $/g, '')}"`);
 }
 
 /** beasties 가 <html> 에 남기는 작업 표시(data-beasties-container)를 뗀다. 쓰는 곳 없음. */

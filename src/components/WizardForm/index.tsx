@@ -1228,7 +1228,8 @@ export function WizardForm({ onSubmit, isLoading, initialValues, isRevision = fa
               2026-10-07: 스텝 본문(질문·다음 버튼) 뒤로 이동 — 390px 첫 화면에서 입력이 먼저 보이게.
               DOM 순서 = 화면 순서. 실제 안전 안내는 각 스텝 내부에 그대로. */}
           {/* step 전환 = key 가 바뀌면 그 커밋에서 즉시 교체. 진입 슬라이드는 CSS 애니메이션.
-              2026-05-13 PR #393 후속: 5 step 컴포넌트 모두 React.lazy. 한 번에 한
+              2026-11-24: 첫 step(예약 현황)만 바로 import — lazy 로 되돌리지 말 것(첫 그리기 64px 밀림, 위 import 주석).
+              2026-05-13 PR #393 후속: 나머지 step 컴포넌트는 React.lazy. 한 번에 한
               step 만 마운트 → 다음 step 으로 이동 시점에 dynamic fetch. Suspense
               fallback 은 step 컨테이너 최소 높이 유지하는 spinner — layout shift
               방지. fetch 가 통상 < 100ms (preload + prefetch 가능) 이므로 UX 영향

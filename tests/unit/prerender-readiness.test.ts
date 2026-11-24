@@ -64,7 +64,7 @@ function page(opts: {
   const article = opts.guideArticle ? '<article data-testid="guide-article">body</article>' : '';
   const scripts = (opts.jsonLd || []).map((s) => `<script type="application/ld+json">${s}</script>`).join('');
   const flag = opts.incomplete ? ` ${INCOMPLETE_ATTR}="${opts.incomplete}"` : '';
-  return `<!doctype html><html${flag}><head>
+  return `<!doctype html><html data-prerender-route="${opts.route}"${flag}><head>
     ${canonicals.map((href) => `<link rel="canonical" href="${href}">`).join('')}
     ${robots}${scripts}
   </head><body><main>${article}${opts.main === undefined ? BODY_TEXT : opts.main}</main></body></html>`;
@@ -309,6 +309,17 @@ describe('산출물 감사', () => {
       '<noscript><link rel="stylesheet" crossorigin href="/assets/index-x.css"></noscript>' +
       '<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces"></head>');
     expect(auditArtifactHtml(processed, '/tours').ok).toBe(true);
+  });
+
+  // 2026-11-24: 주소 표시가 틀리면 index.html 의 짧은 스크립트가 그 굽기 화면의 본문을 앱이 뜰 때까지 숨긴다 — 조용히.
+  it('주소 표시가 없거나 이 산출물 주소와 다르면 실패로 본다', () => {
+    const ok = page({ route: '/tours' });
+    const missing = ok.replace(' data-prerender-route="/tours"', '');
+    const wrong = ok.replace('data-prerender-route="/tours"', 'data-prerender-route="/"');
+    expect(auditArtifactHtml(missing, '/tours').reasons.join(' ')).toContain('route stamp missing');
+    expect(auditArtifactHtml(wrong, '/tours').reasons.join(' ')).toContain('route stamp "/"');
+    const captured = ok.replace('</head>', '<style id="cc-route-mismatch">#root main{visibility:hidden}</style></head>');
+    expect(auditArtifactHtml(captured, '/tours').reasons.join(' ')).toContain('route-mismatch hide style');
   });
 
   it('멀쩡한 산출물은 통과한다', () => {
