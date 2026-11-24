@@ -54,7 +54,22 @@ class BundleBeasties extends Beasties {
 
 /** HTML 하나를 처리한다. `bundle` = Rollup 번들(파일 이름 → { type: 'asset', source }). */
 export async function inlineCriticalCss(html, bundle) {
-  return hoistHighPriorityImagePreloads(await new BundleBeasties(bundle).process(html));
+  const out = await new BundleBeasties(bundle).process(collapseClassWhitespace(html));
+  return hoistHighPriorityImagePreloads(dropBeastiesMarker(out));
+}
+
+/**
+ * class 값 안의 줄바꿈·탭·겹빈칸을 빈칸 하나로 (2026-11-24).
+ * beasties 는 class 를 split(' ') 로 나눈다. 여러 줄 className(src 에 100곳 넘음)이 굽기 화면에 들어오면
+ * 줄 끝 class 가 "name\n" 이 되어 그 규칙을 안 쓰는 것으로 보고 경고 없이 뺀다. 브라우저에게는 같은 뜻이다.
+ */
+export function collapseClassWhitespace(html) {
+  return html.replace(/(\sclass=")([^"]*)"/g, (_, head, value) => `${head}${value.replace(/\s+/g, ' ').trim()}"`);
+}
+
+/** beasties 가 <html> 에 남기는 작업 표시(data-beasties-container)를 뗀다. 쓰는 곳 없음. */
+export function dropBeastiesMarker(html) {
+  return html.replace(/(<html\b[^>]*?)\s+data-beasties-container(?:="")?(?=[\s>])/i, '$1');
 }
 
 const HIGH_IMAGE_PRELOAD = /<link\b(?=[^>]*\brel="preload")(?=[^>]*\bas="image")(?=[^>]*\bfetchpriority="high")[^>]*>/g;

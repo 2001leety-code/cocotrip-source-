@@ -97,6 +97,22 @@ describe('inlineCriticalCss', () => {
     expect(CRITICAL_CSS_OPTIONS.reduceInlineStyles).toBe(false);
     expect(CRITICAL_CSS_OPTIONS.mergeStylesheets).toBe(false);
   });
+
+  // beasties splits class on ' ' only: a multi-line className left "used\n" and the rule was silently dropped.
+  it('keeps rules for classes at the end of a line in a multi-line class attribute', async () => {
+    const out = await inlineCriticalCss(page('<div class="\n  other\n  used\n" data-class="a\n b">x</div>'), bundleWith());
+    const doc = new DOMParser().parseFromString(out, 'text/html');
+    expect([...doc.querySelectorAll('style')].map((s) => s.textContent).join('')).toContain('.used{color:red}');
+    expect(out).toContain('class="other used"');
+    // Only class values are touched.
+    expect(out).toContain('data-class="a\n b"');
+  });
+
+  it('drops the beasties work marker from <html>', async () => {
+    const out = await inlineCriticalCss(page('<p class="used">x</p>'), bundleWith());
+    expect(out).not.toContain('data-beasties-container');
+    expect(out).toMatch(/<html>/);
+  });
 });
 
 describe('criticalCssPlugin', () => {
