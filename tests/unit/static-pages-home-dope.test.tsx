@@ -29,7 +29,8 @@ beforeEach(() => {
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); vi.useRealTimers(); });
 
 const view = (Page: () => React.JSX.Element, url = '/') => render(<MemoryRouter initialEntries={[url]}><Page /></MemoryRouter>);
-const hrefs = () => [...document.querySelectorAll('[href]')].map((a) => a.getAttribute('href'));
+// body only: SkyLayer preloads its poster into <head> (2026-11-24), which is not a page link.
+const hrefs = () => [...document.body.querySelectorAll('[href]')].map((a) => a.getAttribute('href'));
 const unique = (list: (string | null)[]) => [...new Set(list)].sort();
 
 // Pre-edit hrefs, extracted from the pages before the restyle (Header/Footer mocked out).
@@ -100,7 +101,7 @@ describe('static pages on the home-dope vocabulary', () => {
       const toc = [...document.querySelectorAll('nav [href]')].map((a) => a.getAttribute('href'));
       expect(toc).toEqual(Array.from({ length: count }, (_, i) => `#article-${i + 1}`));
       for (const href of toc) expect(document.getElementById(href!.slice(1))?.querySelector('h2')).toBeTruthy();
-      const others = [...document.querySelectorAll('[href]')].filter((a) => !a.closest('nav')).map((a) => a.getAttribute('href'));
+      const others = [...document.body.querySelectorAll('[href]')].filter((a) => !a.closest('nav')).map((a) => a.getAttribute('href'));
       expect(others).toEqual(inPage);
       for (const href of others) expect(document.getElementById(href!.slice(1))).toBeTruthy();
     },
