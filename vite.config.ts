@@ -203,6 +203,12 @@ export default defineConfig({
           //   4개(32KB)를 precache 로 끌고 들어갔다 — 전 손님이 설치 때 받는 죽은 무게.
           //   외부에서 URL 로 가져가는 자산이라 오프라인 대상이 아니다.
           'brand/**',
+          // 2026-11-24: 하위 폴더 HTML(굽기 라우트 planner/index.html 등 46개 + 디자인 시안 1개)은 서비스워커가 내주지 않는다.
+          //   precacheAndRoute 는 '/' 만 '/index.html' 과 짝짓는다. '/planner' 는 짝이 없어 늘 망으로 간다
+          //   (끝에 / 를 붙인 '/planner/' 만 맞는데 정식 주소가 아니다).
+          //   그런데 전 손님이 설치 때 다 받았다: 압축 전 약 4.6MB, #1525(첫 화면 스타일) 뒤 +1.5MB.
+          //   맨 위 index.html(홈·설치 앱 시작 주소 '/')은 남긴다 — '*' 가 폴더 하나를 요구해서 안 걸린다.
+          '*/**/*.html',
         ],
         maximumFileSizeToCacheInBytes: 3 * 1024 * 1024,
         // P235 참고: cleanupOutdatedCaches 는 injectManifest 모드에서
