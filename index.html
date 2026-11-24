@@ -207,6 +207,25 @@
         window.addEventListener('appinstalled', function () { window.__deferredInstallPrompt = null; });
       })();
     </script>
+    <!-- 2026-11-24: 굽기 HTML 이 다른 주소용이면 앱이 첫 화면을 붙일 때까지 #root 를 숨긴다.
+         굽지 않은 주소(/mypage, /my-plans/... 등)는 Vercel 이 홈 HTML 을 내려보내 홈 화면이 먼저 보였다.
+         표시 = <html data-prerender-route> (scripts/lib/prerender-strip.mjs), 푸는 곳 = src/main.tsx. -->
+    <script>
+      (function () {
+        try {
+          var route = document.documentElement.getAttribute('data-prerender-route');
+          if (!route) return;
+          var path = location.pathname.replace(/\/index\.html$/, '/').replace(/(.)\/+$/, '$1');
+          if (path === route) return;
+          var style = document.createElement('style');
+          style.id = 'cc-route-mismatch';
+          style.textContent = '#root{visibility:hidden}';
+          document.head.appendChild(style);
+          // 안전 캡: 앱이 끝내 안 뜨면(스크립트 실패) 예전처럼 굽기 내용을 보인다.
+          setTimeout(function () { if (style.parentNode) style.parentNode.removeChild(style); }, 10000);
+        } catch (e) { /* 숨기기는 비핵심 — 실패하면 예전처럼 보인다 */ }
+      })();
+    </script>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
     <!-- Service Worker는 vite-plugin-pwa가 자동 등록 (registerType: 'autoUpdate').

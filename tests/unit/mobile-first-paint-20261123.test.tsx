@@ -37,7 +37,7 @@ describe('prerender strips the sky video and its toggle', () => {
     const buttonTag = sky.slice(sky.indexOf('<button'), sky.indexOf('>', sky.indexOf('onClick')));
     expect(buttonTag).toContain('data-prerender-strip=""');
     const vite = read('vite.config.ts');
-    expect(vite).toMatch(/postProcess\(renderedRoute[^)]*\)\s*\{\s*renderedRoute\.html = stripPrerenderOnlyTags\(renderedRoute\.html\)/);
+    expect(vite).toMatch(/postProcess\(renderedRoute[^)]*\)\s*\{\s*renderedRoute\.html = (?:stampPrerenderRoute\()?stripPrerenderOnlyTags\(renderedRoute\.html\)/);
   });
 });
 

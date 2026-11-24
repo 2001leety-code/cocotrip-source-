@@ -14,7 +14,7 @@ import { INDEXABLE_ROUTES } from "./src/lib/seoRoutes"
 import { prerenderAuditPlugin } from "./scripts/audit-prerender-artifacts.mjs"
 import { injectBuildIdentifierIntoHtml, resolveBuildIdentifier } from "./src/lib/buildIdentity"
 import { devApiProxyBypass } from "./scripts/lib/dev-api-proxy-bypass.mjs"
-import { stripPrerenderOnlyTags } from "./scripts/lib/prerender-strip.mjs"
+import { stripPrerenderOnlyTags, stampPrerenderRoute } from "./scripts/lib/prerender-strip.mjs"
 import { criticalCssPlugin } from "./scripts/lib/critical-css.mjs"
 
 // PRERENDER=1 빌드에서만 사용.
@@ -237,8 +237,9 @@ export default defineConfig({
         },
       },
       // 홈 하늘 영상·버튼이 정적 HTML 에 박혀 JS 보다 먼저 받아지지 않게 뺀다(scripts/lib/prerender-strip.mjs).
-      postProcess(renderedRoute: { html: string }) {
-        renderedRoute.html = stripPrerenderOnlyTags(renderedRoute.html)
+      // 그 HTML 이 어느 주소의 화면인지 <html> 에 적는다 — 다른 주소로 내려가면 index.html 의 짧은 스크립트가 숨긴다.
+      postProcess(renderedRoute: { html: string, originalRoute: string }) {
+        renderedRoute.html = stampPrerenderRoute(stripPrerenderOnlyTags(renderedRoute.html), renderedRoute.originalRoute)
       },
     })] : []),
     // 프리렌더가 끝난 뒤(= 번들이 디스크에 쓰인 뒤) 색인 대상 산출물 전부를 감사한다.

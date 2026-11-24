@@ -15,3 +15,17 @@ const STRIP_TAG = /<(video|button)\b[^>]*\sdata-prerender-strip(?:=(?:""|''|"[^"
 export function stripPrerenderOnlyTags(html) {
   return typeof html === 'string' ? html.replace(STRIP_TAG, '') : html;
 }
+
+// 2026-11-24: 굽기 HTML 이 어느 주소의 화면인지 <html> 에 적는다.
+// 굽지 않은 주소(/mypage, /my-plans/…, /booking/manage 등)는 Vercel 이 홈 HTML(index.html)을 내려보내서
+// 앱이 뜰 때까지 홈 화면이 보였다. index.html 의 짧은 스크립트가 이 표시와 주소를 비교해 다르면 #root 를 숨긴다.
+export const PRERENDER_ROUTE_ATTR = 'data-prerender-route';
+
+/** 끝의 / 를 뗀 주소('/' 는 그대로). 스크립트(index.html)와 같은 규칙. */
+export const normalizeRoutePath = (path) => String(path || '/').replace(/\/index\.html$/, '/').replace(/(.)\/+$/, '$1');
+
+export function stampPrerenderRoute(html, route) {
+  if (typeof html !== 'string') return html;
+  const value = normalizeRoutePath(route).replace(/[&"<>]/g, (c) => `&#${c.charCodeAt(0)};`);
+  return html.replace(/<html\b/i, `<html ${PRERENDER_ROUTE_ATTR}="${value}"`);
+}
