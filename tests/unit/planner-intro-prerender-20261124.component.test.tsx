@@ -53,6 +53,7 @@ describe('AIIntroModal during prerender capture', () => {
   it('vite.config passes the capture flag to the prerenderer', () => {
     const config = readFileSync(resolve(__dirname, '../../vite.config.ts'), 'utf8');
     const renderer = config.slice(config.indexOf('rendererOptions'), config.indexOf('postProcess'));
-    expect(renderer).toMatch(/\binject:\s*true\b/);
+    // Line must start with `inject:` so a commented-out `// inject: true` does not pass.
+    expect(renderer).toMatch(/^\s*inject:\s*true\b/m);
   });
 });

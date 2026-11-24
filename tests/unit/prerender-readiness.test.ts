@@ -324,10 +324,11 @@ describe('산출물 감사', () => {
 
   // 2026-11-24: 플래너 안내 창이 굽기 때 찍혀 운영 /planner HTML 에 들어갔다 — 앱이 뜰 때까지 휴대폰에서도 플래너를 가렸다.
   it('열린 대화상자(aria-modal)가 찍힌 산출물을 실패로 본다', () => {
-    const captured = page({ route: '/planner' }).replace('</body>', '<div role="dialog" aria-modal="true"><h2>How the planner works</h2></div></body>');
+    const captured = page({ route: '/planner' }).replace('</body>', '<div role="dialog" aria-modal="true" aria-labelledby="ai-intro-title"><h2 id="ai-intro-title">How the planner works</h2></div></body>');
     const result = auditArtifactHtml(captured, '/planner');
     expect(result.ok).toBe(false);
-    expect(result.reasons.join(' ')).toContain('open dialog captured');
+    // 어느 창인지 이름이 실패 이유에 들어가야 들쭉날쭉한 실패를 바로 추적할 수 있다.
+    expect(result.reasons.join(' ')).toContain('open dialog captured in artifact (aria-modal): How the planner works');
   });
 
   it('멀쩡한 산출물은 통과한다', () => {
