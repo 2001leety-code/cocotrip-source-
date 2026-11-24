@@ -227,6 +227,8 @@ export default defineConfig({
       renderer: '@prerenderer/renderer-puppeteer',
       rendererOptions: {
         renderAfterDocumentEvent: 'prerender-ready',
+        // 굽는 동안에만 window.__PRERENDER_INJECTED = true. 저절로 열리는 창(플래너 안내 창)이 이걸 보고 열지 않는다 — 열린 창이 정적 HTML 에 찍히면 앱이 뜰 때까지 모든 손님 화면을 가린다.
+        inject: true,
         maxConcurrentRoutes: 2,
         timeout: 60000,
         headless: true,

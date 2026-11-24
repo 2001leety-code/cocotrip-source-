@@ -31,6 +31,10 @@ export function AIIntroModal() {
 
   // 마운트 시 1회 flag 체크 — 없으면 노출
   useEffect(() => {
+    // 굽기(프리렌더) 중에는 열지 않는다. 굽는 크롬은 800px 라 넓은 화면 조건에 걸리고, 0.35초 뒤에 열린 창이
+    // 정적 HTML 에 찍히면 앱이 뜰 때까지 휴대폰·재방문 손님에게도 플래너를 가린다(2026-11-24 운영 /planner).
+    // 표시는 vite.config.ts 의 prerender rendererOptions.inject 가 굽는 동안에만 window 에 붙인다.
+    if ((window as Window & { __PRERENDER_INJECTED?: unknown }).__PRERENDER_INJECTED) return;
     try {
       const seen = localStorage.getItem(STORAGE_KEY);
       if (!seen) {
